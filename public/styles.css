@@ -1,0 +1,141 @@
+/* ===========================
+   Tema escuro – Gestão Pessoal
+   =========================== */
+
+:root{
+  --bg:#0b0e13;
+  --bg-2:#0f1115;
+  --card:#141821;
+  --card-2:#101522;
+  --border:#232838;
+  --muted:#aab2c0;
+  --text:#e5e7eb;
+  --accent:#4ade80;
+  --accent-ink:#04130a;
+  --danger:#ef4444;
+  --ink-danger:#1b0a0a;
+  --link:#89b4ff;
+  --grid:#1f2434;
+}
+
+/* Resetzinho básico */
+*{ box-sizing:border-box; }
+html,body{ height:100%; }
+body{
+  margin:0;
+  font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu;
+  background:var(--bg);
+  color:var(--text);
+  -webkit-font-smoothing:antialiased;
+  -moz-osx-font-smoothing:grayscale;
+}
+
+a{ color:var(--link); text-decoration:none; }
+a:hover{ text-decoration:underline; }
+
+/* Layout */
+header{
+  padding:16px 20px;
+  background:var(--bg-2);
+  border-bottom:1px solid var(--border);
+  display:flex; align-items:center; justify-content:space-between;
+  position:sticky; top:0; z-index:10;
+}
+
+h1{ margin:0; font-size:20px; }
+h2.title, h3.title{ margin:0 0 10px; font-weight:600; }
+
+.container{
+  max-width:1200px; margin:20px auto; padding:0 16px;
+  display:grid; grid-template-columns:1fr; gap:16px;
+}
+@media (min-width:1100px){
+  .container{ grid-template-columns:1.2fr .8fr; }
+}
+
+.card{
+  background:var(--card);
+  border:1px solid var(--border);
+  border-radius:14px;
+  padding:16px;
+  box-shadow:0 0 0 1px rgba(0,0,0,.2), 0 12px 32px rgba(0,0,0,.25);
+}
+
+.row{ display:flex; gap:10px; flex-wrap:wrap; }
+
+.grid{ display:grid; gap:8px; }
+.grid-2{ grid-template-columns:1fr 1fr; }
+
+.sep{ height:1px; background:#222839; margin:10px 0; }
+
+.muted{ color:var(--muted); font-size:12px; }
+
+/* Inputs */
+label{ display:block; font-size:12px; color:var(--muted); margin-bottom:6px; }
+input, select, textarea{
+  width:100%;
+  background:#0f1320;
+  color:var(--text);
+  border:1px solid #2a3247;
+  border-radius:10px;
+  padding:10px 12px;
+  outline:none;
+  transition:border-color .15s ease, box-shadow .15s ease;
+}
+input:focus, select:focus, textarea:focus{
+  border-color:#4e5c86;
+  box-shadow:0 0 0 3px rgba(78,92,134,.25);
+}
+textarea{ min-height:80px; resize:vertical; }
+
+/* Botões */
+button{
+  background:#2a3247; color:var(--text);
+  border:1px solid #38425b;
+  padding:10px 14px; border-radius:10px; cursor:pointer;
+  transition:transform .06s ease, filter .15s ease, background .15s ease;
+}
+button:hover{ filter:brightness(1.05); }
+button:active{ transform:translateY(1px); }
+
+button.primary{ background:var(--accent); color:var(--accent-ink); border:none; }
+button.danger{ background:var(--danger); color:#fff; border:none; }
+button.ghost{ background:transparent; border:1px solid #38425b; }
+
+/* Tabs */
+.tabs{ display:flex; gap:8px; }
+.tab{
+  padding:8px 12px; border-radius:10px;
+  border:1px solid #38425b; cursor:pointer;
+  background:#111627; color:var(--text);
+}
+.tab.active{ background:#1b2140; border-color:#4e5c86; }
+
+/* Tabelas */
+table{ width:100%; border-collapse:collapse; }
+th, td{ text-align:left; padding:10px; border-bottom:1px solid #242b3d; }
+th{ color:var(--muted); font-size:12px; font-weight:600; }
+.right{ text-align:right; }
+.actions{ display:flex; gap:8px; justify-content:flex-end; }
+
+/* Chips */
+.pill{ font-size:12px; padding:4px 8px; border-radius:999px; }
+.income{ background:rgba(74,222,128,.15); color:#7bf2a4; }
+.expense{ background:rgba(239,68,68,.15); color:#ff9ea3; }
+
+/* KPIs */
+.summary{ display:flex; gap:12px; flex-wrap:wrap; }
+.kpi{
+  flex:1 1 180px;
+  background:var(--card-2);
+  border:1px solid #20273b;
+  padding:12px; border-radius:12px;
+}
+.kpi small{ color:var(--muted); display:block; }
+.kpi strong{ font-size:22px; display:block; margin-top:4px; }
+
+/* Gráficos */
+canvas{ background:transparent; }
+
+/* Utilitários */
+.hidden{ display:none!important; }
