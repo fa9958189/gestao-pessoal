@@ -256,6 +256,16 @@ app.delete('/api/events/:id', async (req, res) => {
   res.status(204).send();
 });
 
+// HEALTH
+app.get('/api/health', async (_, res) => {
+  try {
+    const totals = await get(`SELECT COUNT(*) as total FROM transactions`);
+    res.json({ ok: true, totals: { transactions: totals.total } });
+  } catch {
+    res.json({ ok: true });
+  }
+});
+
 // HEALTHCHECK
 app.get('/', (_, res) => {
   res.json({ ok: true, name: 'gestao-pessoal', version: '1.0.0' });
