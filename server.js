@@ -530,6 +530,7 @@ app.get('/', (_, res) => {
   res.json({ ok: true, name: 'gestao-pessoal', version: '1.0.0' });
 });
 
+
 const PORT = process.env.PORT || 3333;
 app.listen(PORT, () => {
   console.log(`✅ API rodando em http://localhost:${PORT}`);
