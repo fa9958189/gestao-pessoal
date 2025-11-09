@@ -48,6 +48,7 @@ function cryptoRandomId(len = 21) {
   return id;
 }
 const uid = () => cryptoRandomId();
+const isSummarySlug = value => typeof value === 'string' && value.toLowerCase() === 'summary';
 
 // =============== STORAGE: SQLITE ===============
 class SqliteStorage {
@@ -409,7 +410,7 @@ app.get('/api/transactions/summary', handleTransactionSummary);
 
 app.get('/api/transactions/:id', async (req, res) => {
   try {
-    if (req.params.id === 'summary') {
+    if (isSummarySlug(req.params.id)) {
       return handleTransactionSummary(req, res);
     }
     await ready;
@@ -424,7 +425,7 @@ app.get('/api/transactions/:id', async (req, res) => {
 
 app.patch('/api/transactions/:id', async (req, res) => {
   try {
-    if (req.params.id === 'summary') {
+    if (isSummarySlug(req.params.id)) {
       return res.status(405).json({ error: 'Operação indisponível para /summary' });
     }
     await ready;
@@ -458,7 +459,7 @@ app.patch('/api/transactions/:id', async (req, res) => {
 
 app.delete('/api/transactions/:id', async (req, res) => {
   try {
-    if (req.params.id === 'summary') {
+    if (isSummarySlug(req.params.id)) {
       return res.status(405).json({ error: 'Operação indisponível para /summary' });
     }
     await ready;
