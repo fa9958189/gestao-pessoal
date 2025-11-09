@@ -394,7 +394,7 @@ app.post('/api/transactions', async (req, res) => {
   }
 });
 
-app.get('/api/transactions/summary', async (req, res) => {
+async function handleTransactionSummary(req, res) {
   try {
     await ready;
     const summary = await storage.summary({ from: req.query.from, to: req.query.to });
@@ -403,10 +403,15 @@ app.get('/api/transactions/summary', async (req, res) => {
     console.error(e);
     res.status(500).json({ error: 'Erro ao gerar resumo de transações' });
   }
-});
+}
+
+app.get('/api/transactions/summary', handleTransactionSummary);
 
 app.get('/api/transactions/:id', async (req, res) => {
   try {
+    if (req.params.id === 'summary') {
+      return handleTransactionSummary(req, res);
+    }
     await ready;
     const row = await storage.getTransaction(req.params.id);
     if (!row) return res.status(404).json({ error: 'Não encontrado' });
@@ -419,6 +424,9 @@ app.get('/api/transactions/:id', async (req, res) => {
 
 app.patch('/api/transactions/:id', async (req, res) => {
   try {
+    if (req.params.id === 'summary') {
+      return res.status(405).json({ error: 'Operação indisponível para /summary' });
+    }
     await ready;
     const current = await storage.getTransaction(req.params.id);
     if (!current) return res.status(404).json({ error: 'Não encontrado' });
@@ -450,6 +458,9 @@ app.patch('/api/transactions/:id', async (req, res) => {
 
 app.delete('/api/transactions/:id', async (req, res) => {
   try {
+    if (req.params.id === 'summary') {
+      return res.status(405).json({ error: 'Operação indisponível para /summary' });
+    }
     await ready;
     const removed = await storage.deleteTransaction(req.params.id);
     if (!removed) return res.status(404).json({ error: 'Não encontrado' });
