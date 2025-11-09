@@ -1,6 +1,6 @@
 // server.js
 // API Gestão Pessoal – Express + armazenamento SQLite ou JSON
-// Quando o módulo sqlite3 estiver disponível (ex.: ambiente local com build nativo),
+// Se o módulo sqlite3 estiver disponível (ex.: ambiente local com build nativo),
 // usamos o banco tradicional. Caso contrário, caímos para um arquivo JSON simples
 // para garantir que a API continue funcionando mesmo sem dependências nativas.
 
@@ -13,6 +13,7 @@ try {
     throw err;
   }
 }
+
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
@@ -39,16 +40,16 @@ if (!fs.existsSync(dbDir)) fs.mkdirSync(dbDir, { recursive: true });
 const sqlitePath = path.join(dbDir, 'data.db');
 const jsonPath = path.join(dbDir, 'data.json');
 
+// =============== UTIL ===============
 function cryptoRandomId(len = 21) {
   const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz-';
   let id = '';
-  for (let i = 0; i < len; i++) {
-    id += chars[Math.floor(Math.random() * chars.length)];
-  }
+  for (let i = 0; i < len; i++) id += chars[Math.floor(Math.random() * chars.length)];
   return id;
 }
 const uid = () => cryptoRandomId();
 
+// =============== STORAGE: SQLITE ===============
 class SqliteStorage {
   constructor(filePath) {
     this.db = new sqlite3.Database(filePath);
@@ -108,25 +109,14 @@ class SqliteStorage {
     });
   }
 
+  // ---- Transactions
   listTransactions({ from, to, type, q }) {
     let sql = `SELECT * FROM transactions WHERE 1=1`;
     const params = [];
-    if (from) {
-      sql += ` AND date >= ?`;
-      params.push(from);
-    }
-    if (to) {
-      sql += ` AND date <= ?`;
-      params.push(to);
-    }
-    if (type && (type === 'income' || type === 'expense')) {
-      sql += ` AND type = ?`;
-      params.push(type);
-    }
-    if (q) {
-      sql += ` AND (description LIKE ? OR category LIKE ?)`;
-      params.push(`%${q}%`, `%${q}%`);
-    }
+    if (from) { sql += ` AND date >= ?`; params.push(from); }
+    if (to) { sql += ` AND date <= ?`; params.push(to); }
+    if (type && (type === 'income' || type === 'expense')) { sql += ` AND type = ?`; params.push(type); }
+    if (q) { sql += ` AND (description LIKE ? OR category LIKE ?)`; params.push(`%${q}%`, `%${q}%`); }
     sql += ` ORDER BY date DESC`;
     return this.all(sql, params);
   }
@@ -162,34 +152,25 @@ class SqliteStorage {
   async summary({ from, to }) {
     let base = `FROM transactions WHERE 1=1`;
     const params = [];
-    if (from) {
-      base += ` AND date >= ?`;
-      params.push(from);
-    }
-    if (to) {
-      base += ` AND date <= ?`;
-      params.push(to);
-    }
+    if (from) { base += ` AND date >= ?`; params.push(from); }
+    if (to) { base += ` AND date <= ?`; params.push(to); }
     const inc = (await this.get(`SELECT COALESCE(SUM(amount),0) as total ${base} AND type='income'`, params)).total;
     const exp = (await this.get(`SELECT COALESCE(SUM(amount),0) as total ${base} AND type='expense'`, params)).total;
     return { income: inc, expense: exp, balance: inc - exp };
   }
 
+  async countTransactions() {
+    const row = await this.get(`SELECT COUNT(*) as total FROM transactions`);
+    return row?.total ?? 0;
+  }
+
+  // ---- Events
   listEvents({ from, to, q }) {
     let sql = `SELECT * FROM events WHERE 1=1`;
     const params = [];
-    if (from) {
-      sql += ` AND date >= ?`;
-      params.push(from);
-    }
-    if (to) {
-      sql += ` AND date <= ?`;
-      params.push(to);
-    }
-    if (q) {
-      sql += ` AND (title LIKE ? OR notes LIKE ?)`;
-      params.push(`%${q}%`, `%${q}%`);
-    }
+    if (from) { sql += ` AND date >= ?`; params.push(from); }
+    if (to) { sql += ` AND date <= ?`; params.push(to); }
+    if (q) { sql += ` AND (title LIKE ? OR notes LIKE ?)`; params.push(`%${q}%`, `%${q}%`); }
     sql += ` ORDER BY date DESC, start_time ASC`;
     return this.all(sql, params);
   }
@@ -221,13 +202,9 @@ class SqliteStorage {
     const info = await this.run(`DELETE FROM events WHERE id = ?`, [id]);
     return info.changes > 0;
   }
-
-  async countTransactions() {
-    const row = await this.get(`SELECT COUNT(*) as total FROM transactions`);
-    return row?.total ?? 0;
-  }
 }
 
+// =============== STORAGE: JSON ===============
 class JsonStorage {
   constructor(filePath) {
     this.filePath = filePath;
@@ -247,9 +224,7 @@ class JsonStorage {
         events: Array.isArray(parsed.events) ? parsed.events : []
       };
     } catch (err) {
-      if (err.code === 'ENOENT') {
-        return { transactions: [], events: [] };
-      }
+      if (err.code === 'ENOENT') return { transactions: [], events: [] };
       throw err;
     }
   }
@@ -258,6 +233,7 @@ class JsonStorage {
     await fsp.writeFile(this.filePath, JSON.stringify(data, null, 2), 'utf-8');
   }
 
+  // ---- Transactions
   async listTransactions({ from, to, type, q }) {
     const data = await this.#read();
     let rows = [...data.transactions];
@@ -312,6 +288,12 @@ class JsonStorage {
     return { income, expense, balance: income - expense };
   }
 
+  async countTransactions() {
+    const data = await this.#read();
+    return data.transactions.length;
+  }
+
+  // ---- Events
   async listEvents({ from, to, q }) {
     const data = await this.#read();
     let rows = [...data.events];
@@ -363,20 +345,16 @@ class JsonStorage {
     if (removed) await this.#write(data);
     return removed;
   }
-
-  async countTransactions() {
-    const data = await this.#read();
-    return data.transactions.length;
-  }
 }
 
+// =============== BOOT ===============
 const storage = sqlite3 ? new SqliteStorage(sqlitePath) : new JsonStorage(jsonPath);
 const ready = storage.init().catch(err => {
   console.error('Erro ao inicializar o armazenamento:', err);
   process.exit(1);
 });
 
-// ====== TRANSAÇÕES ======
+// =============== ROTAS: TRANSAÇÕES ===============
 app.get('/api/transactions', async (req, res) => {
   try {
     await ready;
@@ -417,52 +395,72 @@ app.post('/api/transactions', async (req, res) => {
 });
 
 app.get('/api/transactions/summary', async (req, res) => {
-  await ready;
-  const summary = await storage.summary({ from: req.query.from, to: req.query.to });
-  res.json(summary);
+  try {
+    await ready;
+    const summary = await storage.summary({ from: req.query.from, to: req.query.to });
+    res.json(summary);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Erro ao gerar resumo de transações' });
+  }
 });
 
 app.get('/api/transactions/:id', async (req, res) => {
-  await ready;
-  const row = await storage.getTransaction(req.params.id);
-  if (!row) return res.status(404).json({ error: 'Não encontrado' });
-  res.json(row);
+  try {
+    await ready;
+    const row = await storage.getTransaction(req.params.id);
+    if (!row) return res.status(404).json({ error: 'Não encontrado' });
+    res.json(row);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Erro ao buscar transação' });
+  }
 });
 
 app.patch('/api/transactions/:id', async (req, res) => {
-  await ready;
-  const current = await storage.getTransaction(req.params.id);
-  if (!current) return res.status(404).json({ error: 'Não encontrado' });
+  try {
+    await ready;
+    const current = await storage.getTransaction(req.params.id);
+    if (!current) return res.status(404).json({ error: 'Não encontrado' });
 
-  const next = {
-    type: req.body.type ?? current.type,
-    amount: typeof req.body.amount === 'number' ? req.body.amount : current.amount,
-    description: req.body.description !== undefined ? req.body.description : current.description,
-    category: req.body.category !== undefined ? req.body.category : current.category,
-    date: req.body.date ?? current.date
-  };
-  if (!['income', 'expense'].includes(next.type)) {
-    return res.status(400).json({ error: 'type inválido' });
-  }
-  if (next.amount < 0 || Number.isNaN(next.amount)) {
-    return res.status(400).json({ error: 'amount inválido' });
-  }
-  if (!next.date) {
-    return res.status(400).json({ error: 'date obrigatório' });
-  }
+    const next = {
+      type: req.body.type ?? current.type,
+      amount: typeof req.body.amount === 'number' ? req.body.amount : current.amount,
+      description: req.body.description !== undefined ? req.body.description : current.description,
+      category: req.body.category !== undefined ? req.body.category : current.category,
+      date: req.body.date ?? current.date
+    };
+    if (!['income', 'expense'].includes(next.type)) {
+      return res.status(400).json({ error: 'type inválido' });
+    }
+    if (next.amount < 0 || Number.isNaN(next.amount)) {
+      return res.status(400).json({ error: 'amount inválido' });
+    }
+    if (!next.date) {
+      return res.status(400).json({ error: 'date obrigatório' });
+    }
 
-  const updated = await storage.updateTransaction(req.params.id, next);
-  res.json(updated);
+    const updated = await storage.updateTransaction(req.params.id, next);
+    res.json(updated);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Erro ao atualizar transação' });
+  }
 });
 
 app.delete('/api/transactions/:id', async (req, res) => {
-  await ready;
-  const removed = await storage.deleteTransaction(req.params.id);
-  if (!removed) return res.status(404).json({ error: 'Não encontrado' });
-  res.status(204).send();
+  try {
+    await ready;
+    const removed = await storage.deleteTransaction(req.params.id);
+    if (!removed) return res.status(404).json({ error: 'Não encontrado' });
+    res.status(204).send();
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Erro ao remover transação' });
+  }
 });
 
-// ====== EVENTS ======
+// =============== ROTAS: EVENTOS ===============
 app.get('/api/events', async (req, res) => {
   try {
     await ready;
@@ -491,45 +489,61 @@ app.post('/api/events', async (req, res) => {
 });
 
 app.get('/api/events/:id', async (req, res) => {
-  await ready;
-  const row = await storage.getEvent(req.params.id);
-  if (!row) return res.status(404).json({ error: 'Não encontrado' });
-  res.json(row);
+  try {
+    await ready;
+    const row = await storage.getEvent(req.params.id);
+    if (!row) return res.status(404).json({ error: 'Não encontrado' });
+    res.json(row);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Erro ao buscar evento' });
+  }
 });
 
 app.patch('/api/events/:id', async (req, res) => {
-  await ready;
-  const current = await storage.getEvent(req.params.id);
-  if (!current) return res.status(404).json({ error: 'Não encontrado' });
+  try {
+    await ready;
+    const current = await storage.getEvent(req.params.id);
+    if (!current) return res.status(404).json({ error: 'Não encontrado' });
 
-  const next = {
-    title: req.body.title !== undefined ? req.body.title : current.title,
-    date: req.body.date !== undefined ? req.body.date : current.date,
-    start_time: req.body.start_time !== undefined ? req.body.start_time : current.start_time,
-    end_time: req.body.end_time !== undefined ? req.body.end_time : current.end_time,
-    notes: req.body.notes !== undefined ? req.body.notes : current.notes
-  };
-  if (!next.title) return res.status(400).json({ error: 'title obrigatório' });
-  if (!next.date) return res.status(400).json({ error: 'date obrigatório' });
+    const next = {
+      title: req.body.title !== undefined ? req.body.title : current.title,
+      date: req.body.date !== undefined ? req.body.date : current.date,
+      start_time: req.body.start_time !== undefined ? req.body.start_time : current.start_time,
+      end_time: req.body.end_time !== undefined ? req.body.end_time : current.end_time,
+      notes: req.body.notes !== undefined ? req.body.notes : current.notes
+    };
+    if (!next.title) return res.status(400).json({ error: 'title obrigatório' });
+    if (!next.date) return res.status(400).json({ error: 'date obrigatório' });
 
-  const updated = await storage.updateEvent(req.params.id, next);
-  res.json(updated);
+    const updated = await storage.updateEvent(req.params.id, next);
+    res.json(updated);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Erro ao atualizar evento' });
+  }
 });
 
 app.delete('/api/events/:id', async (req, res) => {
-  await ready;
-  const removed = await storage.deleteEvent(req.params.id);
-  if (!removed) return res.status(404).json({ error: 'Não encontrado' });
-  res.status(204).send();
+  try {
+    await ready;
+    const removed = await storage.deleteEvent(req.params.id);
+    if (!removed) return res.status(404).json({ error: 'Não encontrado' });
+    res.status(204).send();
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Erro ao remover evento' });
+  }
 });
 
-// ====== HEALTH ======
+// =============== HEALTH & ROOT ===============
 app.get('/api/health', async (_, res) => {
   try {
     await ready;
     const totalTransactions = await storage.countTransactions();
     res.json({ ok: true, totals: { transactions: totalTransactions } });
-  } catch {
+  } catch (e) {
+    console.error(e);
     res.json({ ok: true });
   }
 });
@@ -538,6 +552,7 @@ app.get('/', (_, res) => {
   res.json({ ok: true, name: 'gestao-pessoal', version: '1.0.0' });
 });
 
+// =============== START ===============
 const PORT = process.env.PORT || 3333;
 app.listen(PORT, () => {
   console.log(`✅ API rodando em http://localhost:${PORT}`);
