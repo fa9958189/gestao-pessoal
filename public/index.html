@@ -9,12 +9,38 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
 <body>
-  <header>
-    <h1>Gestão Pessoal – Dashboard</h1>
-    <div class="muted">API: <span id="apiUrl">http://localhost:3333</span></div>
-  </header>
+  <div id="loginScreen" class="login-screen">
+    <form id="loginForm" class="login-card">
+      <div class="login-brand">
+        <span class="logo-dot"></span>
+        <h1>Gestão Pessoal</h1>
+      </div>
+      <p class="muted">Acesse o painel administrativo.</p>
+      <label for="login-user">Usuário</label>
+      <input id="login-user" name="username" autocomplete="username" placeholder="Digite seu usuário">
+      <label for="login-pass">Senha</label>
+      <input id="login-pass" name="password" type="password" autocomplete="current-password" placeholder="Digite sua senha">
+      <div id="loginError" class="login-error hidden"></div>
+      <button id="btnLogin" class="primary full">Entrar</button>
+    </form>
+  </div>
 
-  <div class="container">
+  <div id="appShell" class="hidden">
+    <header>
+      <div>
+        <h1>Gestão Pessoal – Dashboard</h1>
+        <div class="muted">API: <span id="apiUrl">http://localhost:3333</span></div>
+      </div>
+      <div class="user-session hidden" id="userBox">
+        <div class="user-info">
+          <span id="userRole" class="badge">Administrador</span>
+          <strong id="userLabel">Sessão ativa</strong>
+        </div>
+        <button id="btnLogout" class="ghost small">Sair</button>
+      </div>
+    </header>
+
+    <div class="container">
     <!-- COLUNA ESQUERDA: Transações -->
     <section class="card">
       <div class="row" style="justify-content:space-between; align-items:center">
@@ -211,14 +237,71 @@
     </aside>
   </div>
 
+  </div>
+
   <script>
-    const API = location.origin; // mesmo host (http://localhost:3333)
-    document.getElementById('apiUrl').textContent = API;
+    let API = 'http://localhost:3333';
+    const apiLabel = document.getElementById('apiUrl');
+    const loginScreen = document.getElementById('loginScreen');
+    const loginForm = document.getElementById('loginForm');
+    const loginError = document.getElementById('loginError');
+    const btnLogin = document.getElementById('btnLogin');
+    const appShell = document.getElementById('appShell');
+    const userBox = document.getElementById('userBox');
+    const userLabel = document.getElementById('userLabel');
+    const userRoleLabel = document.getElementById('userRole');
+    const btnLogout = document.getElementById('btnLogout');
+
+    const AUTH_KEY = 'gestao-pessoal-auth';
+    let currentUser = null;
 
     const BRL = v => v.toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
     const val = id => document.getElementById(id).value.trim();
     const set = (id,v)=> document.getElementById(id).value = v || '';
     const today = () => new Date().toISOString().slice(0,10);
+
+    function setLoginError(message){
+      if (!message) {
+        loginError.textContent = '';
+        loginError.classList.add('hidden');
+      } else {
+        loginError.textContent = message;
+        loginError.classList.remove('hidden');
+      }
+    }
+
+    function showLogin(){
+      currentUser = null;
+      loginScreen.classList.remove('hidden');
+      appShell.classList.add('hidden');
+      userBox.classList.add('hidden');
+      setLoginError('');
+      loginForm.reset();
+      btnLogin.disabled = false;
+      btnLogin.textContent = 'Entrar';
+      cachedTx = [];
+      userRoleLabel.textContent = 'Administrador';
+      userLabel.textContent = 'Sessão ativa';
+      renderTx([]);
+      renderEvents([]);
+      renderSummary({ income: 0, expense: 0, balance: 0 });
+      destroyCharts();
+    }
+
+    function showDashboard(user){
+      currentUser = user;
+      userRoleLabel.textContent = user.role === 'admin' ? 'Administrador' : user.role;
+      userLabel.textContent = user.role === 'admin' ? 'Administrador' : 'Usuário autenticado';
+      loginScreen.classList.add('hidden');
+      appShell.classList.remove('hidden');
+      userBox.classList.remove('hidden');
+    }
+
+    async function enterDashboard(user){
+      showDashboard(user);
+      await loadTransactions();
+      await loadEvents();
+    }
 
     // datas padrão
     set('t-date', today());
@@ -227,6 +310,114 @@
     set('f-to', new Date(new Date().getFullYear(), new Date().getMonth()+1, 0).toISOString().slice(0,10));
     set('ef-from', today());
     set('ef-to', today());
+
+    async function detectApiBase(){
+      apiLabel.textContent = 'detectando...';
+      const candidates = [];
+      const seen = new Set();
+      const metaTag = document.querySelector('meta[name="api-base"]');
+      const meta = metaTag?.content?.trim();
+      if (meta) candidates.push(meta);
+      const origin = location.origin && location.origin !== 'null' ? location.origin : '';
+      if (origin) candidates.push(origin);
+      if (location.hostname) {
+        const proto = location.protocol.startsWith('http') ? location.protocol : 'http:';
+        const hostBase = `${proto}//${location.hostname}`;
+        candidates.push(hostBase);
+        candidates.push(`${hostBase}:3333`);
+      }
+      candidates.push('http://localhost:3333', 'http://127.0.0.1:3333');
+
+      let resolved = false;
+      for (const cand of candidates) {
+        const normalized = cand.replace(/\/+$/, '');
+        if (!normalized || seen.has(normalized)) continue;
+        seen.add(normalized);
+        try {
+          const res = await fetch(`${normalized}/api/health`, { cache: 'no-store' });
+          if (res.ok) {
+            API = normalized;
+            resolved = true;
+            break;
+          }
+        } catch (err) {
+          console.warn('Falha ao conectar com a API em', normalized, err);
+        }
+      }
+
+      if (!resolved) console.warn('Nenhuma API respondeu, usando', API);
+      apiLabel.textContent = resolved ? API : `${API} (offline?)`;
+      return API;
+    }
+
+    async function apiRequest(path, options = {}){
+      const url = path.startsWith('http') ? path : `${API}${path}`;
+      const opts = { ...options };
+      opts.headers = { ...(options.headers || {}) };
+      if (opts.body && !opts.headers['Content-Type']) {
+        opts.headers['Content-Type'] = 'application/json';
+      }
+      const res = await fetch(url, opts);
+      if (!res.ok) {
+        let message = `HTTP ${res.status}`;
+        try {
+          const data = await res.json();
+          if (data?.error) message = data.error;
+        } catch {
+          try {
+            const text = await res.text();
+            if (text) message = text;
+          } catch {}
+        }
+        throw new Error(message);
+      }
+      if (res.status === 204) return null;
+      const contentType = res.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        return res.json();
+      }
+      return res.text();
+    }
+
+    function showError(message, err){
+      console.error(message, err);
+      alert(message);
+    }
+
+    loginForm.addEventListener('submit', async event => {
+      event.preventDefault();
+      setLoginError('');
+      const username = document.getElementById('login-user').value.trim();
+      const password = document.getElementById('login-pass').value;
+      if (!username || !password) {
+        setLoginError('Informe usuário e senha.');
+        return;
+      }
+      btnLogin.disabled = true;
+      btnLogin.textContent = 'Entrando...';
+      try {
+        const data = await apiRequest('/api/auth/login', {
+          method: 'POST',
+          body: JSON.stringify({ username, password })
+        });
+        if (data?.user) {
+          localStorage.setItem(AUTH_KEY, JSON.stringify(data.user));
+          await enterDashboard(data.user);
+        } else {
+          setLoginError('Não foi possível autenticar.');
+        }
+      } catch (err) {
+        setLoginError(err?.message || 'Falha ao autenticar.');
+      } finally {
+        btnLogin.disabled = false;
+        btnLogin.textContent = 'Entrar';
+      }
+    });
+
+    btnLogout.onclick = () => {
+      localStorage.removeItem(AUTH_KEY);
+      showLogin();
+    };
 
     // ===== TABS =====
     document.querySelectorAll('.tab').forEach(tab=>{
@@ -242,19 +433,30 @@
 
     // ===== TRANSAÇÕES =====
     let cachedTx = [];
-    async function loadTransactions(){
-      const qs = new URLSearchParams();
-      const from = val('f-from'); const to = val('f-to'); const type = val('f-type'); const q = val('f-q');
-      if(from) qs.append('from', from);
-      if(to) qs.append('to', to);
-      if(type) qs.append('type', type);
-      if(q) qs.append('q', q);
 
-      const res = await fetch(`${API}/api/transactions?${qs.toString()}`);
-      const data = await res.json();
-      renderTx(data);
-      await loadSummary(from, to);
-      cachedTx = data; // para gráficos
+    async function loadTransactions(){
+      try {
+        const qs = new URLSearchParams();
+        const from = val('f-from');
+        const to = val('f-to');
+        const type = val('f-type');
+        const q = val('f-q');
+        if(from) qs.append('from', from);
+        if(to) qs.append('to', to);
+        if(type) qs.append('type', type);
+        if(q) qs.append('q', q);
+
+        const query = qs.toString();
+        const data = await apiRequest(`/api/transactions${query ? `?${query}` : ''}`);
+        cachedTx = Array.isArray(data) ? data : [];
+        renderTx(cachedTx);
+        const summary = await fetchSummary(from, to);
+        if (summary) renderSummary(summary);
+        apiLabel.textContent = API;
+        updateCharts();
+      } catch (err) {
+        showError('Não foi possível carregar as transações. Verifique se a API está em execução.', err);
+      }
     }
 
     function renderTx(rows){
@@ -281,11 +483,14 @@
         btn.onclick = async () => {
           const id = btn.getAttribute('data-del');
           if(!confirm('Excluir esta transação?')) return;
-          await fetch(`${API}/api/transactions/${id}`, { method:'DELETE' });
-          loadTransactions();
+          try {
+            await apiRequest(`/api/transactions/${id}`, { method:'DELETE' });
+            await loadTransactions();
+          } catch (err) {
+            showError('Erro ao excluir a transação.', err);
+          }
         };
       });
-      // edit
       tb.querySelectorAll('button[data-edit]').forEach(btn=>{
         btn.onclick = async () => {
           const id = btn.getAttribute('data-edit');
@@ -296,61 +501,81 @@
           const description = prompt("Descrição:", r.description ?? '') ?? r.description;
           const category = prompt("Categoria:", r.category ?? '') ?? r.category;
           const date = prompt("Data (yyyy-mm-dd):", r.date) || r.date;
-          await fetch(`${API}/api/transactions/${id}`, {
-            method:'PATCH',
-            headers:{'Content-Type':'application/json'},
-            body: JSON.stringify({ type, amount, description, category, date })
-          });
-          loadTransactions();
+          try {
+            await apiRequest(`/api/transactions/${id}`, {
+              method:'PATCH',
+              body: JSON.stringify({ type, amount, description, category, date })
+            });
+            await loadTransactions();
+          } catch (err) {
+            showError('Erro ao atualizar a transação.', err);
+          }
         };
       });
     }
 
-    async function loadSummary(from, to){
+    async function fetchSummary(from, to){
       const qs = new URLSearchParams();
       if(from) qs.append('from', from);
       if(to) qs.append('to', to);
-      const res = await fetch(`${API}/api/transactions/summary?${qs.toString()}`);
-      const s = await res.json();
-      document.getElementById('kpiIncome').textContent  = BRL(s.income);
-      document.getElementById('kpiExpense').textContent = BRL(s.expense);
-      document.getElementById('kpiBalance').textContent = BRL(s.balance);
+      const query = qs.toString();
+      return apiRequest(`/api/transactions/summary${query ? `?${query}` : ''}`);
+    }
+
+    function renderSummary(s){
+      const income = s?.income ?? 0;
+      const expense = s?.expense ?? 0;
+      const balance = s?.balance ?? (income - expense);
+      document.getElementById('kpiIncome').textContent  = BRL(income);
+      document.getElementById('kpiExpense').textContent = BRL(expense);
+      document.getElementById('kpiBalance').textContent = BRL(balance);
     }
 
     document.getElementById('btnAddTx').onclick = async () => {
       const type = val('t-type');
       const amount = parseFloat(val('t-amount'));
       const date = val('t-date');
-      if(!date || isNaN(amount) || amount < 0){ alert('Preenche a data e um valor válido.'); return; }
+      if(!date || isNaN(amount) || amount < 0){ alert('Preencha a data e um valor válido.'); return; }
       const payload = {
         type, amount,
         description: val('t-desc') || null,
         category: val('t-cat') || null,
         date
       };
-      await fetch(`${API}/api/transactions`, {
-        method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)
-      });
-      set('t-amount',''); set('t-desc',''); set('t-cat','');
-      loadTransactions();
+      try {
+        await apiRequest('/api/transactions', {
+          method:'POST',
+          body: JSON.stringify(payload)
+        });
+        set('t-amount',''); set('t-desc',''); set('t-cat','');
+        await loadTransactions();
+      } catch (err) {
+        showError(`Erro ao salvar a transação: ${err.message}`, err);
+      }
     };
 
     document.getElementById('btnClearTx').onclick = () => {
       set('t-amount',''); set('t-desc',''); set('t-cat',''); set('t-date', today()); set('t-type','income');
     };
-    document.getElementById('btnFilter').onclick = ()=>{ loadTransactions(); updateCharts(); };
+    document.getElementById('btnFilter').onclick = async ()=>{ await loadTransactions(); };
 
     // ===== EVENTOS =====
     async function loadEvents(){
-      const qs = new URLSearchParams();
-      const from = val('ef-from'); const to = val('ef-to'); const q = val('ef-q');
-      if(from) qs.append('from', from);
-      if(to) qs.append('to', to);
-      if(q) qs.append('q', q);
+      try {
+        const qs = new URLSearchParams();
+        const from = val('ef-from');
+        const to = val('ef-to');
+        const q = val('ef-q');
+        if(from) qs.append('from', from);
+        if(to) qs.append('to', to);
+        if(q) qs.append('q', q);
 
-      const res = await fetch(`${API}/api/events?${qs.toString()}`);
-      const data = await res.json();
-      renderEvents(data);
+        const query = qs.toString();
+        const data = await apiRequest(`/api/events${query ? `?${query}` : ''}`);
+        renderEvents(Array.isArray(data) ? data : []);
+      } catch (err) {
+        showError('Não foi possível carregar os eventos.', err);
+      }
     }
 
     function renderEvents(rows){
@@ -375,8 +600,12 @@
         btn.onclick = async () => {
           const id = btn.getAttribute('data-del');
           if(!confirm('Excluir este evento?')) return;
-          await fetch(`${API}/api/events/${id}`, { method:'DELETE' });
-          loadEvents();
+          try {
+            await apiRequest(`/api/events/${id}`, { method:'DELETE' });
+            await loadEvents();
+          } catch (err) {
+            showError('Erro ao excluir o evento.', err);
+          }
         };
       });
       tb.querySelectorAll('button[data-edit]').forEach(btn=>{
@@ -389,15 +618,47 @@
           const start_time = prompt("Início (HH:mm):", r.start_time ?? '') || null;
           const end_time   = prompt("Fim (HH:mm):", r.end_time ?? '') || null;
           const notes = prompt("Notas:", r.notes ?? '') ?? r.notes;
-          await fetch(`${API}/api/events/${id}`, {
-            method:'PATCH',
-            headers:{'Content-Type':'application/json'},
-            body: JSON.stringify({ title, date, start_time, end_time, notes })
-          });
-          loadEvents();
+          try {
+            await apiRequest(`/api/events/${id}`, {
+              method:'PATCH',
+              body: JSON.stringify({ title, date, start_time, end_time, notes })
+            });
+            await loadEvents();
+          } catch (err) {
+            showError('Erro ao atualizar o evento.', err);
+          }
         };
       });
     }
+
+    document.getElementById('btnAddEvent').onclick = async () => {
+      const title = val('e-title');
+      const date = val('e-date');
+      if(!title || !date){ alert('Preencha o título e a data do evento.'); return; }
+      const payload = {
+        title,
+        date,
+        start_time: val('e-start') || null,
+        end_time: val('e-end') || null,
+        notes: val('e-notes') || null
+      };
+      try {
+        await apiRequest('/api/events', {
+          method:'POST',
+          body: JSON.stringify(payload)
+        });
+        set('e-title',''); set('e-start',''); set('e-end',''); set('e-notes',''); set('e-date', today());
+        await loadEvents();
+      } catch (err) {
+        showError(`Erro ao salvar o evento: ${err.message}`, err);
+      }
+    };
+
+    document.getElementById('btnClearEvent').onclick = () => {
+      set('e-title',''); set('e-start',''); set('e-end',''); set('e-notes',''); set('e-date', today());
+    };
+
+    document.getElementById('btnFilterEvents').onclick = async () => { await loadEvents(); };
 
     // ===== GRÁFICOS (Chart.js) =====
     let chartLine, chartPie;
@@ -433,19 +694,17 @@
 
     function updateCharts(){
       destroyCharts();
-      const rows = [...document.querySelectorAll('#txTable tr')].map(tr=>{
-        const tds = tr.querySelectorAll('td');
-        return {
-          date: tds[0]?.textContent.trim(),
-          type: tds[1]?.textContent.includes('Receita') ? 'income' : 'expense',
-          description: tds[2]?.textContent.trim(),
-          category: tds[3]?.textContent.trim(),
-          amount: +tds[4]?.textContent.replace(/[R$\.\s]/g,'').replace(',','.') || 0
-        };
-      });
+      const rows = Array.isArray(cachedTx) ? cachedTx : [];
 
-      const { labels, incomes, expenses } = groupByMonth(rows);
+      const grouped = groupByMonth(rows);
       const pieData = expenseByCategory(rows);
+      const hasLineData = grouped.labels.length > 0;
+      const lineLabels = hasLineData ? grouped.labels : ['Sem dados'];
+      const lineIncome = hasLineData ? grouped.incomes : [0];
+      const lineExpense = hasLineData ? grouped.expenses : [0];
+      const hasPieData = pieData.labels.length > 0;
+      const pieLabels = hasPieData ? pieData.labels : ['Sem dados'];
+      const pieValues = hasPieData ? pieData.values : [1];
 
       const ctxL = document.getElementById('chartLine');
       const ctxP = document.getElementById('chartPie');
@@ -453,10 +712,10 @@
       chartLine = new Chart(ctxL, {
         type: 'line',
         data: {
-          labels,
+          labels: lineLabels,
           datasets: [
-            { label: 'Receitas', data: incomes },
-            { label: 'Despesas', data: expenses }
+            { label: 'Receitas', data: lineIncome },
+            { label: 'Despesas', data: lineExpense }
           ]
         },
         options: {
@@ -471,15 +730,27 @@
 
       chartPie = new Chart(ctxP, {
         type: 'doughnut',
-        data: { labels: pieData.labels, datasets: [{ data: pieData.values }] },
+        data: { labels: pieLabels, datasets: [{ data: pieValues }] },
         options: { responsive: true, plugins: { legend: { labels: { color: '#e5e7eb' } } } }
       });
     }
 
     // boot
     async function boot(){
-      await loadTransactions();
-      await loadEvents();
+      await detectApiBase();
+      const saved = localStorage.getItem(AUTH_KEY);
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (parsed?.username) {
+            await enterDashboard(parsed);
+            return;
+          }
+        } catch (err) {
+          console.warn('Falha ao restaurar sessão:', err);
+        }
+      }
+      showLogin();
     }
     boot();
   </script>
