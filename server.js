@@ -391,6 +391,13 @@ app.post('/api/transactions', async (req, res) => {
   }
 });
 
+// ✅ Registrar o resumo ANTES das rotas com :id para evitar colisão
+app.get('/api/transactions/summary', async (req, res) => {
+  await ready;
+  const summary = await storage.summary({ from: req.query.from, to: req.query.to });
+  res.json(summary);
+});
+
 app.get('/api/transactions/:id', async (req, res) => {
   await ready;
   const row = await storage.getTransaction(req.params.id);
@@ -429,12 +436,6 @@ app.delete('/api/transactions/:id', async (req, res) => {
   const removed = await storage.deleteTransaction(req.params.id);
   if (!removed) return res.status(404).json({ error: 'Não encontrado' });
   res.status(204).send();
-});
-
-app.get('/api/transactions/summary', async (req, res) => {
-  await ready;
-  const summary = await storage.summary({ from: req.query.from, to: req.query.to });
-  res.json(summary);
 });
 
 // =============== ROTAS: EVENTOS ===============
