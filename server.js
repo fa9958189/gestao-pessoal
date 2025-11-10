@@ -1,235 +1,278 @@
 // server.js
-// API Gestão Pessoal – Express + armazenamento SQLite ou JSON
+// API Gestão Pessoal - Express + sqlite3 (sem native build)
+// Tabelas: transactions (ganhos/gastos) e events (agenda)
 
-try {
-  require('dotenv').config();
-} catch (err) {
-  if (err?.code === 'MODULE_NOT_FOUND') {
-    console.warn('ℹ️ dotenv não encontrado; prosseguindo sem carregar arquivo .env');
-  } else {
-    throw err;
-  }
-}
-
+require('dotenv').config();
 const express = require('express');
+const sqlite3 = require('sqlite3').verbose();
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
-const fsp = require('fs/promises');
-
-let sqlite3 = null;
-try {
-  sqlite3 = require('sqlite3').verbose();
-} catch (err) {
-  const reason = err?.message?.replace(/\s+/g, ' ').trim() || 'motivo desconhecido';
-  console.warn(`⚠️ sqlite3 indisponível, usando JSON. (${reason})`);
-}
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-const dbDir = path.join(__dirname, 'db');
+// === DB SETUP ===
+const dbPath = path.join(__dirname, 'db', 'data.db');
+const dbDir = path.dirname(dbPath);
 if (!fs.existsSync(dbDir)) fs.mkdirSync(dbDir, { recursive: true });
-const sqlitePath = path.join(dbDir, 'data.db');
-const jsonPath = path.join(dbDir, 'data.json');
 
-// ==== UTIL ====
+const db = new sqlite3.Database(dbPath);
+
+// helpers Promise
+const run = (sql, params = []) =>
+  new Promise((resolve, reject) => {
+    db.run(sql, params, function (err) {
+      if (err) reject(err);
+      else resolve(this); // this.lastID, this.changes
+    });
+  });
+
+const get = (sql, params = []) =>
+  new Promise((resolve, reject) => {
+    db.get(sql, params, (err, row) => (err ? reject(err) : resolve(row)));
+  });
+
+const all = (sql, params = []) =>
+  new Promise((resolve, reject) => {
+    db.all(sql, params, (err, rows) => (err ? reject(err) : resolve(rows)));
+  });
+
+// init schema
+db.serialize(() => {
+  db.exec(`
+    PRAGMA journal_mode = WAL;
+
+    CREATE TABLE IF NOT EXISTS transactions (
+      id TEXT PRIMARY KEY,
+      type TEXT NOT NULL CHECK (type IN ('income','expense')),
+      amount REAL NOT NULL CHECK (amount >= 0),
+      description TEXT,
+      category TEXT,
+      date TEXT NOT NULL -- ISO yyyy-mm-dd
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_transactions_date ON transactions(date);
+
+    CREATE TABLE IF NOT EXISTS events (
+      id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      date TEXT NOT NULL,          -- ISO yyyy-mm-dd
+      start_time TEXT,             -- HH:mm
+      end_time TEXT,               -- HH:mm
+      notes TEXT
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_events_date ON events(date);
+  `);
+});
+
+// uid simples estilo nanoid
 function cryptoRandomId(len = 21) {
-  const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz-';
+  const chars =
+    '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz-';
   let id = '';
-  for (let i = 0; i < len; i++) id += chars[Math.floor(Math.random() * chars.length)];
+  for (let i = 0; i < len; i++)
+    id += chars[Math.floor(Math.random() * chars.length)];
   return id;
 }
 const uid = () => cryptoRandomId();
-const isSummarySlug = v => typeof v === 'string' && v.toLowerCase() === 'summary';
 
-// ==== STORAGE SQLITE ====
-class SqliteStorage {
-  constructor(filePath) {
-    this.db = new sqlite3.Database(filePath);
-  }
-
-  init() {
-    return new Promise((resolve, reject) => {
-      this.db.exec(
-        `
-        PRAGMA journal_mode = WAL;
-        CREATE TABLE IF NOT EXISTS users (
-          id TEXT PRIMARY KEY,
-          username TEXT UNIQUE NOT NULL,
-          password TEXT NOT NULL,
-          role TEXT NOT NULL DEFAULT 'user'
-        );
-        CREATE TABLE IF NOT EXISTS transactions (
-          id TEXT PRIMARY KEY,
-          type TEXT NOT NULL CHECK (type IN ('income','expense')),
-          amount REAL NOT NULL CHECK (amount >= 0),
-          description TEXT,
-          category TEXT,
-          date TEXT NOT NULL
-        );
-        CREATE INDEX IF NOT EXISTS idx_transactions_date ON transactions(date);
-        CREATE TABLE IF NOT EXISTS events (
-          id TEXT PRIMARY KEY,
-          title TEXT NOT NULL,
-          date TEXT NOT NULL,
-          start_time TEXT,
-          end_time TEXT,
-          notes TEXT
-        );
-        CREATE INDEX IF NOT EXISTS idx_events_date ON events(date);
-      `,
-        err => {
-          if (err) return reject(err);
-          this.ensureAdminUser().then(resolve).catch(reject);
-        }
-      );
-    });
-  }
-
-  run(sql, params = []) {
-    return new Promise((resolve, reject) => {
-      this.db.run(sql, params, function (err) {
-        if (err) reject(err);
-        else resolve(this);
-      });
-    });
-  }
-
-  get(sql, params = []) {
-    return new Promise((resolve, reject) => {
-      this.db.get(sql, params, (err, row) => (err ? reject(err) : resolve(row)));
-    });
-  }
-
-  all(sql, params = []) {
-    return new Promise((resolve, reject) => {
-      this.db.all(sql, params, (err, rows) => (err ? reject(err) : resolve(rows)));
-    });
-  }
-
-  async ensureAdminUser() {
-    const existing = await this.get(`SELECT id FROM users WHERE username=?`, ['felipeadm']);
-    if (!existing) {
-      await this.run(`INSERT INTO users (id, username, password, role) VALUES (?, ?, ?, ?)`, [
-        uid(),
-        'felipeadm',
-        '1234',
-        'admin'
-      ]);
-    }
-  }
-
-  async authenticate(username, password) {
-    const user = await this.get(`SELECT id, username, password, role FROM users WHERE username=?`, [username]);
-    if (!user || user.password !== password) return null;
-    return { id: user.id, username: user.username, role: user.role };
-  }
-
-  // transações e eventos (mesmos métodos que já existiam)
-  async listTransactions(filters) {
+// ====== TRANSACTIONS ======
+// LIST with filters: ?from=yyyy-mm-dd&to=yyyy-mm-dd&type=income|expense&q=texto
+app.get('/api/transactions', async (req, res) => {
+  try {
+    const { from, to, type, q } = req.query;
     let sql = `SELECT * FROM transactions WHERE 1=1`;
     const params = [];
-    if (filters.from) { sql += ` AND date >= ?`; params.push(filters.from); }
-    if (filters.to) { sql += ` AND date <= ?`; params.push(filters.to); }
-    if (filters.type) { sql += ` AND type = ?`; params.push(filters.type); }
+
+    if (from) { sql += ` AND date >= ?`; params.push(from); }
+    if (to)   { sql += ` AND date <= ?`; params.push(to); }
+    if (type && (type === 'income' || type === 'expense')) { sql += ` AND type = ?`; params.push(type); }
+    if (q)    { sql += ` AND (description LIKE ? OR category LIKE ?)`; params.push(`%${q}%`, `%${q}%`); }
+
     sql += ` ORDER BY date DESC`;
-    return this.all(sql, params);
+    const rows = await all(sql, params);
+    res.json(rows);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Erro ao listar transações' });
   }
-
-  async createTransaction(r) {
-    await this.run(`INSERT INTO transactions (id,type,amount,description,category,date) VALUES (?,?,?,?,?,?)`,
-      [r.id, r.type, r.amount, r.description, r.category, r.date]);
-    return this.get(`SELECT * FROM transactions WHERE id=?`, [r.id]);
-  }
-
-  async deleteTransaction(id) {
-    const info = await this.run(`DELETE FROM transactions WHERE id=?`, [id]);
-    return info.changes > 0;
-  }
-
-  async summary({ from, to }) {
-    let where = `FROM transactions WHERE 1=1`;
-    const params = [];
-    if (from) { where += ` AND date >= ?`; params.push(from); }
-    if (to) { where += ` AND date <= ?`; params.push(to); }
-    const inc = (await this.get(`SELECT SUM(amount) as total ${where} AND type='income'`, params)).total || 0;
-    const exp = (await this.get(`SELECT SUM(amount) as total ${where} AND type='expense'`, params)).total || 0;
-    return { income: inc, expense: exp, balance: inc - exp };
-  }
-}
-
-// ==== STORAGE JSON ====
-class JsonStorage {
-  constructor(file) {
-    this.file = file;
-  }
-
-  async init() {
-    const data = await this.#read();
-    if (!Array.isArray(data.users)) data.users = [];
-    if (!data.users.some(u => u.username === 'felipeadm')) {
-      data.users.push({ id: uid(), username: 'felipeadm', password: '1234', role: 'admin' });
-      await this.#write(data);
-    }
-  }
-
-  async #read() {
-    try {
-      const raw = await fsp.readFile(this.file, 'utf8');
-      return JSON.parse(raw);
-    } catch {
-      return { transactions: [], events: [], users: [] };
-    }
-  }
-
-  async #write(data) {
-    await fsp.writeFile(this.file, JSON.stringify(data, null, 2), 'utf8');
-  }
-
-  async authenticate(username, password) {
-    const data = await this.#read();
-    const user = data.users.find(u => u.username === username);
-    if (!user || user.password !== password) return null;
-    return { id: user.id, username: user.username, role: user.role };
-  }
-
-  async listTransactions() {
-    const data = await this.#read();
-    return data.transactions || [];
-  }
-
-  async summary() {
-    const data = await this.#read();
-    const inc = data.transactions.filter(t => t.type === 'income').reduce((a, b) => a + b.amount, 0);
-    const exp = data.transactions.filter(t => t.type === 'expense').reduce((a, b) => a + b.amount, 0);
-    return { income: inc, expense: exp, balance: inc - exp };
-  }
-}
-
-// ==== BOOT ====
-const storage = sqlite3 ? new SqliteStorage(sqlitePath) : new JsonStorage(jsonPath);
-const ready = storage.init();
-
-// ==== ROTAS ====
-app.post('/api/auth/login', async (req, res) => {
-  await ready;
-  const { username, password } = req.body;
-  const user = await storage.authenticate(username, password);
-  if (!user) return res.status(401).json({ error: 'Credenciais inválidas.' });
-  res.json({ ok: true, user });
 });
 
+// CREATE
+app.post('/api/transactions', async (req, res) => {
+  try {
+    const { type, amount, description = null, category = null, date } = req.body;
+    if (!type || !['income','expense'].includes(type)) return res.status(400).json({error:'type inválido'});
+    if (typeof amount !== 'number' || amount < 0) return res.status(400).json({error:'amount inválido'});
+    if (!date) return res.status(400).json({error:'date obrigatório (yyyy-mm-dd)'});
+
+    const id = uid();
+    await run(
+      `INSERT INTO transactions (id, type, amount, description, category, date)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [id, type, amount, description, category, date]
+    );
+
+    const created = await get(`SELECT * FROM transactions WHERE id = ?`, [id]);
+    res.status(201).json(created);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({error:'Erro ao criar transação'});
+  }
+});
+
+// READ
+app.get('/api/transactions/:id', async (req, res) => {
+  const row = await get(`SELECT * FROM transactions WHERE id = ?`, [req.params.id]);
+  if (!row) return res.status(404).json({error:'Não encontrado'});
+  res.json(row);
+});
+
+// UPDATE (parcial)
+app.patch('/api/transactions/:id', async (req, res) => {
+  const id = req.params.id;
+  const current = await get(`SELECT * FROM transactions WHERE id = ?`, [id]);
+  if (!current) return res.status(404).json({error:'Não encontrado'});
+
+  const next = {
+    type: req.body.type ?? current.type,
+    amount: (typeof req.body.amount === 'number') ? req.body.amount : current.amount,
+    description: (req.body.description !== undefined) ? req.body.description : current.description,
+    category: (req.body.category !== undefined) ? req.body.category : current.category,
+    date: req.body.date ?? current.date
+  };
+  if (!['income','expense'].includes(next.type)) return res.status(400).json({error:'type inválido'});
+  if (next.amount < 0) return res.status(400).json({error:'amount inválido'});
+  if (!next.date) return res.status(400).json({error:'date obrigatório'});
+
+  await run(
+    `UPDATE transactions SET type=?, amount=?, description=?, category=?, date=? WHERE id=?`,
+    [next.type, next.amount, next.description, next.category, next.date, id]
+  );
+
+  const updated = await get(`SELECT * FROM transactions WHERE id = ?`, [id]);
+  res.json(updated);
+});
+
+// DELETE
+app.delete('/api/transactions/:id', async (req, res) => {
+  const info = await run(`DELETE FROM transactions WHERE id = ?`, [req.params.id]);
+  if (info.changes === 0) return res.status(404).json({error:'Não encontrado'});
+  res.status(204).send();
+});
+
+// RESUMO: saldo, total incomes, total expenses (com filtros de período)
 app.get('/api/transactions/summary', async (req, res) => {
-  await ready;
-  res.json(await storage.summary(req.query));
+  const { from, to } = req.query;
+  let base = `FROM transactions WHERE 1=1`;
+  const params = [];
+  if (from) { base += ` AND date >= ?`; params.push(from); }
+  if (to)   { base += ` AND date <= ?`; params.push(to); }
+
+  const inc = (await get(`SELECT COALESCE(SUM(amount),0) as total ${base} AND type='income'`, params)).total;
+  const exp = (await get(`SELECT COALESCE(SUM(amount),0) as total ${base} AND type='expense'`, params)).total;
+
+  res.json({ income: inc, expense: exp, balance: inc - exp });
 });
 
+// ====== EVENTS (AGENDA) ======
+// LIST
+app.get('/api/events', async (req, res) => {
+  const { from, to, q } = req.query;
+  let sql = `SELECT * FROM events WHERE 1=1`;
+  const params = [];
+
+  if (from) { sql += ` AND date >= ?`; params.push(from); }
+  if (to)   { sql += ` AND date <= ?`; params.push(to); }
+  if (q)    { sql += ` AND (title LIKE ? OR notes LIKE ?)`; params.push(`%${q}%`, `%${q}%`); }
+
+  sql += ` ORDER BY date DESC, start_time ASC`;
+  const rows = await all(sql, params);
+  res.json(rows);
+});
+
+// CREATE
+app.post('/api/events', async (req, res) => {
+  try {
+    const { title, date, start_time = null, end_time = null, notes = null } = req.body;
+    if (!title) return res.status(400).json({error:'title obrigatório'});
+    if (!date) return res.status(400).json({error:'date obrigatório (yyyy-mm-dd)'});
+
+    const id = uid();
+    await run(
+      `INSERT INTO events (id, title, date, start_time, end_time, notes)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [id, title, date, start_time, end_time, notes]
+    );
+
+    const created = await get(`SELECT * FROM events WHERE id = ?`, [id]);
+    res.status(201).json(created);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({error:'Erro ao criar evento'});
+  }
+});
+
+// READ
+app.get('/api/events/:id', async (req, res) => {
+  const row = await get(`SELECT * FROM events WHERE id = ?`, [req.params.id]);
+  if (!row) return res.status(404).json({error:'Não encontrado'});
+  res.json(row);
+});
+
+// UPDATE
+app.patch('/api/events/:id', async (req, res) => {
+  const id = req.params.id;
+  const cur = await get(`SELECT * FROM events WHERE id = ?`, [id]);
+  if (!cur) return res.status(404).json({error:'Não encontrado'});
+
+  const next = {
+    title: (req.body.title !== undefined) ? req.body.title : cur.title,
+    date: (req.body.date !== undefined) ? req.body.date : cur.date,
+    start_time: (req.body.start_time !== undefined) ? req.body.start_time : cur.start_time,
+    end_time: (req.body.end_time !== undefined) ? req.body.end_time : cur.end_time,
+    notes: (req.body.notes !== undefined) ? req.body.notes : cur.notes
+  };
+  if (!next.title) return res.status(400).json({error:'title obrigatório'});
+  if (!next.date) return res.status(400).json({error:'date obrigatório'});
+
+  await run(
+    `UPDATE events SET title=?, date=?, start_time=?, end_time=?, notes=? WHERE id=?`,
+    [next.title, next.date, next.start_time, next.end_time, next.notes, id]
+  );
+
+  const updated = await get(`SELECT * FROM events WHERE id = ?`, [id]);
+  res.json(updated);
+});
+
+// DELETE
+app.delete('/api/events/:id', async (req, res) => {
+  const info = await run(`DELETE FROM events WHERE id = ?`, [req.params.id]);
+  if (info.changes === 0) return res.status(404).json({error:'Não encontrado'});
+  res.status(204).send();
+});
+
+// HEALTH
 app.get('/api/health', async (_, res) => {
-  res.json({ ok: true });
+  try {
+    const totals = await get(`SELECT COUNT(*) as total FROM transactions`);
+    res.json({ ok: true, totals: { transactions: totals.total } });
+  } catch {
+    res.json({ ok: true });
+  }
 });
 
+// HEALTHCHECK
+app.get('/', (_, res) => {
+  res.json({ ok: true, name: 'gestao-pessoal', version: '1.0.0' });
+});
+
+// START
 const PORT = process.env.PORT || 3333;
-app.listen(PORT, () => console.log(`✅ API rodando http://localhost:${PORT}`));
+app.listen(PORT, () => {
+  console.log(`✅ API rodando em http://localhost:${PORT}`);
+});
