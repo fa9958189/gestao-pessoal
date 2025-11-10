@@ -1,8 +1,6 @@
 // server.js
 // API Gestão Pessoal – Express + armazenamento SQLite ou JSON
-// Se o módulo sqlite3 estiver disponível (ex.: ambiente local com build nativo),
-// usamos o banco tradicional. Caso contrário, caímos para um arquivo JSON simples
-// para garantir que a API continue funcionando mesmo sem dependências nativas.
+// Se sqlite3 estiver disponível usamos SQLite; senão, caímos para JSON para não quebrar a API.
 
 try {
   require('dotenv').config();
@@ -22,8 +20,7 @@ const fsp = require('fs/promises');
 
 let sqlite3 = null;
 try {
-  // sqlite3 é opcional; pode falhar em ambientes sem binários pré-compilados.
-  // Caso ocorra erro (ex.: "invalid ELF header"), seguimos com fallback em JSON.
+  // sqlite3 pode falhar em ambientes sem binários; mantemos a API via JSON como fallback
   sqlite3 = require('sqlite3').verbose();
 } catch (err) {
   const reason = err?.message ? err.message.replace(/\s+/g, ' ').trim() : 'motivo desconhecido';
@@ -48,7 +45,6 @@ function cryptoRandomId(len = 21) {
   return id;
 }
 const uid = () => cryptoRandomId();
-const isSummarySlug = value => typeof value === 'string' && value.toLowerCase() === 'summary';
 
 // =============== STORAGE: SQLITE ===============
 class SqliteStorage {
@@ -395,81 +391,51 @@ app.post('/api/transactions', async (req, res) => {
   }
 });
 
-async function handleTransactionSummary(req, res) {
-  try {
-    await ready;
-    const summary = await storage.summary({ from: req.query.from, to: req.query.to });
-    res.json(summary);
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: 'Erro ao gerar resumo de transações' });
-  }
-}
-
-app.get('/api/transactions/summary', handleTransactionSummary);
+// ✅ Registrar o resumo ANTES das rotas com :id para evitar colisão
+app.get('/api/transactions/summary', async (req, res) => {
+  await ready;
+  const summary = await storage.summary({ from: req.query.from, to: req.query.to });
+  res.json(summary);
+});
 
 app.get('/api/transactions/:id', async (req, res) => {
-  try {
-    if (isSummarySlug(req.params.id)) {
-      return handleTransactionSummary(req, res);
-    }
-    await ready;
-    const row = await storage.getTransaction(req.params.id);
-    if (!row) return res.status(404).json({ error: 'Não encontrado' });
-    res.json(row);
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: 'Erro ao buscar transação' });
-  }
+  await ready;
+  const row = await storage.getTransaction(req.params.id);
+  if (!row) return res.status(404).json({ error: 'Não encontrado' });
+  res.json(row);
 });
 
 app.patch('/api/transactions/:id', async (req, res) => {
-  try {
-    if (isSummarySlug(req.params.id)) {
-      return res.status(405).json({ error: 'Operação indisponível para /summary' });
-    }
-    await ready;
-    const current = await storage.getTransaction(req.params.id);
-    if (!current) return res.status(404).json({ error: 'Não encontrado' });
+  await ready;
+  const current = await storage.getTransaction(req.params.id);
+  if (!current) return res.status(404).json({ error: 'Não encontrado' });
 
-    const next = {
-      type: req.body.type ?? current.type,
-      amount: typeof req.body.amount === 'number' ? req.body.amount : current.amount,
-      description: req.body.description !== undefined ? req.body.description : current.description,
-      category: req.body.category !== undefined ? req.body.category : current.category,
-      date: req.body.date ?? current.date
-    };
-    if (!['income', 'expense'].includes(next.type)) {
-      return res.status(400).json({ error: 'type inválido' });
-    }
-    if (next.amount < 0 || Number.isNaN(next.amount)) {
-      return res.status(400).json({ error: 'amount inválido' });
-    }
-    if (!next.date) {
-      return res.status(400).json({ error: 'date obrigatório' });
-    }
-
-    const updated = await storage.updateTransaction(req.params.id, next);
-    res.json(updated);
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: 'Erro ao atualizar transação' });
+  const next = {
+    type: req.body.type ?? current.type,
+    amount: typeof req.body.amount === 'number' ? req.body.amount : current.amount,
+    description: req.body.description !== undefined ? req.body.description : current.description,
+    category: req.body.category !== undefined ? req.body.category : current.category,
+    date: req.body.date ?? current.date
+  };
+  if (!['income', 'expense'].includes(next.type)) {
+    return res.status(400).json({ error: 'type inválido' });
   }
+  if (next.amount < 0 || Number.isNaN(next.amount)) {
+    return res.status(400).json({ error: 'amount inválido' });
+  }
+  if (!next.date) {
+    return res.status(400).json({ error: 'date obrigatório' });
+  }
+
+  const updated = await storage.updateTransaction(req.params.id, next);
+  res.json(updated);
 });
 
 app.delete('/api/transactions/:id', async (req, res) => {
-  try {
-    if (isSummarySlug(req.params.id)) {
-      return res.status(405).json({ error: 'Operação indisponível para /summary' });
-    }
-    await ready;
-    const removed = await storage.deleteTransaction(req.params.id);
-    if (!removed) return res.status(404).json({ error: 'Não encontrado' });
-    res.status(204).send();
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: 'Erro ao remover transação' });
-  }
+  await ready;
+  const removed = await storage.deleteTransaction(req.params.id);
+  if (!removed) return res.status(404).json({ error: 'Não encontrado' });
+  res.status(204).send();
 });
 
 // =============== ROTAS: EVENTOS ===============
@@ -501,51 +467,36 @@ app.post('/api/events', async (req, res) => {
 });
 
 app.get('/api/events/:id', async (req, res) => {
-  try {
-    await ready;
-    const row = await storage.getEvent(req.params.id);
-    if (!row) return res.status(404).json({ error: 'Não encontrado' });
-    res.json(row);
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: 'Erro ao buscar evento' });
-  }
+  await ready;
+  const row = await storage.getEvent(req.params.id);
+  if (!row) return res.status(404).json({ error: 'Não encontrado' });
+  res.json(row);
 });
 
 app.patch('/api/events/:id', async (req, res) => {
-  try {
-    await ready;
-    const current = await storage.getEvent(req.params.id);
-    if (!current) return res.status(404).json({ error: 'Não encontrado' });
+  await ready;
+  const current = await storage.getEvent(req.params.id);
+  if (!current) return res.status(404).json({ error: 'Não encontrado' });
 
-    const next = {
-      title: req.body.title !== undefined ? req.body.title : current.title,
-      date: req.body.date !== undefined ? req.body.date : current.date,
-      start_time: req.body.start_time !== undefined ? req.body.start_time : current.start_time,
-      end_time: req.body.end_time !== undefined ? req.body.end_time : current.end_time,
-      notes: req.body.notes !== undefined ? req.body.notes : current.notes
-    };
-    if (!next.title) return res.status(400).json({ error: 'title obrigatório' });
-    if (!next.date) return res.status(400).json({ error: 'date obrigatório' });
+  const next = {
+    title: req.body.title !== undefined ? req.body.title : current.title,
+    date: req.body.date !== undefined ? req.body.date : current.date,
+    start_time: req.body.start_time !== undefined ? req.body.start_time : current.start_time,
+    end_time: req.body.end_time !== undefined ? req.body.end_time : current.end_time,
+    notes: req.body.notes !== undefined ? req.body.notes : current.notes
+  };
+  if (!next.title) return res.status(400).json({ error: 'title obrigatório' });
+  if (!next.date) return res.status(400).json({ error: 'date obrigatório' });
 
-    const updated = await storage.updateEvent(req.params.id, next);
-    res.json(updated);
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: 'Erro ao atualizar evento' });
-  }
+  const updated = await storage.updateEvent(req.params.id, next);
+  res.json(updated);
 });
 
 app.delete('/api/events/:id', async (req, res) => {
-  try {
-    await ready;
-    const removed = await storage.deleteEvent(req.params.id);
-    if (!removed) return res.status(404).json({ error: 'Não encontrado' });
-    res.status(204).send();
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: 'Erro ao remover evento' });
-  }
+  await ready;
+  const removed = await storage.deleteEvent(req.params.id);
+  if (!removed) return res.status(404).json({ error: 'Não encontrado' });
+  res.status(204).send();
 });
 
 // =============== HEALTH & ROOT ===============
@@ -554,8 +505,7 @@ app.get('/api/health', async (_, res) => {
     await ready;
     const totalTransactions = await storage.countTransactions();
     res.json({ ok: true, totals: { transactions: totalTransactions } });
-  } catch (e) {
-    console.error(e);
+  } catch {
     res.json({ ok: true });
   }
 });
