@@ -11,14 +11,7 @@
   "keywords": [],
   "author": "Felipe",
   "license": "MIT",
-  "dependencies": {
-    "cors": "^2.8.5",
-    "dotenv": "^16.4.0",
-    "express": "^4.19.0"
-  },
-  "optionalDependencies": {
-    "sqlite3": "^5.1.7"
-  },
+  "dependencies": {},
   "devDependencies": {
     "nodemon": "^3.0.3"
   }
