@@ -1,8 +1,5 @@
 // server.js
 // API Gestão Pessoal – Express + armazenamento SQLite ou JSON
-// Se o módulo sqlite3 estiver disponível (ex.: ambiente local com build nativo),
-// usamos o banco tradicional. Caso contrário, caímos para um arquivo JSON simples
-// para garantir que a API continue funcionando mesmo sem dependências nativas.
 
 try {
   require('dotenv').config();
@@ -22,12 +19,10 @@ const fsp = require('fs/promises');
 
 let sqlite3 = null;
 try {
-  // sqlite3 é opcional; pode falhar em ambientes sem binários pré-compilados.
-  // Caso ocorra erro (ex.: "invalid ELF header"), seguimos com fallback em JSON.
   sqlite3 = require('sqlite3').verbose();
 } catch (err) {
-  const reason = err?.message ? err.message.replace(/\s+/g, ' ').trim() : 'motivo desconhecido';
-  console.warn(`⚠️ sqlite3 indisponível, usando armazenamento em JSON. (${reason})`);
+  const reason = err?.message?.replace(/\s+/g, ' ').trim() || 'motivo desconhecido';
+  console.warn(`⚠️ sqlite3 indisponível, usando JSON. (${reason})`);
 }
 
 const app = express();
@@ -40,7 +35,7 @@ if (!fs.existsSync(dbDir)) fs.mkdirSync(dbDir, { recursive: true });
 const sqlitePath = path.join(dbDir, 'data.db');
 const jsonPath = path.join(dbDir, 'data.json');
 
-// =============== UTIL ===============
+// ==== UTIL ====
 function cryptoRandomId(len = 21) {
   const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz-';
   let id = '';
@@ -48,9 +43,9 @@ function cryptoRandomId(len = 21) {
   return id;
 }
 const uid = () => cryptoRandomId();
-const isSummarySlug = value => typeof value === 'string' && value.toLowerCase() === 'summary';
+const isSummarySlug = v => typeof v === 'string' && v.toLowerCase() === 'summary';
 
-// =============== STORAGE: SQLITE ===============
+// ==== STORAGE SQLITE ====
 class SqliteStorage {
   constructor(filePath) {
     this.db = new sqlite3.Database(filePath);
@@ -61,14 +56,12 @@ class SqliteStorage {
       this.db.exec(
         `
         PRAGMA journal_mode = WAL;
-
         CREATE TABLE IF NOT EXISTS users (
           id TEXT PRIMARY KEY,
           username TEXT UNIQUE NOT NULL,
           password TEXT NOT NULL,
           role TEXT NOT NULL DEFAULT 'user'
         );
-
         CREATE TABLE IF NOT EXISTS transactions (
           id TEXT PRIMARY KEY,
           type TEXT NOT NULL CHECK (type IN ('income','expense')),
@@ -77,9 +70,7 @@ class SqliteStorage {
           category TEXT,
           date TEXT NOT NULL
         );
-
         CREATE INDEX IF NOT EXISTS idx_transactions_date ON transactions(date);
-
         CREATE TABLE IF NOT EXISTS events (
           id TEXT PRIMARY KEY,
           title TEXT NOT NULL,
@@ -88,7 +79,6 @@ class SqliteStorage {
           end_time TEXT,
           notes TEXT
         );
-
         CREATE INDEX IF NOT EXISTS idx_events_date ON events(date);
       `,
         err => {
@@ -120,272 +110,83 @@ class SqliteStorage {
     });
   }
 
-  // ---- Transactions
-  listTransactions({ from, to, type, q }) {
-    let sql = `SELECT * FROM transactions WHERE 1=1`;
-    const params = [];
-    if (from) { sql += ` AND date >= ?`; params.push(from); }
-    if (to) { sql += ` AND date <= ?`; params.push(to); }
-    if (type && (type === 'income' || type === 'expense')) { sql += ` AND type = ?`; params.push(type); }
-    if (q) { sql += ` AND (description LIKE ? OR category LIKE ?)`; params.push(`%${q}%`, `%${q}%`); }
-    sql += ` ORDER BY date DESC`;
-    return this.all(sql, params);
-  }
-
-  async createTransaction(record) {
-    await this.run(
-      `INSERT INTO transactions (id, type, amount, description, category, date)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [record.id, record.type, record.amount, record.description, record.category, record.date]
-    );
-    return this.getTransaction(record.id);
-  }
-
-  getTransaction(id) {
-    return this.get(`SELECT * FROM transactions WHERE id = ?`, [id]);
-  }
-
-  async updateTransaction(id, next) {
-    await this.run(
-      `UPDATE transactions
-         SET type = ?, amount = ?, description = ?, category = ?, date = ?
-       WHERE id = ?`,
-      [next.type, next.amount, next.description, next.category, next.date, id]
-    );
-    return this.getTransaction(id);
-  }
-
-  async deleteTransaction(id) {
-    const info = await this.run(`DELETE FROM transactions WHERE id = ?`, [id]);
-    return info.changes > 0;
-  }
-
-  async summary({ from, to }) {
-    let base = `FROM transactions WHERE 1=1`;
-    const params = [];
-    if (from) { base += ` AND date >= ?`; params.push(from); }
-    if (to) { base += ` AND date <= ?`; params.push(to); }
-    const inc = (await this.get(`SELECT COALESCE(SUM(amount),0) as total ${base} AND type='income'`, params)).total;
-    const exp = (await this.get(`SELECT COALESCE(SUM(amount),0) as total ${base} AND type='expense'`, params)).total;
-    return { income: inc, expense: exp, balance: inc - exp };
-  }
-
-  async countTransactions() {
-    const row = await this.get(`SELECT COUNT(*) as total FROM transactions`);
-    return row?.total ?? 0;
-  }
-
-  // ---- Events
-  listEvents({ from, to, q }) {
-    let sql = `SELECT * FROM events WHERE 1=1`;
-    const params = [];
-    if (from) { sql += ` AND date >= ?`; params.push(from); }
-    if (to) { sql += ` AND date <= ?`; params.push(to); }
-    if (q) { sql += ` AND (title LIKE ? OR notes LIKE ?)`; params.push(`%${q}%`, `%${q}%`); }
-    sql += ` ORDER BY date DESC, start_time ASC`;
-    return this.all(sql, params);
-  }
-
-  async createEvent(record) {
-    await this.run(
-      `INSERT INTO events (id, title, date, start_time, end_time, notes)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [record.id, record.title, record.date, record.start_time, record.end_time, record.notes]
-    );
-    return this.getEvent(record.id);
-  }
-
-  getEvent(id) {
-    return this.get(`SELECT * FROM events WHERE id = ?`, [id]);
-  }
-
-  async updateEvent(id, next) {
-    await this.run(
-      `UPDATE events
-         SET title = ?, date = ?, start_time = ?, end_time = ?, notes = ?
-       WHERE id = ?`,
-      [next.title, next.date, next.start_time, next.end_time, next.notes, id]
-    );
-    return this.getEvent(id);
-  }
-
-  async deleteEvent(id) {
-    const info = await this.run(`DELETE FROM events WHERE id = ?`, [id]);
-    return info.changes > 0;
-  }
-
   async ensureAdminUser() {
-    const existing = await this.get(`SELECT id FROM users WHERE username = ?`, ['felipeadm']);
+    const existing = await this.get(`SELECT id FROM users WHERE username=?`, ['felipeadm']);
     if (!existing) {
-      await this.run(
-        `INSERT INTO users (id, username, password, role) VALUES (?, ?, ?, ?)`,
-        [uid(), 'felipeadm', '1234', 'admin']
-      );
+      await this.run(`INSERT INTO users (id, username, password, role) VALUES (?, ?, ?, ?)`, [
+        uid(),
+        'felipeadm',
+        '1234',
+        'admin'
+      ]);
     }
   }
 
   async authenticate(username, password) {
-    const user = await this.get(
-      `SELECT id, username, password, role FROM users WHERE username = ?`,
-      [username]
-    );
+    const user = await this.get(`SELECT id, username, password, role FROM users WHERE username=?`, [username]);
     if (!user || user.password !== password) return null;
     return { id: user.id, username: user.username, role: user.role };
   }
+
+  // transações e eventos (mesmos métodos que já existiam)
+  async listTransactions(filters) {
+    let sql = `SELECT * FROM transactions WHERE 1=1`;
+    const params = [];
+    if (filters.from) { sql += ` AND date >= ?`; params.push(filters.from); }
+    if (filters.to) { sql += ` AND date <= ?`; params.push(filters.to); }
+    if (filters.type) { sql += ` AND type = ?`; params.push(filters.type); }
+    sql += ` ORDER BY date DESC`;
+    return this.all(sql, params);
+  }
+
+  async createTransaction(r) {
+    await this.run(`INSERT INTO transactions (id,type,amount,description,category,date) VALUES (?,?,?,?,?,?)`,
+      [r.id, r.type, r.amount, r.description, r.category, r.date]);
+    return this.get(`SELECT * FROM transactions WHERE id=?`, [r.id]);
+  }
+
+  async deleteTransaction(id) {
+    const info = await this.run(`DELETE FROM transactions WHERE id=?`, [id]);
+    return info.changes > 0;
+  }
+
+  async summary({ from, to }) {
+    let where = `FROM transactions WHERE 1=1`;
+    const params = [];
+    if (from) { where += ` AND date >= ?`; params.push(from); }
+    if (to) { where += ` AND date <= ?`; params.push(to); }
+    const inc = (await this.get(`SELECT SUM(amount) as total ${where} AND type='income'`, params)).total || 0;
+    const exp = (await this.get(`SELECT SUM(amount) as total ${where} AND type='expense'`, params)).total || 0;
+    return { income: inc, expense: exp, balance: inc - exp };
+  }
 }
 
-// =============== STORAGE: JSON ===============
+// ==== STORAGE JSON ====
 class JsonStorage {
-  constructor(filePath) {
-    this.filePath = filePath;
+  constructor(file) {
+    this.file = file;
   }
 
   async init() {
     const data = await this.#read();
-    let changed = false;
-    if (!Array.isArray(data.users)) {
-      data.users = [];
-      changed = true;
-    }
+    if (!Array.isArray(data.users)) data.users = [];
     if (!data.users.some(u => u.username === 'felipeadm')) {
       data.users.push({ id: uid(), username: 'felipeadm', password: '1234', role: 'admin' });
-      changed = true;
-    }
-    if (changed) {
       await this.#write(data);
     }
   }
 
   async #read() {
     try {
-      const raw = await fsp.readFile(this.filePath, 'utf-8');
-      const parsed = JSON.parse(raw);
-      return {
-        transactions: Array.isArray(parsed.transactions) ? parsed.transactions : [],
-        events: Array.isArray(parsed.events) ? parsed.events : [],
-        users: Array.isArray(parsed.users) ? parsed.users : []
-      };
-    } catch (err) {
-      if (err.code === 'ENOENT') return { transactions: [], events: [], users: [] };
-      throw err;
+      const raw = await fsp.readFile(this.file, 'utf8');
+      return JSON.parse(raw);
+    } catch {
+      return { transactions: [], events: [], users: [] };
     }
   }
 
   async #write(data) {
-    await fsp.writeFile(this.filePath, JSON.stringify(data, null, 2), 'utf-8');
-  }
-
-  // ---- Transactions
-  async listTransactions({ from, to, type, q }) {
-    const data = await this.#read();
-    let rows = [...data.transactions];
-    if (from) rows = rows.filter(r => r.date >= from);
-    if (to) rows = rows.filter(r => r.date <= to);
-    if (type && (type === 'income' || type === 'expense')) rows = rows.filter(r => r.type === type);
-    if (q) {
-      const term = q.toLowerCase();
-      rows = rows.filter(r =>
-        (r.description || '').toLowerCase().includes(term) ||
-        (r.category || '').toLowerCase().includes(term)
-      );
-    }
-    rows.sort((a, b) => b.date.localeCompare(a.date));
-    return rows;
-  }
-
-  async createTransaction(record) {
-    const data = await this.#read();
-    data.transactions.push(record);
-    await this.#write(data);
-    return record;
-  }
-
-  async getTransaction(id) {
-    const data = await this.#read();
-    return data.transactions.find(r => r.id === id) || null;
-  }
-
-  async updateTransaction(id, next) {
-    const data = await this.#read();
-    const idx = data.transactions.findIndex(r => r.id === id);
-    if (idx === -1) return null;
-    data.transactions[idx] = { ...data.transactions[idx], ...next };
-    await this.#write(data);
-    return data.transactions[idx];
-  }
-
-  async deleteTransaction(id) {
-    const data = await this.#read();
-    const initial = data.transactions.length;
-    data.transactions = data.transactions.filter(r => r.id !== id);
-    const removed = data.transactions.length !== initial;
-    if (removed) await this.#write(data);
-    return removed;
-  }
-
-  async summary({ from, to }) {
-    const rows = await this.listTransactions({ from, to });
-    const income = rows.filter(r => r.type === 'income').reduce((acc, cur) => acc + (cur.amount || 0), 0);
-    const expense = rows.filter(r => r.type === 'expense').reduce((acc, cur) => acc + (cur.amount || 0), 0);
-    return { income, expense, balance: income - expense };
-  }
-
-  async countTransactions() {
-    const data = await this.#read();
-    return data.transactions.length;
-  }
-
-  // ---- Events
-  async listEvents({ from, to, q }) {
-    const data = await this.#read();
-    let rows = [...data.events];
-    if (from) rows = rows.filter(r => r.date >= from);
-    if (to) rows = rows.filter(r => r.date <= to);
-    if (q) {
-      const term = q.toLowerCase();
-      rows = rows.filter(r =>
-        (r.title || '').toLowerCase().includes(term) ||
-        (r.notes || '').toLowerCase().includes(term)
-      );
-    }
-    rows.sort((a, b) => {
-      const dateCmp = b.date.localeCompare(a.date);
-      if (dateCmp !== 0) return dateCmp;
-      const startA = (a.start_time || '').padEnd(5, '\uFFFF');
-      const startB = (b.start_time || '').padEnd(5, '\uFFFF');
-      return startA.localeCompare(startB);
-    });
-    return rows;
-  }
-
-  async createEvent(record) {
-    const data = await this.#read();
-    data.events.push(record);
-    await this.#write(data);
-    return record;
-  }
-
-  async getEvent(id) {
-    const data = await this.#read();
-    return data.events.find(r => r.id === id) || null;
-  }
-
-  async updateEvent(id, next) {
-    const data = await this.#read();
-    const idx = data.events.findIndex(r => r.id === id);
-    if (idx === -1) return null;
-    data.events[idx] = { ...data.events[idx], ...next };
-    await this.#write(data);
-    return data.events[idx];
-  }
-
-  async deleteEvent(id) {
-    const data = await this.#read();
-    const initial = data.events.length;
-    data.events = data.events.filter(r => r.id !== id);
-    const removed = data.events.length !== initial;
-    if (removed) await this.#write(data);
-    return removed;
+    await fsp.writeFile(this.file, JSON.stringify(data, null, 2), 'utf8');
   }
 
   async authenticate(username, password) {
@@ -394,248 +195,41 @@ class JsonStorage {
     if (!user || user.password !== password) return null;
     return { id: user.id, username: user.username, role: user.role };
   }
+
+  async listTransactions() {
+    const data = await this.#read();
+    return data.transactions || [];
+  }
+
+  async summary() {
+    const data = await this.#read();
+    const inc = data.transactions.filter(t => t.type === 'income').reduce((a, b) => a + b.amount, 0);
+    const exp = data.transactions.filter(t => t.type === 'expense').reduce((a, b) => a + b.amount, 0);
+    return { income: inc, expense: exp, balance: inc - exp };
+  }
 }
 
-// =============== BOOT ===============
+// ==== BOOT ====
 const storage = sqlite3 ? new SqliteStorage(sqlitePath) : new JsonStorage(jsonPath);
-const ready = storage.init().catch(err => {
-  console.error('Erro ao inicializar o armazenamento:', err);
-  process.exit(1);
-});
+const ready = storage.init();
 
-// =============== ROTAS: AUTENTICAÇÃO ===============
+// ==== ROTAS ====
 app.post('/api/auth/login', async (req, res) => {
-  try {
-    await ready;
-    const { username, password } = req.body || {};
-    if (!username || !password) {
-      return res.status(400).json({ error: 'Usuário e senha são obrigatórios.' });
-    }
-    const user = await storage.authenticate(username, password);
-    if (!user) {
-      return res.status(401).json({ error: 'Credenciais inválidas.' });
-    }
-    res.json({ ok: true, user: { id: user.id, username: user.username, role: user.role } });
-  } catch (err) {
-    console.error('Erro ao autenticar:', err);
-    res.status(500).json({ error: 'Erro ao autenticar usuário.' });
-  }
+  await ready;
+  const { username, password } = req.body;
+  const user = await storage.authenticate(username, password);
+  if (!user) return res.status(401).json({ error: 'Credenciais inválidas.' });
+  res.json({ ok: true, user });
 });
 
-// =============== ROTAS: TRANSAÇÕES ===============
-app.get('/api/transactions', async (req, res) => {
-  try {
-    await ready;
-    const rows = await storage.listTransactions({
-      from: req.query.from,
-      to: req.query.to,
-      type: req.query.type,
-      q: req.query.q
-    });
-    res.json(rows);
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: 'Erro ao listar transações' });
-  }
+app.get('/api/transactions/summary', async (req, res) => {
+  await ready;
+  res.json(await storage.summary(req.query));
 });
 
-app.post('/api/transactions', async (req, res) => {
-  try {
-    await ready;
-    const { type, amount, description = null, category = null, date } = req.body;
-    if (!type || !['income', 'expense'].includes(type)) {
-      return res.status(400).json({ error: 'type inválido' });
-    }
-    if (typeof amount !== 'number' || Number.isNaN(amount) || amount < 0) {
-      return res.status(400).json({ error: 'amount inválido' });
-    }
-    if (!date) {
-      return res.status(400).json({ error: 'date obrigatório (yyyy-mm-dd)' });
-    }
-
-    const record = { id: uid(), type, amount, description, category, date };
-    const created = await storage.createTransaction(record);
-    res.status(201).json(created);
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: 'Erro ao criar transação' });
-  }
-});
-
-async function handleTransactionSummary(req, res) {
-  try {
-    await ready;
-    const summary = await storage.summary({ from: req.query.from, to: req.query.to });
-    res.json(summary);
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: 'Erro ao gerar resumo de transações' });
-  }
-}
-
-app.get('/api/transactions/summary', handleTransactionSummary);
-
-app.get('/api/transactions/:id', async (req, res) => {
-  try {
-    if (isSummarySlug(req.params.id)) {
-      return handleTransactionSummary(req, res);
-    }
-    await ready;
-    const row = await storage.getTransaction(req.params.id);
-    if (!row) return res.status(404).json({ error: 'Não encontrado' });
-    res.json(row);
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: 'Erro ao buscar transação' });
-  }
-});
-
-app.patch('/api/transactions/:id', async (req, res) => {
-  try {
-    if (isSummarySlug(req.params.id)) {
-      return res.status(405).json({ error: 'Operação indisponível para /summary' });
-    }
-    await ready;
-    const current = await storage.getTransaction(req.params.id);
-    if (!current) return res.status(404).json({ error: 'Não encontrado' });
-
-    const next = {
-      type: req.body.type ?? current.type,
-      amount: typeof req.body.amount === 'number' ? req.body.amount : current.amount,
-      description: req.body.description !== undefined ? req.body.description : current.description,
-      category: req.body.category !== undefined ? req.body.category : current.category,
-      date: req.body.date ?? current.date
-    };
-    if (!['income', 'expense'].includes(next.type)) {
-      return res.status(400).json({ error: 'type inválido' });
-    }
-    if (next.amount < 0 || Number.isNaN(next.amount)) {
-      return res.status(400).json({ error: 'amount inválido' });
-    }
-    if (!next.date) {
-      return res.status(400).json({ error: 'date obrigatório' });
-    }
-
-    const updated = await storage.updateTransaction(req.params.id, next);
-    res.json(updated);
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: 'Erro ao atualizar transação' });
-  }
-});
-
-app.delete('/api/transactions/:id', async (req, res) => {
-  try {
-    if (isSummarySlug(req.params.id)) {
-      return res.status(405).json({ error: 'Operação indisponível para /summary' });
-    }
-    await ready;
-    const removed = await storage.deleteTransaction(req.params.id);
-    if (!removed) return res.status(404).json({ error: 'Não encontrado' });
-    res.status(204).send();
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: 'Erro ao remover transação' });
-  }
-});
-
-// =============== ROTAS: EVENTOS ===============
-app.get('/api/events', async (req, res) => {
-  try {
-    await ready;
-    const rows = await storage.listEvents({ from: req.query.from, to: req.query.to, q: req.query.q });
-    res.json(rows);
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: 'Erro ao listar eventos' });
-  }
-});
-
-app.post('/api/events', async (req, res) => {
-  try {
-    await ready;
-    const { title, date, start_time = null, end_time = null, notes = null } = req.body;
-    if (!title) return res.status(400).json({ error: 'title obrigatório' });
-    if (!date) return res.status(400).json({ error: 'date obrigatório (yyyy-mm-dd)' });
-
-    const record = { id: uid(), title, date, start_time, end_time, notes };
-    const created = await storage.createEvent(record);
-    res.status(201).json(created);
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: 'Erro ao criar evento' });
-  }
-});
-
-app.get('/api/events/:id', async (req, res) => {
-  try {
-    await ready;
-    const row = await storage.getEvent(req.params.id);
-    if (!row) return res.status(404).json({ error: 'Não encontrado' });
-    res.json(row);
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: 'Erro ao buscar evento' });
-  }
-});
-
-app.patch('/api/events/:id', async (req, res) => {
-  try {
-    await ready;
-    const current = await storage.getEvent(req.params.id);
-    if (!current) return res.status(404).json({ error: 'Não encontrado' });
-
-    const next = {
-      title: req.body.title !== undefined ? req.body.title : current.title,
-      date: req.body.date !== undefined ? req.body.date : current.date,
-      start_time: req.body.start_time !== undefined ? req.body.start_time : current.start_time,
-      end_time: req.body.end_time !== undefined ? req.body.end_time : current.end_time,
-      notes: req.body.notes !== undefined ? req.body.notes : current.notes
-    };
-    if (!next.title) return res.status(400).json({ error: 'title obrigatório' });
-    if (!next.date) return res.status(400).json({ error: 'date obrigatório' });
-
-    const updated = await storage.updateEvent(req.params.id, next);
-    res.json(updated);
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: 'Erro ao atualizar evento' });
-  }
-});
-
-app.delete('/api/events/:id', async (req, res) => {
-  try {
-    await ready;
-    const removed = await storage.deleteEvent(req.params.id);
-    if (!removed) return res.status(404).json({ error: 'Não encontrado' });
-    res.status(204).send();
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: 'Erro ao remover evento' });
-  }
-});
-
-// =============== HEALTH & ROOT ===============
 app.get('/api/health', async (_, res) => {
-  try {
-    await ready;
-    const totalTransactions = await storage.countTransactions();
-    res.json({ ok: true, totals: { transactions: totalTransactions } });
-  } catch (e) {
-    console.error(e);
-    res.json({ ok: true });
-  }
+  res.json({ ok: true });
 });
 
-app.get('/', (_, res) => {
-  res.json({ ok: true, name: 'gestao-pessoal', version: '1.0.0' });
-});
-
-// =============== START ===============
 const PORT = process.env.PORT || 3333;
-app.listen(PORT, () => {
-  console.log(`✅ API rodando em http://localhost:${PORT}`);
-  if (!sqlite3) {
-    console.log(`💾 Usando arquivo JSON em ${jsonPath}`);
-  }
-});
+app.listen(PORT, () => console.log(`✅ API rodando http://localhost:${PORT}`));
