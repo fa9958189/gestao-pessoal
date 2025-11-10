@@ -1,629 +1,296 @@
 <!doctype html>
 <html lang="pt-BR">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Gestão Pessoal – Dashboard</title>
-  <link rel="stylesheet" href="styles.css">
-  <!-- Chart.js CDN -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-</head>
-<body>
-  <header>
-    <h1>Gestão Pessoal – Dashboard</h1>
-    <div class="muted">API: <span id="apiUrl">http://localhost:3333</span></div>
-  </header>
-
-  <div class="container">
-    <!-- COLUNA ESQUERDA: Transações -->
-    <section class="card">
-      <div class="row" style="justify-content:space-between; align-items:center">
-        <h2 class="title">Transações</h2>
-        <div class="tabs">
-          <button class="tab active" data-tab="tab-form">Cadastro</button>
-          <button class="tab" data-tab="tab-reports">Relatórios</button>
-        </div>
-      </div>
-
-      <!-- Tab: Cadastro -->
-      <div id="tab-form">
-        <div class="row">
-          <div style="flex:1">
-            <label>Tipo</label>
-            <select id="t-type">
-              <option value="income">Receita</option>
-              <option value="expense">Despesa</option>
-            </select>
-          </div>
-          <div style="flex:1">
-            <label>Valor (use ponto para decimais)</label>
-            <input type="number" step="0.01" id="t-amount" placeholder="0.00">
-          </div>
-          <div style="flex:1">
-            <label>Data</label>
-            <input type="date" id="t-date">
-          </div>
-        </div>
-        <div class="row">
-          <div style="flex:2">
-            <label>Descrição</label>
-            <input id="t-desc" placeholder="Ex.: Venda no Pix">
-          </div>
-          <div style="flex:1">
-            <label>Categoria</label>
-            <input id="t-cat" placeholder="Ex.: Vendas/Estoque">
-          </div>
-        </div>
-        <div class="row" style="justify-content:flex-end; margin-top:8px">
-          <button class="primary" id="btnAddTx">Adicionar</button>
-          <button class="ghost" id="btnClearTx">Limpar</button>
-        </div>
-
-        <div class="sep"></div>
-
-        <div class="row">
-          <div style="flex:1">
-            <label>Filtro: de</label>
-            <input type="date" id="f-from">
-          </div>
-          <div style="flex:1">
-            <label>até</label>
-            <input type="date" id="f-to">
-          </div>
-          <div style="flex:1">
-            <label>Tipo</label>
-            <select id="f-type">
-              <option value="">Todos</option>
-              <option value="income">Receita</option>
-              <option value="expense">Despesa</option>
-            </select>
-          </div>
-          <div style="flex:1">
-            <label>Busca</label>
-            <input id="f-q" placeholder="descrição ou categoria">
-          </div>
-          <div style="align-self:flex-end">
-            <button id="btnFilter">Filtrar</button>
-          </div>
-        </div>
-
-        <div class="sep"></div>
-
-        <div class="summary">
-          <div class="kpi">
-            <small>Total Receitas</small>
-            <strong id="kpiIncome">R$ 0,00</strong>
-          </div>
-          <div class="kpi">
-            <small>Total Despesas</small>
-            <strong id="kpiExpense">R$ 0,00</strong>
-          </div>
-          <div class="kpi">
-            <small>Saldo</small>
-            <strong id="kpiBalance">R$ 0,00</strong>
-          </div>
-        </div>
-
-        <div class="sep"></div>
-
-        <div style="overflow:auto">
-          <table>
-            <thead>
-              <tr>
-                <th>Data</th>
-                <th>Tipo</th>
-                <th>Descrição</th>
-                <th>Categoria</th>
-                <th class="right">Valor</th>
-                <th class="right">Ações</th>
-              </tr>
-            </thead>
-            <tbody id="txTable"></tbody>
-          </table>
-        </div>
-      </div>
-
-      <!-- Tab: Relatórios -->
-      <div id="tab-reports" class="hidden">
-        <p class="muted">Os gráficos respeitam os filtros de período e busca acima. Clique em <b>Filtrar</b> para atualizar.</p>
-        <div class="row">
-          <div class="card" style="flex:1">
-            <h3 class="title">Receitas x Despesas (por mês)</h3>
-            <canvas id="chartLine"></canvas>
-          </div>
-          <div class="card" style="flex:1">
-            <h3 class="title">Despesas por Categoria</h3>
-            <canvas id="chartPie"></canvas>
-          </div>
-        </div>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Gestão Pessoal 💰</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <!-- ===================== LOGIN ===================== -->
+    <section id="loginScreen" class="screen active">
+      <div class="login-box">
+        <h1>Gestão Pessoal 💰</h1>
+        <p class="subtitle">Acesse sua conta</p>
+        <form id="loginForm">
+          <input type="text" id="username" placeholder="Usuário" required />
+          <input type="password" id="password" placeholder="Senha" required />
+          <button type="submit" class="btn">Entrar</button>
+        </form>
+        <p id="loginError" class="error hidden">Usuário ou senha inválidos.</p>
       </div>
     </section>
 
-    <!-- COLUNA DIREITA: Agenda -->
-    <aside class="card">
-      <h2 class="title">Agenda</h2>
+    <!-- ===================== DASHBOARD ===================== -->
+    <section id="dashboard" class="screen">
+      <header class="topbar">
+        <h1>Gestão Pessoal</h1>
+        <nav>
+          <button id="btnAddTransaction" class="pill">+ Nova Transação</button>
+          <button id="btnViewSummary" class="pill">Resumo</button>
+          <button id="btnLogout" class="pill danger">Sair</button>
+        </nav>
+      </header>
 
-      <div class="grid grid-2" style="margin-bottom:8px">
-        <div>
-          <label>Título</label>
-          <input id="e-title" placeholder="Reunião, Médico, etc.">
+      <main class="container">
+        <!-- BALANÇO -->
+        <section class="panel balance">
+          <h2>Resumo Financeiro</h2>
+          <div class="balance-cards">
+            <div class="card income">
+              <h3>Entradas</h3>
+              <p id="totalIncome">R$ 0,00</p>
+            </div>
+            <div class="card expense">
+              <h3>Saídas</h3>
+              <p id="totalExpense">R$ 0,00</p>
+            </div>
+            <div class="card balance-total">
+              <h3>Saldo</h3>
+              <p id="balanceValue">R$ 0,00</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- LISTAGEM -->
+        <section class="panel list">
+          <h2>Transações</h2>
+          <table id="transactionsTable">
+            <thead>
+              <tr>
+                <th>Data</th>
+                <th>Descrição</th>
+                <th>Categoria</th>
+                <th>Tipo</th>
+                <th>Valor</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </section>
+      </main>
+    </section>
+
+    <!-- ===================== NOVA TRANSAÇÃO ===================== -->
+    <section id="transactionScreen" class="screen">
+      <header class="topbar">
+        <h1>Nova Transação</h1>
+        <nav>
+          <button id="btnBackDashboard" class="pill">← Voltar</button>
+        </nav>
+      </header>
+
+      <main class="container">
+        <form id="transactionForm" class="form">
+          <label>
+            Tipo:
+            <select id="type" required>
+              <option value="income">Entrada</option>
+              <option value="expense">Saída</option>
+            </select>
+          </label>
+
+          <label>
+            Valor:
+            <input type="number" id="amount" step="0.01" min="0" required />
+          </label>
+
+          <label>
+            Descrição:
+            <input type="text" id="description" placeholder="Ex: Salário, Conta de luz..." />
+          </label>
+
+          <label>
+            Categoria:
+            <input type="text" id="category" placeholder="Ex: Casa, Lazer, Trabalho..." />
+          </label>
+
+          <label>
+            Data:
+            <input type="date" id="date" required />
+          </label>
+
+          <button type="submit" class="btn">Salvar</button>
+        </form>
+      </main>
+    </section>
+
+    <!-- ===================== RESUMO ===================== -->
+    <section id="summaryScreen" class="screen">
+      <header class="topbar">
+        <h1>Resumo</h1>
+        <nav>
+          <button id="btnBackSummary" class="pill">← Voltar</button>
+        </nav>
+      </header>
+
+      <main class="container">
+        <div class="panel">
+          <h2>Resumo Geral</h2>
+          <div id="summaryData">
+            <p><strong>Entradas:</strong> <span id="sumIncome">R$ 0,00</span></p>
+            <p><strong>Saídas:</strong> <span id="sumExpense">R$ 0,00</span></p>
+            <p><strong>Saldo:</strong> <span id="sumBalance">R$ 0,00</span></p>
+          </div>
         </div>
-        <div>
-          <label>Data</label>
-          <input type="date" id="e-date">
-        </div>
-      </div>
-      <div class="grid grid-2">
-        <div>
-          <label>Início</label>
-          <input type="time" id="e-start">
-        </div>
-        <div>
-          <label>Fim</label>
-          <input type="time" id="e-end">
-        </div>
-      </div>
-      <div style="margin-top:8px">
-        <label>Notas</label>
-        <textarea id="e-notes" placeholder="Observações do evento..."></textarea>
-      </div>
-      <div class="row" style="justify-content:flex-end; margin-top:8px">
-        <button class="primary" id="btnAddEvent">Adicionar Evento</button>
-        <button class="ghost" id="btnClearEvent">Limpar</button>
-      </div>
+      </main>
+    </section>
 
-      <div class="sep"></div>
-
-      <div class="row">
-        <div style="flex:1">
-          <label>De</label>
-          <input type="date" id="ef-from">
-        </div>
-        <div style="flex:1">
-          <label>Até</label>
-          <input type="date" id="ef-to">
-        </div>
-        <div style="flex:1">
-          <label>Busca</label>
-          <input id="ef-q" placeholder="título/notas">
-        </div>
-        <div style="align-self:flex-end">
-          <button id="btnFilterEvents">Filtrar</button>
-        </div>
-      </div>
-
-      <div class="sep"></div>
-
-      <div style="overflow:auto; max-height:480px">
-        <table>
-          <thead>
-            <tr>
-              <th>Data</th>
-              <th>Título</th>
-              <th>Horário</th>
-              <th>Notas</th>
-              <th class="right">Ações</th>
-            </tr>
-          </thead>
-          <tbody id="evTable"></tbody>
-        </table>
-      </div>
-    </aside>
-  </div>
-
-  <script>
-    let API = 'http://localhost:3333';
-    const apiLabel = document.getElementById('apiUrl');
-
-    const BRL = v => v.toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
-    const val = id => document.getElementById(id).value.trim();
-    const set = (id,v)=> document.getElementById(id).value = v || '';
-    const today = () => new Date().toISOString().slice(0,10);
-
-    // datas padrão
-    set('t-date', today());
-    set('e-date', today());
-    set('f-from', new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0,10));
-    set('f-to', new Date(new Date().getFullYear(), new Date().getMonth()+1, 0).toISOString().slice(0,10));
-    set('ef-from', today());
-    set('ef-to', today());
-
-    async function detectApiBase(){
-      apiLabel.textContent = 'detectando...';
-      const candidates = [];
-      const seen = new Set();
-      const metaTag = document.querySelector('meta[name="api-base"]');
-      const meta = metaTag?.content?.trim();
-      if (meta) candidates.push(meta);
-      const origin = location.origin && location.origin !== 'null' ? location.origin : '';
-      if (origin) candidates.push(origin);
-      if (location.hostname) {
-        const proto = location.protocol.startsWith('http') ? location.protocol : 'http:';
-        const hostBase = `${proto}//${location.hostname}`;
-        candidates.push(hostBase);
-        candidates.push(`${hostBase}:3333`);
-      }
-      candidates.push('http://localhost:3333', 'http://127.0.0.1:3333');
-
-      let resolved = false;
-      for (const cand of candidates) {
-        const normalized = cand.replace(/\/+$/, '');
-        if (!normalized || seen.has(normalized)) continue;
-        seen.add(normalized);
-        try {
-          const res = await fetch(`${normalized}/api/health`, { cache: 'no-store' });
-          if (res.ok) {
-            API = normalized;
-            resolved = true;
-            break;
-          }
-        } catch (err) {
-          console.warn('Falha ao conectar com a API em', normalized, err);
-        }
-      }
-
-      if (!resolved) console.warn('Nenhuma API respondeu, usando', API);
-      apiLabel.textContent = resolved ? API : `${API} (offline?)`;
-      return API;
-    }
-
-    async function apiRequest(path, options = {}){
-      const url = path.startsWith('http') ? path : `${API}${path}`;
-      const opts = { ...options };
-      opts.headers = { ...(options.headers || {}) };
-      if (opts.body && !opts.headers['Content-Type']) {
-        opts.headers['Content-Type'] = 'application/json';
-      }
-      const res = await fetch(url, opts);
-      if (!res.ok) {
-        let message = `HTTP ${res.status}`;
-        try {
-          const data = await res.json();
-          if (data?.error) message = data.error;
-        } catch {
-          try {
-            const text = await res.text();
-            if (text) message = text;
-          } catch {}
-        }
-        throw new Error(message);
-      }
-      if (res.status === 204) return null;
-      const contentType = res.headers.get('content-type') || '';
-      if (contentType.includes('application/json')) {
-        return res.json();
-      }
-      return res.text();
-    }
-
-    function showError(message, err){
-      console.error(message, err);
-      alert(message);
-    }
-
-    // ===== TABS =====
-    document.querySelectorAll('.tab').forEach(tab=>{
-      tab.onclick = () => {
-        document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
-        tab.classList.add('active');
-        const target = tab.getAttribute('data-tab');
-        document.getElementById('tab-form').classList.toggle('hidden', target!=='tab-form');
-        document.getElementById('tab-reports').classList.toggle('hidden', target!=='tab-reports');
-        if(target==='tab-reports') updateCharts(); // atualiza gráficos ao abrir
-      };
-    });
-
-    // ===== TRANSAÇÕES =====
-    let cachedTx = [];
-
-    async function loadTransactions(){
-      try {
-        const qs = new URLSearchParams();
-        const from = val('f-from');
-        const to = val('f-to');
-        const type = val('f-type');
-        const q = val('f-q');
-        if(from) qs.append('from', from);
-        if(to) qs.append('to', to);
-        if(type) qs.append('type', type);
-        if(q) qs.append('q', q);
-
-        const query = qs.toString();
-        const data = await apiRequest(`/api/transactions${query ? `?${query}` : ''}`);
-        cachedTx = Array.isArray(data) ? data : [];
-        renderTx(cachedTx);
-        const summary = await fetchSummary(from, to);
-        if (summary) renderSummary(summary);
-        apiLabel.textContent = API;
-        updateCharts();
-      } catch (err) {
-        showError('Não foi possível carregar as transações. Verifique se a API está em execução.', err);
-      }
-    }
-
-    function renderTx(rows){
-      const tb = document.getElementById('txTable');
-      tb.innerHTML = '';
-      rows.forEach(r=>{
-        const tr = document.createElement('tr');
-        const badge = `<span class="pill ${r.type}">${r.type === 'income' ? 'Receita' : 'Despesa'}</span>`;
-        tr.innerHTML = `
-          <td>${r.date}</td>
-          <td>${badge}</td>
-          <td>${r.description ?? ''}</td>
-          <td>${r.category ?? ''}</td>
-          <td class="right">${BRL(r.amount)}</td>
-          <td class="actions">
-            <button data-edit="${r.id}">Editar</button>
-            <button class="danger" data-del="${r.id}">Excluir</button>
-          </td>
-        `;
-        tb.appendChild(tr);
-      });
-      // delete
-      tb.querySelectorAll('button[data-del]').forEach(btn=>{
-        btn.onclick = async () => {
-          const id = btn.getAttribute('data-del');
-          if(!confirm('Excluir esta transação?')) return;
-          try {
-            await apiRequest(`/api/transactions/${id}`, { method:'DELETE' });
-            await loadTransactions();
-          } catch (err) {
-            showError('Erro ao excluir a transação.', err);
-          }
-        };
-      });
-      tb.querySelectorAll('button[data-edit]').forEach(btn=>{
-        btn.onclick = async () => {
-          const id = btn.getAttribute('data-edit');
-          const r = cachedTx.find(x=>x.id===id);
-          if(!r) return;
-          const type = prompt("Tipo (income/expense):", r.type) || r.type;
-          const amount = parseFloat(prompt("Valor:", r.amount)) || r.amount;
-          const description = prompt("Descrição:", r.description ?? '') ?? r.description;
-          const category = prompt("Categoria:", r.category ?? '') ?? r.category;
-          const date = prompt("Data (yyyy-mm-dd):", r.date) || r.date;
-          try {
-            await apiRequest(`/api/transactions/${id}`, {
-              method:'PATCH',
-              body: JSON.stringify({ type, amount, description, category, date })
-            });
-            await loadTransactions();
-          } catch (err) {
-            showError('Erro ao atualizar a transação.', err);
-          }
-        };
-      });
-    }
-
-    async function fetchSummary(from, to){
-      const qs = new URLSearchParams();
-      if(from) qs.append('from', from);
-      if(to) qs.append('to', to);
-      const query = qs.toString();
-      return apiRequest(`/api/transactions/summary${query ? `?${query}` : ''}`);
-    }
-
-    function renderSummary(s){
-      const income = s?.income ?? 0;
-      const expense = s?.expense ?? 0;
-      const balance = s?.balance ?? (income - expense);
-      document.getElementById('kpiIncome').textContent  = BRL(income);
-      document.getElementById('kpiExpense').textContent = BRL(expense);
-      document.getElementById('kpiBalance').textContent = BRL(balance);
-    }
-
-    document.getElementById('btnAddTx').onclick = async () => {
-      const type = val('t-type');
-      const amount = parseFloat(val('t-amount'));
-      const date = val('t-date');
-      if(!date || isNaN(amount) || amount < 0){ alert('Preencha a data e um valor válido.'); return; }
-      const payload = {
-        type, amount,
-        description: val('t-desc') || null,
-        category: val('t-cat') || null,
-        date
-      };
-      try {
-        await apiRequest('/api/transactions', {
-          method:'POST',
-          body: JSON.stringify(payload)
-        });
-        set('t-amount',''); set('t-desc',''); set('t-cat','');
-        await loadTransactions();
-      } catch (err) {
-        showError(`Erro ao salvar a transação: ${err.message}`, err);
-      }
-    };
-
-    document.getElementById('btnClearTx').onclick = () => {
-      set('t-amount',''); set('t-desc',''); set('t-cat',''); set('t-date', today()); set('t-type','income');
-    };
-    document.getElementById('btnFilter').onclick = async ()=>{ await loadTransactions(); };
-
-    // ===== EVENTOS =====
-    async function loadEvents(){
-      try {
-        const qs = new URLSearchParams();
-        const from = val('ef-from');
-        const to = val('ef-to');
-        const q = val('ef-q');
-        if(from) qs.append('from', from);
-        if(to) qs.append('to', to);
-        if(q) qs.append('q', q);
-
-        const query = qs.toString();
-        const data = await apiRequest(`/api/events${query ? `?${query}` : ''}`);
-        renderEvents(Array.isArray(data) ? data : []);
-      } catch (err) {
-        showError('Não foi possível carregar os eventos.', err);
-      }
-    }
-
-    function renderEvents(rows){
-      const tb = document.getElementById('evTable');
-      tb.innerHTML = '';
-      rows.forEach(r=>{
-        const tr = document.createElement('tr');
-        const hora = [r.start_time||'', r.end_time?`– ${r.end_time}`:''].join(' ').trim();
-        tr.innerHTML = `
-          <td>${r.date}</td>
-          <td>${r.title}</td>
-          <td>${hora || '-'}</td>
-          <td>${r.notes ?? ''}</td>
-          <td class="actions">
-            <button data-edit="${r.id}">Editar</button>
-            <button class="danger" data-del="${r.id}">Excluir</button>
-          </td>
-        `;
-        tb.appendChild(tr);
-      });
-      tb.querySelectorAll('button[data-del]').forEach(btn=>{
-        btn.onclick = async () => {
-          const id = btn.getAttribute('data-del');
-          if(!confirm('Excluir este evento?')) return;
-          try {
-            await apiRequest(`/api/events/${id}`, { method:'DELETE' });
-            await loadEvents();
-          } catch (err) {
-            showError('Erro ao excluir o evento.', err);
-          }
-        };
-      });
-      tb.querySelectorAll('button[data-edit]').forEach(btn=>{
-        btn.onclick = async () => {
-          const id = btn.getAttribute('data-edit');
-          const r = rows.find(x=>x.id===id);
-          if(!r) return;
-          const title = prompt("Título:", r.title) ?? r.title;
-          const date  = prompt("Data (yyyy-mm-dd):", r.date) || r.date;
-          const start_time = prompt("Início (HH:mm):", r.start_time ?? '') || null;
-          const end_time   = prompt("Fim (HH:mm):", r.end_time ?? '') || null;
-          const notes = prompt("Notas:", r.notes ?? '') ?? r.notes;
-          try {
-            await apiRequest(`/api/events/${id}`, {
-              method:'PATCH',
-              body: JSON.stringify({ title, date, start_time, end_time, notes })
-            });
-            await loadEvents();
-          } catch (err) {
-            showError('Erro ao atualizar o evento.', err);
-          }
-        };
-      });
-    }
-
-    document.getElementById('btnAddEvent').onclick = async () => {
-      const title = val('e-title');
-      const date = val('e-date');
-      if(!title || !date){ alert('Preencha o título e a data do evento.'); return; }
-      const payload = {
-        title,
-        date,
-        start_time: val('e-start') || null,
-        end_time: val('e-end') || null,
-        notes: val('e-notes') || null
-      };
-      try {
-        await apiRequest('/api/events', {
-          method:'POST',
-          body: JSON.stringify(payload)
-        });
-        set('e-title',''); set('e-start',''); set('e-end',''); set('e-notes',''); set('e-date', today());
-        await loadEvents();
-      } catch (err) {
-        showError(`Erro ao salvar o evento: ${err.message}`, err);
-      }
-    };
-
-    document.getElementById('btnClearEvent').onclick = () => {
-      set('e-title',''); set('e-start',''); set('e-end',''); set('e-notes',''); set('e-date', today());
-    };
-
-    document.getElementById('btnFilterEvents').onclick = async () => { await loadEvents(); };
-
-    // ===== GRÁFICOS (Chart.js) =====
-    let chartLine, chartPie;
-
-    function groupByMonth(rows){
-      const map = new Map();
-      rows.forEach(r=>{
-        const ym = r.date.slice(0,7);
-        if(!map.has(ym)) map.set(ym, { income:0, expense:0 });
-        map.get(ym)[r.type] += r.amount;
-      });
-      const labels = Array.from(map.keys()).sort();
-      const incomes = labels.map(l => map.get(l).income);
-      const expenses = labels.map(l => map.get(l).expense);
-      return { labels, incomes, expenses };
-    }
-
-    function expenseByCategory(rows){
-      const cat = {};
-      rows.filter(r=>r.type==='expense').forEach(r=>{
-        const c = r.category || 'Sem categoria';
-        cat[c] = (cat[c]||0) + r.amount;
-      });
-      const labels = Object.keys(cat);
-      const values = labels.map(k => cat[k]);
-      return { labels, values };
-    }
-
-    function destroyCharts(){
-      if(chartLine){ chartLine.destroy(); chartLine=null; }
-      if(chartPie){ chartPie.destroy(); chartPie=null; }
-    }
-
-    function updateCharts(){
-      destroyCharts();
-      const rows = Array.isArray(cachedTx) ? cachedTx : [];
-
-      const grouped = groupByMonth(rows);
-      const pieData = expenseByCategory(rows);
-      const hasLineData = grouped.labels.length > 0;
-      const lineLabels = hasLineData ? grouped.labels : ['Sem dados'];
-      const lineIncome = hasLineData ? grouped.incomes : [0];
-      const lineExpense = hasLineData ? grouped.expenses : [0];
-      const hasPieData = pieData.labels.length > 0;
-      const pieLabels = hasPieData ? pieData.labels : ['Sem dados'];
-      const pieValues = hasPieData ? pieData.values : [1];
-
-      const ctxL = document.getElementById('chartLine');
-      const ctxP = document.getElementById('chartPie');
-
-      chartLine = new Chart(ctxL, {
-        type: 'line',
-        data: {
-          labels: lineLabels,
-          datasets: [
-            { label: 'Receitas', data: lineIncome },
-            { label: 'Despesas', data: lineExpense }
-          ]
+    <script>
+      // ===================== API =====================
+      const API = {
+        base: "",
+        async login(username, password) {
+          const res = await fetch(`/api/auth/login`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username, password }),
+          });
+          if (!res.ok) throw new Error("Login falhou");
+          return res.json();
         },
-        options: {
-          responsive: true,
-          plugins: { legend: { labels: { color: '#e5e7eb' } } },
-          scales: {
-            x: { ticks: { color: '#aab2c0' }, grid:{ color:'#1f2434' } },
-            y: { ticks: { color: '#aab2c0' }, grid:{ color:'#1f2434' } }
-          }
+        async listTransactions() {
+          const res = await fetch(`/api/transactions`);
+          return res.json();
+        },
+        async createTransaction(data) {
+          const res = await fetch(`/api/transactions`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(data),
+          });
+          return res.json();
+        },
+        async deleteTransaction(id) {
+          await fetch(`/api/transactions/${id}`, { method: "DELETE" });
+        },
+        async summary() {
+          const res = await fetch(`/api/transactions/summary`);
+          return res.json();
+        },
+      };
+
+      // ===================== DOM HELPERS =====================
+      const screens = document.querySelectorAll(".screen");
+      const showScreen = (id) => {
+        screens.forEach((s) => s.classList.remove("active"));
+        document.getElementById(id).classList.add("active");
+      };
+
+      const fmt = (n) =>
+        n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
+      // ===================== LOGIN =====================
+      const loginForm = document.getElementById("loginForm");
+      const loginError = document.getElementById("loginError");
+
+      loginForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const username = document.getElementById("username").value;
+        const password = document.getElementById("password").value;
+        try {
+          const result = await API.login(username, password);
+          localStorage.setItem("user", JSON.stringify(result.user));
+          showDashboard();
+        } catch {
+          loginError.classList.remove("hidden");
         }
       });
 
-      chartPie = new Chart(ctxP, {
-        type: 'doughnut',
-        data: { labels: pieLabels, datasets: [{ data: pieValues }] },
-        options: { responsive: true, plugins: { legend: { labels: { color: '#e5e7eb' } } } }
+      const btnLogout = document.getElementById("btnLogout");
+      btnLogout.addEventListener("click", () => {
+        localStorage.removeItem("user");
+        showScreen("loginScreen");
       });
-    }
 
-    // boot
-    async function boot(){
-      await detectApiBase();
-      await loadTransactions();
-      await loadEvents();
-    }
-    boot();
-  </script>
-</body>
+      // ===================== DASHBOARD =====================
+      async function showDashboard() {
+        showScreen("dashboard");
+        const rows = await API.listTransactions();
+        const tbody = document.querySelector("#transactionsTable tbody");
+        tbody.innerHTML = "";
+
+        let totalIncome = 0;
+        let totalExpense = 0;
+
+        rows.forEach((r) => {
+          const tr = document.createElement("tr");
+          const value = r.type === "income" ? r.amount : -r.amount;
+          if (r.type === "income") totalIncome += r.amount;
+          else totalExpense += r.amount;
+
+          tr.innerHTML = `
+            <td>${r.date}</td>
+            <td>${r.description || "-"}</td>
+            <td>${r.category || "-"}</td>
+            <td>${r.type === "income" ? "Entrada" : "Saída"}</td>
+            <td class="${r.type}">${fmt(value)}</td>
+            <td><button class="del" data-id="${r.id}">🗑️</button></td>
+          `;
+          tbody.appendChild(tr);
+        });
+
+        document.getElementById("totalIncome").textContent = fmt(totalIncome);
+        document.getElementById("totalExpense").textContent = fmt(totalExpense);
+        document.getElementById("balanceValue").textContent = fmt(
+          totalIncome - totalExpense
+        );
+
+        // deletar transação
+        tbody.addEventListener("click", async (e) => {
+          if (e.target.matches(".del")) {
+            const id = e.target.dataset.id;
+            await API.deleteTransaction(id);
+            showDashboard();
+          }
+        });
+      }
+
+      // ===================== NOVA TRANSAÇÃO =====================
+      document
+        .getElementById("btnAddTransaction")
+        .addEventListener("click", () => showScreen("transactionScreen"));
+      document
+        .getElementById("btnBackDashboard")
+        .addEventListener("click", showDashboard);
+
+      document
+        .getElementById("transactionForm")
+        .addEventListener("submit", async (e) => {
+          e.preventDefault();
+          const data = {
+            type: document.getElementById("type").value,
+            amount: parseFloat(document.getElementById("amount").value),
+            description: document.getElementById("description").value,
+            category: document.getElementById("category").value,
+            date: document.getElementById("date").value,
+          };
+          await API.createTransaction(data);
+          showDashboard();
+        });
+
+      // ===================== RESUMO =====================
+      document
+        .getElementById("btnViewSummary")
+        .addEventListener("click", async () => {
+          showScreen("summaryScreen");
+          const s = await API.summary();
+          document.getElementById("sumIncome").textContent = fmt(s.income);
+          document.getElementById("sumExpense").textContent = fmt(s.expense);
+          document.getElementById("sumBalance").textContent = fmt(s.balance);
+        });
+
+      document
+        .getElementById("btnBackSummary")
+        .addEventListener("click", showDashboard);
+
+      // ===================== AUTO LOGIN =====================
+      window.addEventListener("DOMContentLoaded", async () => {
+        const user = localStorage.getItem("user");
+        if (user) showDashboard();
+        else showScreen("loginScreen");
+      });
+    </script>
+  </body>
 </html>

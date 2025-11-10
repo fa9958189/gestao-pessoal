@@ -1,4 +1,12 @@
 {
   "transactions": [],
-  "events": []
+  "events": [],
+  "users": [
+    {
+      "id": "user-felipeadm",
+      "username": "felipeadm",
+      "password": "1234",
+      "role": "admin"
+    }
+  ]
 }
