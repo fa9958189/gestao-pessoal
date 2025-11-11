@@ -5,6 +5,7 @@
 const http = require('http');
 const path = require('path');
 const fs = require('fs');
+const os = require('os'); // (apenas para log do IP LAN)
 
 // Carrega variáveis de ambiente simples de um arquivo .env, caso exista
 const envPath = path.join(__dirname, '.env');
@@ -579,6 +580,23 @@ const handleEventsRoutes = async (req, res, subSegments, searchParams) => {
 };
 
 const PORT = Number(process.env.PORT) || 3333;
-server.listen(PORT, () => {
+
+// >>> ÚNICA MUDANÇA FUNCIONAL: escutar em 0.0.0.0 para aceitar conexões do simulador/lan
+server.listen(PORT, '0.0.0.0', () => {
   console.log(`✅ API rodando em http://localhost:${PORT}`);
+
+  // Log extra com IP da rede (só para facilitar abrir no simulador)
+  try {
+    const ifaces = os.networkInterfaces();
+    const ips = [];
+    for (const name of Object.keys(ifaces)) {
+      for (const info of ifaces[name] || []) {
+        if (info.family === 'IPv4' && !info.internal) ips.push(info.address);
+      }
+    }
+    if (ips.length) {
+      console.log(`🌐 Acesse via LAN: http://${ips[0]}:${PORT}`);
+      console.log(`📄 Páginas: /public/index.html e /public/login.html`);
+    }
+  } catch {}
 });

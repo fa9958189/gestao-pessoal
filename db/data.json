@@ -1,12 +1,21 @@
 {
-  "transactions": [],
-  "events": [],
-  "users": [
+  "transactions": [
     {
-      "id": "user-felipeadm",
-      "username": "felipeadm",
-      "password": "1234",
-      "role": "admin"
+      "id": "OCXRAjwldaU4NhkCS0MHF",
+      "type": "income",
+      "amount": 5000,
+      "description": "Vendas",
+      "category": "Loja",
+      "date": "2025-11-11"
+    },
+    {
+      "id": "8GwO1fgn2GDlJw53bVcQg",
+      "type": "expense",
+      "amount": 750,
+      "description": "Aluguel",
+      "category": "Loja",
+      "date": "2025-11-11"
     }
-  ]
+  ],
+  "events": []
 }
