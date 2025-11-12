@@ -231,14 +231,22 @@ canvas{ background:transparent; }
   .card{
     padding:14px;
   }
+  /* Une as duas versões: aplica a todos os filhos e garante prioridade */
   .row > *{
-    flex:1 1 100%;
+    flex:1 1 100% !important;
   }
   .grid-2{
     grid-template-columns:1fr;
   }
   input, select, textarea, button{
     font-size:15px;
+  }
+  /* Mantém o ajuste específico dos relatórios no mobile */
+  #tab-reports .row{
+    flex-direction:column;
+  }
+  #tab-reports .row > .card{
+    width:100%;
   }
 }
 
