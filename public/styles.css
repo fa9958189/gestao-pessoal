@@ -42,6 +42,8 @@ header{
   position:sticky; top:0; z-index:10;
 }
 
+.header-info{ display:flex; flex-direction:column; gap:6px; }
+
 .user-session{ display:flex; align-items:center; gap:14px; }
 .user-info{ display:flex; flex-direction:column; align-items:flex-end; }
 .user-info strong{ font-size:14px; }
@@ -113,19 +115,22 @@ h2.title, h3.title{ margin:0 0 10px; font-weight:600; }
   grid-template-columns:1fr;
   grid-template-areas:
     "main"
-    "sidebar";
+    "sidebar"
+    "admin";
   gap:16px;
 }
-.container > section{
-  grid-area:main;
-}
-.container > aside{
-  grid-area:sidebar;
-}
+
+.container > section{ grid-area:main; }
+.container > aside{ grid-area:sidebar; }
+.container > .dashboard-card{ grid-area:main; }
+.container > .admin-card{ grid-area:admin; }
+
 @media (min-width:1100px){
   .container{
     grid-template-columns:1.2fr .8fr;
-    grid-template-areas:"main sidebar";
+    grid-template-areas:
+      "main sidebar"
+      "admin sidebar";
   }
 }
 
@@ -136,6 +141,19 @@ h2.title, h3.title{ margin:0 0 10px; font-weight:600; }
   padding:16px;
   box-shadow:0 0 0 1px rgba(0,0,0,.2), 0 12px 32px rgba(0,0,0,.25);
 }
+
+.admin-card .user-empty{ text-align:center; margin-top:12px; }
+.admin-card table{ margin-top:4px; min-width:420px; }
+.admin-user-form .admin-user-actions{
+  display:flex;
+  gap:8px;
+  justify-content:flex-end;
+  align-items:flex-end;
+  grid-column:span 2;
+}
+.admin-user-form .admin-user-actions button{ flex:1; }
+.user-list-wrapper{ overflow:auto; }
+.user-empty.hidden{ display:none; }
 
 .row{ display:flex; gap:10px; flex-wrap:wrap; }
 
@@ -225,27 +243,44 @@ canvas{ background:transparent; }
     gap:12px;
     align-items:flex-start;
   }
+
+  /* no mobile o nome/descrição do usuário alinham à esquerda */
+  .user-info{ align-items:flex-start; }
+
   .tabs{
     flex-wrap:wrap;
   }
   .card{
     padding:14px;
   }
-  /* Une as duas versões: aplica a todos os filhos e garante prioridade */
+
+  /* Aplica a todos os filhos da row e força 100% no mobile */
   .row > *{
     flex:1 1 100% !important;
   }
+
   .grid-2{
     grid-template-columns:1fr;
   }
+
   input, select, textarea, button{
     font-size:15px;
   }
-  /* Mantém o ajuste específico dos relatórios no mobile */
+
+  /* Ajuste específico dos relatórios no mobile */
   #tab-reports .row{
     flex-direction:column;
   }
   #tab-reports .row > .card{
+    width:100%;
+  }
+
+  /* Ajuste da área de ações do admin no mobile */
+  .admin-user-form .admin-user-actions{
+    grid-column:span 1;
+    flex-direction:column;
+  }
+  .admin-user-form .admin-user-actions button{
     width:100%;
   }
 }
