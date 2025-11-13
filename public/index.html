@@ -10,13 +10,22 @@
 </head>
 <body>
   <header>
-    <h1>Gestão Pessoal – Dashboard</h1>
-    <div class="muted">API: <span id="apiUrl">http://localhost:3333</span></div>
+    <div class="header-info">
+      <h1>Gestão Pessoal – Dashboard</h1>
+      <div class="muted">API: <span id="apiUrl">http://localhost:3333</span></div>
+    </div>
+    <div class="user-session">
+      <div class="user-info">
+        <strong id="userName"></strong>
+        <span class="badge" id="userRole"></span>
+      </div>
+      <button class="ghost small" id="btnLogout">Sair</button>
+    </div>
   </header>
 
   <div class="container">
     <!-- COLUNA ESQUERDA: Transações -->
-    <section class="card">
+    <section class="card dashboard-card">
       <div class="row" style="justify-content:space-between; align-items:center">
         <h2 class="title">Transações</h2>
         <div class="tabs">
@@ -136,6 +145,16 @@
             <canvas id="chartPie"></canvas>
           </div>
         </div>
+        <div class="row">
+          <div class="card" style="flex:1">
+            <h3 class="title">Receitas por Categoria</h3>
+            <canvas id="chartIncomeCat"></canvas>
+          </div>
+          <div class="card" style="flex:1">
+            <h3 class="title">Saldo Acumulado</h3>
+            <canvas id="chartBalance"></canvas>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -209,11 +228,103 @@
         </table>
       </div>
     </aside>
+
+    <section class="card admin-card" id="adminUsersSection" hidden>
+      <h2 class="title">Gerenciar Usuários</h2>
+      <p class="muted">Crie contas para seus amigos. Cada um verá apenas os próprios dados.</p>
+
+      <div class="grid grid-2 admin-user-form">
+        <div>
+          <label>Nome</label>
+          <input id="u-name" placeholder="Nome completo (opcional)">
+        </div>
+        <div>
+          <label>Usuário</label>
+          <input id="u-username" placeholder="ex.: joaosilva">
+        </div>
+        <div>
+          <label>Senha inicial</label>
+          <input id="u-password" type="password" placeholder="Mínimo de 4 caracteres">
+        </div>
+        <div class="admin-user-actions">
+          <button class="primary" id="btnCreateUser">Adicionar usuário</button>
+          <button class="ghost" id="btnClearUser">Limpar</button>
+        </div>
+      </div>
+
+      <div class="sep"></div>
+
+      <div class="user-list-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>Usuário</th>
+              <th>Nome</th>
+              <th>Perfil</th>
+              <th>Criado em</th>
+            </tr>
+          </thead>
+          <tbody id="userTableBody"></tbody>
+        </table>
+        <p class="muted user-empty hidden" id="userEmptyMessage">Nenhum usuário cadastrado além de você.</p>
+      </div>
+    </section>
   </div>
 
   <script>
-    let API = 'http://localhost:3333';
     const apiLabel = document.getElementById('apiUrl');
+    let API = sessionStorage.getItem('gp-api-base') || 'http://localhost:3333';
+    const storedToken = sessionStorage.getItem('gp-auth-token');
+    const storedUserRaw = sessionStorage.getItem('gp-user');
+
+    let isSigningOut = false;
+
+    const signOut = () => {
+      if (isSigningOut) return;
+      isSigningOut = true;
+      const token = sessionStorage.getItem('gp-auth-token');
+      const apiBase = sessionStorage.getItem('gp-api-base') || API;
+      if (token) {
+        fetch(`${apiBase}/api/auth/logout`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` }
+        }).catch(() => {});
+      }
+      sessionStorage.removeItem('gp-auth-token');
+      sessionStorage.removeItem('gp-user');
+      sessionStorage.removeItem('gp-api-base');
+      window.location.href = 'login.html';
+    };
+
+    if (!storedToken || !storedUserRaw) {
+      signOut();
+      throw new Error('Sessão expirada');
+    }
+
+    let currentUser;
+    try {
+      currentUser = JSON.parse(storedUserRaw);
+    } catch (err) {
+      console.error('Erro ao ler usuário em sessão', err);
+      signOut();
+      throw err;
+    }
+
+    if (!currentUser || !currentUser.username) {
+      signOut();
+      throw new Error('Usuário inválido');
+    }
+
+    let AUTH_TOKEN = storedToken;
+
+    const userNameLabel = document.getElementById('userName');
+    const userRoleLabel = document.getElementById('userRole');
+    const logoutButton = document.getElementById('btnLogout');
+    const agendaCard = document.querySelector('.container > aside.card');
+    if (userNameLabel) userNameLabel.textContent = currentUser.name || currentUser.username;
+    if (userRoleLabel) userRoleLabel.textContent = currentUser.role === 'admin' ? 'Administrador' : 'Usuário';
+    if (logoutButton) logoutButton.onclick = () => signOut();
+    if (agendaCard) agendaCard.classList.remove('hidden');
 
     const BRL = v => v.toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
     const val = id => document.getElementById(id).value.trim();
@@ -228,43 +339,52 @@
     set('ef-from', today());
     set('ef-to', today());
 
+    let apiDetectionPromise;
+
     async function detectApiBase(){
-      apiLabel.textContent = 'detectando...';
-      const candidates = [];
-      const seen = new Set();
-      const metaTag = document.querySelector('meta[name="api-base"]');
-      const meta = metaTag?.content?.trim();
-      if (meta) candidates.push(meta);
-      const origin = location.origin && location.origin !== 'null' ? location.origin : '';
-      if (origin) candidates.push(origin);
-      if (location.hostname) {
-        const proto = location.protocol.startsWith('http') ? location.protocol : 'http:';
-        const hostBase = `${proto}//${location.hostname}`;
-        candidates.push(hostBase);
-        candidates.push(`${hostBase}:3333`);
-      }
-      candidates.push('http://localhost:3333', 'http://127.0.0.1:3333');
-
-      let resolved = false;
-      for (const cand of candidates) {
-        const normalized = cand.replace(/\/+$/, '');
-        if (!normalized || seen.has(normalized)) continue;
-        seen.add(normalized);
-        try {
-          const res = await fetch(`${normalized}/api/health`, { cache: 'no-store' });
-          if (res.ok) {
-            API = normalized;
-            resolved = true;
-            break;
-          }
-        } catch (err) {
-          console.warn('Falha ao conectar com a API em', normalized, err);
+      if (apiDetectionPromise) return apiDetectionPromise;
+      apiDetectionPromise = (async () => {
+        apiLabel.textContent = 'detectando...';
+        const candidates = [];
+        const seen = new Set();
+        const stored = sessionStorage.getItem('gp-api-base');
+        if (stored) candidates.push(stored);
+        const metaTag = document.querySelector('meta[name="api-base"]');
+        const meta = metaTag?.content?.trim();
+        if (meta) candidates.push(meta);
+        const origin = location.origin && location.origin !== 'null' ? location.origin : '';
+        if (origin) candidates.push(origin);
+        if (location.hostname) {
+          const proto = location.protocol.startsWith('http') ? location.protocol : 'http:';
+          const hostBase = `${proto}//${location.hostname}`;
+          candidates.push(hostBase);
+          candidates.push(`${hostBase}:3333`);
         }
-      }
+        candidates.push('http://localhost:3333', 'http://127.0.0.1:3333');
 
-      if (!resolved) console.warn('Nenhuma API respondeu, usando', API);
-      apiLabel.textContent = resolved ? API : `${API} (offline?)`;
-      return API;
+        let resolved = false;
+        for (const cand of candidates) {
+          const normalized = cand.replace(/\/+$/, '');
+          if (!normalized || seen.has(normalized)) continue;
+          seen.add(normalized);
+          try {
+            const res = await fetch(`${normalized}/api/health`, { cache: 'no-store' });
+            if (res.ok) {
+              API = normalized;
+              resolved = true;
+              break;
+            }
+          } catch (err) {
+            console.warn('Falha ao conectar com a API em', normalized, err);
+          }
+        }
+
+        if (!resolved) console.warn('Nenhuma API respondeu, usando', API);
+        apiLabel.textContent = resolved ? API : `${API} (offline?)`;
+        sessionStorage.setItem('gp-api-base', API);
+        return API;
+      })();
+      return apiDetectionPromise;
     }
 
     async function apiRequest(path, options = {}){
@@ -273,6 +393,9 @@
       opts.headers = { ...(options.headers || {}) };
       if (opts.body && !opts.headers['Content-Type']) {
         opts.headers['Content-Type'] = 'application/json';
+      }
+      if (AUTH_TOKEN) {
+        opts.headers['Authorization'] = `Bearer ${AUTH_TOKEN}`;
       }
       const res = await fetch(url, opts);
       if (!res.ok) {
@@ -286,7 +409,12 @@
             if (text) message = text;
           } catch {}
         }
-        throw new Error(message);
+        const error = new Error(message);
+        error.status = res.status;
+        if (res.status === 401) {
+          signOut();
+        }
+        throw error;
       }
       if (res.status === 204) return null;
       const contentType = res.headers.get('content-type') || '';
@@ -297,6 +425,7 @@
     }
 
     function showError(message, err){
+      if (err?.status === 401) return;
       console.error(message, err);
       alert(message);
     }
@@ -309,6 +438,7 @@
         const target = tab.getAttribute('data-tab');
         document.getElementById('tab-form').classList.toggle('hidden', target!=='tab-form');
         document.getElementById('tab-reports').classList.toggle('hidden', target!=='tab-reports');
+        if (agendaCard) agendaCard.classList.toggle('hidden', target === 'tab-reports');
         if(target==='tab-reports') updateCharts(); // atualiza gráficos ao abrir
       };
     });
@@ -543,7 +673,7 @@
     document.getElementById('btnFilterEvents').onclick = async () => { await loadEvents(); };
 
     // ===== GRÁFICOS (Chart.js) =====
-    let chartLine, chartPie;
+    let chartLine, chartPie, chartIncomeCat, chartBalance;
 
     function groupByMonth(rows){
       const map = new Map();
@@ -569,9 +699,34 @@
       return { labels, values };
     }
 
+    function incomeByCategory(rows){
+      const cat = {};
+      rows.filter(r=>r.type==='income').forEach(r=>{
+        const c = r.category || 'Sem categoria';
+        cat[c] = (cat[c]||0) + r.amount;
+      });
+      const labels = Object.keys(cat);
+      const values = labels.map(k => cat[k]);
+      return { labels, values };
+    }
+
+    function cumulativeBalance(grouped){
+      if (!grouped || !Array.isArray(grouped.labels) || grouped.labels.length === 0) {
+        return { labels: ['Sem dados'], values: [0] };
+      }
+      let running = 0;
+      const values = grouped.labels.map((label, idx) => {
+        running += (grouped.incomes[idx] || 0) - (grouped.expenses[idx] || 0);
+        return running;
+      });
+      return { labels: grouped.labels, values };
+    }
+
     function destroyCharts(){
       if(chartLine){ chartLine.destroy(); chartLine=null; }
       if(chartPie){ chartPie.destroy(); chartPie=null; }
+      if(chartIncomeCat){ chartIncomeCat.destroy(); chartIncomeCat=null; }
+      if(chartBalance){ chartBalance.destroy(); chartBalance=null; }
     }
 
     function updateCharts(){
@@ -580,6 +735,8 @@
 
       const grouped = groupByMonth(rows);
       const pieData = expenseByCategory(rows);
+      const incomeData = incomeByCategory(rows);
+      const balanceData = cumulativeBalance(grouped);
       const hasLineData = grouped.labels.length > 0;
       const lineLabels = hasLineData ? grouped.labels : ['Sem dados'];
       const lineIncome = hasLineData ? grouped.incomes : [0];
@@ -587,9 +744,16 @@
       const hasPieData = pieData.labels.length > 0;
       const pieLabels = hasPieData ? pieData.labels : ['Sem dados'];
       const pieValues = hasPieData ? pieData.values : [1];
+      const hasIncomeData = incomeData.labels.length > 0;
+      const incomeLabels = hasIncomeData ? incomeData.labels : ['Sem dados'];
+      const incomeValues = hasIncomeData ? incomeData.values : [1];
+      const balanceLabels = balanceData.labels.length > 0 ? balanceData.labels : ['Sem dados'];
+      const balanceValues = balanceData.values.length > 0 ? balanceData.values : [0];
 
       const ctxL = document.getElementById('chartLine');
       const ctxP = document.getElementById('chartPie');
+      const ctxIncome = document.getElementById('chartIncomeCat');
+      const ctxBalance = document.getElementById('chartBalance');
 
       chartLine = new Chart(ctxL, {
         type: 'line',
@@ -615,6 +779,147 @@
         data: { labels: pieLabels, datasets: [{ data: pieValues }] },
         options: { responsive: true, plugins: { legend: { labels: { color: '#e5e7eb' } } } }
       });
+
+      chartIncomeCat = new Chart(ctxIncome, {
+        type: 'bar',
+        data: {
+          labels: incomeLabels,
+          datasets: [
+            {
+              label: 'Receitas',
+              data: incomeValues,
+              backgroundColor: 'rgba(34,197,94,0.6)',
+              borderColor: 'rgba(34,197,94,1)',
+              borderWidth: 1
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { labels: { color: '#e5e7eb' } } },
+          scales: {
+            x: { ticks: { color: '#aab2c0' }, grid:{ color:'#1f2434' } },
+            y: { ticks: { color: '#aab2c0' }, grid:{ color:'#1f2434' } }
+          }
+        }
+      });
+
+      chartBalance = new Chart(ctxBalance, {
+        type: 'line',
+        data: {
+          labels: balanceLabels,
+          datasets: [
+            {
+              label: 'Saldo acumulado',
+              data: balanceValues,
+              fill: true,
+              tension: 0.3,
+              backgroundColor: 'rgba(59,130,246,0.3)',
+              borderColor: 'rgba(59,130,246,1)'
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { labels: { color: '#e5e7eb' } } },
+          scales: {
+            x: { ticks: { color: '#aab2c0' }, grid:{ color:'#1f2434' } },
+            y: { ticks: { color: '#aab2c0' }, grid:{ color:'#1f2434' } }
+          }
+        }
+      });
+    }
+
+    const adminSection = document.getElementById('adminUsersSection');
+    const userTableBody = document.getElementById('userTableBody');
+    const userEmptyMessage = document.getElementById('userEmptyMessage');
+
+    function renderManagedUsers(users){
+      if (!userTableBody || !userEmptyMessage) return;
+      userTableBody.innerHTML = '';
+      if (!Array.isArray(users) || users.length === 0) {
+        userEmptyMessage.classList.remove('hidden');
+        return;
+      }
+      userEmptyMessage.classList.add('hidden');
+      const formatter = new Intl.DateTimeFormat('pt-BR', {
+        day: '2-digit', month: '2-digit', year: 'numeric',
+        hour: '2-digit', minute: '2-digit'
+      });
+      users.forEach((user) => {
+        const tr = document.createElement('tr');
+        const createdAt = user.createdAt ? formatter.format(new Date(user.createdAt)) : '-';
+        const roleLabel = user.role === 'admin' ? 'Administrador' : 'Usuário';
+        tr.innerHTML = `
+          <td>${user.username}</td>
+          <td>${user.name ?? '-'}</td>
+          <td>${roleLabel}</td>
+          <td>${createdAt}</td>
+        `;
+        userTableBody.appendChild(tr);
+      });
+    }
+
+    async function loadManagedUsers(){
+      if (!adminSection || currentUser.role !== 'admin') return;
+      try {
+        await detectApiBase();
+        const users = await apiRequest('/api/users');
+        renderManagedUsers(users);
+      } catch (err) {
+        showError('Não foi possível carregar a lista de usuários.', err);
+      }
+    }
+
+    if (adminSection && currentUser.role === 'admin') {
+      adminSection.hidden = false;
+      loadManagedUsers();
+    }
+
+    const btnCreateUser = document.getElementById('btnCreateUser');
+    const btnClearUser = document.getElementById('btnClearUser');
+    const passwordInput = document.getElementById('u-password');
+
+    if (btnCreateUser) {
+      btnCreateUser.onclick = async () => {
+        if (currentUser.role !== 'admin') return;
+        const username = val('u-username');
+        const password = passwordInput ? passwordInput.value : '';
+        const name = val('u-name');
+        if (!username || !password) {
+          alert('Preencha pelo menos o usuário e a senha inicial.');
+          return;
+        }
+        if (password.length < 4) {
+          alert('A senha deve ter ao menos 4 caracteres.');
+          return;
+        }
+        try {
+          await apiRequest('/api/users', {
+            method: 'POST',
+            body: JSON.stringify({ username, password, name: name || null })
+          });
+          set('u-username', '');
+          if (passwordInput) passwordInput.value = '';
+          set('u-name', '');
+          await loadManagedUsers();
+          alert(`Usuário ${username} criado com sucesso!`);
+        } catch (err) {
+          if (err?.status === 409) {
+            alert('Já existe um usuário com esse nome.');
+            return;
+          }
+          showError('Erro ao criar usuário.', err);
+        }
+      };
+    }
+
+    if (btnClearUser) {
+      btnClearUser.onclick = () => {
+        set('u-username', '');
+        if (passwordInput) passwordInput.value = '';
+        set('u-name', '');
+      };
     }
 
     // boot
