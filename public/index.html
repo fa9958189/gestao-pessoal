@@ -145,6 +145,16 @@
             <canvas id="chartPie"></canvas>
           </div>
         </div>
+        <div class="row">
+          <div class="card" style="flex:1">
+            <h3 class="title">Receitas por Categoria</h3>
+            <canvas id="chartIncomeCat"></canvas>
+          </div>
+          <div class="card" style="flex:1">
+            <h3 class="title">Saldo Acumulado</h3>
+            <canvas id="chartBalance"></canvas>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -310,9 +320,12 @@
     const userNameLabel = document.getElementById('userName');
     const userRoleLabel = document.getElementById('userRole');
     const logoutButton = document.getElementById('btnLogout');
+    const agendaCard = document.querySelector('.container > aside.card');
+
     if (userNameLabel) userNameLabel.textContent = currentUser.name || currentUser.username;
     if (userRoleLabel) userRoleLabel.textContent = currentUser.role === 'admin' ? 'Administrador' : 'Usuário';
     if (logoutButton) logoutButton.onclick = () => signOut();
+    if (agendaCard) agendaCard.classList.remove('hidden');
 
     const BRL = v => v.toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
     const val = id => document.getElementById(id).value.trim();
@@ -426,6 +439,7 @@
         const target = tab.getAttribute('data-tab');
         document.getElementById('tab-form').classList.toggle('hidden', target!=='tab-form');
         document.getElementById('tab-reports').classList.toggle('hidden', target!=='tab-reports');
+        if (agendaCard) agendaCard.classList.toggle('hidden', target === 'tab-reports');
         if(target==='tab-reports') updateCharts(); // atualiza gráficos ao abrir
       };
     });
@@ -660,7 +674,7 @@
     document.getElementById('btnFilterEvents').onclick = async () => { await loadEvents(); };
 
     // ===== GRÁFICOS (Chart.js) =====
-    let chartLine, chartPie;
+    let chartLine, chartPie, chartIncomeCat, chartBalance;
 
     function groupByMonth(rows){
       const map = new Map();
@@ -686,9 +700,34 @@
       return { labels, values };
     }
 
+    function incomeByCategory(rows){
+      const cat = {};
+      rows.filter(r=>r.type==='income').forEach(r=>{
+        const c = r.category || 'Sem categoria';
+        cat[c] = (cat[c]||0) + r.amount;
+      });
+      const labels = Object.keys(cat);
+      const values = labels.map(k => cat[k]);
+      return { labels, values };
+    }
+
+    function cumulativeBalance(grouped){
+      if (!grouped || !Array.isArray(grouped.labels) || grouped.labels.length === 0) {
+        return { labels: ['Sem dados'], values: [0] };
+      }
+      let running = 0;
+      const values = grouped.labels.map((label, idx) => {
+        running += (grouped.incomes[idx] || 0) - (grouped.expenses[idx] || 0);
+        return running;
+      });
+      return { labels: grouped.labels, values };
+    }
+
     function destroyCharts(){
       if(chartLine){ chartLine.destroy(); chartLine=null; }
       if(chartPie){ chartPie.destroy(); chartPie=null; }
+      if(chartIncomeCat){ chartIncomeCat.destroy(); chartIncomeCat=null; }
+      if(chartBalance){ chartBalance.destroy(); chartBalance=null; }
     }
 
     function updateCharts(){
@@ -697,6 +736,8 @@
 
       const grouped = groupByMonth(rows);
       const pieData = expenseByCategory(rows);
+      const incomeData = incomeByCategory(rows);
+      const balanceData = cumulativeBalance(grouped);
       const hasLineData = grouped.labels.length > 0;
       const lineLabels = hasLineData ? grouped.labels : ['Sem dados'];
       const lineIncome = hasLineData ? grouped.incomes : [0];
@@ -704,9 +745,16 @@
       const hasPieData = pieData.labels.length > 0;
       const pieLabels = hasPieData ? pieData.labels : ['Sem dados'];
       const pieValues = hasPieData ? pieData.values : [1];
+      const hasIncomeData = incomeData.labels.length > 0;
+      const incomeLabels = hasIncomeData ? incomeData.labels : ['Sem dados'];
+      const incomeValues = hasIncomeData ? incomeData.values : [1];
+      const balanceLabels = balanceData.labels.length > 0 ? balanceData.labels : ['Sem dados'];
+      const balanceValues = balanceData.values.length > 0 ? balanceData.values : [0];
 
       const ctxL = document.getElementById('chartLine');
       const ctxP = document.getElementById('chartPie');
+      const ctxIncome = document.getElementById('chartIncomeCat');
+      const ctxBalance = document.getElementById('chartBalance');
 
       chartLine = new Chart(ctxL, {
         type: 'line',
@@ -732,8 +780,58 @@
         data: { labels: pieLabels, datasets: [{ data: pieValues }] },
         options: { responsive: true, plugins: { legend: { labels: { color: '#e5e7eb' } } } }
       });
+
+      chartIncomeCat = new Chart(ctxIncome, {
+        type: 'bar',
+        data: {
+          labels: incomeLabels,
+          datasets: [
+            {
+              label: 'Receitas',
+              data: incomeValues,
+              backgroundColor: 'rgba(34,197,94,0.6)',
+              borderColor: 'rgba(34,197,94,1)',
+              borderWidth: 1
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { labels: { color: '#e5e7eb' } } },
+          scales: {
+            x: { ticks: { color: '#aab2c0' }, grid:{ color:'#1f2434' } },
+            y: { ticks: { color: '#aab2c0' }, grid:{ color:'#1f2434' } }
+          }
+        }
+      });
+
+      chartBalance = new Chart(ctxBalance, {
+        type: 'line',
+        data: {
+          labels: balanceLabels,
+          datasets: [
+            {
+              label: 'Saldo acumulado',
+              data: balanceValues,
+              fill: true,
+              tension: 0.3,
+              backgroundColor: 'rgba(59,130,246,0.3)',
+              borderColor: 'rgba(59,130,246,1)'
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { labels: { color: '#e5e7eb' } } },
+          scales: {
+            x: { ticks: { color: '#aab2c0' }, grid:{ color:'#1f2434' } },
+            y: { ticks: { color: '#aab2c0' }, grid:{ color:'#1f2434' } }
+          }
+        }
+      });
     }
 
+    // ===== ADMIN / USUÁRIOS =====
     const adminSection = document.getElementById('adminUsersSection');
     const userTableBody = document.getElementById('userTableBody');
     const userEmptyMessage = document.getElementById('userEmptyMessage');
