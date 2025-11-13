@@ -321,6 +321,7 @@
     const userRoleLabel = document.getElementById('userRole');
     const logoutButton = document.getElementById('btnLogout');
     const agendaCard = document.querySelector('.container > aside.card');
+
     if (userNameLabel) userNameLabel.textContent = currentUser.name || currentUser.username;
     if (userRoleLabel) userRoleLabel.textContent = currentUser.role === 'admin' ? 'Administrador' : 'Usuário';
     if (logoutButton) logoutButton.onclick = () => signOut();
@@ -830,6 +831,7 @@
       });
     }
 
+    // ===== ADMIN / USUÁRIOS =====
     const adminSection = document.getElementById('adminUsersSection');
     const userTableBody = document.getElementById('userTableBody');
     const userEmptyMessage = document.getElementById('userEmptyMessage');
