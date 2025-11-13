@@ -1,4 +1,15 @@
 {
+  "users": [
+    {
+      "id": "admin-felipe",
+      "username": "felipeadm",
+      "role": "admin",
+      "name": "Administrador",
+      "createdAt": "2025-11-13T14:16:36.383Z",
+      "salt": "2f78fbffd4d9835a8c648b4e22771c25",
+      "passwordHash": "fa5f1f4a33508d9b43f5d3ea53ad625a0a2a7a9491cefcf2e70f3c451bf44ecd"
+    }
+  ],
   "transactions": [
     {
       "id": "OCXRAjwldaU4NhkCS0MHF",
@@ -6,7 +17,8 @@
       "amount": 5000,
       "description": "Vendas",
       "category": "Loja",
-      "date": "2025-11-11"
+      "date": "2025-11-11",
+      "ownerId": "admin-felipe"
     },
     {
       "id": "8GwO1fgn2GDlJw53bVcQg",
@@ -14,7 +26,8 @@
       "amount": 750,
       "description": "Aluguel",
       "category": "Loja",
-      "date": "2025-11-11"
+      "date": "2025-11-11",
+      "ownerId": "admin-felipe"
     }
   ],
   "events": []

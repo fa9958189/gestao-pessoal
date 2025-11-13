@@ -6,6 +6,7 @@ const http = require('http');
 const path = require('path');
 const fs = require('fs');
 const os = require('os'); // (apenas para log do IP LAN)
+const crypto = require('crypto');
 
 // Carrega variáveis de ambiente simples de um arquivo .env, caso exista
 const envPath = path.join(__dirname, '.env');
@@ -30,7 +31,14 @@ const dbPath = path.join(__dirname, 'db', 'data.json');
 const dbDir = path.dirname(dbPath);
 if (!fs.existsSync(dbDir)) fs.mkdirSync(dbDir, { recursive: true });
 
-const createEmptyState = () => ({ transactions: [], events: [] });
+const DEFAULT_ADMIN = {
+  id: 'admin-felipe',
+  username: 'felipeadm',
+  password: '1234',
+  name: 'Administrador'
+};
+
+const createEmptyState = () => ({ users: [], transactions: [], events: [] });
 let state = createEmptyState();
 
 const saveDatabase = () => {
@@ -51,6 +59,7 @@ const loadDatabase = () => {
     } else {
       const parsed = JSON.parse(raw);
       state = {
+        users: Array.isArray(parsed.users) ? parsed.users : [],
         transactions: Array.isArray(parsed.transactions) ? parsed.transactions : [],
         events: Array.isArray(parsed.events) ? parsed.events : []
       };
@@ -63,17 +72,114 @@ const loadDatabase = () => {
   saveDatabase();
 };
 
+const hashPassword = (password, salt = crypto.randomBytes(16).toString('hex')) => {
+  const hash = crypto.createHash('sha256').update(`${salt}:${password}`).digest('hex');
+  return { salt, passwordHash: hash };
+};
+
+const verifyPassword = (password, user) => {
+  if (!user?.passwordHash || !user?.salt) return false;
+  const candidate = crypto
+    .createHash('sha256')
+    .update(`${user.salt}:${password}`)
+    .digest('hex');
+  if (candidate.length !== user.passwordHash.length) return false;
+  try {
+    return crypto.timingSafeEqual(Buffer.from(candidate, 'hex'), Buffer.from(user.passwordHash, 'hex'));
+  } catch {
+    return false;
+  }
+};
+
+const sanitizeUser = (user) => {
+  if (!user) return null;
+  const { passwordHash, salt, ...safe } = user;
+  return safe;
+};
+
+const ensureDefaultAdmin = () => {
+  let needsSave = false;
+  if (!Array.isArray(state.users)) {
+    state.users = [];
+    needsSave = true;
+  }
+
+  let admin = state.users.find((user) => user.username === DEFAULT_ADMIN.username);
+  if (!admin) {
+    const { salt, passwordHash } = hashPassword(DEFAULT_ADMIN.password);
+    admin = {
+      id: DEFAULT_ADMIN.id,
+      username: DEFAULT_ADMIN.username,
+      role: 'admin',
+      name: DEFAULT_ADMIN.name,
+      createdAt: new Date().toISOString(),
+      salt,
+      passwordHash
+    };
+    state.users.push(admin);
+    needsSave = true;
+  }
+
+  const assignOwner = (record) => {
+    if (!record.ownerId) {
+      record.ownerId = admin.id;
+      needsSave = true;
+    }
+  };
+
+  state.transactions.forEach(assignOwner);
+  state.events.forEach(assignOwner);
+
+  if (needsSave) saveDatabase();
+  return admin;
+};
+
+const createUser = ({ username, password, role = 'user', name = null }) => {
+  if (!username || typeof username !== 'string') {
+    throw new Error('username obrigatório');
+  }
+  if (!password || typeof password !== 'string') {
+    throw new Error('password obrigatório');
+  }
+
+  const normalizedUsername = username.trim().toLowerCase();
+  if (!normalizedUsername) {
+    throw new Error('username obrigatório');
+  }
+
+  const exists = state.users.some((user) => user.username.toLowerCase() === normalizedUsername);
+  if (exists) {
+    throw new Error('Usuário já existe');
+  }
+
+  const { salt, passwordHash } = hashPassword(password);
+  const user = {
+    id: uid(),
+    username: username.trim(),
+    role,
+    name: name ? name.trim() : null,
+    createdAt: new Date().toISOString(),
+    salt,
+    passwordHash
+  };
+  state.users.push(user);
+  saveDatabase();
+  return user;
+};
+
 loadDatabase();
+ensureDefaultAdmin();
 
 const isValidTransactionType = (type) => type === 'income' || type === 'expense';
 const normalizeString = (value) => (value ?? '').toString().toLowerCase();
 
-const filterTransactions = ({ from, to, type, q } = {}) => {
+const filterTransactions = ({ from, to, type, q, ownerId } = {}) => {
   const normalizedType = isValidTransactionType(type) ? type : null;
   const query = q ? q.toString().toLowerCase() : null;
 
   return state.transactions
     .filter((tx) => {
+      if (ownerId && tx.ownerId !== ownerId) return false;
       if (from && tx.date < from) return false;
       if (to && tx.date > to) return false;
       if (normalizedType && tx.type !== normalizedType) return false;
@@ -92,11 +198,12 @@ const filterTransactions = ({ from, to, type, q } = {}) => {
 
 const eventTimeSortValue = (value) => (value ?? '').toString();
 
-const filterEvents = ({ from, to, q } = {}) => {
+const filterEvents = ({ from, to, q, ownerId } = {}) => {
   const query = q ? q.toString().toLowerCase() : null;
 
   return state.events
     .filter((event) => {
+      if (ownerId && event.ownerId !== ownerId) return false;
       if (from && event.date < from) return false;
       if (to && event.date > to) return false;
       if (query) {
@@ -246,6 +353,44 @@ const buildQueryObject = (searchParams) => {
   return result;
 };
 
+const activeTokens = new Map();
+
+const issueToken = (userId) => {
+  const token = uid();
+  activeTokens.set(token, { userId, issuedAt: Date.now() });
+  return token;
+};
+
+const revokeToken = (token) => {
+  if (token) activeTokens.delete(token);
+};
+
+const getUserFromAuthHeader = (req) => {
+  const authHeader = req.headers['authorization'];
+  if (!authHeader || typeof authHeader !== 'string') return null;
+  const trimmed = authHeader.trim();
+  if (!trimmed.toLowerCase().startsWith('bearer ')) return null;
+  const token = trimmed.slice(7).trim();
+  if (!token) return null;
+  const session = activeTokens.get(token);
+  if (!session) return null;
+  const user = state.users.find((item) => item.id === session.userId);
+  if (!user) {
+    activeTokens.delete(token);
+    return null;
+  }
+  return { user, token };
+};
+
+const ensureAuthenticated = (req, res) => {
+  const auth = getUserFromAuthHeader(req);
+  if (!auth) {
+    sendJson(res, 401, { error: 'Não autorizado' });
+    return null;
+  }
+  return auth;
+};
+
 const server = http.createServer(async (req, res) => {
   setCorsHeaders(res);
 
@@ -291,12 +436,28 @@ const handleApiRequest = async (req, res, segments, searchParams) => {
   const resource = segments[1];
 
   if (resource === 'transactions') {
-    await handleTransactionsRoutes(req, res, segments.slice(2), searchParams);
+    const auth = ensureAuthenticated(req, res);
+    if (!auth) return;
+    await handleTransactionsRoutes(req, res, segments.slice(2), searchParams, auth.user);
     return;
   }
 
   if (resource === 'events') {
-    await handleEventsRoutes(req, res, segments.slice(2), searchParams);
+    const auth = ensureAuthenticated(req, res);
+    if (!auth) return;
+    await handleEventsRoutes(req, res, segments.slice(2), searchParams, auth.user);
+    return;
+  }
+
+  if (resource === 'users') {
+    const auth = ensureAuthenticated(req, res);
+    if (!auth) return;
+    await handleUsersRoutes(req, res, segments.slice(2), searchParams, auth.user);
+    return;
+  }
+
+  if (resource === 'auth') {
+    await handleAuthRoutes(req, res, segments.slice(2));
     return;
   }
 
@@ -312,11 +473,11 @@ const handleApiRequest = async (req, res, segments, searchParams) => {
   sendNotFound(res);
 };
 
-const handleTransactionsRoutes = async (req, res, subSegments, searchParams) => {
+const handleTransactionsRoutes = async (req, res, subSegments, searchParams, user) => {
   if (subSegments.length === 0) {
     if (req.method === 'GET') {
       try {
-        const rows = filterTransactions(buildQueryObject(searchParams));
+        const rows = filterTransactions({ ...buildQueryObject(searchParams), ownerId: user.id });
         sendJson(res, 200, rows);
       } catch (err) {
         console.error('Erro ao listar transações:', err);
@@ -347,7 +508,7 @@ const handleTransactionsRoutes = async (req, res, subSegments, searchParams) => 
           return;
         }
 
-        const transaction = { id: uid(), type, amount, description, category, date };
+        const transaction = { id: uid(), type, amount, description, category, date, ownerId: user.id };
         state.transactions.push(transaction);
         saveDatabase();
         sendJson(res, 201, transaction);
@@ -369,7 +530,7 @@ const handleTransactionsRoutes = async (req, res, subSegments, searchParams) => 
     }
 
     const { from, to } = buildQueryObject(searchParams);
-    const filtered = filterTransactions({ from, to });
+    const filtered = filterTransactions({ from, to, ownerId: user.id });
     const income = filtered
       .filter((tx) => tx.type === 'income')
       .reduce((sum, tx) => sum + tx.amount, 0);
@@ -385,7 +546,7 @@ const handleTransactionsRoutes = async (req, res, subSegments, searchParams) => 
     const id = decodeURIComponent(subSegments[0]);
 
     if (req.method === 'GET') {
-      const row = state.transactions.find((tx) => tx.id === id);
+      const row = state.transactions.find((tx) => tx.id === id && tx.ownerId === user.id);
       if (!row) {
         sendNotFound(res);
         return;
@@ -395,7 +556,7 @@ const handleTransactionsRoutes = async (req, res, subSegments, searchParams) => 
     }
 
     if (req.method === 'PATCH') {
-      const index = state.transactions.findIndex((tx) => tx.id === id);
+      const index = state.transactions.findIndex((tx) => tx.id === id && tx.ownerId === user.id);
       if (index === -1) {
         sendNotFound(res);
         return;
@@ -442,7 +603,7 @@ const handleTransactionsRoutes = async (req, res, subSegments, searchParams) => 
     }
 
     if (req.method === 'DELETE') {
-      const index = state.transactions.findIndex((tx) => tx.id === id);
+      const index = state.transactions.findIndex((tx) => tx.id === id && tx.ownerId === user.id);
       if (index === -1) {
         sendNotFound(res);
         return;
@@ -461,11 +622,11 @@ const handleTransactionsRoutes = async (req, res, subSegments, searchParams) => 
   sendNotFound(res);
 };
 
-const handleEventsRoutes = async (req, res, subSegments, searchParams) => {
+const handleEventsRoutes = async (req, res, subSegments, searchParams, user) => {
   if (subSegments.length === 0) {
     if (req.method === 'GET') {
       try {
-        const rows = filterEvents(buildQueryObject(searchParams));
+        const rows = filterEvents({ ...buildQueryObject(searchParams), ownerId: user.id });
         sendJson(res, 200, rows);
       } catch (err) {
         console.error('Erro ao listar eventos:', err);
@@ -492,7 +653,7 @@ const handleEventsRoutes = async (req, res, subSegments, searchParams) => {
           return;
         }
 
-        const event = { id: uid(), title, date, start_time, end_time, notes };
+        const event = { id: uid(), title, date, start_time, end_time, notes, ownerId: user.id };
         state.events.push(event);
         saveDatabase();
         sendJson(res, 201, event);
@@ -511,7 +672,7 @@ const handleEventsRoutes = async (req, res, subSegments, searchParams) => {
     const id = decodeURIComponent(subSegments[0]);
 
     if (req.method === 'GET') {
-      const row = state.events.find((event) => event.id === id);
+      const row = state.events.find((event) => event.id === id && event.ownerId === user.id);
       if (!row) {
         sendNotFound(res);
         return;
@@ -521,7 +682,7 @@ const handleEventsRoutes = async (req, res, subSegments, searchParams) => {
     }
 
     if (req.method === 'PATCH') {
-      const index = state.events.findIndex((event) => event.id === id);
+      const index = state.events.findIndex((event) => event.id === id && event.ownerId === user.id);
       if (index === -1) {
         sendNotFound(res);
         return;
@@ -560,7 +721,7 @@ const handleEventsRoutes = async (req, res, subSegments, searchParams) => {
     }
 
     if (req.method === 'DELETE') {
-      const index = state.events.findIndex((event) => event.id === id);
+      const index = state.events.findIndex((event) => event.id === id && event.ownerId === user.id);
       if (index === -1) {
         sendNotFound(res);
         return;
@@ -573,6 +734,109 @@ const handleEventsRoutes = async (req, res, subSegments, searchParams) => {
     }
 
     sendMethodNotAllowed(res, ['GET', 'PATCH', 'DELETE']);
+    return;
+  }
+
+  sendNotFound(res);
+};
+
+const handleUsersRoutes = async (req, res, subSegments, _searchParams, user) => {
+  if (user.role !== 'admin') {
+    sendJson(res, 403, { error: 'Proibido' });
+    return;
+  }
+
+  if (subSegments.length === 0) {
+    if (req.method === 'GET') {
+      const users = state.users.map(sanitizeUser).sort((a, b) => a.username.localeCompare(b.username));
+      sendJson(res, 200, users);
+      return;
+    }
+
+    if (req.method === 'POST') {
+      const body = await readJsonBody(req);
+      if (!body.ok) {
+        sendJson(res, 400, { error: body.error });
+        return;
+      }
+
+      try {
+        const { username, password, name = null, role = 'user' } = body.value;
+        if (role !== 'user') {
+          sendJson(res, 400, { error: 'Somente usuários comuns podem ser criados.' });
+          return;
+        }
+        const created = createUser({ username, password, name, role });
+        sendJson(res, 201, sanitizeUser(created));
+      } catch (err) {
+        if (err.message === 'Usuário já existe') {
+          sendJson(res, 409, { error: err.message });
+        } else if (err.message === 'username obrigatório' || err.message === 'password obrigatório') {
+          sendJson(res, 400, { error: err.message });
+        } else {
+          console.error('Erro ao criar usuário:', err);
+          sendJson(res, 500, { error: 'Erro ao criar usuário' });
+        }
+      }
+      return;
+    }
+
+    sendMethodNotAllowed(res, ['GET', 'POST']);
+    return;
+  }
+
+  sendNotFound(res);
+};
+
+const handleAuthRoutes = async (req, res, subSegments) => {
+  if (subSegments.length === 1 && subSegments[0] === 'login') {
+    if (req.method !== 'POST') {
+      sendMethodNotAllowed(res, ['POST']);
+      return;
+    }
+
+    const body = await readJsonBody(req);
+    if (!body.ok) {
+      sendJson(res, 400, { error: body.error });
+      return;
+    }
+
+    try {
+      const { username, password } = body.value;
+      if (!username || !password) {
+        sendJson(res, 400, { error: 'Credenciais obrigatórias' });
+        return;
+      }
+
+      const normalized = username.toString().trim().toLowerCase();
+      const user = state.users.find((item) => item.username.toLowerCase() === normalized);
+      if (!user || !verifyPassword(password.toString(), user)) {
+        sendJson(res, 401, { error: 'Credenciais inválidas' });
+        return;
+      }
+
+      const token = issueToken(user.id);
+      sendJson(res, 200, { token, user: sanitizeUser(user) });
+    } catch (err) {
+      console.error('Erro ao autenticar usuário:', err);
+      sendJson(res, 500, { error: 'Erro ao autenticar' });
+    }
+    return;
+  }
+
+  if (subSegments.length === 1 && subSegments[0] === 'logout') {
+    if (req.method !== 'POST') {
+      sendMethodNotAllowed(res, ['POST']);
+      return;
+    }
+
+    const auth = getUserFromAuthHeader(req);
+    if (!auth) {
+      sendNoContent(res);
+      return;
+    }
+    revokeToken(auth.token);
+    sendNoContent(res);
     return;
   }
 
