@@ -26,10 +26,24 @@ const DEFAULT_ADMIN = {
   id: 'admin-felipe',
   username: 'felipeadm',
   password: '1234',
-  name: 'Administrador'
+  name: 'Administrador',
+  whatsapp: '+5500000000000'
 };
 
 const createEmptyState = () => ({ users: [], transactions: [], events: [] });
+
+const normalizeLoadedUser = (user) => {
+  if (!user || typeof user !== 'object') return null;
+  const normalized = { ...user };
+  if (typeof normalized.whatsapp === 'string') {
+    normalized.whatsapp = normalized.whatsapp.trim();
+    if (normalized.whatsapp === '') normalized.whatsapp = null;
+  } else {
+    normalized.whatsapp = null;
+  }
+  return normalized;
+};
+
 let state = createEmptyState();
 
 const saveDatabase = () => {
@@ -50,7 +64,9 @@ const loadDatabase = () => {
     } else {
       const parsed = JSON.parse(raw);
       state = {
-        users: Array.isArray(parsed.users) ? parsed.users : [],
+        users: Array.isArray(parsed.users)
+          ? parsed.users.map(normalizeLoadedUser).filter(Boolean)
+          : [],
         transactions: Array.isArray(parsed.transactions) ? parsed.transactions : [],
         events: Array.isArray(parsed.events) ? parsed.events : []
       };
@@ -85,10 +101,21 @@ const verifyPassword = (password, user) => {
 const sanitizeUser = (user) => {
   if (!user) return null;
   const { passwordHash, salt, ...safe } = user;
+  if (typeof safe.whatsapp === 'string') safe.whatsapp = safe.whatsapp.trim();
   return safe;
 };
 
-const RESERVED_USER_FIELDS = new Set(['id', 'username', 'role', 'name', 'createdAt', 'updatedAt', 'salt', 'passwordHash']);
+// Campos reservados que não podem ser sobrescritos via "extras"
+const RESERVED_USER_FIELDS = new Set([
+  'id',
+  'username',
+  'role',
+  'name',
+  'createdAt',
+  'updatedAt',
+  'salt',
+  'passwordHash'
+]);
 
 const normalizeOptionalString = (value) => {
   if (value === undefined) return undefined;
@@ -97,6 +124,7 @@ const normalizeOptionalString = (value) => {
   return normalized ? normalized : null;
 };
 
+// Aplica campos extras ao usuário, ignorando os reservados
 const applyUserExtras = (target, extra) => {
   if (!extra || typeof extra !== 'object') return;
   Object.entries(extra).forEach(([key, value]) => {
@@ -129,11 +157,15 @@ const ensureDefaultAdmin = () => {
       username: DEFAULT_ADMIN.username,
       role: 'admin',
       name: DEFAULT_ADMIN.name,
+      whatsapp: DEFAULT_ADMIN.whatsapp,
       createdAt: new Date().toISOString(),
       salt,
       passwordHash
     };
     state.users.push(admin);
+    needsSave = true;
+  } else if (!admin.whatsapp) {
+    admin.whatsapp = DEFAULT_ADMIN.whatsapp;
     needsSave = true;
   }
 
@@ -151,17 +183,29 @@ const ensureDefaultAdmin = () => {
   return admin;
 };
 
-const createUser = ({ username, password, role = 'user', name = null, ...extra }) => {
+const isValidWhatsapp = (value) =>
+  typeof value === 'string' && /^\+\d{6,15}$/.test(value);
+
+// Criação de usuário com validação de WhatsApp + campos extras
+const createUser = ({ username, password, role = 'user', name = null, whatsapp, ...extra }) => {
   if (!username || typeof username !== 'string') {
     throw new Error('username obrigatório');
   }
   if (!password || typeof password !== 'string') {
     throw new Error('password obrigatório');
   }
+  if (!whatsapp || typeof whatsapp !== 'string') {
+    throw new Error('whatsapp obrigatório');
+  }
 
   const normalizedUsername = username.trim().toLowerCase();
   if (!normalizedUsername) {
     throw new Error('username obrigatório');
+  }
+
+  const trimmedWhatsapp = whatsapp.trim();
+  if (!isValidWhatsapp(trimmedWhatsapp)) {
+    throw new Error('whatsapp inválido');
   }
 
   const exists = state.users.some((user) => user.username.toLowerCase() === normalizedUsername);
@@ -171,16 +215,19 @@ const createUser = ({ username, password, role = 'user', name = null, ...extra }
 
   const { salt, passwordHash } = hashPassword(password);
   const normalizedName = normalizeOptionalString(name);
+
   const user = {
     id: uid(),
     username: username.trim(),
     role,
     name: normalizedName ?? null,
+    whatsapp: trimmedWhatsapp,
     createdAt: new Date().toISOString(),
     updatedAt: null,
     salt,
     passwordHash
   };
+
   applyUserExtras(user, extra);
   state.users.push(user);
   saveDatabase();
@@ -260,7 +307,9 @@ const scheduleDailyNotifications = ({ hour, minute }) => {
   const scheduleNext = () => {
     const delay = computeDelay();
     const nextRun = new Date(Date.now() + delay);
-    notificationsLogger.info(`Próxima avaliação automática programada para ${nextRun.toISOString()}.`);
+    notificationsLogger.info(
+      `Próxima avaliação automática programada para ${nextRun.toISOString()}.`
+    );
 
     const timer = setTimeout(async () => {
       try {
@@ -269,15 +318,22 @@ const scheduleDailyNotifications = ({ hour, minute }) => {
           notificationsLogger.error('Falha ao enviar notificações agendadas:', result.error);
         } else if (result.sent) {
           notificationsLogger.info(
-            `Notificações enviadas para ${Array.isArray(result.recipients) ? result.recipients.join(', ') : 'destinatários não informados'}.`
+            `Notificações enviadas para ${
+              Array.isArray(result.recipients) ? result.recipients.join(', ') : 'destinatários não informados'
+            }.`
           );
         } else {
           notificationsLogger.info(
-            `Execução diária concluída sem envio. ${result.warning ? `Motivo: ${result.warning}` : ''}`.trim()
+            `Execução diária concluída sem envio. ${
+              result.warning ? `Motivo: ${result.warning}` : ''
+            }`.trim()
           );
         }
       } catch (err) {
-        notificationsLogger.error('Erro inesperado durante tarefa agendada de notificações:', err);
+        notificationsLogger.error(
+          'Erro inesperado durante tarefa agendada de notificações:',
+          err
+        );
       }
 
       scheduleNext();
@@ -289,12 +345,15 @@ const scheduleDailyNotifications = ({ hour, minute }) => {
   scheduleNext();
 };
 
-const notificationsScheduleExpression = process.env.NOTIFICATIONS_CRON_EXPRESSION || '0 8 * * *';
+const notificationsScheduleExpression =
+  process.env.NOTIFICATIONS_CRON_EXPRESSION || '0 8 * * *';
 const scheduleConfig = parseDailySchedule(notificationsScheduleExpression);
 const timezoneLabel = notificationsManager.getTimezone();
 
 notificationsLogger.info(
-  `Agendador diário configurado para ${String(scheduleConfig.hour).padStart(2, '0')}:${String(scheduleConfig.minute).padStart(2, '0')} (${notificationsScheduleExpression}).${
+  `Agendador diário configurado para ${String(scheduleConfig.hour).padStart(2, '0')}:${String(
+    scheduleConfig.minute
+  ).padStart(2, '0')} (${notificationsScheduleExpression}).${
     timezoneLabel ? ` Timezone informado: ${timezoneLabel}.` : ''
   }`
 );
@@ -381,7 +440,7 @@ const publicDir = path.join(__dirname, 'public');
 const setCorsHeaders = (res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PATCH,DELETE,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization');
 };
 
 const sendJson = (res, statusCode, payload) => {
@@ -646,7 +705,15 @@ const handleTransactionsRoutes = async (req, res, subSegments, searchParams, use
           return;
         }
 
-        const transaction = { id: uid(), type, amount, description, category, date, ownerId: user.id };
+        const transaction = {
+          id: uid(),
+          type,
+          amount,
+          description,
+          category,
+          date,
+          ownerId: user.id
+        };
         state.transactions.push(transaction);
         saveDatabase();
         sendJson(res, 201, transaction);
@@ -694,7 +761,9 @@ const handleTransactionsRoutes = async (req, res, subSegments, searchParams, use
     }
 
     if (req.method === 'PATCH') {
-      const index = state.transactions.findIndex((tx) => tx.id === id && tx.ownerId === user.id);
+      const index = state.transactions.findIndex(
+        (tx) => tx.id === id && tx.ownerId === user.id
+      );
       if (index === -1) {
         sendNotFound(res);
         return;
@@ -741,7 +810,9 @@ const handleTransactionsRoutes = async (req, res, subSegments, searchParams, use
     }
 
     if (req.method === 'DELETE') {
-      const index = state.transactions.findIndex((tx) => tx.id === id && tx.ownerId === user.id);
+      const index = state.transactions.findIndex(
+        (tx) => tx.id === id && tx.ownerId === user.id
+      );
       if (index === -1) {
         sendNotFound(res);
         return;
@@ -791,7 +862,15 @@ const handleEventsRoutes = async (req, res, subSegments, searchParams, user) => 
           return;
         }
 
-        const event = { id: uid(), title, date, start_time, end_time, notes, ownerId: user.id };
+        const event = {
+          id: uid(),
+          title,
+          date,
+          start_time,
+          end_time,
+          notes,
+          ownerId: user.id
+        };
         state.events.push(event);
         saveDatabase();
         sendJson(res, 201, event);
@@ -820,7 +899,9 @@ const handleEventsRoutes = async (req, res, subSegments, searchParams, user) => 
     }
 
     if (req.method === 'PATCH') {
-      const index = state.events.findIndex((event) => event.id === id && event.ownerId === user.id);
+      const index = state.events.findIndex(
+        (event) => event.id === id && event.ownerId === user.id
+      );
       if (index === -1) {
         sendNotFound(res);
         return;
@@ -839,7 +920,8 @@ const handleEventsRoutes = async (req, res, subSegments, searchParams, user) => 
         date: body.value.date !== undefined ? body.value.date : current.date,
         start_time:
           body.value.start_time !== undefined ? body.value.start_time : current.start_time,
-        end_time: body.value.end_time !== undefined ? body.value.end_time : current.end_time,
+        end_time:
+          body.value.end_time !== undefined ? body.value.end_time : current.end_time,
         notes: body.value.notes !== undefined ? body.value.notes : current.notes
       };
 
@@ -859,7 +941,9 @@ const handleEventsRoutes = async (req, res, subSegments, searchParams, user) => 
     }
 
     if (req.method === 'DELETE') {
-      const index = state.events.findIndex((event) => event.id === id && event.ownerId === user.id);
+      const index = state.events.findIndex(
+        (event) => event.id === id && event.ownerId === user.id
+      );
       if (index === -1) {
         sendNotFound(res);
         return;
@@ -946,7 +1030,9 @@ const handleNotificationsRoutes = async (req, res, subSegments, _searchParams, u
     try {
       const referenceDate = parsedReference || new Date();
       notificationsLogger.info(
-        `Envio manual solicitado por ${user.username} (${dryRun ? 'modo simulação' : 'envio real'}).`
+        `Envio manual solicitado por ${user.username} (${
+          dryRun ? 'modo simulação' : 'envio real'
+        }).`
       );
       const result = await notificationsManager.sendNotifications({
         referenceDate,
@@ -971,9 +1057,12 @@ const handleUsersRoutes = async (req, res, subSegments, _searchParams, user) => 
     return;
   }
 
+  // /api/users
   if (subSegments.length === 0) {
     if (req.method === 'GET') {
-      const users = state.users.map(sanitizeUser).sort((a, b) => a.username.localeCompare(b.username));
+      const users = state.users
+        .map(sanitizeUser)
+        .sort((a, b) => a.username.localeCompare(b.username));
       sendJson(res, 200, users);
       return;
     }
@@ -986,17 +1075,25 @@ const handleUsersRoutes = async (req, res, subSegments, _searchParams, user) => 
       }
 
       try {
-        const { username, password, name = null, role = 'user', ...extra } = body.value;
+        const { username, password, name = null, role = 'user', whatsapp, ...extra } =
+          body.value || {};
+
         if (role !== 'user') {
           sendJson(res, 400, { error: 'Somente usuários comuns podem ser criados.' });
           return;
         }
-        const created = createUser({ username, password, name, role, ...extra });
+
+        const created = createUser({ username, password, name, role, whatsapp, ...extra });
         sendJson(res, 201, sanitizeUser(created));
       } catch (err) {
         if (err.message === 'Usuário já existe') {
           sendJson(res, 409, { error: err.message });
-        } else if (err.message === 'username obrigatório' || err.message === 'password obrigatório') {
+        } else if (
+          err.message === 'username obrigatório' ||
+          err.message === 'password obrigatório' ||
+          err.message === 'whatsapp obrigatório' ||
+          err.message === 'whatsapp inválido'
+        ) {
           sendJson(res, 400, { error: err.message });
         } else {
           console.error('Erro ao criar usuário:', err);
@@ -1010,6 +1107,7 @@ const handleUsersRoutes = async (req, res, subSegments, _searchParams, user) => 
     return;
   }
 
+  // /api/users/:id
   if (subSegments.length === 1) {
     const id = decodeURIComponent(subSegments[0]);
     const index = state.users.findIndex((item) => item.id === id);
@@ -1046,7 +1144,7 @@ const handleUsersRoutes = async (req, res, subSegments, _searchParams, user) => 
         }
         const normalized = trimmed.toLowerCase();
         const conflict = state.users.some(
-          (user) => user.id !== current.id && user.username.toLowerCase() === normalized
+          (u) => u.id !== current.id && u.username.toLowerCase() === normalized
         );
         if (conflict) {
           sendJson(res, 409, { error: 'Usuário já existe' });
@@ -1077,7 +1175,9 @@ const handleUsersRoutes = async (req, res, subSegments, _searchParams, user) => 
           return;
         }
         if (typeof password !== 'string' || password.length < 4) {
-          sendJson(res, 400, { error: 'password deve ter pelo menos 4 caracteres' });
+          sendJson(res, 400, {
+            error: 'password deve ter pelo menos 4 caracteres'
+          });
           return;
         }
         const { salt, passwordHash } = hashPassword(password);
@@ -1099,6 +1199,7 @@ const handleUsersRoutes = async (req, res, subSegments, _searchParams, user) => 
         return;
       }
 
+      // nada mudou: retorna estado atual mesmo
       sendJson(res, 200, sanitizeUser(current));
       return;
     }
@@ -1172,7 +1273,7 @@ const handleAuthRoutes = async (req, res, subSegments) => {
 
 const PORT = Number(process.env.PORT) || 3333;
 
-// >>> ÚNICA MUDANÇA FUNCIONAL: escutar em 0.0.0.0 para aceitar conexões do simulador/lan
+// >>> Escutar em 0.0.0.0 para aceitar conexões do simulador/lan
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`✅ API rodando em http://localhost:${PORT}`);
 

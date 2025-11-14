@@ -5,6 +5,7 @@
       "username": "felipeadm",
       "role": "admin",
       "name": "Administrador",
+      "whatsapp": "+5500000000000",
       "createdAt": "2025-11-13T14:16:36.383Z",
       "salt": "2f78fbffd4d9835a8c648b4e22771c25",
       "passwordHash": "fa5f1f4a33508d9b43f5d3ea53ad625a0a2a7a9491cefcf2e70f3c451bf44ecd"

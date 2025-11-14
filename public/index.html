@@ -229,6 +229,7 @@
       </div>
     </aside>
 
+    <!-- ADMIN: GERENCIAR USUÁRIOS -->
     <section class="card admin-card" id="adminUsersSection" hidden>
       <h2 class="title">Gerenciar Usuários</h2>
       <p class="muted">Crie contas para seus amigos. Cada um verá apenas os próprios dados.</p>
@@ -243,12 +244,12 @@
           <input id="u-username" placeholder="ex.: joaosilva">
         </div>
         <div>
-          <label>WhatsApp</label>
-          <input id="u-whatsapp" placeholder="ex.: +55 11 99999-9999">
-        </div>
-        <div>
           <label>Senha inicial</label>
           <input id="u-password" type="password" placeholder="Mínimo de 4 caracteres">
+        </div>
+        <div>
+          <label>WhatsApp</label>
+          <input id="u-whatsapp" placeholder="+5511999999999">
         </div>
         <div class="admin-user-actions">
           <button class="primary" id="btnCreateUser">Adicionar usuário</button>
@@ -267,6 +268,7 @@
             <tr>
               <th>Usuário</th>
               <th>Nome</th>
+              <th>WhatsApp</th>
               <th>Perfil</th>
               <th>Criado em</th>
               <th class="right">Ações</th>
@@ -338,6 +340,7 @@
     const BRL = v => v.toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
     const val = id => document.getElementById(id).value.trim();
     const set = (id,v)=> document.getElementById(id).value = v || '';
+    const isValidWhatsapp = (value) => /^\+\d{6,15}$/.test(value);
     const today = () => new Date().toISOString().slice(0,10);
 
     // datas padrão
@@ -844,11 +847,11 @@
     const userTableBody = document.getElementById('userTableBody');
     const userEmptyMessage = document.getElementById('userEmptyMessage');
     const userEditInfo = document.getElementById('userEditInfo');
-    const whatsappInput = document.getElementById('u-whatsapp');
-    const btnUpdateUser = document.getElementById('btnUpdateUser');
     const btnCreateUser = document.getElementById('btnCreateUser');
     const btnClearUser = document.getElementById('btnClearUser');
+    const btnUpdateUser = document.getElementById('btnUpdateUser');
     const passwordInput = document.getElementById('u-password');
+    const whatsappInput = document.getElementById('u-whatsapp');
     let editingUserId = null;
 
     function resetUserForm(){
@@ -910,6 +913,7 @@
         tr.innerHTML = `
           <td>${user.username}</td>
           <td>${user.name ?? '-'}</td>
+          <td>${user.whatsapp ? user.whatsapp : '-'}</td>
           <td>${roleLabel}</td>
           <td>${createdAt}</td>
           <td class="actions">
@@ -970,6 +974,10 @@
           alert('A senha deve ter ao menos 4 caracteres.');
           return;
         }
+        if (!isValidWhatsapp(whatsapp)) {
+          alert('Informe um número de WhatsApp válido no formato internacional, por exemplo: +5511999999999.');
+          return;
+        }
         try {
           await apiRequest('/api/users', {
             method: 'POST',
@@ -980,9 +988,9 @@
               whatsapp: whatsapp || null
             })
           });
-          resetUserForm();
           await loadManagedUsers();
           alert(`Usuário ${username} criado com sucesso!`);
+          resetUserForm();
         } catch (err) {
           if (err?.status === 409) {
             alert('Já existe um usuário com esse nome.');
