@@ -1,6 +1,6 @@
 const { PrismaClient } = require('@prisma/client');
 
-let prisma = null;
+let prismaInstance = null;
 
 const createPrismaClient = () => {
   const logging = [];
@@ -14,26 +14,26 @@ const createPrismaClient = () => {
 };
 
 const getPrisma = () => {
-  if (!prisma) {
-    prisma = createPrismaClient();
+  if (!prismaInstance) {
+    prismaInstance = createPrismaClient();
   }
-  return prisma;
+  return prismaInstance;
 };
 
-const prisma = getPrisma();
-
 const connectPrisma = async () => {
+  const prisma = getPrisma();
   await prisma.$connect();
   return prisma;
 };
 
 const disconnectPrisma = async () => {
-  if (!prisma) return;
-  await prisma.$disconnect();
+  if (!prismaInstance) return;
+  await prismaInstance.$disconnect();
 };
 
 module.exports = {
-  prisma,
+  prisma: getPrisma(),
+  getPrisma,
   connectPrisma,
   disconnectPrisma,
 };
