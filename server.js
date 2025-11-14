@@ -43,6 +43,7 @@ const normalizeLoadedUser = (user) => {
   }
   return normalized;
 };
+
 let state = createEmptyState();
 
 const saveDatabase = () => {
@@ -104,6 +105,43 @@ const sanitizeUser = (user) => {
   return safe;
 };
 
+// Campos reservados que não podem ser sobrescritos via "extras"
+const RESERVED_USER_FIELDS = new Set([
+  'id',
+  'username',
+  'role',
+  'name',
+  'createdAt',
+  'updatedAt',
+  'salt',
+  'passwordHash'
+]);
+
+const normalizeOptionalString = (value) => {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  const normalized = value.toString().trim();
+  return normalized ? normalized : null;
+};
+
+// Aplica campos extras ao usuário, ignorando os reservados
+const applyUserExtras = (target, extra) => {
+  if (!extra || typeof extra !== 'object') return;
+  Object.entries(extra).forEach(([key, value]) => {
+    if (!key || RESERVED_USER_FIELDS.has(key)) return;
+    if (value === undefined) return;
+    const prepared = typeof value === 'string' ? normalizeOptionalString(value) : value;
+    if (prepared === undefined) return;
+    if (prepared === null) {
+      if (Object.prototype.hasOwnProperty.call(target, key)) {
+        delete target[key];
+      }
+      return;
+    }
+    target[key] = prepared;
+  });
+};
+
 const ensureDefaultAdmin = () => {
   let needsSave = false;
   if (!Array.isArray(state.users)) {
@@ -145,9 +183,11 @@ const ensureDefaultAdmin = () => {
   return admin;
 };
 
-const isValidWhatsapp = (value) => typeof value === 'string' && /^\+\d{6,15}$/.test(value);
+const isValidWhatsapp = (value) =>
+  typeof value === 'string' && /^\+\d{6,15}$/.test(value);
 
-const createUser = ({ username, password, role = 'user', name = null, whatsapp }) => {
+// Criação de usuário com validação de WhatsApp + campos extras
+const createUser = ({ username, password, role = 'user', name = null, whatsapp, ...extra }) => {
   if (!username || typeof username !== 'string') {
     throw new Error('username obrigatório');
   }
@@ -174,16 +214,21 @@ const createUser = ({ username, password, role = 'user', name = null, whatsapp }
   }
 
   const { salt, passwordHash } = hashPassword(password);
+  const normalizedName = normalizeOptionalString(name);
+
   const user = {
     id: uid(),
     username: username.trim(),
     role,
-    name: name ? name.trim() : null,
+    name: normalizedName ?? null,
     whatsapp: trimmedWhatsapp,
     createdAt: new Date().toISOString(),
+    updatedAt: null,
     salt,
     passwordHash
   };
+
+  applyUserExtras(user, extra);
   state.users.push(user);
   saveDatabase();
   return user;
@@ -262,7 +307,9 @@ const scheduleDailyNotifications = ({ hour, minute }) => {
   const scheduleNext = () => {
     const delay = computeDelay();
     const nextRun = new Date(Date.now() + delay);
-    notificationsLogger.info(`Próxima avaliação automática programada para ${nextRun.toISOString()}.`);
+    notificationsLogger.info(
+      `Próxima avaliação automática programada para ${nextRun.toISOString()}.`
+    );
 
     const timer = setTimeout(async () => {
       try {
@@ -271,15 +318,22 @@ const scheduleDailyNotifications = ({ hour, minute }) => {
           notificationsLogger.error('Falha ao enviar notificações agendadas:', result.error);
         } else if (result.sent) {
           notificationsLogger.info(
-            `Notificações enviadas para ${Array.isArray(result.recipients) ? result.recipients.join(', ') : 'destinatários não informados'}.`
+            `Notificações enviadas para ${
+              Array.isArray(result.recipients) ? result.recipients.join(', ') : 'destinatários não informados'
+            }.`
           );
         } else {
           notificationsLogger.info(
-            `Execução diária concluída sem envio. ${result.warning ? `Motivo: ${result.warning}` : ''}`.trim()
+            `Execução diária concluída sem envio. ${
+              result.warning ? `Motivo: ${result.warning}` : ''
+            }`.trim()
           );
         }
       } catch (err) {
-        notificationsLogger.error('Erro inesperado durante tarefa agendada de notificações:', err);
+        notificationsLogger.error(
+          'Erro inesperado durante tarefa agendada de notificações:',
+          err
+        );
       }
 
       scheduleNext();
@@ -291,12 +345,15 @@ const scheduleDailyNotifications = ({ hour, minute }) => {
   scheduleNext();
 };
 
-const notificationsScheduleExpression = process.env.NOTIFICATIONS_CRON_EXPRESSION || '0 8 * * *';
+const notificationsScheduleExpression =
+  process.env.NOTIFICATIONS_CRON_EXPRESSION || '0 8 * * *';
 const scheduleConfig = parseDailySchedule(notificationsScheduleExpression);
 const timezoneLabel = notificationsManager.getTimezone();
 
 notificationsLogger.info(
-  `Agendador diário configurado para ${String(scheduleConfig.hour).padStart(2, '0')}:${String(scheduleConfig.minute).padStart(2, '0')} (${notificationsScheduleExpression}).${
+  `Agendador diário configurado para ${String(scheduleConfig.hour).padStart(2, '0')}:${String(
+    scheduleConfig.minute
+  ).padStart(2, '0')} (${notificationsScheduleExpression}).${
     timezoneLabel ? ` Timezone informado: ${timezoneLabel}.` : ''
   }`
 );
@@ -383,7 +440,7 @@ const publicDir = path.join(__dirname, 'public');
 const setCorsHeaders = (res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PATCH,DELETE,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization');
 };
 
 const sendJson = (res, statusCode, payload) => {
@@ -648,7 +705,15 @@ const handleTransactionsRoutes = async (req, res, subSegments, searchParams, use
           return;
         }
 
-        const transaction = { id: uid(), type, amount, description, category, date, ownerId: user.id };
+        const transaction = {
+          id: uid(),
+          type,
+          amount,
+          description,
+          category,
+          date,
+          ownerId: user.id
+        };
         state.transactions.push(transaction);
         saveDatabase();
         sendJson(res, 201, transaction);
@@ -696,7 +761,9 @@ const handleTransactionsRoutes = async (req, res, subSegments, searchParams, use
     }
 
     if (req.method === 'PATCH') {
-      const index = state.transactions.findIndex((tx) => tx.id === id && tx.ownerId === user.id);
+      const index = state.transactions.findIndex(
+        (tx) => tx.id === id && tx.ownerId === user.id
+      );
       if (index === -1) {
         sendNotFound(res);
         return;
@@ -743,7 +810,9 @@ const handleTransactionsRoutes = async (req, res, subSegments, searchParams, use
     }
 
     if (req.method === 'DELETE') {
-      const index = state.transactions.findIndex((tx) => tx.id === id && tx.ownerId === user.id);
+      const index = state.transactions.findIndex(
+        (tx) => tx.id === id && tx.ownerId === user.id
+      );
       if (index === -1) {
         sendNotFound(res);
         return;
@@ -793,7 +862,15 @@ const handleEventsRoutes = async (req, res, subSegments, searchParams, user) => 
           return;
         }
 
-        const event = { id: uid(), title, date, start_time, end_time, notes, ownerId: user.id };
+        const event = {
+          id: uid(),
+          title,
+          date,
+          start_time,
+          end_time,
+          notes,
+          ownerId: user.id
+        };
         state.events.push(event);
         saveDatabase();
         sendJson(res, 201, event);
@@ -822,7 +899,9 @@ const handleEventsRoutes = async (req, res, subSegments, searchParams, user) => 
     }
 
     if (req.method === 'PATCH') {
-      const index = state.events.findIndex((event) => event.id === id && event.ownerId === user.id);
+      const index = state.events.findIndex(
+        (event) => event.id === id && event.ownerId === user.id
+      );
       if (index === -1) {
         sendNotFound(res);
         return;
@@ -841,7 +920,8 @@ const handleEventsRoutes = async (req, res, subSegments, searchParams, user) => 
         date: body.value.date !== undefined ? body.value.date : current.date,
         start_time:
           body.value.start_time !== undefined ? body.value.start_time : current.start_time,
-        end_time: body.value.end_time !== undefined ? body.value.end_time : current.end_time,
+        end_time:
+          body.value.end_time !== undefined ? body.value.end_time : current.end_time,
         notes: body.value.notes !== undefined ? body.value.notes : current.notes
       };
 
@@ -861,7 +941,9 @@ const handleEventsRoutes = async (req, res, subSegments, searchParams, user) => 
     }
 
     if (req.method === 'DELETE') {
-      const index = state.events.findIndex((event) => event.id === id && event.ownerId === user.id);
+      const index = state.events.findIndex(
+        (event) => event.id === id && event.ownerId === user.id
+      );
       if (index === -1) {
         sendNotFound(res);
         return;
@@ -948,7 +1030,9 @@ const handleNotificationsRoutes = async (req, res, subSegments, _searchParams, u
     try {
       const referenceDate = parsedReference || new Date();
       notificationsLogger.info(
-        `Envio manual solicitado por ${user.username} (${dryRun ? 'modo simulação' : 'envio real'}).`
+        `Envio manual solicitado por ${user.username} (${
+          dryRun ? 'modo simulação' : 'envio real'
+        }).`
       );
       const result = await notificationsManager.sendNotifications({
         referenceDate,
@@ -973,9 +1057,12 @@ const handleUsersRoutes = async (req, res, subSegments, _searchParams, user) => 
     return;
   }
 
+  // /api/users
   if (subSegments.length === 0) {
     if (req.method === 'GET') {
-      const users = state.users.map(sanitizeUser).sort((a, b) => a.username.localeCompare(b.username));
+      const users = state.users
+        .map(sanitizeUser)
+        .sort((a, b) => a.username.localeCompare(b.username));
       sendJson(res, 200, users);
       return;
     }
@@ -988,12 +1075,15 @@ const handleUsersRoutes = async (req, res, subSegments, _searchParams, user) => 
       }
 
       try {
-        const { username, password, name = null, role = 'user', whatsapp } = body.value;
+        const { username, password, name = null, role = 'user', whatsapp, ...extra } =
+          body.value || {};
+
         if (role !== 'user') {
           sendJson(res, 400, { error: 'Somente usuários comuns podem ser criados.' });
           return;
         }
-        const created = createUser({ username, password, name, role, whatsapp });
+
+        const created = createUser({ username, password, name, role, whatsapp, ...extra });
         sendJson(res, 201, sanitizeUser(created));
       } catch (err) {
         if (err.message === 'Usuário já existe') {
@@ -1014,6 +1104,112 @@ const handleUsersRoutes = async (req, res, subSegments, _searchParams, user) => 
     }
 
     sendMethodNotAllowed(res, ['GET', 'POST']);
+    return;
+  }
+
+  // /api/users/:id
+  if (subSegments.length === 1) {
+    const id = decodeURIComponent(subSegments[0]);
+    const index = state.users.findIndex((item) => item.id === id);
+    if (index === -1) {
+      sendNotFound(res);
+      return;
+    }
+
+    if (req.method === 'PATCH') {
+      const body = await readJsonBody(req);
+      if (!body.ok) {
+        sendJson(res, 400, { error: body.error });
+        return;
+      }
+      if (!body.value || typeof body.value !== 'object') {
+        sendJson(res, 400, { error: 'Dados inválidos' });
+        return;
+      }
+
+      const current = state.users[index];
+      const next = { ...current };
+      const { username, password, name, role, ...extra } = body.value;
+      let changed = false;
+
+      if (username !== undefined) {
+        if (typeof username !== 'string') {
+          sendJson(res, 400, { error: 'username inválido' });
+          return;
+        }
+        const trimmed = username.trim();
+        if (!trimmed) {
+          sendJson(res, 400, { error: 'username obrigatório' });
+          return;
+        }
+        const normalized = trimmed.toLowerCase();
+        const conflict = state.users.some(
+          (u) => u.id !== current.id && u.username.toLowerCase() === normalized
+        );
+        if (conflict) {
+          sendJson(res, 409, { error: 'Usuário já existe' });
+          return;
+        }
+        if (trimmed !== current.username) changed = true;
+        next.username = trimmed;
+      }
+
+      if (name !== undefined) {
+        const normalizedName = normalizeOptionalString(name);
+        if (normalizedName !== current.name) changed = true;
+        next.name = normalizedName ?? null;
+      }
+
+      if (role !== undefined) {
+        if (role !== 'admin' && role !== 'user') {
+          sendJson(res, 400, { error: 'role inválido' });
+          return;
+        }
+        if (role !== current.role) changed = true;
+        next.role = role;
+      }
+
+      if (password !== undefined) {
+        if (password === null || password === '') {
+          sendJson(res, 400, { error: 'password inválido' });
+          return;
+        }
+        if (typeof password !== 'string' || password.length < 4) {
+          sendJson(res, 400, {
+            error: 'password deve ter pelo menos 4 caracteres'
+          });
+          return;
+        }
+        const { salt, passwordHash } = hashPassword(password);
+        next.salt = salt;
+        next.passwordHash = passwordHash;
+        changed = true;
+      }
+
+      if (extra && Object.keys(extra).length > 0) {
+        applyUserExtras(next, extra);
+        changed = true;
+      }
+
+      if (changed) {
+        next.updatedAt = new Date().toISOString();
+        state.users[index] = next;
+        saveDatabase();
+        sendJson(res, 200, sanitizeUser(next));
+        return;
+      }
+
+      // nada mudou: retorna estado atual mesmo
+      sendJson(res, 200, sanitizeUser(current));
+      return;
+    }
+
+    if (req.method === 'GET') {
+      sendJson(res, 200, sanitizeUser(state.users[index]));
+      return;
+    }
+
+    sendMethodNotAllowed(res, ['GET', 'PATCH']);
     return;
   }
 
@@ -1077,7 +1273,7 @@ const handleAuthRoutes = async (req, res, subSegments) => {
 
 const PORT = Number(process.env.PORT) || 3333;
 
-// >>> ÚNICA MUDANÇA FUNCIONAL: escutar em 0.0.0.0 para aceitar conexões do simulador/lan
+// >>> Escutar em 0.0.0.0 para aceitar conexões do simulador/lan
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`✅ API rodando em http://localhost:${PORT}`);
 

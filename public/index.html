@@ -229,6 +229,7 @@
       </div>
     </aside>
 
+    <!-- ADMIN: GERENCIAR USUÁRIOS -->
     <section class="card admin-card" id="adminUsersSection" hidden>
       <h2 class="title">Gerenciar Usuários</h2>
       <p class="muted">Crie contas para seus amigos. Cada um verá apenas os próprios dados.</p>
@@ -253,8 +254,11 @@
         <div class="admin-user-actions">
           <button class="primary" id="btnCreateUser">Adicionar usuário</button>
           <button class="ghost" id="btnClearUser">Limpar</button>
+          <button class="primary" id="btnUpdateUser" hidden>Salvar alterações</button>
         </div>
       </div>
+
+      <p class="muted hidden" id="userEditInfo"></p>
 
       <div class="sep"></div>
 
@@ -267,6 +271,7 @@
               <th>WhatsApp</th>
               <th>Perfil</th>
               <th>Criado em</th>
+              <th class="right">Ações</th>
             </tr>
           </thead>
           <tbody id="userTableBody"></tbody>
@@ -841,11 +846,57 @@
     const adminSection = document.getElementById('adminUsersSection');
     const userTableBody = document.getElementById('userTableBody');
     const userEmptyMessage = document.getElementById('userEmptyMessage');
+    const userEditInfo = document.getElementById('userEditInfo');
+    const btnCreateUser = document.getElementById('btnCreateUser');
+    const btnClearUser = document.getElementById('btnClearUser');
+    const btnUpdateUser = document.getElementById('btnUpdateUser');
+    const passwordInput = document.getElementById('u-password');
+    const whatsappInput = document.getElementById('u-whatsapp');
+    let editingUserId = null;
+
+    function resetUserForm(){
+      editingUserId = null;
+      set('u-username', '');
+      set('u-name', '');
+      if (whatsappInput) whatsappInput.value = '';
+      if (passwordInput) passwordInput.value = '';
+      if (btnUpdateUser) btnUpdateUser.hidden = true;
+      if (btnCreateUser) btnCreateUser.disabled = false;
+      if (userEditInfo) {
+        userEditInfo.textContent = '';
+        userEditInfo.classList.add('hidden');
+      }
+      const rows = userTableBody ? Array.from(userTableBody.querySelectorAll('tr')) : [];
+      rows.forEach((row) => row.classList.remove('is-editing'));
+    }
+
+    function startEditUser(user){
+      if (!user) return;
+      editingUserId = user.id;
+      set('u-username', user.username || '');
+      set('u-name', user.name || '');
+      if (whatsappInput) whatsappInput.value = user.whatsapp || '';
+      if (passwordInput) passwordInput.value = '';
+      if (btnUpdateUser) btnUpdateUser.hidden = false;
+      if (btnCreateUser) btnCreateUser.disabled = true;
+      if (userEditInfo) {
+        userEditInfo.textContent = `Editando usuário ${user.username}. Altere os campos e clique em "Salvar alterações".`;
+        userEditInfo.classList.remove('hidden');
+      }
+      const rows = userTableBody ? Array.from(userTableBody.querySelectorAll('tr')) : [];
+      rows.forEach((row) => {
+        row.classList.toggle('is-editing', row.dataset.userId === user.id);
+      });
+      if (adminSection) {
+        window.scrollTo({ top: adminSection.offsetTop - 40, behavior: 'smooth' });
+      }
+    }
 
     function renderManagedUsers(users){
       if (!userTableBody || !userEmptyMessage) return;
       userTableBody.innerHTML = '';
       if (!Array.isArray(users) || users.length === 0) {
+        resetUserForm();
         userEmptyMessage.classList.remove('hidden');
         return;
       }
@@ -856,6 +907,7 @@
       });
       users.forEach((user) => {
         const tr = document.createElement('tr');
+        tr.dataset.userId = user.id;
         const createdAt = user.createdAt ? formatter.format(new Date(user.createdAt)) : '-';
         const roleLabel = user.role === 'admin' ? 'Administrador' : 'Usuário';
         tr.innerHTML = `
@@ -864,9 +916,27 @@
           <td>${user.whatsapp ? user.whatsapp : '-'}</td>
           <td>${roleLabel}</td>
           <td>${createdAt}</td>
+          <td class="actions">
+            <button type="button" class="icon-button btn-edit-user" data-user-id="${user.id}" title="Editar usuário" aria-label="Editar ${user.username}">
+              <svg width="16" height="16" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                <path d="M14.612 2.19531C14.8946 1.9127 15.2695 1.75439 15.6594 1.75439C16.0492 1.75439 16.4242 1.9127 16.7068 2.19531L17.8047 3.2932C18.0873 3.57582 18.2456 3.95075 18.2456 4.34063C18.2456 4.73052 18.0873 5.10545 17.8047 5.38806L8.64305 14.5497C8.45396 14.7388 8.22169 14.8785 7.96865 14.9569L4.6875 15.9375L5.66814 12.6564C5.74646 12.4033 5.88619 12.1711 6.07529 11.982L15.237 2.82034L14.612 2.19531Z" fill="currentColor"/>
+                <path d="M3.75 5.625H2.5C2.15482 5.625 1.875 5.90482 1.875 6.25V16.875C1.875 17.2202 2.15482 17.5 2.5 17.5H13.125C13.4702 17.5 13.75 17.2202 13.75 16.875V15.625H12.5V16.25H3.125V6.875H3.75V5.625Z" fill="currentColor"/>
+              </svg>
+            </button>
+          </td>
         `;
         userTableBody.appendChild(tr);
+        const editButton = tr.querySelector('.btn-edit-user');
+        if (editButton) {
+          editButton.onclick = () => startEditUser(user);
+        }
+        if (editingUserId && editingUserId === user.id) {
+          tr.classList.add('is-editing');
+        }
       });
+      if (editingUserId && !users.some((user) => user.id === editingUserId)) {
+        resetUserForm();
+      }
     }
 
     async function loadManagedUsers(){
@@ -885,18 +955,17 @@
       loadManagedUsers();
     }
 
-    const btnCreateUser = document.getElementById('btnCreateUser');
-    const btnClearUser = document.getElementById('btnClearUser');
-    const passwordInput = document.getElementById('u-password');
-    const whatsappInput = document.getElementById('u-whatsapp');
-
     if (btnCreateUser) {
       btnCreateUser.onclick = async () => {
+        if (editingUserId) {
+          alert('Finalize ou cancele a edição atual antes de criar um novo usuário.');
+          return;
+        }
         if (currentUser.role !== 'admin') return;
         const username = val('u-username');
         const password = passwordInput ? passwordInput.value : '';
         const name = val('u-name');
-        const whatsapp = val('u-whatsapp');
+        const whatsapp = whatsappInput ? whatsappInput.value.trim() : '';
         if (!username || !password) {
           alert('Preencha pelo menos o usuário e a senha inicial.');
           return;
@@ -912,14 +981,16 @@
         try {
           await apiRequest('/api/users', {
             method: 'POST',
-            body: JSON.stringify({ username, password, name: name || null, whatsapp })
+            body: JSON.stringify({
+              username,
+              password,
+              name: name || null,
+              whatsapp: whatsapp || null
+            })
           });
-          set('u-username', '');
-          if (passwordInput) passwordInput.value = '';
-          set('u-name', '');
-          if (whatsappInput) whatsappInput.value = '';
           await loadManagedUsers();
           alert(`Usuário ${username} criado com sucesso!`);
+          resetUserForm();
         } catch (err) {
           if (err?.status === 409) {
             alert('Já existe um usuário com esse nome.');
@@ -932,10 +1003,53 @@
 
     if (btnClearUser) {
       btnClearUser.onclick = () => {
-        set('u-username', '');
-        if (passwordInput) passwordInput.value = '';
-        set('u-name', '');
-        if (whatsappInput) whatsappInput.value = '';
+        resetUserForm();
+      };
+    }
+
+    if (btnUpdateUser) {
+      btnUpdateUser.onclick = async () => {
+        if (!editingUserId) {
+          alert('Selecione um usuário para editar.');
+          return;
+        }
+        const username = val('u-username');
+        const name = val('u-name');
+        const whatsapp = whatsappInput ? whatsappInput.value.trim() : '';
+        if (!username) {
+          alert('O usuário é obrigatório.');
+          return;
+        }
+        const payload = {
+          username,
+          name: name || null,
+          whatsapp: whatsapp || null
+        };
+        if (passwordInput) {
+          const newPassword = passwordInput.value;
+          if (newPassword) {
+            if (newPassword.length < 4) {
+              alert('A nova senha deve ter ao menos 4 caracteres.');
+              return;
+            }
+            payload.password = newPassword;
+          }
+        }
+        try {
+          await apiRequest(`/api/users/${encodeURIComponent(editingUserId)}`, {
+            method: 'PATCH',
+            body: JSON.stringify(payload)
+          });
+          await loadManagedUsers();
+          alert('Usuário atualizado com sucesso!');
+          resetUserForm();
+        } catch (err) {
+          if (err?.status === 409) {
+            alert('Já existe um usuário com esse nome.');
+            return;
+          }
+          showError('Erro ao atualizar usuário.', err);
+        }
       };
     }
 
