@@ -6,7 +6,8 @@
   "type": "commonjs",
   "scripts": {
     "dev": "nodemon server.js",
-    "start": "node server.js"
+    "start": "node server.js",
+    "notify:simulate": "node scripts/simulate-notifications.js"
   },
   "keywords": [],
   "author": "Felipe",

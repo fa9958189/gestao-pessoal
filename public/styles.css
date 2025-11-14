@@ -152,10 +152,46 @@ h2.title, h3.title{ margin:0 0 10px; font-weight:600; }
   justify-content:flex-end;
   align-items:flex-end;
   grid-column:span 2;
+  flex-wrap:wrap;
 }
-.admin-user-form .admin-user-actions button{ flex:1; }
+.admin-user-form .admin-user-actions button{
+  flex:1 1 160px;
+}
 .user-list-wrapper{ overflow:auto; }
 .user-empty.hidden{ display:none; }
+
+.admin-card th.right,
+.admin-card td.actions{
+  text-align:right;
+}
+
+.admin-card tr.is-editing{
+  background:rgba(137,180,255,.08);
+}
+
+.icon-button{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width:36px;
+  height:36px;
+  padding:0;
+  border-radius:10px;
+  background:transparent;
+  border:1px solid #38425b;
+  color:var(--muted);
+}
+
+.icon-button:hover{
+  color:var(--accent);
+  border-color:var(--accent);
+}
+
+.icon-button svg{
+  width:18px;
+  height:18px;
+  pointer-events:none;
+}
 
 .row{ display:flex; gap:10px; flex-wrap:wrap; }
 

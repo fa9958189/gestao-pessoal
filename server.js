@@ -8,20 +8,11 @@ const fs = require('fs');
 const os = require('os'); // (apenas para log do IP LAN)
 const crypto = require('crypto');
 
+const { loadEnv } = require('./lib/env');
+const { createNotificationsManager } = require('./lib/notifications');
+
 // Carrega variáveis de ambiente simples de um arquivo .env, caso exista
-const envPath = path.join(__dirname, '.env');
-if (fs.existsSync(envPath)) {
-  const lines = fs.readFileSync(envPath, 'utf-8').split(/\r?\n/);
-  for (const line of lines) {
-    if (!line || line.trim().startsWith('#')) continue;
-    const idx = line.indexOf('=');
-    if (idx === -1) continue;
-    const key = line.slice(0, idx).trim();
-    if (!key) continue;
-    const value = line.slice(idx + 1).trim();
-    if (process.env[key] === undefined) process.env[key] = value;
-  }
-}
+loadEnv(__dirname);
 
 const appName = 'gestao-pessoal';
 const appVersion = '1.0.0';
@@ -97,6 +88,32 @@ const sanitizeUser = (user) => {
   return safe;
 };
 
+const RESERVED_USER_FIELDS = new Set(['id', 'username', 'role', 'name', 'createdAt', 'updatedAt', 'salt', 'passwordHash']);
+
+const normalizeOptionalString = (value) => {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  const normalized = value.toString().trim();
+  return normalized ? normalized : null;
+};
+
+const applyUserExtras = (target, extra) => {
+  if (!extra || typeof extra !== 'object') return;
+  Object.entries(extra).forEach(([key, value]) => {
+    if (!key || RESERVED_USER_FIELDS.has(key)) return;
+    if (value === undefined) return;
+    const prepared = typeof value === 'string' ? normalizeOptionalString(value) : value;
+    if (prepared === undefined) return;
+    if (prepared === null) {
+      if (Object.prototype.hasOwnProperty.call(target, key)) {
+        delete target[key];
+      }
+      return;
+    }
+    target[key] = prepared;
+  });
+};
+
 const ensureDefaultAdmin = () => {
   let needsSave = false;
   if (!Array.isArray(state.users)) {
@@ -134,7 +151,7 @@ const ensureDefaultAdmin = () => {
   return admin;
 };
 
-const createUser = ({ username, password, role = 'user', name = null }) => {
+const createUser = ({ username, password, role = 'user', name = null, ...extra }) => {
   if (!username || typeof username !== 'string') {
     throw new Error('username obrigatório');
   }
@@ -153,15 +170,18 @@ const createUser = ({ username, password, role = 'user', name = null }) => {
   }
 
   const { salt, passwordHash } = hashPassword(password);
+  const normalizedName = normalizeOptionalString(name);
   const user = {
     id: uid(),
     username: username.trim(),
     role,
-    name: name ? name.trim() : null,
+    name: normalizedName ?? null,
     createdAt: new Date().toISOString(),
+    updatedAt: null,
     salt,
     passwordHash
   };
+  applyUserExtras(user, extra);
   state.users.push(user);
   saveDatabase();
   return user;
@@ -169,6 +189,117 @@ const createUser = ({ username, password, role = 'user', name = null }) => {
 
 loadDatabase();
 ensureDefaultAdmin();
+
+const findUserById = (id) => state.users.find((user) => user.id === id);
+
+const createPrefixedLogger = (prefix) => ({
+  info: (...args) => console.log(new Date().toISOString(), `[${prefix}]`, ...args),
+  warn: (...args) => console.warn(new Date().toISOString(), `[${prefix}]`, ...args),
+  error: (...args) => console.error(new Date().toISOString(), `[${prefix}]`, ...args)
+});
+
+const notificationsLogger = createPrefixedLogger('notifications');
+
+const notificationsConfig = {
+  enabled: process.env.WHATSAPP_NOTIFICATIONS_ENABLED !== 'false',
+  accountSid: process.env.TWILIO_ACCOUNT_SID || null,
+  authToken: process.env.TWILIO_AUTH_TOKEN || null,
+  from: process.env.TWILIO_WHATSAPP_FROM || null,
+  recipients: (process.env.TWILIO_WHATSAPP_TO || '')
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean),
+  timezone: process.env.NOTIFICATIONS_TIMEZONE || 'UTC'
+};
+
+const notificationsManager = createNotificationsManager({
+  getEvents: () => state.events || [],
+  getUserById: findUserById,
+  logger: notificationsLogger,
+  config: notificationsConfig
+});
+
+const parseDailySchedule = (expression) => {
+  const fallback = { hour: 8, minute: 0, raw: '0 8 * * *' };
+  if (!expression || typeof expression !== 'string') return fallback;
+
+  const trimmed = expression.trim();
+  if (!trimmed) return fallback;
+
+  const cronParts = trimmed.split(/\s+/);
+  if (cronParts.length >= 2 && /^\d+$/.test(cronParts[0]) && /^\d+$/.test(cronParts[1])) {
+    const minute = Math.max(0, Math.min(59, parseInt(cronParts[0], 10)));
+    const hour = Math.max(0, Math.min(23, parseInt(cronParts[1], 10)));
+    return { hour, minute, raw: trimmed };
+  }
+
+  const timeMatch = trimmed.match(/^(\d{1,2}):(\d{1,2})$/);
+  if (timeMatch) {
+    const hour = Math.max(0, Math.min(23, parseInt(timeMatch[1], 10)));
+    const minute = Math.max(0, Math.min(59, parseInt(timeMatch[2], 10)));
+    return { hour, minute, raw: trimmed };
+  }
+
+  notificationsLogger.warn(
+    `Expressão de agendamento inválida (${trimmed}). Utilizando padrão diário às 08:00.`
+  );
+  return fallback;
+};
+
+const scheduleDailyNotifications = ({ hour, minute }) => {
+  const computeDelay = () => {
+    const now = new Date();
+    const next = new Date(now);
+    next.setHours(hour, minute, 0, 0);
+    if (next <= now) {
+      next.setDate(next.getDate() + 1);
+    }
+    return next.getTime() - now.getTime();
+  };
+
+  const scheduleNext = () => {
+    const delay = computeDelay();
+    const nextRun = new Date(Date.now() + delay);
+    notificationsLogger.info(`Próxima avaliação automática programada para ${nextRun.toISOString()}.`);
+
+    const timer = setTimeout(async () => {
+      try {
+        const result = await notificationsManager.sendNotifications({ reason: 'scheduled-daily' });
+        if (result.error) {
+          notificationsLogger.error('Falha ao enviar notificações agendadas:', result.error);
+        } else if (result.sent) {
+          notificationsLogger.info(
+            `Notificações enviadas para ${Array.isArray(result.recipients) ? result.recipients.join(', ') : 'destinatários não informados'}.`
+          );
+        } else {
+          notificationsLogger.info(
+            `Execução diária concluída sem envio. ${result.warning ? `Motivo: ${result.warning}` : ''}`.trim()
+          );
+        }
+      } catch (err) {
+        notificationsLogger.error('Erro inesperado durante tarefa agendada de notificações:', err);
+      }
+
+      scheduleNext();
+    }, delay);
+
+    if (typeof timer.unref === 'function') timer.unref();
+  };
+
+  scheduleNext();
+};
+
+const notificationsScheduleExpression = process.env.NOTIFICATIONS_CRON_EXPRESSION || '0 8 * * *';
+const scheduleConfig = parseDailySchedule(notificationsScheduleExpression);
+const timezoneLabel = notificationsManager.getTimezone();
+
+notificationsLogger.info(
+  `Agendador diário configurado para ${String(scheduleConfig.hour).padStart(2, '0')}:${String(scheduleConfig.minute).padStart(2, '0')} (${notificationsScheduleExpression}).${
+    timezoneLabel ? ` Timezone informado: ${timezoneLabel}.` : ''
+  }`
+);
+
+scheduleDailyNotifications(scheduleConfig);
 
 const isValidTransactionType = (type) => type === 'income' || type === 'expense';
 const normalizeString = (value) => (value ?? '').toString().toLowerCase();
@@ -446,6 +577,13 @@ const handleApiRequest = async (req, res, segments, searchParams) => {
     const auth = ensureAuthenticated(req, res);
     if (!auth) return;
     await handleEventsRoutes(req, res, segments.slice(2), searchParams, auth.user);
+    return;
+  }
+
+  if (resource === 'notifications') {
+    const auth = ensureAuthenticated(req, res);
+    if (!auth) return;
+    await handleNotificationsRoutes(req, res, segments.slice(2), searchParams, auth.user);
     return;
   }
 
@@ -740,6 +878,93 @@ const handleEventsRoutes = async (req, res, subSegments, searchParams, user) => 
   sendNotFound(res);
 };
 
+const parseReferenceDateInput = (value) => {
+  if (value === undefined || value === null || value === '') return null;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
+const handleNotificationsRoutes = async (req, res, subSegments, _searchParams, user) => {
+  if (user.role !== 'admin') {
+    sendJson(res, 403, { error: 'Proibido' });
+    return;
+  }
+
+  if (subSegments.length === 1 && subSegments[0] === 'check') {
+    if (req.method !== 'POST') {
+      sendMethodNotAllowed(res, ['POST']);
+      return;
+    }
+
+    const body = await readJsonBody(req);
+    if (!body.ok) {
+      sendJson(res, 400, { error: body.error });
+      return;
+    }
+
+    const parsedReference = parseReferenceDateInput(body.value.referenceDate);
+    if (body.value.referenceDate && !parsedReference) {
+      sendJson(res, 400, { error: 'referenceDate inválido' });
+      return;
+    }
+
+    try {
+      const referenceDate = parsedReference || new Date();
+      notificationsLogger.info(
+        `Avaliação manual solicitada por ${user.username} para ${referenceDate.toISOString()}.`
+      );
+      const evaluation = notificationsManager.evaluate(referenceDate);
+      sendJson(res, 200, evaluation);
+    } catch (err) {
+      notificationsLogger.error('Erro ao avaliar notificações manualmente:', err);
+      sendJson(res, 500, { error: 'Erro ao avaliar notificações' });
+    }
+    return;
+  }
+
+  if (subSegments.length === 1 && subSegments[0] === 'send') {
+    if (req.method !== 'POST') {
+      sendMethodNotAllowed(res, ['POST']);
+      return;
+    }
+
+    const body = await readJsonBody(req);
+    if (!body.ok) {
+      sendJson(res, 400, { error: body.error });
+      return;
+    }
+
+    const parsedReference = parseReferenceDateInput(body.value.referenceDate);
+    if (body.value.referenceDate && !parsedReference) {
+      sendJson(res, 400, { error: 'referenceDate inválido' });
+      return;
+    }
+
+    const dryRun = Boolean(body.value.dryRun);
+    const recipients = body.value.recipients;
+
+    try {
+      const referenceDate = parsedReference || new Date();
+      notificationsLogger.info(
+        `Envio manual solicitado por ${user.username} (${dryRun ? 'modo simulação' : 'envio real'}).`
+      );
+      const result = await notificationsManager.sendNotifications({
+        referenceDate,
+        recipients,
+        dryRun,
+        reason: 'manual-api'
+      });
+      sendJson(res, 200, result);
+    } catch (err) {
+      notificationsLogger.error('Erro ao processar envio manual de notificações:', err);
+      sendJson(res, 500, { error: 'Erro ao enviar notificações' });
+    }
+    return;
+  }
+
+  sendNotFound(res);
+};
+
 const handleUsersRoutes = async (req, res, subSegments, _searchParams, user) => {
   if (user.role !== 'admin') {
     sendJson(res, 403, { error: 'Proibido' });
@@ -761,12 +986,12 @@ const handleUsersRoutes = async (req, res, subSegments, _searchParams, user) => 
       }
 
       try {
-        const { username, password, name = null, role = 'user' } = body.value;
+        const { username, password, name = null, role = 'user', ...extra } = body.value;
         if (role !== 'user') {
           sendJson(res, 400, { error: 'Somente usuários comuns podem ser criados.' });
           return;
         }
-        const created = createUser({ username, password, name, role });
+        const created = createUser({ username, password, name, role, ...extra });
         sendJson(res, 201, sanitizeUser(created));
       } catch (err) {
         if (err.message === 'Usuário já existe') {
@@ -782,6 +1007,108 @@ const handleUsersRoutes = async (req, res, subSegments, _searchParams, user) => 
     }
 
     sendMethodNotAllowed(res, ['GET', 'POST']);
+    return;
+  }
+
+  if (subSegments.length === 1) {
+    const id = decodeURIComponent(subSegments[0]);
+    const index = state.users.findIndex((item) => item.id === id);
+    if (index === -1) {
+      sendNotFound(res);
+      return;
+    }
+
+    if (req.method === 'PATCH') {
+      const body = await readJsonBody(req);
+      if (!body.ok) {
+        sendJson(res, 400, { error: body.error });
+        return;
+      }
+      if (!body.value || typeof body.value !== 'object') {
+        sendJson(res, 400, { error: 'Dados inválidos' });
+        return;
+      }
+
+      const current = state.users[index];
+      const next = { ...current };
+      const { username, password, name, role, ...extra } = body.value;
+      let changed = false;
+
+      if (username !== undefined) {
+        if (typeof username !== 'string') {
+          sendJson(res, 400, { error: 'username inválido' });
+          return;
+        }
+        const trimmed = username.trim();
+        if (!trimmed) {
+          sendJson(res, 400, { error: 'username obrigatório' });
+          return;
+        }
+        const normalized = trimmed.toLowerCase();
+        const conflict = state.users.some(
+          (user) => user.id !== current.id && user.username.toLowerCase() === normalized
+        );
+        if (conflict) {
+          sendJson(res, 409, { error: 'Usuário já existe' });
+          return;
+        }
+        if (trimmed !== current.username) changed = true;
+        next.username = trimmed;
+      }
+
+      if (name !== undefined) {
+        const normalizedName = normalizeOptionalString(name);
+        if (normalizedName !== current.name) changed = true;
+        next.name = normalizedName ?? null;
+      }
+
+      if (role !== undefined) {
+        if (role !== 'admin' && role !== 'user') {
+          sendJson(res, 400, { error: 'role inválido' });
+          return;
+        }
+        if (role !== current.role) changed = true;
+        next.role = role;
+      }
+
+      if (password !== undefined) {
+        if (password === null || password === '') {
+          sendJson(res, 400, { error: 'password inválido' });
+          return;
+        }
+        if (typeof password !== 'string' || password.length < 4) {
+          sendJson(res, 400, { error: 'password deve ter pelo menos 4 caracteres' });
+          return;
+        }
+        const { salt, passwordHash } = hashPassword(password);
+        next.salt = salt;
+        next.passwordHash = passwordHash;
+        changed = true;
+      }
+
+      if (extra && Object.keys(extra).length > 0) {
+        applyUserExtras(next, extra);
+        changed = true;
+      }
+
+      if (changed) {
+        next.updatedAt = new Date().toISOString();
+        state.users[index] = next;
+        saveDatabase();
+        sendJson(res, 200, sanitizeUser(next));
+        return;
+      }
+
+      sendJson(res, 200, sanitizeUser(current));
+      return;
+    }
+
+    if (req.method === 'GET') {
+      sendJson(res, 200, sanitizeUser(state.users[index]));
+      return;
+    }
+
+    sendMethodNotAllowed(res, ['GET', 'PATCH']);
     return;
   }
 
