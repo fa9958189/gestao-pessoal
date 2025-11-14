@@ -246,6 +246,10 @@
           <label>Senha inicial</label>
           <input id="u-password" type="password" placeholder="Mínimo de 4 caracteres">
         </div>
+        <div>
+          <label>WhatsApp</label>
+          <input id="u-whatsapp" placeholder="+5511999999999">
+        </div>
         <div class="admin-user-actions">
           <button class="primary" id="btnCreateUser">Adicionar usuário</button>
           <button class="ghost" id="btnClearUser">Limpar</button>
@@ -260,6 +264,7 @@
             <tr>
               <th>Usuário</th>
               <th>Nome</th>
+              <th>WhatsApp</th>
               <th>Perfil</th>
               <th>Criado em</th>
             </tr>
@@ -330,6 +335,7 @@
     const BRL = v => v.toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
     const val = id => document.getElementById(id).value.trim();
     const set = (id,v)=> document.getElementById(id).value = v || '';
+    const isValidWhatsapp = (value) => /^\+\d{6,15}$/.test(value);
     const today = () => new Date().toISOString().slice(0,10);
 
     // datas padrão
@@ -855,6 +861,7 @@
         tr.innerHTML = `
           <td>${user.username}</td>
           <td>${user.name ?? '-'}</td>
+          <td>${user.whatsapp ? user.whatsapp : '-'}</td>
           <td>${roleLabel}</td>
           <td>${createdAt}</td>
         `;
@@ -881,6 +888,7 @@
     const btnCreateUser = document.getElementById('btnCreateUser');
     const btnClearUser = document.getElementById('btnClearUser');
     const passwordInput = document.getElementById('u-password');
+    const whatsappInput = document.getElementById('u-whatsapp');
 
     if (btnCreateUser) {
       btnCreateUser.onclick = async () => {
@@ -888,6 +896,7 @@
         const username = val('u-username');
         const password = passwordInput ? passwordInput.value : '';
         const name = val('u-name');
+        const whatsapp = val('u-whatsapp');
         if (!username || !password) {
           alert('Preencha pelo menos o usuário e a senha inicial.');
           return;
@@ -896,14 +905,19 @@
           alert('A senha deve ter ao menos 4 caracteres.');
           return;
         }
+        if (!isValidWhatsapp(whatsapp)) {
+          alert('Informe um número de WhatsApp válido no formato internacional, por exemplo: +5511999999999.');
+          return;
+        }
         try {
           await apiRequest('/api/users', {
             method: 'POST',
-            body: JSON.stringify({ username, password, name: name || null })
+            body: JSON.stringify({ username, password, name: name || null, whatsapp })
           });
           set('u-username', '');
           if (passwordInput) passwordInput.value = '';
           set('u-name', '');
+          if (whatsappInput) whatsappInput.value = '';
           await loadManagedUsers();
           alert(`Usuário ${username} criado com sucesso!`);
         } catch (err) {
@@ -921,6 +935,7 @@
         set('u-username', '');
         if (passwordInput) passwordInput.value = '';
         set('u-name', '');
+        if (whatsappInput) whatsappInput.value = '';
       };
     }
 

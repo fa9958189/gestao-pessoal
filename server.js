@@ -35,10 +35,23 @@ const DEFAULT_ADMIN = {
   id: 'admin-felipe',
   username: 'felipeadm',
   password: '1234',
-  name: 'Administrador'
+  name: 'Administrador',
+  whatsapp: '+5500000000000'
 };
 
 const createEmptyState = () => ({ users: [], transactions: [], events: [] });
+
+const normalizeLoadedUser = (user) => {
+  if (!user || typeof user !== 'object') return null;
+  const normalized = { ...user };
+  if (typeof normalized.whatsapp === 'string') {
+    normalized.whatsapp = normalized.whatsapp.trim();
+    if (normalized.whatsapp === '') normalized.whatsapp = null;
+  } else {
+    normalized.whatsapp = null;
+  }
+  return normalized;
+};
 let state = createEmptyState();
 
 const saveDatabase = () => {
@@ -59,7 +72,9 @@ const loadDatabase = () => {
     } else {
       const parsed = JSON.parse(raw);
       state = {
-        users: Array.isArray(parsed.users) ? parsed.users : [],
+        users: Array.isArray(parsed.users)
+          ? parsed.users.map(normalizeLoadedUser).filter(Boolean)
+          : [],
         transactions: Array.isArray(parsed.transactions) ? parsed.transactions : [],
         events: Array.isArray(parsed.events) ? parsed.events : []
       };
@@ -94,6 +109,7 @@ const verifyPassword = (password, user) => {
 const sanitizeUser = (user) => {
   if (!user) return null;
   const { passwordHash, salt, ...safe } = user;
+  if (typeof safe.whatsapp === 'string') safe.whatsapp = safe.whatsapp.trim();
   return safe;
 };
 
@@ -112,11 +128,15 @@ const ensureDefaultAdmin = () => {
       username: DEFAULT_ADMIN.username,
       role: 'admin',
       name: DEFAULT_ADMIN.name,
+      whatsapp: DEFAULT_ADMIN.whatsapp,
       createdAt: new Date().toISOString(),
       salt,
       passwordHash
     };
     state.users.push(admin);
+    needsSave = true;
+  } else if (!admin.whatsapp) {
+    admin.whatsapp = DEFAULT_ADMIN.whatsapp;
     needsSave = true;
   }
 
@@ -134,17 +154,27 @@ const ensureDefaultAdmin = () => {
   return admin;
 };
 
-const createUser = ({ username, password, role = 'user', name = null }) => {
+const isValidWhatsapp = (value) => typeof value === 'string' && /^\+\d{6,15}$/.test(value);
+
+const createUser = ({ username, password, role = 'user', name = null, whatsapp }) => {
   if (!username || typeof username !== 'string') {
     throw new Error('username obrigatório');
   }
   if (!password || typeof password !== 'string') {
     throw new Error('password obrigatório');
   }
+  if (!whatsapp || typeof whatsapp !== 'string') {
+    throw new Error('whatsapp obrigatório');
+  }
 
   const normalizedUsername = username.trim().toLowerCase();
   if (!normalizedUsername) {
     throw new Error('username obrigatório');
+  }
+
+  const trimmedWhatsapp = whatsapp.trim();
+  if (!isValidWhatsapp(trimmedWhatsapp)) {
+    throw new Error('whatsapp inválido');
   }
 
   const exists = state.users.some((user) => user.username.toLowerCase() === normalizedUsername);
@@ -158,6 +188,7 @@ const createUser = ({ username, password, role = 'user', name = null }) => {
     username: username.trim(),
     role,
     name: name ? name.trim() : null,
+    whatsapp: trimmedWhatsapp,
     createdAt: new Date().toISOString(),
     salt,
     passwordHash
@@ -761,17 +792,22 @@ const handleUsersRoutes = async (req, res, subSegments, _searchParams, user) => 
       }
 
       try {
-        const { username, password, name = null, role = 'user' } = body.value;
+        const { username, password, name = null, role = 'user', whatsapp } = body.value;
         if (role !== 'user') {
           sendJson(res, 400, { error: 'Somente usuários comuns podem ser criados.' });
           return;
         }
-        const created = createUser({ username, password, name, role });
+        const created = createUser({ username, password, name, role, whatsapp });
         sendJson(res, 201, sanitizeUser(created));
       } catch (err) {
         if (err.message === 'Usuário já existe') {
           sendJson(res, 409, { error: err.message });
-        } else if (err.message === 'username obrigatório' || err.message === 'password obrigatório') {
+        } else if (
+          err.message === 'username obrigatório' ||
+          err.message === 'password obrigatório' ||
+          err.message === 'whatsapp obrigatório' ||
+          err.message === 'whatsapp inválido'
+        ) {
           sendJson(res, 400, { error: err.message });
         } else {
           console.error('Erro ao criar usuário:', err);
