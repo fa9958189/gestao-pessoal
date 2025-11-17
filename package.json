@@ -1,6 +1,6 @@
 {
   "name": "gestao-pessoal",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Sistema de gestão pessoal com controle de finanças e agenda.",
   "main": "server.js",
   "type": "commonjs",
@@ -8,6 +8,7 @@
     "dev": "nodemon server.js",
     "start": "node server.js",
     "notify:simulate": "node scripts/simulate-notifications.js",
+    "prisma:studio": "prisma studio",
     "prisma:generate": "prisma generate",
     "prisma:migrate:dev": "prisma migrate dev",
     "prisma:migrate:deploy": "prisma migrate deploy"
@@ -16,11 +17,11 @@
   "author": "Felipe",
   "license": "MIT",
   "dependencies": {
-    "@prisma/client": "^5.22.0",
+    "@prisma/client": "^5.15.0",
     "pg": "^8.11.5"
   },
   "devDependencies": {
     "nodemon": "^3.0.3",
-    "prisma": "^5.22.0"
+    "prisma": "^5.15.0"
   }
 }

@@ -20,8 +20,9 @@ const getPrisma = () => {
   return prismaInstance;
 };
 
+const prisma = getPrisma();
+
 const connectPrisma = async () => {
-  const prisma = getPrisma();
   await prisma.$connect();
   return prisma;
 };
@@ -32,7 +33,7 @@ const disconnectPrisma = async () => {
 };
 
 module.exports = {
-  prisma: getPrisma(),
+  prisma,
   getPrisma,
   connectPrisma,
   disconnectPrisma,
