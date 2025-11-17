@@ -1,6 +1,6 @@
 // server.js
-// API Gestão Pessoal - servidor HTTP nativo com armazenamento em arquivo JSON
-// Tabelas: transactions (ganhos/gastos) e events (agenda)
+// API Gestão Pessoal - servidor HTTP nativo com armazenamento via PostgreSQL
+// Tabelas: users, transactions (ganhos/gastos), events (agenda) e logs de notificações
 
 const http = require('http');
 const path = require('path');
@@ -10,6 +10,7 @@ const crypto = require('crypto');
 
 const { loadEnv } = require('./lib/env');
 const { createNotificationsManager } = require('./lib/notifications');
+const { prisma, connectPrisma, disconnectPrisma } = require('./db/client');
 
 // Carrega variáveis de ambiente simples de um arquivo .env, caso exista
 loadEnv(__dirname);
@@ -17,66 +18,12 @@ loadEnv(__dirname);
 const appName = 'gestao-pessoal';
 const appVersion = '1.0.0';
 
-// === DB SETUP ===
-const dbPath = path.join(__dirname, 'db', 'data.json');
-const dbDir = path.dirname(dbPath);
-if (!fs.existsSync(dbDir)) fs.mkdirSync(dbDir, { recursive: true });
-
 const DEFAULT_ADMIN = {
   id: 'admin-felipe',
   username: 'felipeadm',
   password: '1234',
   name: 'Administrador',
   whatsapp: '+5500000000000'
-};
-
-const createEmptyState = () => ({ users: [], transactions: [], events: [] });
-
-const normalizeLoadedUser = (user) => {
-  if (!user || typeof user !== 'object') return null;
-  const normalized = { ...user };
-  if (typeof normalized.whatsapp === 'string') {
-    normalized.whatsapp = normalized.whatsapp.trim();
-    if (normalized.whatsapp === '') normalized.whatsapp = null;
-  } else {
-    normalized.whatsapp = null;
-  }
-  return normalized;
-};
-
-let state = createEmptyState();
-
-const saveDatabase = () => {
-  fs.writeFileSync(dbPath, JSON.stringify(state, null, 2), 'utf-8');
-};
-
-const loadDatabase = () => {
-  if (!fs.existsSync(dbPath)) {
-    state = createEmptyState();
-    saveDatabase();
-    return;
-  }
-
-  try {
-    const raw = fs.readFileSync(dbPath, 'utf-8');
-    if (!raw.trim()) {
-      state = createEmptyState();
-    } else {
-      const parsed = JSON.parse(raw);
-      state = {
-        users: Array.isArray(parsed.users)
-          ? parsed.users.map(normalizeLoadedUser).filter(Boolean)
-          : [],
-        transactions: Array.isArray(parsed.transactions) ? parsed.transactions : [],
-        events: Array.isArray(parsed.events) ? parsed.events : []
-      };
-    }
-  } catch (err) {
-    console.error('Erro ao carregar banco de dados, recriando arquivo.', err);
-    state = createEmptyState();
-  }
-
-  saveDatabase();
 };
 
 const hashPassword = (password, salt = crypto.randomBytes(16).toString('hex')) => {
@@ -96,13 +43,6 @@ const verifyPassword = (password, user) => {
   } catch {
     return false;
   }
-};
-
-const sanitizeUser = (user) => {
-  if (!user) return null;
-  const { passwordHash, salt, ...safe } = user;
-  if (typeof safe.whatsapp === 'string') safe.whatsapp = safe.whatsapp.trim();
-  return safe;
 };
 
 // Campos reservados que não podem ser sobrescritos via "extras"
@@ -142,52 +82,85 @@ const applyUserExtras = (target, extra) => {
   });
 };
 
-const ensureDefaultAdmin = () => {
-  let needsSave = false;
-  if (!Array.isArray(state.users)) {
-    state.users = [];
-    needsSave = true;
+const buildExtrasPayload = (extra) => {
+  const payload = {};
+  applyUserExtras(payload, extra);
+  return payload;
+};
+
+const toISOStringOrNull = (value) => {
+  if (!value) return null;
+  if (value instanceof Date) return value.toISOString();
+  if (typeof value === 'string') return value;
+  return null;
+};
+
+const sanitizeUser = (user) => {
+  if (!user) return null;
+  const { passwordHash, salt, extra, createdAt, updatedAt, ...rest } = user;
+  const safe = { ...rest };
+  safe.createdAt = toISOStringOrNull(createdAt);
+  safe.updatedAt = toISOStringOrNull(updatedAt);
+  if (typeof safe.whatsapp === 'string') {
+    const trimmed = safe.whatsapp.trim();
+    safe.whatsapp = trimmed || null;
+  } else {
+    safe.whatsapp = null;
   }
 
-  let admin = state.users.find((user) => user.username === DEFAULT_ADMIN.username);
-  if (!admin) {
+  if (extra && typeof extra === 'object') {
+    Object.entries(extra).forEach(([key, value]) => {
+      if (value === undefined) return;
+      if (value === null) {
+        if (Object.prototype.hasOwnProperty.call(safe, key)) delete safe[key];
+      } else {
+        safe[key] = value;
+      }
+    });
+  }
+
+  return safe;
+};
+
+const ensureDefaultAdmin = async () => {
+  const existing = await prisma.user.findUnique({
+    where: { username: DEFAULT_ADMIN.username }
+  });
+
+  if (!existing) {
     const { salt, passwordHash } = hashPassword(DEFAULT_ADMIN.password);
-    admin = {
-      id: DEFAULT_ADMIN.id,
-      username: DEFAULT_ADMIN.username,
-      role: 'admin',
-      name: DEFAULT_ADMIN.name,
-      whatsapp: DEFAULT_ADMIN.whatsapp,
-      createdAt: new Date().toISOString(),
-      salt,
-      passwordHash
-    };
-    state.users.push(admin);
-    needsSave = true;
-  } else if (!admin.whatsapp) {
-    admin.whatsapp = DEFAULT_ADMIN.whatsapp;
-    needsSave = true;
+    return prisma.user.create({
+      data: {
+        id: DEFAULT_ADMIN.id,
+        username: DEFAULT_ADMIN.username,
+        role: 'admin',
+        name: DEFAULT_ADMIN.name,
+        whatsapp: DEFAULT_ADMIN.whatsapp,
+        salt,
+        passwordHash,
+        extra: {}
+      }
+    });
   }
 
-  const assignOwner = (record) => {
-    if (!record.ownerId) {
-      record.ownerId = admin.id;
-      needsSave = true;
-    }
-  };
+  const updates = {};
+  if (!existing.whatsapp) updates.whatsapp = DEFAULT_ADMIN.whatsapp;
+  if (!existing.name) updates.name = DEFAULT_ADMIN.name;
+  if (existing.role !== 'admin') updates.role = 'admin';
 
-  state.transactions.forEach(assignOwner);
-  state.events.forEach(assignOwner);
+  if (Object.keys(updates).length === 0) {
+    return existing;
+  }
 
-  if (needsSave) saveDatabase();
-  return admin;
+  updates.updatedAt = new Date();
+  return prisma.user.update({ where: { id: existing.id }, data: updates });
 };
 
 const isValidWhatsapp = (value) =>
   typeof value === 'string' && /^\+\d{6,15}$/.test(value);
 
 // Criação de usuário com validação de WhatsApp + campos extras
-const createUser = ({ username, password, role = 'user', name = null, whatsapp, ...extra }) => {
+const createUser = async ({ username, password, role = 'user', name = null, whatsapp, ...extra }) => {
   if (!username || typeof username !== 'string') {
     throw new Error('username obrigatório');
   }
@@ -208,36 +181,36 @@ const createUser = ({ username, password, role = 'user', name = null, whatsapp, 
     throw new Error('whatsapp inválido');
   }
 
-  const exists = state.users.some((user) => user.username.toLowerCase() === normalizedUsername);
-  if (exists) {
+  const existing = await prisma.user.findFirst({
+    where: {
+      username: {
+        equals: normalizedUsername,
+        mode: 'insensitive'
+      }
+    }
+  });
+
+  if (existing) {
     throw new Error('Usuário já existe');
   }
 
   const { salt, passwordHash } = hashPassword(password);
   const normalizedName = normalizeOptionalString(name);
+  const extras = buildExtrasPayload(extra);
 
-  const user = {
-    id: uid(),
-    username: username.trim(),
-    role,
-    name: normalizedName ?? null,
-    whatsapp: trimmedWhatsapp,
-    createdAt: new Date().toISOString(),
-    updatedAt: null,
-    salt,
-    passwordHash
-  };
-
-  applyUserExtras(user, extra);
-  state.users.push(user);
-  saveDatabase();
-  return user;
+  return prisma.user.create({
+    data: {
+      id: uid(),
+      username: username.trim(),
+      role,
+      name: normalizedName ?? null,
+      whatsapp: trimmedWhatsapp,
+      salt,
+      passwordHash,
+      extra: extras
+    }
+  });
 };
-
-loadDatabase();
-ensureDefaultAdmin();
-
-const findUserById = (id) => state.users.find((user) => user.id === id);
 
 const createPrefixedLogger = (prefix) => ({
   info: (...args) => console.log(new Date().toISOString(), `[${prefix}]`, ...args),
@@ -259,12 +232,83 @@ const notificationsConfig = {
   timezone: process.env.NOTIFICATIONS_TIMEZONE || 'UTC'
 };
 
+const notificationsCache = {
+  users: new Map()
+};
+
 const notificationsManager = createNotificationsManager({
-  getEvents: () => state.events || [],
-  getUserById: findUserById,
+  getEvents: async () => {
+    const events = await prisma.event.findMany({
+      include: {
+        owner: {
+          select: {
+            id: true,
+            username: true,
+            name: true
+          }
+        }
+      }
+    });
+
+    notificationsCache.users.clear();
+    events.forEach((event) => {
+      if (event.owner) {
+        notificationsCache.users.set(event.owner.id, {
+          id: event.owner.id,
+          username: event.owner.username,
+          name: event.owner.name
+        });
+      }
+    });
+
+    return events.map((event) => ({
+      id: event.id,
+      title: event.title,
+      date: event.date,
+      start_time: event.start_time,
+      end_time: event.end_time,
+      notes: event.notes,
+      ownerId: event.ownerId,
+      ownerName: event.owner
+        ? event.owner.name || event.owner.username || event.owner.id
+        : null
+    }));
+  },
+  getUserById: (id) => notificationsCache.users.get(id),
   logger: notificationsLogger,
   config: notificationsConfig
 });
+
+const recordNotificationAttempt = async (result) => {
+  try {
+    await prisma.notificationLog.create({
+      data: {
+        reason: result.reason || 'unknown',
+        referenceDate: new Date(result.referenceDate || new Date().toISOString()),
+        todayDate: result.todayDate || null,
+        upcomingDate: result.upcomingDate || null,
+        todayCount: result.counts?.today ?? 0,
+        upcomingCount: result.counts?.upcoming ?? 0,
+        dryRun: Boolean(result.dryRun),
+        providerReady: Boolean(result.providerReady),
+        sent: Boolean(result.sent),
+        status: result.error
+          ? 'error'
+          : result.sent
+          ? 'sent'
+          : result.warning
+          ? 'warning'
+          : 'skipped',
+        warning: result.warning || null,
+        error: result.error || null,
+        recipients: Array.isArray(result.recipients) ? result.recipients : null,
+        message: result.message || null
+      }
+    });
+  } catch (err) {
+    notificationsLogger.error('Falha ao registrar log de notificação:', err);
+  }
+};
 
 const parseDailySchedule = (expression) => {
   const fallback = { hour: 8, minute: 0, raw: '0 8 * * *' };
@@ -314,6 +358,7 @@ const scheduleDailyNotifications = ({ hour, minute }) => {
     const timer = setTimeout(async () => {
       try {
         const result = await notificationsManager.sendNotifications({ reason: 'scheduled-daily' });
+        await recordNotificationAttempt(result);
         if (result.error) {
           notificationsLogger.error('Falha ao enviar notificações agendadas:', result.error);
         } else if (result.sent) {
@@ -358,58 +403,84 @@ notificationsLogger.info(
   }`
 );
 
-scheduleDailyNotifications(scheduleConfig);
-
 const isValidTransactionType = (type) => type === 'income' || type === 'expense';
-const normalizeString = (value) => (value ?? '').toString().toLowerCase();
 
-const filterTransactions = ({ from, to, type, q, ownerId } = {}) => {
+const mapTransactionRecord = (record) => ({
+  id: record.id,
+  type: record.type,
+  amount: typeof record.amount === 'number' ? record.amount : Number(record.amount),
+  description: record.description ?? null,
+  category: record.category ?? null,
+  date: record.date,
+  ownerId: record.ownerId
+});
+
+const mapEventRecord = (record) => ({
+  id: record.id,
+  title: record.title,
+  date: record.date,
+  start_time: record.start_time ?? null,
+  end_time: record.end_time ?? null,
+  notes: record.notes ?? null,
+  ownerId: record.ownerId
+});
+
+const filterTransactions = async ({ from, to, type, q, ownerId } = {}) => {
   const normalizedType = isValidTransactionType(type) ? type : null;
-  const query = q ? q.toString().toLowerCase() : null;
+  const query = q ? q.toString() : null;
 
-  return state.transactions
-    .filter((tx) => {
-      if (ownerId && tx.ownerId !== ownerId) return false;
-      if (from && tx.date < from) return false;
-      if (to && tx.date > to) return false;
-      if (normalizedType && tx.type !== normalizedType) return false;
-      if (query) {
-        const desc = normalizeString(tx.description);
-        const cat = normalizeString(tx.category);
-        if (!desc.includes(query) && !cat.includes(query)) return false;
-      }
-      return true;
-    })
-    .sort((a, b) => {
-      const byDate = b.date.localeCompare(a.date);
-      return byDate !== 0 ? byDate : b.id.localeCompare(a.id);
-    });
+  const where = { ownerId };
+
+  if (normalizedType) where.type = normalizedType;
+  if (from || to) {
+    where.date = {};
+    if (from) where.date.gte = from;
+    if (to) where.date.lte = to;
+  }
+  if (query) {
+    where.OR = [
+      { description: { contains: query, mode: 'insensitive' } },
+      { category: { contains: query, mode: 'insensitive' } }
+    ];
+  }
+
+  const records = await prisma.transaction.findMany({
+    where,
+    orderBy: [
+      { date: 'desc' },
+      { id: 'desc' }
+    ]
+  });
+
+  return records.map(mapTransactionRecord);
 };
 
-const eventTimeSortValue = (value) => (value ?? '').toString();
+const filterEvents = async ({ from, to, q, ownerId } = {}) => {
+  const query = q ? q.toString() : null;
 
-const filterEvents = ({ from, to, q, ownerId } = {}) => {
-  const query = q ? q.toString().toLowerCase() : null;
+  const where = { ownerId };
+  if (from || to) {
+    where.date = {};
+    if (from) where.date.gte = from;
+    if (to) where.date.lte = to;
+  }
+  if (query) {
+    where.OR = [
+      { title: { contains: query, mode: 'insensitive' } },
+      { notes: { contains: query, mode: 'insensitive' } }
+    ];
+  }
 
-  return state.events
-    .filter((event) => {
-      if (ownerId && event.ownerId !== ownerId) return false;
-      if (from && event.date < from) return false;
-      if (to && event.date > to) return false;
-      if (query) {
-        const title = normalizeString(event.title);
-        const notes = normalizeString(event.notes);
-        if (!title.includes(query) && !notes.includes(query)) return false;
-      }
-      return true;
-    })
-    .sort((a, b) => {
-      const byDate = b.date.localeCompare(a.date);
-      if (byDate !== 0) return byDate;
-      const startA = eventTimeSortValue(a.start_time);
-      const startB = eventTimeSortValue(b.start_time);
-      return startA.localeCompare(startB);
-    });
+  const records = await prisma.event.findMany({
+    where,
+    orderBy: [
+      { date: 'desc' },
+      { start_time: 'asc' },
+      { id: 'asc' }
+    ]
+  });
+
+  return records.map(mapEventRecord);
 };
 
 // uid simples estilo nanoid
@@ -555,7 +626,7 @@ const revokeToken = (token) => {
   if (token) activeTokens.delete(token);
 };
 
-const getUserFromAuthHeader = (req) => {
+const getUserFromAuthHeader = async (req) => {
   const authHeader = req.headers['authorization'];
   if (!authHeader || typeof authHeader !== 'string') return null;
   const trimmed = authHeader.trim();
@@ -564,16 +635,16 @@ const getUserFromAuthHeader = (req) => {
   if (!token) return null;
   const session = activeTokens.get(token);
   if (!session) return null;
-  const user = state.users.find((item) => item.id === session.userId);
+  const user = await prisma.user.findUnique({ where: { id: session.userId } });
   if (!user) {
     activeTokens.delete(token);
     return null;
   }
-  return { user, token };
+  return { user: sanitizeUser(user), token };
 };
 
-const ensureAuthenticated = (req, res) => {
-  const auth = getUserFromAuthHeader(req);
+const ensureAuthenticated = async (req, res) => {
+  const auth = await getUserFromAuthHeader(req);
   if (!auth) {
     sendJson(res, 401, { error: 'Não autorizado' });
     return null;
@@ -626,28 +697,28 @@ const handleApiRequest = async (req, res, segments, searchParams) => {
   const resource = segments[1];
 
   if (resource === 'transactions') {
-    const auth = ensureAuthenticated(req, res);
+    const auth = await ensureAuthenticated(req, res);
     if (!auth) return;
     await handleTransactionsRoutes(req, res, segments.slice(2), searchParams, auth.user);
     return;
   }
 
   if (resource === 'events') {
-    const auth = ensureAuthenticated(req, res);
+    const auth = await ensureAuthenticated(req, res);
     if (!auth) return;
     await handleEventsRoutes(req, res, segments.slice(2), searchParams, auth.user);
     return;
   }
 
   if (resource === 'notifications') {
-    const auth = ensureAuthenticated(req, res);
+    const auth = await ensureAuthenticated(req, res);
     if (!auth) return;
     await handleNotificationsRoutes(req, res, segments.slice(2), searchParams, auth.user);
     return;
   }
 
   if (resource === 'users') {
-    const auth = ensureAuthenticated(req, res);
+    const auth = await ensureAuthenticated(req, res);
     if (!auth) return;
     await handleUsersRoutes(req, res, segments.slice(2), searchParams, auth.user);
     return;
@@ -663,7 +734,8 @@ const handleApiRequest = async (req, res, segments, searchParams) => {
       sendMethodNotAllowed(res, ['GET']);
       return;
     }
-    sendJson(res, 200, { ok: true, totals: { transactions: state.transactions.length } });
+    const transactionsCount = await prisma.transaction.count();
+    sendJson(res, 200, { ok: true, totals: { transactions: transactionsCount } });
     return;
   }
 
@@ -674,7 +746,10 @@ const handleTransactionsRoutes = async (req, res, subSegments, searchParams, use
   if (subSegments.length === 0) {
     if (req.method === 'GET') {
       try {
-        const rows = filterTransactions({ ...buildQueryObject(searchParams), ownerId: user.id });
+        const rows = await filterTransactions({
+          ...buildQueryObject(searchParams),
+          ownerId: user.id
+        });
         sendJson(res, 200, rows);
       } catch (err) {
         console.error('Erro ao listar transações:', err);
@@ -691,7 +766,7 @@ const handleTransactionsRoutes = async (req, res, subSegments, searchParams, use
       }
 
       try {
-        const { type, amount, description = null, category = null, date } = body.value;
+        const { type, amount, description = null, category = null, date } = body.value || {};
         if (!type || !isValidTransactionType(type)) {
           sendJson(res, 400, { error: 'type inválido' });
           return;
@@ -705,18 +780,19 @@ const handleTransactionsRoutes = async (req, res, subSegments, searchParams, use
           return;
         }
 
-        const transaction = {
-          id: uid(),
-          type,
-          amount,
-          description,
-          category,
-          date,
-          ownerId: user.id
-        };
-        state.transactions.push(transaction);
-        saveDatabase();
-        sendJson(res, 201, transaction);
+        const created = await prisma.transaction.create({
+          data: {
+            id: uid(),
+            type,
+            amount,
+            description,
+            category,
+            date,
+            ownerId: user.id
+          }
+        });
+
+        sendJson(res, 201, mapTransactionRecord(created));
       } catch (err) {
         console.error('Erro ao criar transação:', err);
         sendJson(res, 500, { error: 'Erro ao criar transação' });
@@ -734,16 +810,21 @@ const handleTransactionsRoutes = async (req, res, subSegments, searchParams, use
       return;
     }
 
-    const { from, to } = buildQueryObject(searchParams);
-    const filtered = filterTransactions({ from, to, ownerId: user.id });
-    const income = filtered
-      .filter((tx) => tx.type === 'income')
-      .reduce((sum, tx) => sum + tx.amount, 0);
-    const expense = filtered
-      .filter((tx) => tx.type === 'expense')
-      .reduce((sum, tx) => sum + tx.amount, 0);
+    try {
+      const { from, to } = buildQueryObject(searchParams);
+      const filtered = await filterTransactions({ from, to, ownerId: user.id });
+      const income = filtered
+        .filter((tx) => tx.type === 'income')
+        .reduce((sum, tx) => sum + tx.amount, 0);
+      const expense = filtered
+        .filter((tx) => tx.type === 'expense')
+        .reduce((sum, tx) => sum + tx.amount, 0);
 
-    sendJson(res, 200, { income, expense, balance: income - expense });
+      sendJson(res, 200, { income, expense, balance: income - expense });
+    } catch (err) {
+      console.error('Erro ao calcular resumo de transações:', err);
+      sendJson(res, 500, { error: 'Erro ao calcular resumo' });
+    }
     return;
   }
 
@@ -751,20 +832,18 @@ const handleTransactionsRoutes = async (req, res, subSegments, searchParams, use
     const id = decodeURIComponent(subSegments[0]);
 
     if (req.method === 'GET') {
-      const row = state.transactions.find((tx) => tx.id === id && tx.ownerId === user.id);
-      if (!row) {
+      const record = await prisma.transaction.findUnique({ where: { id } });
+      if (!record || record.ownerId !== user.id) {
         sendNotFound(res);
         return;
       }
-      sendJson(res, 200, row);
+      sendJson(res, 200, mapTransactionRecord(record));
       return;
     }
 
     if (req.method === 'PATCH') {
-      const index = state.transactions.findIndex(
-        (tx) => tx.id === id && tx.ownerId === user.id
-      );
-      if (index === -1) {
+      const record = await prisma.transaction.findUnique({ where: { id } });
+      if (!record || record.ownerId !== user.id) {
         sendNotFound(res);
         return;
       }
@@ -775,52 +854,67 @@ const handleTransactionsRoutes = async (req, res, subSegments, searchParams, use
         return;
       }
 
-      const current = state.transactions[index];
-      const next = {
-        ...current,
-        type: body.value.type ?? current.type,
-        amount:
-          typeof body.value.amount === 'number' && !Number.isNaN(body.value.amount)
-            ? body.value.amount
-            : current.amount,
-        description:
-          body.value.description !== undefined ? body.value.description : current.description,
-        category:
-          body.value.category !== undefined ? body.value.category : current.category,
-        date: body.value.date ?? current.date
-      };
-
-      if (!isValidTransactionType(next.type)) {
+      const payload = body.value || {};
+      const nextType = payload.type !== undefined ? payload.type : record.type;
+      if (!isValidTransactionType(nextType)) {
         sendJson(res, 400, { error: 'type inválido' });
         return;
       }
-      if (typeof next.amount !== 'number' || next.amount < 0) {
+
+      const nextAmount =
+        payload.amount !== undefined ? Number(payload.amount) : record.amount;
+      if (Number.isNaN(nextAmount) || nextAmount < 0) {
         sendJson(res, 400, { error: 'amount inválido' });
         return;
       }
-      if (!next.date) {
+
+      const nextDate = payload.date !== undefined ? payload.date : record.date;
+      if (!nextDate) {
         sendJson(res, 400, { error: 'date obrigatório' });
         return;
       }
 
-      state.transactions[index] = next;
-      saveDatabase();
-      sendJson(res, 200, next);
+      try {
+        const updated = await prisma.transaction.update({
+          where: { id },
+          data: {
+            type: nextType,
+            amount: nextAmount,
+            description:
+              payload.description !== undefined ? payload.description : record.description,
+            category:
+              payload.category !== undefined ? payload.category : record.category,
+            date: nextDate
+          }
+        });
+
+        sendJson(res, 200, mapTransactionRecord(updated));
+      } catch (err) {
+        console.error('Erro ao atualizar transação:', err);
+        sendJson(res, 500, { error: 'Erro ao atualizar transação' });
+      }
       return;
     }
 
     if (req.method === 'DELETE') {
-      const index = state.transactions.findIndex(
-        (tx) => tx.id === id && tx.ownerId === user.id
-      );
-      if (index === -1) {
-        sendNotFound(res);
-        return;
-      }
+      try {
+        const result = await prisma.transaction.deleteMany({
+          where: {
+            id,
+            ownerId: user.id
+          }
+        });
 
-      state.transactions.splice(index, 1);
-      saveDatabase();
-      sendNoContent(res);
+        if (result.count === 0) {
+          sendNotFound(res);
+          return;
+        }
+
+        sendNoContent(res);
+      } catch (err) {
+        console.error('Erro ao remover transação:', err);
+        sendJson(res, 500, { error: 'Erro ao remover transação' });
+      }
       return;
     }
 
@@ -835,7 +929,10 @@ const handleEventsRoutes = async (req, res, subSegments, searchParams, user) => 
   if (subSegments.length === 0) {
     if (req.method === 'GET') {
       try {
-        const rows = filterEvents({ ...buildQueryObject(searchParams), ownerId: user.id });
+        const rows = await filterEvents({
+          ...buildQueryObject(searchParams),
+          ownerId: user.id
+        });
         sendJson(res, 200, rows);
       } catch (err) {
         console.error('Erro ao listar eventos:', err);
@@ -852,7 +949,7 @@ const handleEventsRoutes = async (req, res, subSegments, searchParams, user) => 
       }
 
       try {
-        const { title, date, start_time = null, end_time = null, notes = null } = body.value;
+        const { title, date, start_time = null, end_time = null, notes = null } = body.value || {};
         if (!title) {
           sendJson(res, 400, { error: 'title obrigatório' });
           return;
@@ -862,18 +959,19 @@ const handleEventsRoutes = async (req, res, subSegments, searchParams, user) => 
           return;
         }
 
-        const event = {
-          id: uid(),
-          title,
-          date,
-          start_time,
-          end_time,
-          notes,
-          ownerId: user.id
-        };
-        state.events.push(event);
-        saveDatabase();
-        sendJson(res, 201, event);
+        const created = await prisma.event.create({
+          data: {
+            id: uid(),
+            title,
+            date,
+            start_time,
+            end_time,
+            notes,
+            ownerId: user.id
+          }
+        });
+
+        sendJson(res, 201, mapEventRecord(created));
       } catch (err) {
         console.error('Erro ao criar evento:', err);
         sendJson(res, 500, { error: 'Erro ao criar evento' });
@@ -889,20 +987,18 @@ const handleEventsRoutes = async (req, res, subSegments, searchParams, user) => 
     const id = decodeURIComponent(subSegments[0]);
 
     if (req.method === 'GET') {
-      const row = state.events.find((event) => event.id === id && event.ownerId === user.id);
-      if (!row) {
+      const record = await prisma.event.findUnique({ where: { id } });
+      if (!record || record.ownerId !== user.id) {
         sendNotFound(res);
         return;
       }
-      sendJson(res, 200, row);
+      sendJson(res, 200, mapEventRecord(record));
       return;
     }
 
     if (req.method === 'PATCH') {
-      const index = state.events.findIndex(
-        (event) => event.id === id && event.ownerId === user.id
-      );
-      if (index === -1) {
+      const record = await prisma.event.findUnique({ where: { id } });
+      if (!record || record.ownerId !== user.id) {
         sendNotFound(res);
         return;
       }
@@ -913,45 +1009,59 @@ const handleEventsRoutes = async (req, res, subSegments, searchParams, user) => 
         return;
       }
 
-      const current = state.events[index];
-      const next = {
-        ...current,
-        title: body.value.title !== undefined ? body.value.title : current.title,
-        date: body.value.date !== undefined ? body.value.date : current.date,
-        start_time:
-          body.value.start_time !== undefined ? body.value.start_time : current.start_time,
-        end_time:
-          body.value.end_time !== undefined ? body.value.end_time : current.end_time,
-        notes: body.value.notes !== undefined ? body.value.notes : current.notes
-      };
+      const payload = body.value || {};
+      const nextTitle = payload.title !== undefined ? payload.title : record.title;
+      const nextDate = payload.date !== undefined ? payload.date : record.date;
 
-      if (!next.title) {
+      if (!nextTitle) {
         sendJson(res, 400, { error: 'title obrigatório' });
         return;
       }
-      if (!next.date) {
+      if (!nextDate) {
         sendJson(res, 400, { error: 'date obrigatório' });
         return;
       }
 
-      state.events[index] = next;
-      saveDatabase();
-      sendJson(res, 200, next);
+      try {
+        const updated = await prisma.event.update({
+          where: { id },
+          data: {
+            title: nextTitle,
+            date: nextDate,
+            start_time:
+              payload.start_time !== undefined ? payload.start_time : record.start_time,
+            end_time: payload.end_time !== undefined ? payload.end_time : record.end_time,
+            notes: payload.notes !== undefined ? payload.notes : record.notes
+          }
+        });
+
+        sendJson(res, 200, mapEventRecord(updated));
+      } catch (err) {
+        console.error('Erro ao atualizar evento:', err);
+        sendJson(res, 500, { error: 'Erro ao atualizar evento' });
+      }
       return;
     }
 
     if (req.method === 'DELETE') {
-      const index = state.events.findIndex(
-        (event) => event.id === id && event.ownerId === user.id
-      );
-      if (index === -1) {
-        sendNotFound(res);
-        return;
-      }
+      try {
+        const result = await prisma.event.deleteMany({
+          where: {
+            id,
+            ownerId: user.id
+          }
+        });
 
-      state.events.splice(index, 1);
-      saveDatabase();
-      sendNoContent(res);
+        if (result.count === 0) {
+          sendNotFound(res);
+          return;
+        }
+
+        sendNoContent(res);
+      } catch (err) {
+        console.error('Erro ao remover evento:', err);
+        sendJson(res, 500, { error: 'Erro ao remover evento' });
+      }
       return;
     }
 
@@ -997,7 +1107,7 @@ const handleNotificationsRoutes = async (req, res, subSegments, _searchParams, u
       notificationsLogger.info(
         `Avaliação manual solicitada por ${user.username} para ${referenceDate.toISOString()}.`
       );
-      const evaluation = notificationsManager.evaluate(referenceDate);
+      const evaluation = await notificationsManager.evaluate(referenceDate);
       sendJson(res, 200, evaluation);
     } catch (err) {
       notificationsLogger.error('Erro ao avaliar notificações manualmente:', err);
@@ -1030,7 +1140,7 @@ const handleNotificationsRoutes = async (req, res, subSegments, _searchParams, u
     try {
       const referenceDate = parsedReference || new Date();
       notificationsLogger.info(
-        `Envio manual solicitado por ${user.username} (${
+        `Envio manual solicitado por ${user.username} (${ 
           dryRun ? 'modo simulação' : 'envio real'
         }).`
       );
@@ -1040,6 +1150,7 @@ const handleNotificationsRoutes = async (req, res, subSegments, _searchParams, u
         dryRun,
         reason: 'manual-api'
       });
+      await recordNotificationAttempt(result);
       sendJson(res, 200, result);
     } catch (err) {
       notificationsLogger.error('Erro ao processar envio manual de notificações:', err);
@@ -1057,13 +1168,18 @@ const handleUsersRoutes = async (req, res, subSegments, _searchParams, user) => 
     return;
   }
 
-  // /api/users
   if (subSegments.length === 0) {
     if (req.method === 'GET') {
-      const users = state.users
-        .map(sanitizeUser)
-        .sort((a, b) => a.username.localeCompare(b.username));
-      sendJson(res, 200, users);
+      try {
+        const users = await prisma.user.findMany();
+        const payload = users
+          .map(sanitizeUser)
+          .sort((a, b) => a.username.localeCompare(b.username));
+        sendJson(res, 200, payload);
+      } catch (err) {
+        console.error('Erro ao listar usuários:', err);
+        sendJson(res, 500, { error: 'Erro ao listar usuários' });
+      }
       return;
     }
 
@@ -1083,7 +1199,7 @@ const handleUsersRoutes = async (req, res, subSegments, _searchParams, user) => 
           return;
         }
 
-        const created = createUser({ username, password, name, role, whatsapp, ...extra });
+        const created = await createUser({ username, password, name, role, whatsapp, ...extra });
         sendJson(res, 201, sanitizeUser(created));
       } catch (err) {
         if (err.message === 'Usuário já existe') {
@@ -1107,11 +1223,10 @@ const handleUsersRoutes = async (req, res, subSegments, _searchParams, user) => 
     return;
   }
 
-  // /api/users/:id
   if (subSegments.length === 1) {
     const id = decodeURIComponent(subSegments[0]);
-    const index = state.users.findIndex((item) => item.id === id);
-    if (index === -1) {
+    const existing = await prisma.user.findUnique({ where: { id } });
+    if (!existing) {
       sendNotFound(res);
       return;
     }
@@ -1127,9 +1242,8 @@ const handleUsersRoutes = async (req, res, subSegments, _searchParams, user) => 
         return;
       }
 
-      const current = state.users[index];
-      const next = { ...current };
       const { username, password, name, role, ...extra } = body.value;
+      const data = {};
       let changed = false;
 
       if (username !== undefined) {
@@ -1143,21 +1257,31 @@ const handleUsersRoutes = async (req, res, subSegments, _searchParams, user) => 
           return;
         }
         const normalized = trimmed.toLowerCase();
-        const conflict = state.users.some(
-          (u) => u.id !== current.id && u.username.toLowerCase() === normalized
-        );
+        const conflict = await prisma.user.findFirst({
+          where: {
+            id: { not: id },
+            username: {
+              equals: normalized,
+              mode: 'insensitive'
+            }
+          }
+        });
         if (conflict) {
           sendJson(res, 409, { error: 'Usuário já existe' });
           return;
         }
-        if (trimmed !== current.username) changed = true;
-        next.username = trimmed;
+        if (trimmed !== existing.username) {
+          data.username = trimmed;
+          changed = true;
+        }
       }
 
       if (name !== undefined) {
         const normalizedName = normalizeOptionalString(name);
-        if (normalizedName !== current.name) changed = true;
-        next.name = normalizedName ?? null;
+        if ((normalizedName ?? null) !== (existing.name ?? null)) {
+          data.name = normalizedName ?? null;
+          changed = true;
+        }
       }
 
       if (role !== undefined) {
@@ -1165,8 +1289,10 @@ const handleUsersRoutes = async (req, res, subSegments, _searchParams, user) => 
           sendJson(res, 400, { error: 'role inválido' });
           return;
         }
-        if (role !== current.role) changed = true;
-        next.role = role;
+        if (role !== existing.role) {
+          data.role = role;
+          changed = true;
+        }
       }
 
       if (password !== undefined) {
@@ -1181,31 +1307,43 @@ const handleUsersRoutes = async (req, res, subSegments, _searchParams, user) => 
           return;
         }
         const { salt, passwordHash } = hashPassword(password);
-        next.salt = salt;
-        next.passwordHash = passwordHash;
+        data.salt = salt;
+        data.passwordHash = passwordHash;
         changed = true;
       }
 
       if (extra && Object.keys(extra).length > 0) {
-        applyUserExtras(next, extra);
-        changed = true;
+        const currentExtras =
+          existing.extra && typeof existing.extra === 'object' ? { ...existing.extra } : {};
+        const before = JSON.stringify(currentExtras);
+        applyUserExtras(currentExtras, extra);
+        if (JSON.stringify(currentExtras) !== before) {
+          data.extra = currentExtras;
+          changed = true;
+        }
       }
 
-      if (changed) {
-        next.updatedAt = new Date().toISOString();
-        state.users[index] = next;
-        saveDatabase();
-        sendJson(res, 200, sanitizeUser(next));
+      if (!changed) {
+        sendJson(res, 200, sanitizeUser(existing));
         return;
       }
 
-      // nada mudou: retorna estado atual mesmo
-      sendJson(res, 200, sanitizeUser(current));
+      try {
+        data.updatedAt = new Date();
+        const updated = await prisma.user.update({
+          where: { id },
+          data
+        });
+        sendJson(res, 200, sanitizeUser(updated));
+      } catch (err) {
+        console.error('Erro ao atualizar usuário:', err);
+        sendJson(res, 500, { error: 'Erro ao atualizar usuário' });
+      }
       return;
     }
 
     if (req.method === 'GET') {
-      sendJson(res, 200, sanitizeUser(state.users[index]));
+      sendJson(res, 200, sanitizeUser(existing));
       return;
     }
 
@@ -1215,7 +1353,6 @@ const handleUsersRoutes = async (req, res, subSegments, _searchParams, user) => 
 
   sendNotFound(res);
 };
-
 const handleAuthRoutes = async (req, res, subSegments) => {
   if (subSegments.length === 1 && subSegments[0] === 'login') {
     if (req.method !== 'POST') {
@@ -1236,15 +1373,23 @@ const handleAuthRoutes = async (req, res, subSegments) => {
         return;
       }
 
-      const normalized = username.toString().trim().toLowerCase();
-      const user = state.users.find((item) => item.username.toLowerCase() === normalized);
-      if (!user || !verifyPassword(password.toString(), user)) {
+      const normalized = username.toString().trim();
+      const userRecord = await prisma.user.findFirst({
+        where: {
+          username: {
+            equals: normalized.toLowerCase(),
+            mode: 'insensitive'
+          }
+        }
+      });
+
+      if (!userRecord || !verifyPassword(password.toString(), userRecord)) {
         sendJson(res, 401, { error: 'Credenciais inválidas' });
         return;
       }
 
-      const token = issueToken(user.id);
-      sendJson(res, 200, { token, user: sanitizeUser(user) });
+      const token = issueToken(userRecord.id);
+      sendJson(res, 200, { token, user: sanitizeUser(userRecord) });
     } catch (err) {
       console.error('Erro ao autenticar usuário:', err);
       sendJson(res, 500, { error: 'Erro ao autenticar' });
@@ -1258,7 +1403,7 @@ const handleAuthRoutes = async (req, res, subSegments) => {
       return;
     }
 
-    const auth = getUserFromAuthHeader(req);
+    const auth = await getUserFromAuthHeader(req);
     if (!auth) {
       sendNoContent(res);
       return;
@@ -1273,22 +1418,57 @@ const handleAuthRoutes = async (req, res, subSegments) => {
 
 const PORT = Number(process.env.PORT) || 3333;
 
-// >>> Escutar em 0.0.0.0 para aceitar conexões do simulador/lan
-server.listen(PORT, '0.0.0.0', () => {
-  console.log(`✅ API rodando em http://localhost:${PORT}`);
-
-  // Log extra com IP da rede (só para facilitar abrir no simulador)
+const startServer = async () => {
   try {
-    const ifaces = os.networkInterfaces();
-    const ips = [];
-    for (const name of Object.keys(ifaces)) {
-      for (const info of ifaces[name] || []) {
-        if (info.family === 'IPv4' && !info.internal) ips.push(info.address);
-      }
+    await connectPrisma();
+    await ensureDefaultAdmin();
+    scheduleDailyNotifications(scheduleConfig);
+
+    server.listen(PORT, '0.0.0.0', () => {
+      console.log(`✅ API rodando em http://localhost:${PORT}`);
+
+      try {
+        const ifaces = os.networkInterfaces();
+        const ips = [];
+        for (const name of Object.keys(ifaces)) {
+          for (const info of ifaces[name] || []) {
+            if (info.family === 'IPv4' && !info.internal) ips.push(info.address);
+          }
+        }
+        if (ips.length) {
+          console.log(`🌐 Acesse via LAN: http://${ips[0]}:${PORT}`);
+          console.log(`📄 Páginas: /public/index.html e /public/login.html`);
+        }
+      } catch {}
+    });
+  } catch (err) {
+    console.error('Falha ao iniciar servidor:', err);
+    process.exit(1);
+  }
+};
+
+const shutdown = async (signal) => {
+  try {
+    if (signal) {
+      console.log(`Recebido sinal ${signal}. Finalizando...`);
     }
-    if (ips.length) {
-      console.log(`🌐 Acesse via LAN: http://${ips[0]}:${PORT}`);
-      console.log(`📄 Páginas: /public/index.html e /public/login.html`);
+    if (server.listening) {
+      await new Promise((resolve) => {
+        server.close(() => {
+          console.log('Servidor HTTP encerrado.');
+          resolve();
+        });
+      });
     }
-  } catch {}
-});
+    await disconnectPrisma();
+  } catch (err) {
+    console.error('Erro ao finalizar servidor:', err);
+  } finally {
+    process.exit(0);
+  }
+};
+
+process.on('SIGINT', () => shutdown('SIGINT'));
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+
+startServer();
