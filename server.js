@@ -673,6 +673,21 @@ const server = http.createServer(async (req, res) => {
   const segments = pathname.split('/').filter(Boolean);
 
   try {
+    if (pathname === '/health' && req.method === 'GET') {
+      try {
+        await prisma.$queryRawUnsafe('SELECT 1');
+        sendJson(res, 200, {
+          ok: true,
+          uptime: process.uptime(),
+          version: appVersion
+        });
+      } catch (err) {
+        console.error('Health check falhou:', err);
+        sendJson(res, 503, { ok: false, error: 'DATABASE_UNAVAILABLE' });
+      }
+      return;
+    }
+
     if (segments[0] === 'api') {
       await handleApiRequest(req, res, segments, parsedUrl.searchParams);
       return;
