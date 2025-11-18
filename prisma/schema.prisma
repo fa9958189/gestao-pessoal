@@ -1,0 +1,73 @@
+// Prisma schema defining the PostgreSQL models for the gestão pessoal API
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String         @id
+  username     String         @unique
+  role         String
+  name         String?
+  whatsapp     String?
+  salt         String
+  passwordHash String
+  extra        Json?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime?
+
+  transactions Transaction[]
+  events       Event[]
+}
+
+model Transaction {
+  id          String   @id
+  type        String
+  amount      Float
+  description String?
+  category    String?
+  date        String
+  ownerId     String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime?
+
+  owner User @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+}
+
+model Event {
+  id        String   @id
+  title     String
+  date      String
+  start_time String?
+  end_time   String?
+  notes      String?
+  ownerId    String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime?
+
+  owner User @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+}
+
+model NotificationLog {
+  id            String   @id @default(cuid())
+  reason        String
+  referenceDate DateTime
+  todayDate     String
+  upcomingDate  String
+  todayCount    Int
+  upcomingCount Int
+  dryRun        Boolean  @default(false)
+  providerReady Boolean  @default(false)
+  sent          Boolean  @default(false)
+  status        String
+  warning       String?
+  error         String?
+  recipients    Json?
+  message       String?
+  createdAt     DateTime @default(now())
+}
