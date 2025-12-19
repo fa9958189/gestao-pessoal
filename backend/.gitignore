@@ -1,0 +1,17 @@
+# Ignorar todos os arquivos de ambiente
+.env
+*.env
+*_env*
+.env.openai
+.env.local
+.env.production
+.env.development
+
+# Ignorar node_modules
+node_modules/
+
+# Ignorar logs
+*.log
+logs/
+
+/generated/prisma

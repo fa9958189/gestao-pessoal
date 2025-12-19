@@ -1,0 +1,50 @@
+{
+  "templates": [
+    {
+      "id": "2d5fbb13-84d4-49be-a72c-32c6e7299395",
+      "userId": "be03f7da-afec-4404-a731-58ee899b316d",
+      "name": "treino 1",
+      "muscleGroups": [
+        "peito",
+        "costas",
+        "pernas"
+      ],
+      "exercises": [
+        {
+          "id": "87733509-c1c0-4ca0-bfdf-59537400f99d",
+          "muscleGroupId": "costas",
+          "name": "",
+          "sets": 3,
+          "reps": 12,
+          "weight": null,
+          "restSeconds": 60,
+          "notes": "",
+          "completed": false
+        }
+      ],
+      "createdAt": "2025-11-28T22:47:49.609Z",
+      "updatedAt": "2025-11-28T22:47:49.609Z"
+    }
+  ],
+  "sessions": [],
+  "reminders": [
+    {
+      "type": "workout",
+      "workoutName": "treino 1",
+      "date": "2025-11-28",
+      "id": "1bab4300-1a89-47f9-aa8b-ddc1a4976dd0"
+    },
+    {
+      "type": "workout",
+      "workoutName": "treino 1",
+      "date": "2025-11-28",
+      "id": "ef66e445-f654-45b3-9a86-01f878c2f926"
+    },
+    {
+      "type": "workout",
+      "workoutName": "treino 1",
+      "date": "2025-11-28",
+      "id": "5d68bbdd-0859-4d14-9410-3cb49c60b0ee"
+    }
+  ]
+}

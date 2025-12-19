@@ -1,8 +1,0 @@
-node_modules/
-.env
-.env.local
-.env.production
-.env.development
-npm-debug.log*
-yarn-error.log*
-.prisma/

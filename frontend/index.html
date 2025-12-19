@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Gestão Pessoal | React Dashboard</title>
+    <link rel="stylesheet" href="/src/styles.css" />
+  </head>
+  <body>
+    <div id="root"></div>
+
+    <!-- Config Global -->
+    <script>
+      window.APP_CONFIG = window.APP_CONFIG || {
+        supabaseUrl: 'https://gklpjwjzluqsnavwhwxf.supabase.co',
+        supabaseAnonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdrbHBqd2p6bHVxc25hdndod3hmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM1NjAxMDAsImV4cCI6MjA3OTEzNjEwMH0.hmGYAafjH7LADrMljXEr_pmZKQsW_Jt2019PhzW_t9M',
+        authSchema: 'public',
+        apiBaseUrl: 'http://localhost:3001'
+      };
+    </script>
+
+    <!-- Supabase CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+
+    <!-- Chart.js (se usa gráficos) -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+    <!-- React entra aqui -->
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
