@@ -6,7 +6,10 @@ export async function scanFood(imageFile) {
   const formData = new FormData();
   formData.append('image', imageFile);
 
-  const response = await fetch('http://localhost:3001/scan-food', {
+  const baseUrl = (window.APP_CONFIG?.apiBaseUrl || '').replace(/\/$/, '');
+  const endpoint = `${baseUrl}/scan-food`;
+
+  const response = await fetch(endpoint, {
     method: 'POST',
     body: formData,
   });
