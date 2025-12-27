@@ -2,7 +2,7 @@
 window.APP_CONFIG = window.APP_CONFIG || {};
 
 // URL da API do backend (pode deixar exatamente assim)
-window.APP_CONFIG.apiBaseUrl = window.APP_CONFIG.apiBaseUrl || 'http://localhost:3001';
+window.APP_CONFIG.apiBaseUrl = window.APP_CONFIG.apiBaseUrl || 'https://api.gestao-pessoal.com';
 
 // Configurações do Supabase usadas pelo frontend
 window.APP_CONFIG.supabaseUrl = window.APP_CONFIG.supabaseUrl || 'https://gklpjwjzluqsnavwhwxf.supabase.co';

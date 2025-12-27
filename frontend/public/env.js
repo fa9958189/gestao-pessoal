@@ -12,4 +12,4 @@ window.APP_CONFIG.authSchema =
 
 // URL do backend Node/Express – sempre localhost
 window.APP_CONFIG.apiBaseUrl =
-  window.APP_CONFIG.apiBaseUrl || 'http://localhost:3001';
+  window.APP_CONFIG.apiBaseUrl || 'https://api.gestao-pessoal.com';
