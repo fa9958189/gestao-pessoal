@@ -46,6 +46,11 @@ const defaultUserForm = {
   role: 'user'
 };
 
+const normalizeBaseUrl = (value) => {
+  if (!value) return '';
+  return String(value).trim().replace(/\/+$/, '');
+};
+
 const LOCAL_STORAGE_KEY = 'gp-react-data';
 
 const getLocalSnapshot = () => {
@@ -852,7 +857,12 @@ function App() {
   const [eventFilters, setEventFilters] = useState(defaultEventFilters);
   const [activeTab, setActiveTab] = useState('form');
   const [activeView, setActiveView] = useState('transactions');
-  const workoutApiBase = window.APP_CONFIG?.apiBaseUrl || import.meta.env.VITE_API_BASE_URL;
+  const workoutApiBase = normalizeBaseUrl(
+    window.APP_CONFIG?.apiBaseUrl ||
+    import.meta.env.VITE_API_BASE_URL ||
+    import.meta.env.VITE_API_URL ||
+    import.meta.env.VITE_BACKEND_URL
+  );
 
   const [toast, setToast] = useState(null);
   const [loadingData, setLoadingData] = useState(false);
@@ -1234,6 +1244,14 @@ function App() {
         const { error } = await client.from('profiles_auth').update(payload).eq('id', editingUserId);
         if (error) throw error;
       } else {
+        if (!workoutApiBase || !/^https?:\/\//i.test(workoutApiBase)) {
+          pushToast(
+            'API do backend não configurada. Verifique a variável do seu .env existente (ex.: VITE_API_BASE_URL) e faça rebuild/deploy do front.',
+            'danger'
+          );
+          return;
+        }
+
         // Criar usuário via backend
         const response = await fetch(`${workoutApiBase}/create-user`, {
           method: 'POST',
@@ -1258,7 +1276,7 @@ function App() {
       loadRemoteData();
     } catch (err) {
       console.warn('Erro ao salvar usuário', err);
-      pushToast('Não foi possível salvar o usuário. Configure a RPC create_dashboard_user.', 'danger');
+      pushToast(`Não foi possível salvar o usuário: ${err?.message || 'erro desconhecido'}`, 'danger');
     }
   };
 
