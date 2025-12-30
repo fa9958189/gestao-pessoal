@@ -57,33 +57,41 @@ export async function analyzeFoodImage(buffer, _mimeType, description = "") {
   }
 
   const base64Image = buffer.toString("base64");
-  const prompt = buildAnalysisPrompt(description);
+  const trimmedDescription =
+    typeof description === "string" ? description.trim() : "";
+  const prompt = buildAnalysisPrompt(trimmedDescription);
 
-  const response = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${OPENAI_API_KEY}`,
-    },
-    body: JSON.stringify({
-      model: "gpt-4o-mini",
-      messages: [
-        {
-          role: "user",
-          content: [
-            { type: "text", text: prompt },
-            {
-              type: "image_url",
-              image_url: {
-                url: `data:image/jpeg;base64,${base64Image}`,
+  let response;
+
+  try {
+    response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "user",
+            content: [
+              { type: "text", text: prompt },
+              {
+                type: "image_url",
+                image_url: {
+                  url: `data:image/jpeg;base64,${base64Image}`,
+                },
               },
-            },
-          ],
-        },
-      ],
-      response_format: { type: "json_object" },
-    }),
-  });
+            ],
+          },
+        ],
+        response_format: { type: "json_object" },
+      }),
+    });
+  } catch (err) {
+    throw new Error(`Falha ao chamar a API de análise: ${err.message}`);
+  }
 
   if (!response.ok) {
     const errorText = await response.text();

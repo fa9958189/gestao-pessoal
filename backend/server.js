@@ -119,7 +119,7 @@ const scanFoodUpload = (req, res, next) => {
 app.post("/scan-food", scanFoodUpload, async (req, res) => {
   try {
     if (!req.file?.buffer) {
-      return res.status(400).json({ error: "Imagem não enviada." });
+      return res.status(400).json({ error: "Imagem não enviada" });
     }
 
     if (!req.file.mimetype?.startsWith("image/")) {
@@ -140,7 +140,7 @@ app.post("/scan-food", scanFoodUpload, async (req, res) => {
     console.error("Erro ao analisar imagem de comida:", err);
     return res
       .status(500)
-      .json({ error: "Não foi possível analisar a imagem do alimento." });
+      .json({ error: "Falha ao analisar imagem" });
   }
 });
 

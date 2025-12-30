@@ -253,10 +253,85 @@ function FoodDiary({ userId, supabase, notify }) {
     });
   };
 
+  const isHeicFile = (file) => {
+    if (!file) return false;
+    const type = (file.type || '').toLowerCase();
+    const name = (file.name || '').toLowerCase();
+
+    return (
+      type === 'image/heic' ||
+      type === 'image/heif' ||
+      name.endsWith('.heic') ||
+      name.endsWith('.heif')
+    );
+  };
+
+  const shouldConvertToJpeg = (file) => {
+    if (!file) return false;
+    const type = (file.type || '').toLowerCase();
+
+    if (!type.startsWith('image/')) return false;
+
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg'];
+    return isHeicFile(file) || !allowedTypes.includes(type);
+  };
+
+  const convertImageToJpeg = async (file) => {
+    const objectUrl = URL.createObjectURL(file);
+
+    try {
+      const imageElement = await new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = (event) => reject(event?.error || new Error('Falha ao carregar imagem.'));
+        img.src = objectUrl;
+      });
+
+      const width = imageElement.naturalWidth || imageElement.width;
+      const height = imageElement.naturalHeight || imageElement.height;
+
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+
+      const context = canvas.getContext('2d');
+      if (!context) {
+        throw new Error('Canvas não suportado para conversão de imagem.');
+      }
+      context.drawImage(imageElement, 0, 0, width, height);
+
+      const blob = await new Promise((resolve, reject) => {
+        canvas.toBlob(
+          (result) => {
+            if (result) return resolve(result);
+            reject(new Error('Falha ao converter imagem para JPEG.'));
+          },
+          'image/jpeg',
+          0.9,
+        );
+      });
+
+      return new File([blob], 'scan.jpg', { type: 'image/jpeg' });
+    } finally {
+      URL.revokeObjectURL(objectUrl);
+    }
+  };
+
+  const prepareImageForScan = async (file) => {
+    if (!file) return file;
+
+    if (!shouldConvertToJpeg(file)) {
+      return file;
+    }
+
+    return convertImageToJpeg(file);
+  };
+
   const handleScanFood = async (file) => {
     setIsScanningFood(true);
     try {
-      const analysis = await scanFood(file, scanDescription);
+      const sanitizedFile = await prepareImageForScan(file);
+      const analysis = await scanFood(sanitizedFile, scanDescription);
       setScanPreview(Array.isArray(analysis?.itens) ? analysis.itens : []);
       setError(null);
       if (typeof notify === 'function') {
