@@ -194,9 +194,11 @@ const LoginScreen = ({ form, onChange, onSubmit, loading, error, configError }) 
       <button className="primary full" onClick={onSubmit} disabled={loading || !form.email || !form.password}>
         {loading ? 'Entrando...' : 'Entrar'}
       </button>
-      <p className="muted" style={{ fontSize: 13, marginTop: 4 }}>
-        Configure o arquivo <strong>env.js</strong> com os dados do seu projeto no Supabase.
-      </p>
+      {import.meta.env.DEV && (
+        <p className="muted" style={{ fontSize: 13, marginTop: 4 }}>
+          Configure o arquivo <strong>env.js</strong> com os dados do seu projeto no Supabase.
+        </p>
+      )}
     </div>
   </div>
 );
