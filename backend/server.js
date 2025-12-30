@@ -4,6 +4,7 @@ import cors from "cors";
 import fs from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
+import multer from "multer";
 import { supabase } from "./supabase.js";
 import {
   sendWhatsAppMessage,
@@ -25,7 +26,6 @@ import {
   getFoodDiaryState,
   saveFoodDiaryState,
 } from "./foodDiaryStorage.js";
-import { createSimpleUpload } from "./utils/simpleUpload.js";
 
 const app = express();
 app.use(cors());
@@ -91,23 +91,44 @@ const saveJsonArray = async (fileName, data) => {
   await fs.writeFile(filePath, JSON.stringify(data, null, 2));
 };
 
-let upload;
-try {
-  const multerModule = await import("multer");
-  const multer = multerModule.default || multerModule;
-  upload = multer({ storage: multer.memoryStorage() });
-} catch (err) {
-  console.warn("Multer não disponível, usando parser interno.", err?.message || err);
-  upload = createSimpleUpload();
-}
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 8 * 1024 * 1024 },
+});
 
-app.post("/scan-food", upload.single("image"), async (req, res) => {
+const scanFoodUpload = (req, res, next) => {
+  upload.single("image")(req, res, (err) => {
+    if (err instanceof multer.MulterError) {
+      if (err.code === "LIMIT_FILE_SIZE") {
+        return res
+          .status(400)
+          .json({ error: "Imagem muito grande. Tamanho máximo 8MB." });
+      }
+
+      return res.status(400).json({ error: "Erro ao processar a imagem." });
+    }
+
+    if (err) {
+      return res.status(400).json({ error: "Erro ao processar a imagem." });
+    }
+
+    return next();
+  });
+};
+
+app.post("/scan-food", scanFoodUpload, async (req, res) => {
   try {
     if (!req.file?.buffer) {
       return res.status(400).json({ error: "Imagem não enviada." });
     }
 
-    const analysis = await analyzeFoodImage(req.file.buffer);
+    if (!req.file.mimetype?.startsWith("image/")) {
+      return res.status(400).json({ error: "Tipo de arquivo inválido." });
+    }
+
+    const base64Image = req.file.buffer.toString("base64");
+    const analysis = await analyzeFoodImage(base64Image, req.file.mimetype);
+
     return res.json(analysis);
   } catch (err) {
     console.error("Erro ao analisar imagem de comida:", err);
