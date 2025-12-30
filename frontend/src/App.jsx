@@ -207,7 +207,12 @@ const DashboardHeader = ({ apiUrl, profile, onLogout }) => (
   <header>
     <div className="header-info">
       <h1>Gestão Pessoal – Dashboard</h1>
-      <div className="muted">Supabase: <span id="apiUrl">{apiUrl || 'não configurado'}</span></div>
+      <div
+        className="muted"
+        style={{ visibility: import.meta.env.DEV ? 'visible' : 'hidden' }}
+      >
+        Supabase: <span id="apiUrl">{apiUrl || 'não configurado'}</span>
+      </div>
     </div>
     <div className="user-session">
       <div className="user-info">
