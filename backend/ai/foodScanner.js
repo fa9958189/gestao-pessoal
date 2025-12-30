@@ -20,13 +20,34 @@ Retorne APENAS um JSON no formato:
 Para cada item, estime quantidade, calorias, proteína e água.
 Não escreva nada fora do JSON.`;
 
+const buildAnalysisPrompt = (description = "") => {
+  const trimmedDescription =
+    typeof description === "string" ? description.trim() : "";
+
+  if (!trimmedDescription) {
+    return ANALYSIS_PROMPT;
+  }
+
+  return `${ANALYSIS_PROMPT}
+
+Descrição fornecida pelo usuário:
+"${trimmedDescription}"
+
+Instruções adicionais:
+- Use a imagem como fonte principal
+- Use a descrição do usuário apenas como contexto auxiliar
+- Se houver conflito, priorize a imagem
+- Use a descrição para melhorar precisão de preparo, tipo e quantidade
+`;
+};
+
 const mapValueOrDefault = (value, fallback) => {
   const numeric = Number(value);
   if (Number.isFinite(numeric)) return numeric;
   return fallback;
 };
 
-export async function analyzeFoodImage(buffer) {
+export async function analyzeFoodImage(buffer, _mimeType, description = "") {
   if (!buffer) {
     throw new Error("Buffer da imagem não fornecido para análise.");
   }
@@ -36,6 +57,7 @@ export async function analyzeFoodImage(buffer) {
   }
 
   const base64Image = buffer.toString("base64");
+  const prompt = buildAnalysisPrompt(description);
 
   const response = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
@@ -49,7 +71,7 @@ export async function analyzeFoodImage(buffer) {
         {
           role: "user",
           content: [
-            { type: "text", text: ANALYSIS_PROMPT },
+            { type: "text", text: prompt },
             {
               type: "image_url",
               image_url: {

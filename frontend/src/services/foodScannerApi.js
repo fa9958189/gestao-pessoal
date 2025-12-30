@@ -1,10 +1,17 @@
-export async function scanFood(imageFile) {
+export async function scanFood(imageFile, description) {
   if (!imageFile) {
     throw new Error('Arquivo de imagem não fornecido.');
   }
 
   const formData = new FormData();
   formData.append('image', imageFile);
+
+  const trimmedDescription =
+    typeof description === 'string' ? description.trim() : '';
+
+  if (trimmedDescription) {
+    formData.append('description', trimmedDescription);
+  }
 
   const baseUrl = (window.APP_CONFIG?.apiBaseUrl || '').replace(/\/$/, '');
   const endpoint = `${baseUrl}/scan-food`;

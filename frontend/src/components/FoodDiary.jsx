@@ -76,6 +76,7 @@ function FoodDiary({ userId, supabase, notify }) {
   const [isFoodPickerOpen, setIsFoodPickerOpen] = useState(false);
   const [isScanningFood, setIsScanningFood] = useState(false);
   const [scanPreview, setScanPreview] = useState(null);
+  const [scanDescription, setScanDescription] = useState('');
   const fileInputRef = useRef(null);
 
   useEffect(() => {
@@ -255,7 +256,7 @@ function FoodDiary({ userId, supabase, notify }) {
   const handleScanFood = async (file) => {
     setIsScanningFood(true);
     try {
-      const analysis = await scanFood(file);
+      const analysis = await scanFood(file, scanDescription);
       setScanPreview(Array.isArray(analysis?.itens) ? analysis.itens : []);
       setError(null);
       if (typeof notify === 'function') {
@@ -679,6 +680,16 @@ function FoodDiary({ userId, supabase, notify }) {
                   onChange={handleImageInputChange}
                 />
               </div>
+            </div>
+
+            <div className="field">
+              <label>Ajude a identificar melhor seu alimento</label>
+              <input
+                type="text"
+                placeholder="Ex: milho cozido com maionese, 1 espiga média"
+                value={scanDescription}
+                onChange={(e) => setScanDescription(e.target.value)}
+              />
             </div>
 
             {Array.isArray(scanPreview) && scanPreview.length > 0 && (

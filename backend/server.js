@@ -126,8 +126,14 @@ app.post("/scan-food", scanFoodUpload, async (req, res) => {
       return res.status(400).json({ error: "Tipo de arquivo inválido." });
     }
 
+    const description = req.body?.description || "";
+
     const base64Image = req.file.buffer.toString("base64");
-    const analysis = await analyzeFoodImage(base64Image, req.file.mimetype);
+    const analysis = await analyzeFoodImage(
+      base64Image,
+      req.file.mimetype,
+      description,
+    );
 
     return res.json(analysis);
   } catch (err) {
