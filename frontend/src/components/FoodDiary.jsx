@@ -78,7 +78,10 @@ function FoodDiary({ userId, supabase, notify }) {
   const [scanPreview, setScanPreview] = useState(null);
   const [scanDescription, setScanDescription] = useState('');
   const [isScanModalOpen, setIsScanModalOpen] = useState(false);
-  const scanFileInputRef = useRef(null);
+  const inputCameraRef = useRef(null);
+  const inputGalleryRef = useRef(null);
+
+  const isMobile = () => /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
   useEffect(() => {
     let isMounted = true;
@@ -435,7 +438,11 @@ function FoodDiary({ userId, supabase, notify }) {
       return;
     }
 
-    scanFileInputRef.current?.click();
+    if (isMobile()) {
+      inputCameraRef.current?.click();
+    } else {
+      inputGalleryRef.current?.click();
+    }
   };
 
   const handleAddEntry = async (event) => {
@@ -703,15 +710,18 @@ function FoodDiary({ userId, supabase, notify }) {
 
               <div className="scan-file-row">
                 <input
-                  ref={scanFileInputRef}
+                  ref={inputCameraRef}
                   type="file"
                   accept="image/*"
-                  className="scan-file-input"
-                  onClick={(event) => {
-                    if (!ensureDescriptionBeforeUpload()) {
-                      event.preventDefault();
-                    }
-                  }}
+                  capture="environment"
+                  style={{ display: 'none' }}
+                  onChange={handleFoodImageChange}
+                />
+                <input
+                  ref={inputGalleryRef}
+                  type="file"
+                  accept="image/*"
+                  style={{ display: 'none' }}
                   onChange={handleFoodImageChange}
                 />
                 <button
@@ -719,7 +729,7 @@ function FoodDiary({ userId, supabase, notify }) {
                   className="primary full"
                   onClick={handleOpenScanFilePicker}
                 >
-                  Selecionar foto
+                  {isMobile() ? 'Abrir câmera' : 'Escolher foto'}
                 </button>
               </div>
             </div>
