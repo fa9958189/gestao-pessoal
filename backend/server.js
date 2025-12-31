@@ -132,8 +132,9 @@ app.post("/scan-food", scanFoodUpload, async (req, res) => {
 
     let imageBuffer = req.file.buffer;
     let mimeType = req.file.mimetype;
+    const normalizedMimeType = mimeType?.toLowerCase() || "";
 
-    if (mimeType === "image/heic" || mimeType === "image/heif") {
+    if (normalizedMimeType === "image/heic" || normalizedMimeType === "image/heif") {
       imageBuffer = await sharp(imageBuffer).jpeg({ quality: 90 }).toBuffer();
       mimeType = "image/jpeg";
     }
