@@ -78,7 +78,7 @@ function FoodDiary({ userId, supabase, notify }) {
   const [scanPreview, setScanPreview] = useState(null);
   const [scanDescription, setScanDescription] = useState('');
   const [isScanModalOpen, setIsScanModalOpen] = useState(false);
-  const fileInputRef = useRef(null);
+  const scanFileInputRef = useRef(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -340,10 +340,12 @@ function FoodDiary({ userId, supabase, notify }) {
       }
     } catch (err) {
       console.error('Erro ao escanear alimento', err);
-      setError('Não foi possível analisar a imagem do alimento.');
+      const message =
+        err?.message || 'Não foi possível analisar a imagem do alimento.';
+      setError(message);
       setScanPreview([]);
       if (typeof notify === 'function') {
-        notify('Não foi possível analisar a imagem do alimento.', 'error');
+        notify(message, 'error');
       }
     } finally {
       setIsScanningFood(false);
@@ -399,10 +401,27 @@ function FoodDiary({ userId, supabase, notify }) {
     setIsScanModalOpen(true);
   };
 
-  const handleImageInputChange = (event) => {
+  const ensureDescriptionBeforeUpload = () => {
+    const trimmed = scanDescription.trim();
+    if (trimmed.length < 3) {
+      if (typeof notify === 'function') {
+        notify('Descreva o alimento antes de enviar a foto.', 'warning');
+      }
+      return false;
+    }
+    return true;
+  };
+
+  const handleFoodImageChange = (event) => {
+    if (!ensureDescriptionBeforeUpload()) {
+      event.target.value = '';
+      return;
+    }
+
     const [file] = event.target.files || [];
     if (file) {
       void handleScanFood(file);
+      setIsScanModalOpen(false);
     }
     event.target.value = '';
   };
@@ -411,9 +430,12 @@ function FoodDiary({ userId, supabase, notify }) {
     setIsScanModalOpen(false);
   };
 
-  const handleScanModalContinue = () => {
-    setIsScanModalOpen(false);
-    fileInputRef.current?.click();
+  const handleOpenScanFilePicker = () => {
+    if (!ensureDescriptionBeforeUpload()) {
+      return;
+    }
+
+    scanFileInputRef.current?.click();
   };
 
   const handleAddEntry = async (event) => {
@@ -666,52 +688,45 @@ function FoodDiary({ userId, supabase, notify }) {
   return (
     <div className="food-diary">
       {isScanModalOpen && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0, 0, 0, 0.45)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000,
-          }}
-        >
-          <div
-            style={{
-              background: '#fff',
-              padding: 20,
-              borderRadius: 10,
-              width: '90%',
-              maxWidth: 420,
-              boxShadow: '0 10px 30px rgba(0, 0, 0, 0.15)',
-            }}
-          >
-            <div style={{ marginBottom: 12, fontWeight: 600, fontSize: 16 }}>
+        <div className="scan-modal-backdrop">
+          <div className="scan-modal">
+            <div className="scan-modal-title">
               Para analisar melhor, descreva rapidamente o que você está comendo.
             </div>
-            <input
-              type="text"
-              placeholder="Ex.: arroz, feijão e frango grelhado"
-              value={scanDescription}
-              onChange={(e) => setScanDescription(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '10px 12px',
-                borderRadius: 8,
-                border: '1px solid #e1e4e8',
-                marginBottom: 14,
-              }}
-            />
-            <div
-              className="row"
-              style={{ gap: 8, justifyContent: 'flex-end', marginTop: 8 }}
-            >
+            <div className="scan-modal-body">
+              <input
+                type="text"
+                placeholder="Ex.: arroz, feijão e frango grelhado"
+                value={scanDescription}
+                onChange={(e) => setScanDescription(e.target.value)}
+              />
+
+              <div className="scan-file-row">
+                <input
+                  ref={scanFileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="scan-file-input"
+                  onClick={(event) => {
+                    if (!ensureDescriptionBeforeUpload()) {
+                      event.preventDefault();
+                    }
+                  }}
+                  onChange={handleFoodImageChange}
+                />
+                <button
+                  type="button"
+                  className="primary full"
+                  onClick={handleOpenScanFilePicker}
+                >
+                  Selecionar foto
+                </button>
+              </div>
+            </div>
+
+            <div className="row scan-modal-actions">
               <button type="button" className="ghost" onClick={handleCloseScanModal}>
                 Cancelar
-              </button>
-              <button type="button" className="primary" onClick={handleScanModalContinue}>
-                Continuar
               </button>
             </div>
           </div>
@@ -809,13 +824,6 @@ function FoodDiary({ userId, supabase, notify }) {
                 >
                   Buscar alimento
                 </button>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  style={{ position: 'absolute', opacity: 0, width: 0, height: 0, pointerEvents: 'none' }}
-                  onChange={handleImageInputChange}
-                />
               </div>
             </div>
 

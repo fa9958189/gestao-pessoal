@@ -968,6 +968,68 @@ canvas{ background:transparent; }
 .mini-stat-value{ font-weight:700; font-size:16px; }
 .mini-stat-helper{ font-size:12px; color:var(--muted); }
 
+.scan-modal-backdrop{
+  position:fixed;
+  inset:0;
+  background:rgba(3,6,12,0.65);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  z-index:1000;
+  backdrop-filter:blur(2px);
+}
+
+.scan-modal{
+  width:90%;
+  max-width:460px;
+  background:var(--card);
+  border:1px solid var(--border);
+  border-radius:14px;
+  box-shadow:0 18px 40px rgba(0,0,0,.35);
+  padding:18px;
+  color:var(--text);
+}
+
+.scan-modal-title{
+  font-weight:650;
+  font-size:16px;
+  margin-bottom:10px;
+}
+
+.scan-modal-body{
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+}
+
+.scan-file-row{
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
+
+.scan-file-input{
+  width:100%;
+  background:var(--bg-2);
+  color:var(--muted);
+  border:1px dashed var(--border);
+  border-radius:12px;
+  padding:12px;
+  cursor:pointer;
+  transition:border-color .15s ease, color .15s ease, box-shadow .15s ease;
+}
+
+.scan-file-input:hover{
+  border-color:var(--accent);
+  color:var(--text);
+  box-shadow:0 0 0 3px rgba(74,222,128,.18);
+}
+
+.scan-modal-actions{
+  justify-content:flex-end;
+  margin-top:6px;
+}
+
 @media (max-width: 900px){
   .chart-with-legend{ grid-template-columns:1fr; }
 }
