@@ -395,6 +395,12 @@ function FoodDiary({ userId, supabase, notify }) {
   };
 
   const handleSelectImageForScan = () => {
+    const description = window.prompt(
+      'Para analisar melhor, descreva rapidamente o que você está comendo.\nEx.: arroz, feijão e frango grelhado; pizza de calabresa; açaí com banana.',
+    );
+    if (description === null) return;
+
+    setScanDescription(description || '');
     fileInputRef.current?.click();
   };
 

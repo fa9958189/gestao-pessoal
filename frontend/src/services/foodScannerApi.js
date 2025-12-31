@@ -9,9 +9,7 @@ export async function scanFood(imageFile, description) {
   const trimmedDescription =
     typeof description === 'string' ? description.trim() : '';
 
-  if (trimmedDescription) {
-    formData.append('description', trimmedDescription);
-  }
+  formData.append('description', trimmedDescription);
 
   const baseUrl = (window.APP_CONFIG?.apiBaseUrl || '').replace(/\/$/, '');
   const endpoint = `${baseUrl}/scan-food`;
