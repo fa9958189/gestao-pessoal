@@ -239,6 +239,83 @@ app.post("/create-user", async (req, res) => {
   }
 });
 
+app.delete("/admin/users/:userId", async (req, res) => {
+  try {
+    const authHeader = req.headers["authorization"] || "";
+    const token = authHeader.startsWith("Bearer")
+      ? authHeader.replace(/Bearer\s+/i, "").trim()
+      : null;
+
+    if (!token) {
+      return res.status(401).json({ error: "Token de acesso obrigatório" });
+    }
+
+    const { data: requesterData, error: requesterError } =
+      await supabase.auth.getUser(token);
+
+    if (requesterError || !requesterData?.user?.id) {
+      return res
+        .status(401)
+        .json({ error: "Sessão inválida. Faça login novamente." });
+    }
+
+    const requesterId = requesterData.user.id;
+    const { data: requesterProfile, error: roleError } = await supabase
+      .from("profiles_auth")
+      .select("role")
+      .eq("auth_id", requesterId)
+      .maybeSingle();
+
+    if (roleError) {
+      console.error("Erro ao validar perfil do solicitante:", roleError);
+      return res
+        .status(500)
+        .json({ error: "Falha ao validar permissões do solicitante." });
+    }
+
+    if (!requesterProfile || requesterProfile.role !== "admin") {
+      return res.status(403).json({ error: "Apenas admins podem excluir." });
+    }
+
+    const { userId } = req.params;
+
+    if (!userId) {
+      return res.status(400).json({ error: "userId é obrigatório" });
+    }
+
+    const { error: deleteProfileAuthError } = await supabase
+      .from("profiles_auth")
+      .delete()
+      .or(`auth_id.eq.${userId},id.eq.${userId}`);
+
+    if (deleteProfileAuthError) {
+      console.error("Erro ao remover profiles_auth:", deleteProfileAuthError);
+      return res.status(500).json({ error: "Falha ao excluir usuário." });
+    }
+
+    const { error: deleteProfileError } = await supabase
+      .from("profiles")
+      .delete()
+      .eq("id", userId);
+
+    if (deleteProfileError) {
+      console.error("Erro ao remover profiles:", deleteProfileError);
+      return res.status(500).json({ error: "Falha ao excluir usuário." });
+    }
+
+    try {
+      await supabase.auth.admin.deleteUser(userId);
+    } catch (adminError) {
+      console.warn("Não foi possível remover usuário do Supabase Auth:", adminError);
+    }
+
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error("Erro inesperado em /admin/users/:userId:", err);
+    return res.status(500).json({ error: "Erro interno no servidor" });
+  }
+});
+
 // Helpers para novas rotas de Rotina de Treino
 const getUserIdFromRequest = (req) =>
   req.body?.user_id ||

@@ -1292,9 +1292,38 @@ function App() {
       pushToast('Somente administradores podem excluir usuários.', 'warning');
       return;
     }
+
+    const confirmed = window.confirm('Tem certeza? Isso apagará o usuário e TODOS os dados dele.');
+    if (!confirmed) return;
+
     try {
-      const { error } = await client.from('profiles_auth').delete().eq('id', user.id);
-      if (error) throw error;
+      const { data: sessionData } = await client.auth.getSession();
+      const accessToken = sessionData?.session?.access_token;
+
+      if (!accessToken) {
+        pushToast('Sessão expirada. Faça login novamente.', 'warning');
+        return;
+      }
+
+      if (!workoutApiBase || !/^https?:\/\//i.test(workoutApiBase)) {
+        pushToast('API do backend não configurada.', 'danger');
+        return;
+      }
+
+      const targetId = user.auth_id || user.id;
+
+      const response = await fetch(`${workoutApiBase}/admin/users/${targetId}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${accessToken}`
+        }
+      });
+
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(body.error || 'Erro ao excluir usuário.');
+      }
+
       pushToast('Usuário removido.', 'success');
       loadRemoteData();
     } catch (err) {
