@@ -128,9 +128,8 @@ app.post("/scan-food", scanFoodUpload, async (req, res) => {
 
     const description = req.body?.description || "";
 
-    const base64Image = req.file.buffer.toString("base64");
     const analysis = await analyzeFoodImage(
-      base64Image,
+      req.file.buffer,
       req.file.mimetype,
       description,
     );
@@ -140,7 +139,7 @@ app.post("/scan-food", scanFoodUpload, async (req, res) => {
     console.error("Erro ao analisar imagem de comida:", err);
     return res
       .status(500)
-      .json({ error: "Falha ao analisar imagem" });
+      .json({ error: err?.message || "Falha ao analisar imagem" });
   }
 });
 

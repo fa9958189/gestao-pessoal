@@ -47,8 +47,8 @@ const mapValueOrDefault = (value, fallback) => {
   return fallback;
 };
 
-export async function analyzeFoodImage(buffer, _mimeType, description = "") {
-  if (!buffer) {
+export async function analyzeFoodImage(imageBuffer, _mimeType, description = "") {
+  if (!imageBuffer) {
     throw new Error("Buffer da imagem não fornecido para análise.");
   }
 
@@ -56,7 +56,7 @@ export async function analyzeFoodImage(buffer, _mimeType, description = "") {
     throw new Error("OPENAI_API_KEY não configurada.");
   }
 
-  const base64Image = buffer.toString("base64");
+  const base64Image = imageBuffer.toString("base64");
   const trimmedDescription =
     typeof description === "string" ? description.trim() : "";
   const prompt = buildAnalysisPrompt(trimmedDescription);
@@ -80,13 +80,14 @@ export async function analyzeFoodImage(buffer, _mimeType, description = "") {
               {
                 type: "image_url",
                 image_url: {
-                  url: `data:image/jpeg;base64,${base64Image}`,
+                  url: `data:${_mimeType || "image/jpeg"};base64,${base64Image}`,
                 },
               },
             ],
           },
         ],
         response_format: { type: "json_object" },
+        max_tokens: 800,
       }),
     });
   } catch (err) {
