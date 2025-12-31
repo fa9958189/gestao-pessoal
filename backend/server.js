@@ -3,6 +3,7 @@ import express from "express";
 import cors from "cors";
 import fs from "fs/promises";
 import path from "path";
+import { createRequire } from "module";
 import { fileURLToPath } from "url";
 import multer from "multer";
 import { supabase } from "./supabase.js";
@@ -26,6 +27,9 @@ import {
   getFoodDiaryState,
   saveFoodDiaryState,
 } from "./foodDiaryStorage.js";
+
+const require = createRequire(import.meta.url);
+const sharp = require("sharp");
 
 const app = express();
 app.use(cors());
@@ -126,13 +130,17 @@ app.post("/scan-food", scanFoodUpload, async (req, res) => {
       return res.status(400).json({ error: "Tipo de arquivo inválido." });
     }
 
+    let imageBuffer = req.file.buffer;
+    let mimeType = req.file.mimetype;
+
+    if (mimeType === "image/heic" || mimeType === "image/heif") {
+      imageBuffer = await sharp(imageBuffer).jpeg({ quality: 90 }).toBuffer();
+      mimeType = "image/jpeg";
+    }
+
     const description = req.body?.description || "";
 
-    const analysis = await analyzeFoodImage(
-      req.file.buffer,
-      req.file.mimetype,
-      description,
-    );
+    const analysis = await analyzeFoodImage(imageBuffer, mimeType, description);
 
     return res.json(analysis);
   } catch (err) {
