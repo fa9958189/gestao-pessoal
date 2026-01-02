@@ -90,6 +90,18 @@ const formatTimeRange = (start, end) => {
   return [start, end].filter(Boolean).join(' – ');
 };
 
+const BILLING_DUE_DAY = 20;
+
+const computeNextDueDate = (reference = new Date()) => {
+  const base = new Date(reference);
+  base.setHours(0, 0, 0, 0);
+  const monthAdjustment = base.getDate() > BILLING_DUE_DAY ? 1 : 0;
+  base.setMonth(base.getMonth() + monthAdjustment, BILLING_DUE_DAY);
+  return base.toISOString().slice(0, 10);
+};
+
+const deriveBillingStatus = (user) => user?.billing_status || 'active';
+
 const randomId = () => crypto.randomUUID ? crypto.randomUUID() : String(Date.now());
 
 const useSupabaseClient = () => {
@@ -333,7 +345,7 @@ const EventsTable = ({ items, onEdit, onDelete }) => (
   </div>
 );
 
-const UsersTable = ({ items, onEdit, onDelete }) => (
+const UsersTable = ({ items, onEdit, onDelete, onBillingAction }) => (
   <div className="user-list-wrapper">
     <div className="users-table-container">
       <div className="usuarios-scroll">
@@ -344,6 +356,7 @@ const UsersTable = ({ items, onEdit, onDelete }) => (
               <th>Nome</th>
               <th>WhatsApp</th>
               <th>Perfil</th>
+              <th>Status</th>
               <th>Criado em</th>
               <th className="right">Ações</th>
             </tr>
@@ -351,7 +364,7 @@ const UsersTable = ({ items, onEdit, onDelete }) => (
           <tbody id="userTableBody">
             {items.length === 0 && (
               <tr>
-                <td colSpan="6" className="muted user-empty">
+                <td colSpan="7" className="muted user-empty">
                   Nenhum usuário cadastrado além de você.
                 </td>
               </tr>
@@ -362,6 +375,16 @@ const UsersTable = ({ items, onEdit, onDelete }) => (
                 <td>{user.name || '-'}</td>
                 <td>{user.whatsapp || '-'}</td>
                 <td>{user.role}</td>
+                <td>
+                  <div className="row" style={{ gap: 6, alignItems: 'center' }}>
+                    <span className={`badge badge-${user.derived_status || user.billing_status || 'active'}`}>
+                      {(user.derived_status || user.billing_status || 'active').toUpperCase()}
+                    </span>
+                    {(user.derived_status || user.billing_status) === 'pending' && (
+                      <small className="muted">Pendente (venc. dia 20)</small>
+                    )}
+                  </div>
+                </td>
                 <td>{formatDate(user.created_at)}</td>
                 <td className="right">
                   <div className="table-actions">
@@ -370,6 +393,27 @@ const UsersTable = ({ items, onEdit, onDelete }) => (
                     </button>
                     <button className="icon-button" onClick={() => onDelete(user)} title="Excluir">
                       🗑️
+                    </button>
+                    <button
+                      className="icon-button"
+                      onClick={() => onBillingAction(user, 'activate')}
+                      title="Ativar"
+                    >
+                      ✅
+                    </button>
+                    <button
+                      className="icon-button"
+                      onClick={() => onBillingAction(user, 'inactivate')}
+                      title="Inativar"
+                    >
+                      🚫
+                    </button>
+                    <button
+                      className="icon-button"
+                      onClick={() => onBillingAction(user, 'confirm')}
+                      title="Confirmar pagamento"
+                    >
+                      💰
                     </button>
                   </div>
                 </td>
@@ -940,11 +984,14 @@ function App() {
                     if (profile?.role === 'admin') {
                       const { data, error } = await client
                         .from('profiles_auth')
-                        .select('id, auth_id, name, username, whatsapp, role, email, created_at')
+                        .select('id, auth_id, name, username, whatsapp, role, email, created_at, billing_status, billing_due_day, billing_next_due, billing_last_paid_at')
                         .order('name', { ascending: true });
 
                       if (error) throw error;
-                      userData = data || [];
+                      userData = (data || []).map((item) => ({
+                        ...item,
+                        derived_status: deriveBillingStatus(item),
+                      }));
                     }
 
                     // Atualiza estados
@@ -968,6 +1015,31 @@ function App() {
                 };
 
 
+
+  useEffect(() => {
+    const validateBillingAccess = async () => {
+      if (!client || !session || !workoutApiBase || !/^https?:\/\//i.test(workoutApiBase)) return;
+
+      try {
+        const { data: sessionData } = await client.auth.getSession();
+        const accessToken = sessionData?.session?.access_token;
+
+        if (!accessToken) return;
+
+        const response = await fetch(`${workoutApiBase}/auth/profile`, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+
+        if (response.status === 403) {
+          handleApiForbidden();
+        }
+      } catch (err) {
+        console.warn('Falha ao validar billing_status', err);
+      }
+    };
+
+    validateBillingAccess();
+  }, [client, session, workoutApiBase]);
 
   useEffect(() => {
     if (!session) return;
@@ -1107,9 +1179,13 @@ function App() {
 
 
 
-  const handleLogout = () => {
+  function handleLogout() {
     window.localStorage.removeItem('gp-session');
     window.location.reload();
+  }
+
+  const handleApiForbidden = () => {
+    pushToast('Conta inativa. Entre em contato com o administrador.', 'danger');
   };
 
                   // Salvar transação (local + Supabase)
@@ -1278,6 +1354,10 @@ function App() {
         });
 
         const body = await response.json().catch(() => ({}));
+        if (response.status === 403) {
+          handleApiForbidden();
+          return;
+        }
         if (!response.ok) {
           throw new Error(body.error || 'Erro ao atualizar usuário/senha.');
         }
@@ -1304,6 +1384,10 @@ function App() {
         });
 
         const body = await response.json();
+        if (response.status === 403) {
+          handleApiForbidden();
+          return;
+        }
         if (!response.ok) {
           throw new Error(body.error || 'Erro ao criar usuário.');
         }
@@ -1352,6 +1436,10 @@ function App() {
       });
 
       const body = await response.json().catch(() => ({}));
+      if (response.status === 403) {
+        handleApiForbidden();
+        return;
+      }
       if (!response.ok) {
         throw new Error(body.error || 'Erro ao excluir usuário.');
       }
@@ -1361,6 +1449,69 @@ function App() {
     } catch (err) {
       console.warn('Erro ao remover usuário', err);
       pushToast('Configure permissões de delete na tabela profiles.', 'danger');
+    }
+  };
+
+  const handleBillingAction = async (user, action) => {
+    if (!client || profile?.role !== 'admin') {
+      pushToast('Somente administradores podem gerenciar cobrança.', 'warning');
+      return;
+    }
+
+    if (!workoutApiBase || !/^https?:\/\//i.test(workoutApiBase)) {
+      pushToast('API do backend não configurada.', 'danger');
+      return;
+    }
+
+    const { data: sessionData } = await client.auth.getSession();
+    const accessToken = sessionData?.session?.access_token;
+
+    if (!accessToken) {
+      pushToast('Sessão expirada. Faça login novamente.', 'warning');
+      return;
+    }
+
+    const today = new Date();
+    const payload = {};
+
+    if (action === 'activate') {
+      payload.billing_status = 'active';
+    } else if (action === 'inactivate') {
+      payload.billing_status = 'inactive';
+    } else if (action === 'confirm') {
+      payload.billing_status = 'active';
+      payload.billing_last_paid_at = today.toISOString().slice(0, 10);
+      payload.billing_next_due = computeNextDueDate(today);
+    } else {
+      return;
+    }
+
+    try {
+      const response = await fetch(`${workoutApiBase}/admin/users/${user.auth_id || user.id}/billing`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`
+        },
+        body: JSON.stringify(payload)
+      });
+
+      const body = await response.json().catch(() => ({}));
+
+      if (response.status === 403) {
+        handleApiForbidden();
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error(body.error || 'Erro ao atualizar cobrança.');
+      }
+
+      pushToast('Status de cobrança atualizado.', 'success');
+      loadRemoteData();
+    } catch (err) {
+      console.warn('Erro ao atualizar billing', err);
+      pushToast(err.message || 'Erro ao atualizar cobrança.', 'danger');
     }
   };
 
@@ -1650,6 +1801,7 @@ function App() {
                 });
               }}
               onDelete={handleDeleteUser}
+              onBillingAction={handleBillingAction}
             />
           </section>
         </div>

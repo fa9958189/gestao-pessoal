@@ -35,6 +35,8 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+const BILLING_DEFAULT_DUE_DAY = 20;
+
 // Inicia o job de lembretes (agenda)
 startEventReminderWorker();
 startDailyWorkoutScheduleWorker();
@@ -207,7 +209,9 @@ app.post("/create-user", async (req, res) => {
         name,
         username: rawUsername,
         whatsapp,
-        role
+        role,
+        billing_status: "active",
+        billing_due_day: BILLING_DEFAULT_DUE_DAY,
       });
 
     if (profileError) {
@@ -224,7 +228,9 @@ app.post("/create-user", async (req, res) => {
         role,
         email,
         username: rawUsername,
-        whatsapp
+        whatsapp,
+        billing_status: "active",
+        billing_due_day: BILLING_DEFAULT_DUE_DAY,
       });
 
     if (authTableError) {
@@ -239,43 +245,131 @@ app.post("/create-user", async (req, res) => {
   }
 });
 
-app.delete("/admin/users/:userId", async (req, res) => {
+const authenticateRequest = async (req, res, { requireAdmin = false } = {}) => {
+  const authHeader = req.headers["authorization"] || "";
+  const token = authHeader.startsWith("Bearer")
+    ? authHeader.replace(/Bearer\s+/i, "").trim()
+    : null;
+
+  if (!token) {
+    res.status(401).json({ error: "Token de acesso obrigatório" });
+    return null;
+  }
+
+  const { data: requesterData, error: requesterError } =
+    await supabase.auth.getUser(token);
+
+  if (requesterError || !requesterData?.user?.id) {
+    res.status(401).json({ error: "Sessão inválida. Faça login novamente." });
+    return null;
+  }
+
+  const requesterId = requesterData.user.id;
+
+  let requesterProfile = null;
   try {
-    const authHeader = req.headers["authorization"] || "";
-    const token = authHeader.startsWith("Bearer")
-      ? authHeader.replace(/Bearer\s+/i, "").trim()
-      : null;
-
-    if (!token) {
-      return res.status(401).json({ error: "Token de acesso obrigatório" });
-    }
-
-    const { data: requesterData, error: requesterError } =
-      await supabase.auth.getUser(token);
-
-    if (requesterError || !requesterData?.user?.id) {
-      return res
-        .status(401)
-        .json({ error: "Sessão inválida. Faça login novamente." });
-    }
-
-    const requesterId = requesterData.user.id;
-    const { data: requesterProfile, error: roleError } = await supabase
+    const { data: profileData, error: roleError } = await supabase
       .from("profiles")
-      .select("role")
+      .select("role, billing_status")
       .eq("id", requesterId)
       .maybeSingle();
 
-    if (roleError) {
-      console.error("Erro ao validar perfil do solicitante:", roleError);
-      return res
-        .status(500)
-        .json({ error: "Falha ao validar permissões do solicitante." });
+    if (roleError && roleError.code !== "42P01") {
+      throw roleError;
     }
 
-    if (!requesterProfile || requesterProfile.role !== "admin") {
-      return res.status(403).json({ error: "Apenas admins podem excluir." });
+    requesterProfile = profileData || null;
+  } catch (err) {
+    console.error("Erro ao validar perfil do solicitante:", err);
+  }
+
+  if (!requesterProfile) {
+    try {
+      const { data: profileAuth, error: profileAuthError } = await supabase
+        .from("profiles_auth")
+        .select("role, billing_status")
+        .or(`auth_id.eq.${requesterId},id.eq.${requesterId}`)
+        .maybeSingle();
+
+      if (profileAuthError && profileAuthError.code !== "42P01") {
+        throw profileAuthError;
+      }
+
+      requesterProfile = profileAuth || null;
+    } catch (err) {
+      console.error("Erro ao validar perfil do solicitante (profiles_auth):", err);
     }
+  }
+
+  if (requesterProfile?.billing_status === "inactive") {
+    res.status(403).json({ error: "Conta inativa" });
+    return null;
+  }
+
+  if (requireAdmin && requesterProfile?.role !== "admin") {
+    res.status(403).json({ error: "Apenas admins podem acessar." });
+    return null;
+  }
+
+  return { userId: requesterId, profile: requesterProfile };
+};
+
+const fetchProfileWithBilling = async (userId) => {
+  const { data: profileData, error: profileError } = await supabase
+    .from("profiles")
+    .select(
+      "id, name, role, username, whatsapp, billing_status, billing_due_day, billing_next_due, billing_last_paid_at"
+    )
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (profileError && profileError.code !== "PGRST116" && profileError.code !== "42P01") {
+    throw profileError;
+  }
+
+  if (profileData) return profileData;
+
+  const { data: profileAuth, error: profileAuthError } = await supabase
+    .from("profiles_auth")
+    .select(
+      "id, auth_id, name, role, username, whatsapp, billing_status, billing_due_day, billing_next_due, billing_last_paid_at, email"
+    )
+    .or(`auth_id.eq.${userId},id.eq.${userId}`)
+    .maybeSingle();
+
+  if (profileAuthError && profileAuthError.code !== "PGRST116" && profileAuthError.code !== "42P01") {
+    throw profileAuthError;
+  }
+
+  return profileAuth || null;
+};
+
+app.get("/auth/profile", async (req, res) => {
+  try {
+    const authData = await authenticateRequest(req, res, { requireAdmin: false });
+    if (!authData) return;
+
+    const profile = await fetchProfileWithBilling(authData.userId);
+
+    if (!profile) {
+      return res.status(404).json({ error: "Perfil não encontrado" });
+    }
+
+    if (profile.billing_status === "inactive") {
+      return res.status(403).json({ error: "Conta inativa" });
+    }
+
+    return res.json({ profile });
+  } catch (err) {
+    console.error("Erro inesperado em GET /auth/profile:", err);
+    return res.status(500).json({ error: "Erro interno no servidor" });
+  }
+});
+
+app.delete("/admin/users/:userId", async (req, res) => {
+  try {
+    const authData = await authenticateRequest(req, res, { requireAdmin: true });
+    if (!authData) return;
 
     const { userId } = req.params;
 
@@ -325,39 +419,8 @@ app.delete("/admin/users/:userId", async (req, res) => {
 
 app.put("/admin/users/:userId", async (req, res) => {
   try {
-    const authHeader = req.headers["authorization"] || "";
-    const token = authHeader.startsWith("Bearer")
-      ? authHeader.replace(/Bearer\s+/i, "").trim()
-      : null;
-
-    if (!token) {
-      return res.status(401).json({ error: "Token de acesso obrigatório" });
-    }
-
-    const { data: requesterData, error: requesterError } =
-      await supabase.auth.getUser(token);
-
-    if (requesterError || !requesterData?.user?.id) {
-      return res.status(401).json({ error: "Sessão inválida." });
-    }
-
-    const requesterId = requesterData.user.id;
-    const { data: requesterProfile, error: roleError } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", requesterId)
-      .maybeSingle();
-
-    if (roleError) {
-      console.error("Erro ao validar perfil do solicitante:", roleError);
-      return res
-        .status(500)
-        .json({ error: "Falha ao validar permissões do solicitante." });
-    }
-
-    if (!requesterProfile || requesterProfile.role !== "admin") {
-      return res.status(403).json({ error: "Apenas admins podem editar." });
-    }
+    const authData = await authenticateRequest(req, res, { requireAdmin: true });
+    if (!authData) return;
 
     const { userId } = req.params;
     if (!userId) {
@@ -447,6 +510,66 @@ app.put("/admin/users/:userId", async (req, res) => {
   } catch (err) {
     console.error("Erro inesperado em PUT /admin/users/:userId:", err);
     return res.status(500).json({ error: "Erro interno ao editar usuário." });
+  }
+});
+
+app.patch("/admin/users/:authId/billing", async (req, res) => {
+  try {
+    const authData = await authenticateRequest(req, res, { requireAdmin: true });
+    if (!authData) return;
+
+    const { authId } = req.params;
+    if (!authId) {
+      return res.status(400).json({ error: "authId é obrigatório" });
+    }
+
+    const { billing_status, billing_last_paid_at, billing_next_due } = req.body || {};
+    const allowedStatus = ["active", "pending", "inactive"];
+    const updates = {};
+
+    if (billing_status !== undefined) {
+      if (!allowedStatus.includes(billing_status)) {
+        return res.status(400).json({ error: "billing_status inválido" });
+      }
+      updates.billing_status = billing_status;
+    }
+
+    if (billing_last_paid_at !== undefined) {
+      updates.billing_last_paid_at = billing_last_paid_at || null;
+    }
+
+    if (billing_next_due !== undefined) {
+      updates.billing_next_due = billing_next_due || null;
+    }
+
+    if (!Object.keys(updates).length) {
+      return res.status(400).json({ error: "Nenhuma atualização enviada" });
+    }
+
+    const { error: profileErr } = await supabase
+      .from("profiles")
+      .update(updates)
+      .eq("id", authId);
+
+    if (profileErr && profileErr.code !== "PGRST116" && profileErr.code !== "42P01") {
+      console.error("Erro ao atualizar billing em profiles:", profileErr);
+      return res.status(400).json({ error: profileErr.message });
+    }
+
+    const { error: authErr } = await supabase
+      .from("profiles_auth")
+      .update(updates)
+      .or(`auth_id.eq.${authId},id.eq.${authId}`);
+
+    if (authErr && authErr.code !== "42P01") {
+      console.error("Erro ao atualizar billing em profiles_auth:", authErr);
+      return res.status(400).json({ error: authErr.message });
+    }
+
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error("Erro inesperado em PATCH /admin/users/:authId/billing:", err);
+    return res.status(500).json({ error: "Erro interno ao atualizar billing." });
   }
 });
 
