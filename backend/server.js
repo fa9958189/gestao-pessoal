@@ -384,7 +384,10 @@ app.put("/admin/users/:userId", async (req, res) => {
       }
     }
 
-    const { name, username, whatsapp, role, password } = req.body || {};
+    const { name, username, whatsapp, role, password, email } = req.body || {};
+    const trimmedEmail = typeof email === "string" ? email.trim() : "";
+    const hasEmail = trimmedEmail && trimmedEmail.includes("@");
+    const hasPassword = typeof password === "string" && password.trim().length >= 4;
 
     // Atualiza profiles_auth (mantendo compatibilidade com id ou auth_id)
     const updateAuthPayload = {};
@@ -392,6 +395,7 @@ app.put("/admin/users/:userId", async (req, res) => {
     if (typeof username === "string") updateAuthPayload.username = username;
     if (typeof whatsapp === "string") updateAuthPayload.whatsapp = whatsapp;
     if (typeof role === "string") updateAuthPayload.role = role;
+    if (hasEmail) updateAuthPayload.email = trimmedEmail;
 
     if (Object.keys(updateAuthPayload).length) {
       const { error: upAuthErr } = await supabase
@@ -411,6 +415,7 @@ app.put("/admin/users/:userId", async (req, res) => {
     if (typeof username === "string") updateProfilePayload.username = username;
     if (typeof whatsapp === "string") updateProfilePayload.whatsapp = whatsapp;
     if (typeof role === "string") updateProfilePayload.role = role;
+    if (hasEmail) updateProfilePayload.email = trimmedEmail;
 
     if (Object.keys(updateProfilePayload).length) {
       const { error: upProfileErr } = await supabase
@@ -424,26 +429,35 @@ app.put("/admin/users/:userId", async (req, res) => {
       }
     }
 
-    // Atualiza senha no Supabase Auth (senha real)
-    if (typeof password === "string" && password.trim().length >= 4) {
-      const attemptPasswordUpdate = async () =>
-        supabase.auth.admin.updateUserById(finalUserId, {
-          password: password.trim(),
-        });
+    const authUpdatePayload = {};
+    if (hasEmail) {
+      authUpdatePayload.email = trimmedEmail;
+      authUpdatePayload.email_confirm = true;
+    }
+    if (hasPassword) {
+      authUpdatePayload.password = password.trim();
+    }
 
-      let { error: passErr } = await attemptPasswordUpdate();
+    if (Object.keys(authUpdatePayload).length) {
+      const attemptAuthUpdate = async () =>
+        supabase.auth.admin.updateUserById(finalUserId, authUpdatePayload);
 
-      if (passErr && passErr.message?.toLowerCase().includes("user not found")) {
+      let { error: authUpdateError } = await attemptAuthUpdate();
+
+      if (
+        authUpdateError &&
+        authUpdateError.message?.toLowerCase().includes("user not found")
+      ) {
         const resolved = await resolveAuthId();
         if (resolved) {
           finalUserId = resolved;
-          ({ error: passErr } = await attemptPasswordUpdate());
+          ({ error: authUpdateError } = await attemptAuthUpdate());
         }
       }
 
-      if (passErr) {
-        console.error("Erro ao atualizar senha no Auth:", passErr);
-        return res.status(400).json({ error: passErr.message });
+      if (authUpdateError) {
+        console.error("Erro ao atualizar usuário no Auth:", authUpdateError);
+        return res.status(400).json({ error: authUpdateError.message });
       }
     }
 

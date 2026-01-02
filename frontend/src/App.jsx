@@ -859,6 +859,7 @@ function App() {
   const [eventForm, setEventForm] = useState(defaultEventForm);
   const [userForm, setUserForm] = useState(defaultUserForm);
   const [editingUserId, setEditingUserId] = useState(null);
+  const [editingUserOriginal, setEditingUserOriginal] = useState(null);
 
   const [txFilters, setTxFilters] = useState(defaultTxFilters);
   const [eventFilters, setEventFilters] = useState(defaultEventFilters);
@@ -1240,6 +1241,11 @@ function App() {
       return;
     }
     try {
+      const currentUsername = (userForm.username || '').trim();
+      const originalUsername = (editingUserOriginal?.username || editingUserOriginal?.email || '').trim();
+      const hasPassword = typeof userForm.password === 'string' && userForm.password.trim().length >= 4;
+      const emailChanged = Boolean(editingUserId && currentUsername !== originalUsername);
+
       const payload = {
         name: userForm.name,
         username: userForm.username,
@@ -1248,9 +1254,9 @@ function App() {
         id: editingUserId
       };
       if (editingUserId) {
-        const hasPassword = typeof userForm.password === 'string' && userForm.password.trim().length >= 4;
+        const shouldCallBackend = emailChanged || hasPassword;
 
-        if (hasPassword) {
+        if (shouldCallBackend) {
           const { data: sessionData } = await client.auth.getSession();
           const accessToken = sessionData?.session?.access_token;
 
@@ -1260,8 +1266,20 @@ function App() {
           }
 
           if (!workoutApiBase || !/^https?:\/\//i.test(workoutApiBase)) {
-            pushToast('Backend não configurado. Não é possível alterar senha sem o backend.', 'warning');
+            pushToast('Backend não configurado. Não é possível alterar e-mail/senha sem o backend.', 'warning');
             return;
+          }
+
+          const bodyPayload = {
+            name: userForm.name,
+            username: userForm.username,
+            whatsapp: userForm.whatsapp,
+            role: userForm.role,
+            email: userForm.username,
+          };
+
+          if (hasPassword) {
+            bodyPayload.password = userForm.password;
           }
 
           const response = await fetch(`${workoutApiBase}/admin/users/${editingUserId}`, {
@@ -1270,13 +1288,7 @@ function App() {
               'Content-Type': 'application/json',
               Authorization: `Bearer ${accessToken}`
             },
-            body: JSON.stringify({
-              name: userForm.name,
-              username: userForm.username,
-              whatsapp: userForm.whatsapp,
-              role: userForm.role,
-              password: userForm.password
-            })
+            body: JSON.stringify(bodyPayload)
           });
 
           const body = await response.json().catch(() => ({}));
@@ -1321,6 +1333,7 @@ function App() {
       pushToast('Usuário sincronizado com o Supabase.', 'success');
       setUserForm(defaultUserForm);
       setEditingUserId(null);
+      setEditingUserOriginal(null);
       loadRemoteData();
     } catch (err) {
       console.warn('Erro ao salvar usuário', err);
@@ -1641,7 +1654,7 @@ function App() {
                 <button className="primary" onClick={handleSaveUser}>
                   {editingUserId ? 'Salvar alterações' : 'Adicionar usuário'}
                 </button>
-                <button className="ghost" onClick={() => { setUserForm(defaultUserForm); setEditingUserId(null); }}>Limpar</button>
+                <button className="ghost" onClick={() => { setUserForm(defaultUserForm); setEditingUserId(null); setEditingUserOriginal(null); }}>Limpar</button>
               </div>
             </div>
 
@@ -1649,6 +1662,7 @@ function App() {
               items={users.map((user) => ({ ...user, _editing: (user.auth_id || user.id) === editingUserId }))}
               onEdit={(user) => {
                 setEditingUserId(user.auth_id || user.id);
+                setEditingUserOriginal(user);
                 setUserForm({
                   name: user.name,
                   username: user.username,
