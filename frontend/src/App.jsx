@@ -92,15 +92,29 @@ const formatTimeRange = (start, end) => {
 
 const BILLING_DUE_DAY = 20;
 
-const computeNextDueDate = (reference = new Date()) => {
-  const base = new Date(reference);
-  base.setHours(0, 0, 0, 0);
-  const monthAdjustment = base.getDate() > BILLING_DUE_DAY ? 1 : 0;
-  base.setMonth(base.getMonth() + monthAdjustment, BILLING_DUE_DAY);
-  return base.toISOString().slice(0, 10);
-};
+const computeEffectiveSubscriptionStatus = (user, today = new Date()) => {
+  if (!user) return 'active';
 
-const deriveBillingStatus = (user) => user?.billing_status || 'active';
+  if (user.subscription_status === 'inactive') return 'inactive';
+
+  const dueDay = Number.isFinite(Number(user.due_day)) ? Number(user.due_day) : BILLING_DUE_DAY;
+  const current = new Date(today);
+  const currentDay = current.getDate();
+  const currentMonth = current.getMonth();
+  const currentYear = current.getFullYear();
+
+  if (currentDay >= dueDay) {
+    const lastPaid = user.last_paid_at ? new Date(user.last_paid_at) : null;
+    const paidMonth = lastPaid?.getMonth();
+    const paidYear = lastPaid?.getFullYear();
+
+    if (!lastPaid || paidMonth !== currentMonth || paidYear !== currentYear) {
+      return 'pending';
+    }
+  }
+
+  return 'active';
+};
 
 const randomId = () => crypto.randomUUID ? crypto.randomUUID() : String(Date.now());
 
@@ -163,7 +177,7 @@ const useAuth = () => {
     }
   }, []);
 
-  return { session, profile, loadingSession };
+  return { session, profile, loadingSession, setSession, setProfile };
 };
 
 
@@ -357,6 +371,8 @@ const UsersTable = ({ items, onEdit, onDelete, onBillingAction }) => (
               <th>WhatsApp</th>
               <th>Perfil</th>
               <th>Status</th>
+              <th>Vencimento</th>
+              <th>Último pagamento</th>
               <th>Criado em</th>
               <th className="right">Ações</th>
             </tr>
@@ -364,7 +380,7 @@ const UsersTable = ({ items, onEdit, onDelete, onBillingAction }) => (
           <tbody id="userTableBody">
             {items.length === 0 && (
               <tr>
-                <td colSpan="7" className="muted user-empty">
+                <td colSpan="9" className="muted user-empty">
                   Nenhum usuário cadastrado além de você.
                 </td>
               </tr>
@@ -377,14 +393,24 @@ const UsersTable = ({ items, onEdit, onDelete, onBillingAction }) => (
                 <td>{user.role}</td>
                 <td>
                   <div className="row" style={{ gap: 6, alignItems: 'center' }}>
-                    <span className={`badge badge-${user.derived_status || user.billing_status || 'active'}`}>
-                      {(user.derived_status || user.billing_status || 'active').toUpperCase()}
-                    </span>
-                    {(user.derived_status || user.billing_status) === 'pending' && (
-                      <small className="muted">Pendente (venc. dia 20)</small>
-                    )}
+                    {(() => {
+                      const status = user.derived_status || user.subscription_status || 'active';
+                      const labelMap = { active: 'ATIVO', pending: 'PENDENTE', inactive: 'INATIVO' };
+                      return (
+                        <>
+                          <span className={`badge badge-${status}`}>
+                            {labelMap[status] || status.toUpperCase()}
+                          </span>
+                          {status === 'pending' && (
+                            <small className="muted">Pendente (venc. dia {user.due_day || BILLING_DUE_DAY})</small>
+                          )}
+                        </>
+                      );
+                    })()}
                   </div>
                 </td>
+                <td>dia {user.due_day || BILLING_DUE_DAY}</td>
+                <td>{formatDate(user.last_paid_at)}</td>
                 <td>{formatDate(user.created_at)}</td>
                 <td className="right">
                   <div className="table-actions">
@@ -399,21 +425,21 @@ const UsersTable = ({ items, onEdit, onDelete, onBillingAction }) => (
                       onClick={() => onBillingAction(user, 'activate')}
                       title="Ativar"
                     >
-                      ✅
+                      Ativar
                     </button>
                     <button
                       className="icon-button"
                       onClick={() => onBillingAction(user, 'inactivate')}
                       title="Inativar"
                     >
-                      🚫
+                      Inativar
                     </button>
                     <button
                       className="icon-button"
-                      onClick={() => onBillingAction(user, 'confirm')}
-                      title="Confirmar pagamento"
+                      onClick={() => onBillingAction(user, 'markPaid')}
+                      title="Marcar pago"
                     >
-                      💰
+                      Marcar pago
                     </button>
                   </div>
                 </td>
@@ -886,11 +912,12 @@ const Reports = ({ transactions }) => {
 
 function App() {
   const { client, configError } = useSupabaseClient();
-  const { session, profile, loadingSession } = useAuth(client);
+  const { session, profile, loadingSession, setSession, setProfile } = useAuth(client);
 
   const isAdmin = profile?.role === 'admin';
 
   const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const [profileDetails, setProfileDetails] = useState(null);
 
   const [loginForm, setLoginForm] = useState({ email: '', password: '' });
   const [loginError, setLoginError] = useState('');
@@ -924,95 +951,131 @@ function App() {
     setTimeout(() => setToast(null), 4000);
   };
 
-       // Buscar tudo no Supabase (transações, agenda e lista de usuários se for admin)
-                const loadRemoteData = async () => {
-                  if (!client || !session?.user?.id) return;
+  // Buscar tudo no Supabase (transações, agenda e lista de usuários se for admin)
+  const loadRemoteData = async () => {
+    if (!client || !session?.user?.id) return;
 
-                  setLoadingData(true);
+    setLoadingData(true);
 
-                  try {
-                    // 1) Transações do usuário logado
-                    let txQuery = client
-                      .from('transactions')
-                      .select('id, user_id, type, amount, description, category, date, created_at')
-                      .eq('user_id', session.user.id)
-                      .order('date', { ascending: false });
+    try {
+      try {
+        const { data: profileRow } = await client
+          .from('profiles_auth')
+          .select('id, auth_id, name, username, whatsapp, role, email, subscription_status, due_day, last_paid_at')
+          .eq('auth_id', session.user.id)
+          .single();
 
-                    // Filtros (se quiser manter)
-                    if (txFilters.from) {
-                      txQuery = txQuery.gte('date', txFilters.from);
-                    }
-                    if (txFilters.to) {
-                      txQuery = txQuery.lte('date', txFilters.to);
-                    }
-                    if (txFilters.type) {
-                      txQuery = txQuery.eq('type', txFilters.type);
-                    }
-                    if (txFilters.search) {
-                      const s = txFilters.search;
-                      txQuery = txQuery.or(
-                        `description.ilike.%${s}%,category.ilike.%${s}%`
-                      );
-                    }
+        if (profileRow) {
+          setProfileDetails(profileRow);
 
-                    const { data: txData, error: txError } = await txQuery;
-                    if (txError) throw txError;
+          const effectiveStatus = computeEffectiveSubscriptionStatus(profileRow, new Date());
+          if (profile?.role !== 'admin' && profileRow.role !== 'admin' && effectiveStatus !== 'active') {
+            const message = effectiveStatus === 'pending'
+              ? 'Assinatura pendente. Fale com o administrador.'
+              : 'Acesso inativo. Fale com o administrador.';
+            pushToast(message, 'danger');
+            await client.auth.signOut();
+            setSession(null);
+            setProfile(null);
+            setProfileDetails(null);
+            window.localStorage.removeItem('gp-session');
+            return;
+          }
+        }
+      } catch (err) {
+        console.warn('Falha ao carregar perfil do usuário logado', err);
+      }
 
-                    const normalizedTx = (txData || []).map((row) => ({
-                      id: row.id,
-                      user_id: row.user_id,
-                      userId: row.user_id,
-                      type: row.type,
-                      amount: row.amount,
-                      description: row.description,
-                      category: row.category,
-                      date: row.date,
-                      createdAt: row.created_at,
-                    }));
+      // 1) Transações do usuário logado
+      let txQuery = client
+        .from('transactions')
+        .select('id, user_id, type, amount, description, category, date, created_at')
+        .eq('user_id', session.user.id)
+        .order('date', { ascending: false });
 
-                    // 2) Eventos (agenda) do usuário logado
-                    const { data: eventData, error: evError } = await client
-                      .from('events')
-                      .select('*')
-                      .eq('user_id', session.user.id)
-                      .order('date', { ascending: false });
+      // Filtros (se quiser manter)
+      if (txFilters.from) {
+        txQuery = txQuery.gte('date', txFilters.from);
+      }
+      if (txFilters.to) {
+        txQuery = txQuery.lte('date', txFilters.to);
+      }
+      if (txFilters.type) {
+        txQuery = txQuery.eq('type', txFilters.type);
+      }
+      if (txFilters.search) {
+        const s = txFilters.search;
+        txQuery = txQuery.or(
+          `description.ilike.%${s}%,category.ilike.%${s}%`
+        );
+      }
 
-                    if (evError) throw evError;
+      const { data: txData, error: txError } = await txQuery;
+      if (txError) throw txError;
 
-                    // 3) Lista de usuários (só se for admin)
-                    let userData = [];
-                    if (profile?.role === 'admin') {
-                      const { data, error } = await client
-                        .from('profiles_auth')
-                        .select('id, auth_id, name, username, whatsapp, role, email, created_at, billing_status, billing_due_day, billing_next_due, billing_last_paid_at')
-                        .order('name', { ascending: true });
+      const normalizedTx = (txData || []).map((row) => ({
+        id: row.id,
+        user_id: row.user_id,
+        userId: row.user_id,
+        type: row.type,
+        amount: row.amount,
+        description: row.description,
+        category: row.category,
+        date: row.date,
+        createdAt: row.created_at,
+      }));
 
-                      if (error) throw error;
-                      userData = (data || []).map((item) => ({
-                        ...item,
-                        derived_status: deriveBillingStatus(item),
-                      }));
-                    }
+      // 2) Eventos (agenda) do usuário logado
+      const { data: eventData, error: evError } = await client
+        .from('events')
+        .select('*')
+        .eq('user_id', session.user.id)
+        .order('date', { ascending: false });
 
-                    // Atualiza estados
-                    setTransactions(normalizedTx);
-                    setEvents(eventData || []);
-                    setUsers(userData);
+      if (evError) throw evError;
 
-                    // Salva snapshot local
-                    persistLocalSnapshot({
-                      transactions: normalizedTx,
-                      events: eventData || [],
-                    });
+      // 3) Lista de usuários (só se for admin)
+      let userData = [];
+      if (profile?.role === 'admin') {
+        try {
+          const { data, error } = await client
+            .from('profiles_auth')
+            .select('id, auth_id, name, username, whatsapp, role, email, created_at, subscription_status, due_day, last_paid_at')
+            .order('name', { ascending: true });
 
-                    console.log('Dados carregados do Supabase com sucesso.');
-                  } catch (err) {
-                    console.warn('Falha ao sincronizar com Supabase, usando cache local.', err);
-                    pushToast('Não foi possível sincronizar com o Supabase. Usando dados locais.', 'warning');
-                  } finally {
-                    setLoadingData(false);
-                  }
-                };
+          if (error) throw error;
+          userData = (data || []).map((item) => ({
+            ...item,
+            derived_status: computeEffectiveSubscriptionStatus(item, new Date()),
+          }));
+          setUsers(userData);
+        } catch (err) {
+          console.warn('Erro ao carregar lista de usuários (admin)', err);
+          setUsers([]);
+          pushToast('Sem permissão para listar usuários (admin).', 'warning');
+        }
+      } else {
+        setUsers([]);
+      }
+
+      // Atualiza estados
+      setTransactions(normalizedTx);
+      setEvents(eventData || []);
+
+      // Salva snapshot local
+      persistLocalSnapshot({
+        transactions: normalizedTx,
+        events: eventData || [],
+      });
+
+      console.log('Dados carregados do Supabase com sucesso.');
+    } catch (err) {
+      console.warn('Falha ao sincronizar com Supabase, usando cache local.', err);
+      pushToast('Não foi possível sincronizar com o Supabase. Usando dados locais.', 'warning');
+    } finally {
+      setLoadingData(false);
+    }
+  };
 
 
 
@@ -1179,8 +1242,16 @@ function App() {
 
 
 
-  function handleLogout() {
+  async function handleLogout() {
     window.localStorage.removeItem('gp-session');
+    try {
+      await client?.auth?.signOut();
+    } catch (err) {
+      console.warn('Erro ao sair do Supabase', err);
+    }
+    setSession(null);
+    setProfile(null);
+    setProfileDetails(null);
     window.location.reload();
   }
 
@@ -1458,60 +1529,34 @@ function App() {
       return;
     }
 
-    if (!workoutApiBase || !/^https?:\/\//i.test(workoutApiBase)) {
-      pushToast('API do backend não configurada.', 'danger');
-      return;
-    }
-
-    const { data: sessionData } = await client.auth.getSession();
-    const accessToken = sessionData?.session?.access_token;
-
-    if (!accessToken) {
-      pushToast('Sessão expirada. Faça login novamente.', 'warning');
-      return;
-    }
-
-    const today = new Date();
+    const today = new Date().toISOString().slice(0, 10);
+    const targetId = user.id || user.auth_id;
     const payload = {};
 
     if (action === 'activate') {
-      payload.billing_status = 'active';
+      payload.subscription_status = 'active';
     } else if (action === 'inactivate') {
-      payload.billing_status = 'inactive';
-    } else if (action === 'confirm') {
-      payload.billing_status = 'active';
-      payload.billing_last_paid_at = today.toISOString().slice(0, 10);
-      payload.billing_next_due = computeNextDueDate(today);
+      payload.subscription_status = 'inactive';
+    } else if (action === 'markPaid') {
+      payload.subscription_status = 'active';
+      payload.last_paid_at = today;
     } else {
       return;
     }
 
     try {
-      const response = await fetch(`${workoutApiBase}/admin/users/${user.auth_id || user.id}/billing`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${accessToken}`
-        },
-        body: JSON.stringify(payload)
-      });
+      const { error } = await client
+        .from('profiles_auth')
+        .update(payload)
+        .eq('id', targetId);
 
-      const body = await response.json().catch(() => ({}));
+      if (error) throw error;
 
-      if (response.status === 403) {
-        handleApiForbidden();
-        return;
-      }
-
-      if (!response.ok) {
-        throw new Error(body.error || 'Erro ao atualizar cobrança.');
-      }
-
-      pushToast('Status de cobrança atualizado.', 'success');
+      pushToast('Status de assinatura atualizado.', 'success');
       loadRemoteData();
     } catch (err) {
-      console.warn('Erro ao atualizar billing', err);
-      pushToast(err.message || 'Erro ao atualizar cobrança.', 'danger');
+      console.warn('Erro ao atualizar status de assinatura', err);
+      pushToast(err.message || 'Erro ao atualizar assinatura.', 'danger');
     }
   };
 
