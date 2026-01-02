@@ -261,9 +261,9 @@ app.delete("/admin/users/:userId", async (req, res) => {
 
     const requesterId = requesterData.user.id;
     const { data: requesterProfile, error: roleError } = await supabase
-      .from("profiles_auth")
+      .from("profiles")
       .select("role")
-      .eq("auth_id", requesterId)
+      .eq("id", requesterId)
       .maybeSingle();
 
     if (roleError) {
@@ -283,14 +283,21 @@ app.delete("/admin/users/:userId", async (req, res) => {
       return res.status(400).json({ error: "userId é obrigatório" });
     }
 
-    const { error: deleteProfileAuthError } = await supabase
-      .from("profiles_auth")
-      .delete()
-      .or(`auth_id.eq.${userId},id.eq.${userId}`);
+    try {
+      const { error: deleteProfileAuthError } = await supabase
+        .from("profiles_auth")
+        .delete()
+        .or(`auth_id.eq.${userId},id.eq.${userId}`);
 
-    if (deleteProfileAuthError) {
-      console.error("Erro ao remover profiles_auth:", deleteProfileAuthError);
-      return res.status(500).json({ error: "Falha ao excluir usuário." });
+      if (deleteProfileAuthError && deleteProfileAuthError.code !== "42P01") {
+        console.error("Erro ao remover profiles_auth:", deleteProfileAuthError);
+        return res.status(500).json({ error: "Falha ao excluir usuário." });
+      }
+    } catch (profileAuthTableError) {
+      if (profileAuthTableError?.code !== "42P01") {
+        console.error("Erro inesperado em profiles_auth:", profileAuthTableError);
+        return res.status(500).json({ error: "Falha ao excluir usuário." });
+      }
     }
 
     const { error: deleteProfileError } = await supabase
@@ -298,7 +305,7 @@ app.delete("/admin/users/:userId", async (req, res) => {
       .delete()
       .eq("id", userId);
 
-    if (deleteProfileError) {
+    if (deleteProfileError && deleteProfileError.code !== "PGRST116") {
       console.error("Erro ao remover profiles:", deleteProfileError);
       return res.status(500).json({ error: "Falha ao excluir usuário." });
     }
@@ -336,9 +343,9 @@ app.put("/admin/users/:userId", async (req, res) => {
 
     const requesterId = requesterData.user.id;
     const { data: requesterProfile, error: roleError } = await supabase
-      .from("profiles_auth")
+      .from("profiles")
       .select("role")
-      .eq("auth_id", requesterId)
+      .eq("id", requesterId)
       .maybeSingle();
 
     if (roleError) {
@@ -357,121 +364,83 @@ app.put("/admin/users/:userId", async (req, res) => {
       return res.status(400).json({ error: "userId é obrigatório" });
     }
 
-    let finalUserId = userId;
-    const looksLikeUuid =
-      typeof userId === "string" &&
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId);
+    const { name, username, whatsapp, role, password } = req.body || {};
 
-    const resolveAuthId = async () => {
-      const { data, error } = await supabase
-        .from("profiles_auth")
-        .select("auth_id")
-        .or(`id.eq.${userId},auth_id.eq.${userId}`)
-        .maybeSingle();
+    const trimmedUsername = typeof username === "string" ? username.trim() : "";
+    const trimmedName = typeof name === "string" ? name.trim() : "";
+    const trimmedPassword =
+      typeof password === "string" && password.trim().length ? password.trim() : "";
 
-      if (error) {
-        console.error("Erro ao buscar auth_id em profiles_auth:", error);
-        return null;
+    if (!trimmedUsername) {
+      return res.status(400).json({ error: "username (e-mail) é obrigatório" });
+    }
+
+    try {
+      const updateAuthPayload = {};
+
+      if (typeof name === "string") updateAuthPayload.name = name;
+      if (trimmedUsername) {
+        updateAuthPayload.username = trimmedUsername;
+        updateAuthPayload.email = trimmedUsername;
       }
+      if (typeof whatsapp === "string") updateAuthPayload.whatsapp = whatsapp;
+      if (typeof role === "string") updateAuthPayload.role = role;
 
-      return data?.auth_id || null;
-    };
+      if (Object.keys(updateAuthPayload).length) {
+        const { error: upAuthErr } = await supabase
+          .from("profiles_auth")
+          .update(updateAuthPayload)
+          .or(`auth_id.eq.${userId},id.eq.${userId}`);
 
-    if (!looksLikeUuid) {
-      const resolved = await resolveAuthId();
-      if (resolved) {
-        finalUserId = resolved;
+        if (upAuthErr && upAuthErr.code !== "42P01") {
+          console.error("Erro ao atualizar profiles_auth:", upAuthErr);
+          return res.status(400).json({ error: upAuthErr.message });
+        }
+      }
+    } catch (tableError) {
+      if (tableError?.code !== "42P01") {
+        console.error("Erro inesperado ao atualizar profiles_auth:", tableError);
+        return res.status(400).json({ error: tableError.message });
       }
     }
 
-    const { name, username, whatsapp, role, password, email } = req.body || {};
-    const trimmedEmail = typeof email === "string" ? email.trim() : "";
-    const hasEmail = trimmedEmail && trimmedEmail.includes("@");
-    const hasPassword = typeof password === "string" && password.trim().length >= 4;
-
-    const finalUsername =
-      typeof username === "string" && username.trim()
-        ? username.trim()
-        : hasEmail
-          ? trimmedEmail
-          : undefined;
-
-    // Atualiza profiles_auth (mantendo compatibilidade com id ou auth_id)
-    const updateAuthPayload = {};
-    if (typeof name === "string") updateAuthPayload.name = name;
-    if (typeof finalUsername === "string") updateAuthPayload.username = finalUsername;
-    if (typeof whatsapp === "string") updateAuthPayload.whatsapp = whatsapp;
-    if (typeof role === "string") updateAuthPayload.role = role;
-
-    if (Object.keys(updateAuthPayload).length) {
-      const { error: upAuthErr } = await supabase
-        .from("profiles_auth")
-        .update(updateAuthPayload)
-        .or(`auth_id.eq.${userId},id.eq.${userId}`);
-
-      if (upAuthErr) {
-        console.error("Erro ao atualizar profiles_auth:", upAuthErr);
-        return res.status(400).json({ error: upAuthErr.message });
-      }
-    }
-
-    // Atualiza profiles também
     const updateProfilePayload = {};
     if (typeof name === "string") updateProfilePayload.name = name;
-    if (typeof finalUsername === "string")
-      updateProfilePayload.username = finalUsername;
+    if (trimmedUsername) updateProfilePayload.username = trimmedUsername;
     if (typeof whatsapp === "string") updateProfilePayload.whatsapp = whatsapp;
     if (typeof role === "string") updateProfilePayload.role = role;
 
-    if (Object.keys(updateProfilePayload).length) {
-      const { error: upProfileErr } = await supabase
-        .from("profiles")
-        .update(updateProfilePayload)
-        .eq("id", finalUserId);
+    const { error: upProfileErr } = await supabase
+      .from("profiles")
+      .update(updateProfilePayload)
+      .eq("id", userId);
 
-      if (upProfileErr) {
-        console.error("Erro ao atualizar profiles:", upProfileErr);
-        return res.status(400).json({ error: upProfileErr.message });
-      }
+    if (upProfileErr) {
+      console.error("Erro ao atualizar profiles:", upProfileErr);
+      return res.status(400).json({ error: upProfileErr.message });
     }
 
-    const authUpdatePayload = {};
-    const hasNameForAuth = typeof name === "string" && name.trim();
-    if (hasEmail) {
-      authUpdatePayload.email = trimmedEmail;
-      authUpdatePayload.email_confirm = true;
-    }
-    if (hasPassword) {
-      authUpdatePayload.password = password.trim();
-    }
-    if (hasNameForAuth) {
+    const authUpdatePayload = { email: trimmedUsername };
+
+    if (trimmedName) {
       authUpdatePayload.user_metadata = {
-        full_name: name.trim(),
-        name: name.trim(),
+        display_name: trimmedName,
+        full_name: trimmedName,
       };
     }
 
-    if (Object.keys(authUpdatePayload).length) {
-      const attemptAuthUpdate = async () =>
-        supabase.auth.admin.updateUserById(finalUserId, authUpdatePayload);
+    if (trimmedPassword) {
+      authUpdatePayload.password = trimmedPassword;
+    }
 
-      let { error: authUpdateError } = await attemptAuthUpdate();
+    const { error: authUpdateError } = await supabase.auth.admin.updateUserById(
+      userId,
+      authUpdatePayload,
+    );
 
-      if (
-        authUpdateError &&
-        authUpdateError.message?.toLowerCase().includes("user not found")
-      ) {
-        const resolved = await resolveAuthId();
-        if (resolved) {
-          finalUserId = resolved;
-          ({ error: authUpdateError } = await attemptAuthUpdate());
-        }
-      }
-
-      if (authUpdateError) {
-        console.error("Erro ao atualizar usuário no Auth:", authUpdateError);
-        return res.status(400).json({ error: authUpdateError.message });
-      }
+    if (authUpdateError) {
+      console.error("Erro ao atualizar usuário no Auth:", authUpdateError);
+      return res.status(400).json({ error: authUpdateError.message });
     }
 
     return res.json({ ok: true });
