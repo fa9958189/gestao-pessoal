@@ -1241,67 +1241,45 @@ function App() {
       return;
     }
     try {
-      const currentUsername = (userForm.username || '').trim();
-      const originalUsername = (editingUserOriginal?.username || editingUserOriginal?.email || '').trim();
       const hasPassword = typeof userForm.password === 'string' && userForm.password.trim().length >= 4;
-      const emailChanged = Boolean(editingUserId && currentUsername !== originalUsername);
 
-      const payload = {
-        name: userForm.name,
-        username: userForm.username,
-        whatsapp: userForm.whatsapp,
-        role: userForm.role,
-        id: editingUserId
-      };
       if (editingUserId) {
-        const shouldCallBackend = emailChanged || hasPassword;
+        const { data: sessionData } = await client.auth.getSession();
+        const accessToken = sessionData?.session?.access_token;
 
-        if (shouldCallBackend) {
-          const { data: sessionData } = await client.auth.getSession();
-          const accessToken = sessionData?.session?.access_token;
+        if (!accessToken) {
+          pushToast('Sessão expirada. Faça login novamente.', 'warning');
+          return;
+        }
 
-          if (!accessToken) {
-            pushToast('Sessão expirada. Faça login novamente.', 'warning');
-            return;
-          }
+        if (!workoutApiBase || !/^https?:\/\//i.test(workoutApiBase)) {
+          pushToast('Backend não configurado. Não é possível alterar e-mail/senha sem o backend.', 'warning');
+          return;
+        }
 
-          if (!workoutApiBase || !/^https?:\/\//i.test(workoutApiBase)) {
-            pushToast('Backend não configurado. Não é possível alterar e-mail/senha sem o backend.', 'warning');
-            return;
-          }
+        const bodyPayload = {
+          name: userForm.name,
+          username: userForm.username,
+          whatsapp: userForm.whatsapp,
+          role: userForm.role,
+        };
 
-          const bodyPayload = {
-            name: userForm.name,
-            username: userForm.username,
-            whatsapp: userForm.whatsapp,
-            role: userForm.role,
-            email: userForm.username,
-          };
+        if (hasPassword) {
+          bodyPayload.password = userForm.password;
+        }
 
-          if (hasPassword) {
-            bodyPayload.password = userForm.password;
-          }
+        const response = await fetch(`${workoutApiBase}/admin/users/${editingUserId}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${accessToken}`
+          },
+          body: JSON.stringify(bodyPayload)
+        });
 
-          const response = await fetch(`${workoutApiBase}/admin/users/${editingUserId}`, {
-            method: 'PUT',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${accessToken}`
-            },
-            body: JSON.stringify(bodyPayload)
-          });
-
-          const body = await response.json().catch(() => ({}));
-          if (!response.ok) {
-            throw new Error(body.error || 'Erro ao atualizar usuário/senha.');
-          }
-        } else {
-          const { error } = await client
-            .from('profiles_auth')
-            .update(payload)
-            .or(`auth_id.eq.${editingUserId},id.eq.${editingUserId}`);
-
-          if (error) throw error;
+        const body = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(body.error || 'Erro ao atualizar usuário/senha.');
         }
       } else {
         if (!workoutApiBase || !/^https?:\/\//i.test(workoutApiBase)) {
