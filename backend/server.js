@@ -316,6 +316,106 @@ app.delete("/admin/users/:userId", async (req, res) => {
   }
 });
 
+app.put("/admin/users/:userId", async (req, res) => {
+  try {
+    const authHeader = req.headers["authorization"] || "";
+    const token = authHeader.startsWith("Bearer")
+      ? authHeader.replace(/Bearer\s+/i, "").trim()
+      : null;
+
+    if (!token) {
+      return res.status(401).json({ error: "Token de acesso obrigatório" });
+    }
+
+    const { data: requesterData, error: requesterError } =
+      await supabase.auth.getUser(token);
+
+    if (requesterError || !requesterData?.user?.id) {
+      return res.status(401).json({ error: "Sessão inválida." });
+    }
+
+    const requesterId = requesterData.user.id;
+    const { data: requesterProfile, error: roleError } = await supabase
+      .from("profiles_auth")
+      .select("role")
+      .eq("auth_id", requesterId)
+      .maybeSingle();
+
+    if (roleError) {
+      console.error("Erro ao validar perfil do solicitante:", roleError);
+      return res
+        .status(500)
+        .json({ error: "Falha ao validar permissões do solicitante." });
+    }
+
+    if (!requesterProfile || requesterProfile.role !== "admin") {
+      return res.status(403).json({ error: "Apenas admins podem editar." });
+    }
+
+    const { userId } = req.params;
+    if (!userId) {
+      return res.status(400).json({ error: "userId é obrigatório" });
+    }
+
+    const { name, username, whatsapp, role, password } = req.body || {};
+
+    // Atualiza profiles_auth (mantendo compatibilidade com id ou auth_id)
+    const updateAuthPayload = {};
+    if (typeof name === "string") updateAuthPayload.name = name;
+    if (typeof username === "string") updateAuthPayload.username = username;
+    if (typeof whatsapp === "string") updateAuthPayload.whatsapp = whatsapp;
+    if (typeof role === "string") updateAuthPayload.role = role;
+
+    if (Object.keys(updateAuthPayload).length) {
+      const { error: upAuthErr } = await supabase
+        .from("profiles_auth")
+        .update(updateAuthPayload)
+        .or(`auth_id.eq.${userId},id.eq.${userId}`);
+
+      if (upAuthErr) {
+        console.error("Erro ao atualizar profiles_auth:", upAuthErr);
+        return res.status(400).json({ error: upAuthErr.message });
+      }
+    }
+
+    // Atualiza profiles também
+    const updateProfilePayload = {};
+    if (typeof name === "string") updateProfilePayload.name = name;
+    if (typeof username === "string") updateProfilePayload.username = username;
+    if (typeof whatsapp === "string") updateProfilePayload.whatsapp = whatsapp;
+    if (typeof role === "string") updateProfilePayload.role = role;
+
+    if (Object.keys(updateProfilePayload).length) {
+      const { error: upProfileErr } = await supabase
+        .from("profiles")
+        .update(updateProfilePayload)
+        .eq("id", userId);
+
+      if (upProfileErr) {
+        console.error("Erro ao atualizar profiles:", upProfileErr);
+        return res.status(400).json({ error: upProfileErr.message });
+      }
+    }
+
+    // Atualiza senha no Supabase Auth (senha real)
+    if (typeof password === "string" && password.trim().length >= 4) {
+      const { error: passErr } = await supabase.auth.admin.updateUserById(userId, {
+        password: password.trim(),
+      });
+
+      if (passErr) {
+        console.error("Erro ao atualizar senha no Auth:", passErr);
+        return res.status(400).json({ error: passErr.message });
+      }
+    }
+
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error("Erro inesperado em PUT /admin/users/:userId:", err);
+    return res.status(500).json({ error: "Erro interno ao editar usuário." });
+  }
+});
+
 // Helpers para novas rotas de Rotina de Treino
 const getUserIdFromRequest = (req) =>
   req.body?.user_id ||

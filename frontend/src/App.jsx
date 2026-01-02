@@ -1248,8 +1248,49 @@ function App() {
         id: editingUserId
       };
       if (editingUserId) {
-        const { error } = await client.from('profiles_auth').update(payload).eq('id', editingUserId);
-        if (error) throw error;
+        const hasPassword = typeof userForm.password === 'string' && userForm.password.trim().length >= 4;
+
+        if (hasPassword) {
+          const { data: sessionData } = await client.auth.getSession();
+          const accessToken = sessionData?.session?.access_token;
+
+          if (!accessToken) {
+            pushToast('Sessão expirada. Faça login novamente.', 'warning');
+            return;
+          }
+
+          if (!workoutApiBase || !/^https?:\/\//i.test(workoutApiBase)) {
+            pushToast('Backend não configurado. Não é possível alterar senha sem o backend.', 'warning');
+            return;
+          }
+
+          const response = await fetch(`${workoutApiBase}/admin/users/${editingUserId}`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${accessToken}`
+            },
+            body: JSON.stringify({
+              name: userForm.name,
+              username: userForm.username,
+              whatsapp: userForm.whatsapp,
+              role: userForm.role,
+              password: userForm.password
+            })
+          });
+
+          const body = await response.json().catch(() => ({}));
+          if (!response.ok) {
+            throw new Error(body.error || 'Erro ao atualizar usuário/senha.');
+          }
+        } else {
+          const { error } = await client
+            .from('profiles_auth')
+            .update(payload)
+            .eq('id', editingUserId);
+
+          if (error) throw error;
+        }
       } else {
         if (!workoutApiBase || !/^https?:\/\//i.test(workoutApiBase)) {
           pushToast(
