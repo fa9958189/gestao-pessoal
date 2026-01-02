@@ -436,12 +436,19 @@ app.put("/admin/users/:userId", async (req, res) => {
     }
 
     const authUpdatePayload = {};
+    const hasNameForAuth = typeof name === "string" && name.trim();
     if (hasEmail) {
       authUpdatePayload.email = trimmedEmail;
       authUpdatePayload.email_confirm = true;
     }
     if (hasPassword) {
       authUpdatePayload.password = password.trim();
+    }
+    if (hasNameForAuth) {
+      authUpdatePayload.user_metadata = {
+        full_name: name.trim(),
+        name: name.trim(),
+      };
     }
 
     if (Object.keys(authUpdatePayload).length) {
