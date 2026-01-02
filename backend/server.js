@@ -389,13 +389,19 @@ app.put("/admin/users/:userId", async (req, res) => {
     const hasEmail = trimmedEmail && trimmedEmail.includes("@");
     const hasPassword = typeof password === "string" && password.trim().length >= 4;
 
+    const finalUsername =
+      typeof username === "string" && username.trim()
+        ? username.trim()
+        : hasEmail
+          ? trimmedEmail
+          : undefined;
+
     // Atualiza profiles_auth (mantendo compatibilidade com id ou auth_id)
     const updateAuthPayload = {};
     if (typeof name === "string") updateAuthPayload.name = name;
-    if (typeof username === "string") updateAuthPayload.username = username;
+    if (typeof finalUsername === "string") updateAuthPayload.username = finalUsername;
     if (typeof whatsapp === "string") updateAuthPayload.whatsapp = whatsapp;
     if (typeof role === "string") updateAuthPayload.role = role;
-    if (hasEmail) updateAuthPayload.email = trimmedEmail;
 
     if (Object.keys(updateAuthPayload).length) {
       const { error: upAuthErr } = await supabase
@@ -412,10 +418,10 @@ app.put("/admin/users/:userId", async (req, res) => {
     // Atualiza profiles também
     const updateProfilePayload = {};
     if (typeof name === "string") updateProfilePayload.name = name;
-    if (typeof username === "string") updateProfilePayload.username = username;
+    if (typeof finalUsername === "string")
+      updateProfilePayload.username = finalUsername;
     if (typeof whatsapp === "string") updateProfilePayload.whatsapp = whatsapp;
     if (typeof role === "string") updateProfilePayload.role = role;
-    if (hasEmail) updateProfilePayload.email = trimmedEmail;
 
     if (Object.keys(updateProfilePayload).length) {
       const { error: upProfileErr } = await supabase
