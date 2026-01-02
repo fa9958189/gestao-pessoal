@@ -464,6 +464,7 @@ canvas{ background:transparent; }
 .badge-income{ background:rgba(74,222,128,.15); color:#7bf2a4; }
 .badge-expense{ background:rgba(239,68,68,.15); color:#ff9ea3; }
 .badge-active{ background:rgba(74,222,128,.15); color:#7bf2a4; }
+.badge-pending{ background:rgba(251,191,36,.2); color:#facc15; }
 .badge-inactive{ background:rgba(148,163,184,.2); color:#cbd5e1; }
 .table-actions{ display:inline-flex; gap:6px; justify-content:flex-end; }
 .toast{
