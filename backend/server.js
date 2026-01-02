@@ -357,6 +357,33 @@ app.put("/admin/users/:userId", async (req, res) => {
       return res.status(400).json({ error: "userId é obrigatório" });
     }
 
+    let finalUserId = userId;
+    const looksLikeUuid =
+      typeof userId === "string" &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId);
+
+    const resolveAuthId = async () => {
+      const { data, error } = await supabase
+        .from("profiles_auth")
+        .select("auth_id")
+        .or(`id.eq.${userId},auth_id.eq.${userId}`)
+        .maybeSingle();
+
+      if (error) {
+        console.error("Erro ao buscar auth_id em profiles_auth:", error);
+        return null;
+      }
+
+      return data?.auth_id || null;
+    };
+
+    if (!looksLikeUuid) {
+      const resolved = await resolveAuthId();
+      if (resolved) {
+        finalUserId = resolved;
+      }
+    }
+
     const { name, username, whatsapp, role, password } = req.body || {};
 
     // Atualiza profiles_auth (mantendo compatibilidade com id ou auth_id)
@@ -389,7 +416,7 @@ app.put("/admin/users/:userId", async (req, res) => {
       const { error: upProfileErr } = await supabase
         .from("profiles")
         .update(updateProfilePayload)
-        .eq("id", userId);
+        .eq("id", finalUserId);
 
       if (upProfileErr) {
         console.error("Erro ao atualizar profiles:", upProfileErr);
@@ -399,9 +426,20 @@ app.put("/admin/users/:userId", async (req, res) => {
 
     // Atualiza senha no Supabase Auth (senha real)
     if (typeof password === "string" && password.trim().length >= 4) {
-      const { error: passErr } = await supabase.auth.admin.updateUserById(userId, {
-        password: password.trim(),
-      });
+      const attemptPasswordUpdate = async () =>
+        supabase.auth.admin.updateUserById(finalUserId, {
+          password: password.trim(),
+        });
+
+      let { error: passErr } = await attemptPasswordUpdate();
+
+      if (passErr && passErr.message?.toLowerCase().includes("user not found")) {
+        const resolved = await resolveAuthId();
+        if (resolved) {
+          finalUserId = resolved;
+          ({ error: passErr } = await attemptPasswordUpdate());
+        }
+      }
 
       if (passErr) {
         console.error("Erro ao atualizar senha no Auth:", passErr);

@@ -939,7 +939,7 @@ function App() {
                     if (profile?.role === 'admin') {
                       const { data, error } = await client
                         .from('profiles_auth')
-                        .select('*')
+                        .select('id, auth_id, name, username, whatsapp, role, email, created_at')
                         .order('name', { ascending: true });
 
                       if (error) throw error;
@@ -1287,7 +1287,7 @@ function App() {
           const { error } = await client
             .from('profiles_auth')
             .update(payload)
-            .eq('id', editingUserId);
+            .or(`auth_id.eq.${editingUserId},id.eq.${editingUserId}`);
 
           if (error) throw error;
         }
@@ -1646,9 +1646,9 @@ function App() {
             </div>
 
             <UsersTable
-              items={users.map((user) => ({ ...user, _editing: user.id === editingUserId }))}
+              items={users.map((user) => ({ ...user, _editing: (user.auth_id || user.id) === editingUserId }))}
               onEdit={(user) => {
-                setEditingUserId(user.id);
+                setEditingUserId(user.auth_id || user.id);
                 setUserForm({
                   name: user.name,
                   username: user.username,
