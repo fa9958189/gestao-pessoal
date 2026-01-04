@@ -68,9 +68,9 @@ const muscleGroups = [
   { id: 'triceps', name: 'Tríceps', image: TricepsImg },
   { id: 'abdomen', name: 'Abdômen', image: AbdomenImg },
   { id: 'pernas', name: 'Quadríceps', image: QuadricepsImg },
-  { id: 'gluteos', name: 'Glúteos', image: GluteosImg },
   { id: 'panturrilha', name: 'Panturrilha', image: PanturrilhaImg },
   { id: 'posterior_coxa', name: 'Posterior de Coxa', image: PosteriorCoxaImg },
+  { id: 'gluteos', name: 'Glúteos', image: GluteosImg },
 
   // Esportes
   { id: 'natacao', name: 'Natação', image: NatacaoImg },
@@ -85,13 +85,13 @@ const muscleGroups = [
   { id: 'esteira', name: 'Esteira', image: EsteiraImg },
 ];
 
-const MUSCLE_GROUPS = muscleGroups.slice(0, 8).map(({ id, name, image }) => ({
+const MUSCLE_GROUPS = muscleGroups.slice(0, 10).map(({ id, name, image }) => ({
   value: id,
   label: name,
   image
 }));
 
-const SPORTS = muscleGroups.slice(8).map(({ id, name, image }) => ({
+const SPORTS = muscleGroups.slice(10).map(({ id, name, image }) => ({
   value: id,
   label: name,
   image
