@@ -211,7 +211,6 @@ const MUSCLE_INFO = {
       { name: 'Agachamento hack', gif: PernasAgachamentoHackGif },
       { name: 'Cadeira extensora', gif: PernasCadeiraExtensoraGif },
       { name: 'Leg press', gif: PernasLegPressGif },
-      { name: 'Panturrilha Sentado na Máquina', gif: PernasPanturrilhaMaquinaGif },
     ],
   },
   panturrilha: {
@@ -220,6 +219,7 @@ const MUSCLE_INFO = {
       'Fundamental para estabilidade do tornozelo, impulsão em corridas, subidas e saltos. Trabalhada em elevações em pé ou sentado.',
     exercises: [
       { name: 'Elevação de panturrilha em pé', gif: PanturrilhaElevacaoEmPeGif },
+      { name: 'Panturrilha Sentado na Máquina', gif: PernasPanturrilhaMaquinaGif },
     ],
   },
   gluteos: {
