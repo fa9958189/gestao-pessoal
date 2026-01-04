@@ -13,6 +13,10 @@ import BoxeImg from '../assets/muscles/Boxe.png';
 import JiuJitsuImg from '../assets/muscles/Jiu-jitsu.png';
 import FutebolImg from '../assets/muscles/Futebol.png';
 import BeachTennisImg from '../assets/muscles/beach tennis.png';
+import BicicletaImg from '../assets/muscles/bicicleta.png';
+import CorridaAoArLivreImg from '../assets/muscles/Corrida ao ar livre.png';
+import EscadaImg from '../assets/muscles/escada.png';
+import EsteiraImg from '../assets/muscles/esteira.png';
 import PeitoCrossoverGif from '../assets/exercise/peito/Crossover com pegada alta.gif';
 import PeitoSupinoInclinadoGif from '../assets/exercise/peito/Supino inclinado com halteres.gif';
 import PeitoSupinoRetoGif from '../assets/exercise/peito/Supino reto com barra.gif';
@@ -71,6 +75,10 @@ const muscleGroups = [
   { id: 'jiujitsu', name: 'Jiu-Jitsu', image: JiuJitsuImg },
   { id: 'futebol', name: 'Futebol', image: FutebolImg },
   { id: 'beachtennis', name: 'Beach Tennis', image: BeachTennisImg },
+  { id: 'bicicleta', name: 'Bicicleta', image: BicicletaImg },
+  { id: 'corrida_ao_ar_livre', name: 'Corrida ao ar livre', image: CorridaAoArLivreImg },
+  { id: 'escada', name: 'Escada', image: EscadaImg },
+  { id: 'esteira', name: 'Esteira', image: EsteiraImg },
 ];
 
 const MUSCLE_GROUPS = muscleGroups.slice(0, 8).map(({ id, name, image }) => ({
