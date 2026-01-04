@@ -54,6 +54,10 @@ import GluteoFlexoraDeitadaGif from "../assets/exercise/gluteo/Flexora deitada.g
 import GluteoNoCaboGif from "../assets/exercise/gluteo/Glúteos no Cabo.gif";
 import GluteoLevantamentoTerraGif from "../assets/exercise/gluteo/Levantamento terra.gif";
 import GluteoStiffGif from "../assets/exercise/gluteo/Stiff.gif";
+import PosteriorLevantamentoTerraGif from "../assets/exercise/posterior de coxa/ Levantamento terra.gif";
+import PosteriorCadeiraFlexoraGif from "../assets/exercise/posterior de coxa/Cadeira flexora.gif";
+import PosteriorFlexoraDeitadaGif from "../assets/exercise/posterior de coxa/Flexora deitada.gif";
+import PosteriorStiffGif from "../assets/exercise/posterior de coxa/Stiff.gif";
 import ProgressRing from './charts/ProgressRing.jsx';
 import GoalBar from './charts/GoalBar.jsx';
 import WeightLineChart from './charts/WeightLineChart.jsx';
@@ -70,7 +74,7 @@ const muscleGroups = [
   { id: 'abdomen', name: 'Abdômen', image: AbdomenImg },
   { id: 'pernas', name: 'Quadríceps', image: QuadricepsImg },
   { id: 'panturrilha', name: 'Panturrilha', image: PanturrilhaImg },
-  { id: 'posterior_coxa', name: 'Posterior de Coxa', image: PosteriorCoxaImg },
+  { id: 'posterior_de_coxa', name: 'Posterior de Coxa', image: PosteriorCoxaImg },
   { id: 'gluteos', name: 'Glúteos', image: GluteosImg },
 
   // Esportes
@@ -220,6 +224,17 @@ const MUSCLE_INFO = {
     exercises: [
       { name: 'Elevação de panturrilha em pé', gif: PanturrilhaElevacaoEmPeGif },
       { name: 'Panturrilha Sentado na Máquina', gif: PernasPanturrilhaMaquinaGif },
+    ],
+  },
+  posterior_de_coxa: {
+    title: 'Posterior de Coxa',
+    description:
+      'Importante para a flexão do joelho e estabilidade do quadril, muito ativado em levantamento terra, stiff e variações de flexora.',
+    exercises: [
+      { name: 'Levantamento terra', gif: PosteriorLevantamentoTerraGif },
+      { name: 'Cadeira flexora', gif: PosteriorCadeiraFlexoraGif },
+      { name: 'Flexora deitada', gif: PosteriorFlexoraDeitadaGif },
+      { name: 'Stiff', gif: PosteriorStiffGif },
     ],
   },
   gluteos: {
