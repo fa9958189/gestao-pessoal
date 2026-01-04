@@ -50,10 +50,10 @@ import PernasAgachamentoHackGif from "../assets/exercise/Quadríceps/Agachamento
 import PernasCadeiraExtensoraGif from "../assets/exercise/Quadríceps/Cadeira extensora.gif";
 import PernasLegPressGif from "../assets/exercise/Quadríceps/Leg press.gif";
 import PernasPanturrilhaMaquinaGif from "../assets/exercise/Quadríceps/Panturrilha Sentado na Máquina.gif";
-import GluteoFlexoraDeitadaGif from "../assets/exercise/gluteo/Flexora deitada.gif";
-import GluteoNoCaboGif from "../assets/exercise/gluteo/Glúteos no Cabo.gif";
-import GluteoLevantamentoTerraGif from "../assets/exercise/gluteo/Levantamento terra.gif";
-import GluteoStiffGif from "../assets/exercise/gluteo/Stiff.gif";
+import GluteoElevacaoComPesoGif from '../assets/exercise/gluteo/Elevação pélvica com peso.gif';
+import GluteoLevantamentoTerraGif from '../assets/exercise/gluteo/Levantamento terra.gif';
+import GluteoMaquinaAbducaoGif from '../assets/exercise/gluteo/Máquina Adutora Externa.gif';
+import GluteoStiffGif from '../assets/exercise/gluteo/Stiff.gif';
 import PosteriorLevantamentoTerraGif from "../assets/exercise/posterior de coxa/ Levantamento terra.gif";
 import PosteriorCadeiraFlexoraGif from "../assets/exercise/posterior de coxa/Cadeira flexora.gif";
 import PosteriorFlexoraDeitadaGif from "../assets/exercise/posterior de coxa/Flexora deitada.gif";
@@ -242,9 +242,9 @@ const MUSCLE_INFO = {
     description:
       'Músculos fortes que estabilizam o quadril e ajudam em agachamentos, subidas, corridas e levantamento terra. Importantes para força, potência e proteção da coluna.',
     exercises: [
-      { name: 'Flexora deitada', gif: GluteoFlexoraDeitadaGif },
-      { name: 'Glúteos no cabo', gif: GluteoNoCaboGif },
+      { name: 'Elevação de quadril com peso', gif: GluteoElevacaoComPesoGif },
       { name: 'Levantamento terra', gif: GluteoLevantamentoTerraGif },
+      { name: 'Abdução de quadril na máquina', gif: GluteoMaquinaAbducaoGif },
       { name: 'Stiff', gif: GluteoStiffGif },
     ],
   },
