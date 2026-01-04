@@ -32,6 +32,7 @@ import CostasPulleyGif from '../assets/exercise/costas/Pulley costas.gif';
 import CostasRemadaBaixaGif from '../assets/exercise/costas/Remada baixa.gif';
 import CostasRemadaSerroteGif from '../assets/exercise/costas/Remada serrote.gif';
 import CostasVoadorInvertidoGif from '../assets/exercise/costas/Voador invertido.gif';
+import PanturrilhaElevacaoEmPeGif from '../assets/exercise/panturrilha/panturrilha 1.gif';
 import OmbroArnoldPressGif from '../assets/exercise/ombro/Arnold press.gif';
 import OmbroCrucifixoInversoGif from '../assets/exercise/ombro/Crucifixo inverso.gif';
 import OmbroElevacaoFrontalGif from '../assets/exercise/ombro/Elevação frontal.gif';
@@ -211,6 +212,14 @@ const MUSCLE_INFO = {
       { name: 'Cadeira extensora', gif: PernasCadeiraExtensoraGif },
       { name: 'Leg press', gif: PernasLegPressGif },
       { name: 'Panturrilha Sentado na Máquina', gif: PernasPanturrilhaMaquinaGif },
+    ],
+  },
+  panturrilha: {
+    title: 'Panturrilha',
+    description:
+      'Fundamental para estabilidade do tornozelo, impulsão em corridas, subidas e saltos. Trabalhada em elevações em pé ou sentado.',
+    exercises: [
+      { name: 'Elevação de panturrilha em pé', gif: PanturrilhaElevacaoEmPeGif },
     ],
   },
   gluteos: {
