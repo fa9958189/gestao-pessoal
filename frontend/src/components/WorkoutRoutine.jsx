@@ -7,6 +7,8 @@ import TricepsImg from '../assets/muscles/Triceps.png';
 import AbdomenImg from '../assets/muscles/Abdomen.png';
 import QuadricepsImg from '../assets/muscles/quadriceps.png';
 import GluteosImg from '../assets/muscles/Gluteos.png';
+import PanturrilhaImg from '../assets/muscles/panturrilha.png';
+import PosteriorCoxaImg from '../assets/muscles/posterior de coxa.png';
 import NatacaoImg from '../assets/muscles/Natacao.png';
 import VoleiImg from '../assets/muscles/Volei.png';
 import BoxeImg from '../assets/muscles/Boxe.png';
@@ -67,6 +69,8 @@ const muscleGroups = [
   { id: 'abdomen', name: 'Abdômen', image: AbdomenImg },
   { id: 'pernas', name: 'Quadríceps', image: QuadricepsImg },
   { id: 'gluteos', name: 'Glúteos', image: GluteosImg },
+  { id: 'panturrilha', name: 'Panturrilha', image: PanturrilhaImg },
+  { id: 'posterior_coxa', name: 'Posterior de Coxa', image: PosteriorCoxaImg },
 
   // Esportes
   { id: 'natacao', name: 'Natação', image: NatacaoImg },
