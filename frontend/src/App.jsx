@@ -94,28 +94,39 @@ const formatTimeRange = (start, end) => {
 const BILLING_DUE_DAY = 20;
 const FIXED_COMMISSION_CENTS = 2000;
 
+const getCurrentCycleStart = (today = new Date()) => {
+  const cursor = new Date(today);
+  const referenceMonth = cursor.getDate() >= BILLING_DUE_DAY
+    ? cursor.getMonth()
+    : cursor.getMonth() - 1;
+  const referenceYear = referenceMonth >= 0 ? cursor.getFullYear() : cursor.getFullYear() - 1;
+  const month = referenceMonth >= 0 ? referenceMonth : 11;
+  const cycleStart = new Date(referenceYear, month, BILLING_DUE_DAY);
+  cycleStart.setHours(0, 0, 0, 0);
+  return cycleStart;
+};
+
+const isUserPaidForCurrentCycle = (user, today = new Date()) => {
+  if (!user) return false;
+  const lastPayment = user.last_payment_at || user.last_paid_at || user.billing_last_paid_at;
+  if (!lastPayment) return false;
+  const parsed = new Date(lastPayment);
+  if (Number.isNaN(parsed.getTime())) return false;
+  return parsed >= getCurrentCycleStart(today);
+};
+
 const computeEffectiveSubscriptionStatus = (user, today = new Date()) => {
   if (!user) return 'active';
 
   if (user.subscription_status === 'inactive') return 'inactive';
-
-  const dueDay = Number.isFinite(Number(user.due_day)) ? Number(user.due_day) : BILLING_DUE_DAY;
-  const current = new Date(today);
-  const currentDay = current.getDate();
-  const currentMonth = current.getMonth();
-  const currentYear = current.getFullYear();
-
-  if (currentDay >= dueDay) {
-    const lastPaid = user.last_paid_at ? new Date(user.last_paid_at) : null;
-    const paidMonth = lastPaid?.getMonth();
-    const paidYear = lastPaid?.getFullYear();
-
-    if (!lastPaid || paidMonth !== currentMonth || paidYear !== currentYear) {
-      return 'pending';
-    }
-  }
+  if (!isUserPaidForCurrentCycle(user, today)) return 'pending';
 
   return 'active';
+};
+
+const getCurrentPeriodMonth = (today = new Date()) => {
+  const cursor = new Date(today);
+  return new Date(cursor.getFullYear(), cursor.getMonth(), 1).toISOString().slice(0, 10);
 };
 
 const randomId = () => crypto.randomUUID ? crypto.randomUUID() : String(Date.now());
@@ -373,6 +384,7 @@ const UsersTable = ({ items, onEdit, onDelete, onBillingAction }) => (
               <th>WhatsApp</th>
               <th>Perfil</th>
               <th>Status</th>
+              <th>Pagamento</th>
               <th>Vencimento</th>
               <th>Último pagamento</th>
               <th>Criado em</th>
@@ -411,8 +423,20 @@ const UsersTable = ({ items, onEdit, onDelete, onBillingAction }) => (
                     })()}
                   </div>
                 </td>
+                <td>
+                  <div className="row" style={{ gap: 6, alignItems: 'center' }}>
+                    {(() => {
+                      const paid = user.payment_status === 'paid';
+                      return (
+                        <span className={`badge ${paid ? 'badge-paid' : 'badge-payment-pending'}`}>
+                          {paid ? 'PAGO' : 'PENDENTE'}
+                        </span>
+                      );
+                    })()}
+                  </div>
+                </td>
                 <td>dia {user.due_day || BILLING_DUE_DAY}</td>
-                <td>{formatDate(user.last_paid_at)}</td>
+                <td>{formatDate(user.last_payment_at || user.last_paid_at)}</td>
                 <td>{formatDate(user.created_at)}</td>
                 <td className="right">
                   <div className="table-actions">
@@ -987,7 +1011,7 @@ function App() {
       try {
         const { data: profileRow } = await client
           .from('profiles_auth')
-          .select('id, auth_id, name, username, whatsapp, role, email, subscription_status, due_day, last_paid_at')
+          .select('id, auth_id, name, username, whatsapp, role, email, subscription_status, due_day, last_payment_at, last_paid_at')
           .eq('auth_id', session.user.id)
           .single();
 
@@ -1066,12 +1090,13 @@ function App() {
         try {
           const { data, error } = await client
             .from('profiles_auth')
-            .select('id, auth_id, name, username, whatsapp, role, email, created_at, subscription_status, due_day, last_paid_at, affiliate_id, affiliate_code')
+            .select('id, auth_id, name, username, whatsapp, role, email, created_at, subscription_status, due_day, last_payment_at, last_paid_at, affiliate_id, affiliate_code')
             .order('name', { ascending: true });
 
           if (error) throw error;
           userData = (data || []).map((item) => ({
             ...item,
+            payment_status: isUserPaidForCurrentCycle(item, new Date()) ? 'paid' : 'pending',
             derived_status: computeEffectiveSubscriptionStatus(item, new Date()),
           }));
           setUsers(userData);
@@ -1605,7 +1630,7 @@ function App() {
       payload.subscription_status = 'inactive';
     } else if (action === 'markPaid') {
       payload.subscription_status = 'active';
-      payload.last_paid_at = today;
+      payload.last_payment_at = today;
     } else {
       return;
     }
@@ -1619,6 +1644,18 @@ function App() {
       if (error) throw error;
 
       pushToast('Status de assinatura atualizado.', 'success');
+      setUsers((prev) => prev.map((item) => {
+        const matchId = item.auth_id || item.id;
+        if (matchId !== targetId) return item;
+
+        return {
+          ...item,
+          ...payload,
+          payment_status: action === 'markPaid' ? 'paid' : item.payment_status,
+          last_payment_at: action === 'markPaid' ? today : item.last_payment_at,
+          derived_status: computeEffectiveSubscriptionStatus({ ...item, ...payload, last_payment_at: today }, new Date()),
+        };
+      }));
       loadRemoteData();
     } catch (err) {
       console.warn('Erro ao atualizar status de assinatura', err);
@@ -1630,6 +1667,10 @@ function App() {
     ...item,
     active_clients_count: item?.active_clients_count ?? item?.active_users ?? 0,
     inactive_clients_count: item?.inactive_clients_count ?? item?.inactive_users ?? item?.pending_users ?? 0,
+    current_payout_period: item?.current_payout_period || item?.period_month || getCurrentPeriodMonth(),
+    current_payout_label: (item?.current_payout_period || item?.period_month || getCurrentPeriodMonth()).slice(0, 7),
+    current_payout_status: item?.current_payout_status || (item?.current_payout_paid_at || item?.paid_at ? 'paid' : 'pending'),
+    current_payout_paid_at: item?.current_payout_paid_at || item?.paid_at || null,
   });
 
   const loadAffiliates = async () => {
@@ -1825,8 +1866,7 @@ function App() {
     if (!client || profile?.role !== 'admin') return;
     if (!workoutApiBase || !/^https?:\/\//i.test(workoutApiBase)) return;
 
-    const now = new Date();
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+    const monthStart = getCurrentPeriodMonth();
 
     try {
       const accessToken = await getAccessToken();
@@ -1853,6 +1893,18 @@ function App() {
       }
 
       pushToast('Pagamento do mês marcado como pago.', 'success');
+      const payout = body?.payout;
+      setAffiliates((prev) => prev.map((item) =>
+        item.id === affiliate.id
+          ? {
+              ...item,
+              current_payout_status: 'paid',
+              current_payout_period: payout?.period_month || monthStart,
+              current_payout_label: (payout?.period_month || monthStart).slice(0, 7),
+              current_payout_paid_at: payout?.paid_at || new Date().toISOString(),
+            }
+          : item
+      ));
       loadAffiliates();
     } catch (err) {
       console.warn('Erro ao registrar pagamento de afiliado', err);
@@ -2244,6 +2296,7 @@ function App() {
                     <th>Status</th>
                     <th>Ativos</th>
                     <th>Inativos</th>
+                    <th>Pagamento</th>
                     <th>Comissão mês</th>
                     <th>Ações</th>
                   </tr>
@@ -2256,6 +2309,14 @@ function App() {
                       <td>{item.is_active ? 'Ativo' : 'Inativo'}</td>
                       <td>{item.active_clients_count ?? item.active_users ?? 0}</td>
                       <td>{item.inactive_clients_count ?? item.inactive_users ?? 0}</td>
+                      <td>
+                        <div className="column" style={{ gap: 4, alignItems: 'flex-start' }}>
+                          <span className={`badge ${item.current_payout_status === 'paid' ? 'badge-paid' : 'badge-payment-pending'}`}>
+                            {item.current_payout_status === 'paid' ? 'PAGO' : 'PENDENTE'}
+                          </span>
+                          <small className="muted">Ref.: {item.current_payout_label || '-'}</small>
+                        </div>
+                      </td>
                       <td>{formatCurrency((item.commission_month_cents || 0) / 100)}</td>
                       <td className="table-actions">
                         <button className="ghost" onClick={() => handleViewAffiliateUsers(item)}>Ver clientes</button>
@@ -2361,7 +2422,7 @@ function App() {
             </div>
             {!affiliateUsersLoading && affiliateUsersList.length > 0 && (
               <div className="affiliate-modal-total">
-                <span>Total:</span>
+                <span>TOTAL:</span>
                 <strong>{affiliateClientsTotal}</strong>
               </div>
             )}

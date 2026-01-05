@@ -37,6 +37,9 @@ app.use(express.json());
 
 const BILLING_DEFAULT_DUE_DAY = 20;
 
+const getCurrentPeriodMonth = (today = new Date()) =>
+  new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10);
+
 // Inicia o job de lembretes (agenda)
 startEventReminderWorker();
 startDailyWorkoutScheduleWorker();
@@ -618,6 +621,23 @@ app.get("/admin/affiliates", async (req, res) => {
       return res.status(400).json({ error: affiliatesError.message });
     }
 
+    const currentPeriodMonth = getCurrentPeriodMonth();
+    let payoutMap = new Map();
+    try {
+      const { data: payoutRows, error: payoutErr } = await supabase
+        .from("affiliate_payouts")
+        .select("affiliate_id, period_month, paid_at, amount_cents")
+        .eq("period_month", currentPeriodMonth);
+
+      if (payoutErr && payoutErr.code !== "42P01") {
+        throw payoutErr;
+      }
+
+      payoutMap = new Map((payoutRows || []).map((row) => [row.affiliate_id, row]));
+    } catch (err) {
+      console.error("Erro ao buscar pagamentos de afiliados:", err);
+    }
+
     let profiles = [];
     try {
       const { data: profileRows, error: profileErr } = await supabase
@@ -654,6 +674,8 @@ app.get("/admin/affiliates", async (req, res) => {
     const response = (affiliates || []).map((affiliate) => {
       const stat = counts.get(affiliate.id) || { total: 0, active: 0, inactive: 0 };
       const commissionMonthCents = (stat.active || 0) * (affiliate.commission_cents || 0);
+      const payoutRow = payoutMap.get(affiliate.id) || null;
+      const payoutStatus = payoutRow?.paid_at ? "paid" : "pending";
 
       return {
         ...affiliate,
@@ -664,6 +686,9 @@ app.get("/admin/affiliates", async (req, res) => {
         inactive_clients_count: stat.inactive || 0,
         pending_users: stat.inactive || 0,
         commission_month_cents: commissionMonthCents,
+        current_payout_status: payoutStatus,
+        current_payout_period: payoutRow?.period_month || currentPeriodMonth,
+        current_payout_paid_at: payoutRow?.paid_at || null,
       };
     });
 
