@@ -1055,9 +1055,20 @@ canvas{ background:transparent; }
 
 .affiliate-users-list{
   margin-top:10px;
-  max-height:360px;
-  overflow:auto;
+  max-height:60vh;
+  overflow-y:auto;
+  overflow-x:hidden;
 }
+
+.affiliate-modal-total{
+  margin-top:12px;
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  gap:8px;
+  font-size:15px;
+}
+.affiliate-modal-total strong{ font-size:16px; }
 
 @media (max-width: 900px){
   .chart-with-legend{ grid-template-columns:1fr; }
