@@ -637,26 +637,32 @@ app.get("/admin/affiliates", async (req, res) => {
     const counts = new Map();
     profiles.forEach((row) => {
       if (!row.affiliate_id) return;
+
+      const status = (row.billing_status || "").toLowerCase();
       const current = counts.get(row.affiliate_id) || {
         total: 0,
         active: 0,
-        pending: 0,
+        inactive: 0,
       };
+
       current.total += 1;
-      if (row.billing_status === "pending") current.pending += 1;
-      if (row.billing_status === "active") current.active += 1;
+      if (status === "active") current.active += 1;
+      if (status === "inactive") current.inactive += 1;
       counts.set(row.affiliate_id, current);
     });
 
     const response = (affiliates || []).map((affiliate) => {
-      const stat = counts.get(affiliate.id) || { total: 0, active: 0, pending: 0 };
+      const stat = counts.get(affiliate.id) || { total: 0, active: 0, inactive: 0 };
       const commissionMonthCents = (stat.active || 0) * (affiliate.commission_cents || 0);
 
       return {
         ...affiliate,
         total_users: stat.total || 0,
         active_users: stat.active || 0,
-        pending_users: stat.pending || 0,
+        inactive_users: stat.inactive || 0,
+        active_clients_count: stat.active || 0,
+        inactive_clients_count: stat.inactive || 0,
+        pending_users: stat.inactive || 0,
         commission_month_cents: commissionMonthCents,
       };
     });
@@ -778,7 +784,17 @@ app.get("/admin/affiliates/:id/users", async (req, res) => {
       return res.status(400).json({ error: error.message });
     }
 
-    return res.json(data || []);
+    const normalizedUsers = (data || []).map((user) => {
+      const normalizedStatus = user.billing_status === "active" ? "active" : "inactive";
+
+      return {
+        ...user,
+        billing_status: normalizedStatus,
+        status: normalizedStatus,
+      };
+    });
+
+    return res.json(normalizedUsers);
   } catch (err) {
     console.error("Erro inesperado em GET /admin/affiliates/:id/users:", err);
     return res.status(500).json({ error: "Erro interno ao listar usuários do afiliado." });
