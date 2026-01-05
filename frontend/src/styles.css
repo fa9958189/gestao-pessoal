@@ -466,6 +466,8 @@ canvas{ background:transparent; }
 .badge-active{ background:rgba(74,222,128,.15); color:#7bf2a4; }
 .badge-pending{ background:rgba(251,191,36,.2); color:#facc15; }
 .badge-inactive{ background:rgba(148,163,184,.2); color:#cbd5e1; }
+.badge-paid{ background:rgba(74,222,128,.16); color:#b5f8c7; }
+.badge-payment-pending{ background:rgba(251,191,36,.15); color:#facc15; }
 .table-actions{ display:inline-flex; gap:6px; justify-content:flex-end; }
 .toast{
   position:fixed;
@@ -1045,17 +1047,21 @@ canvas{ background:transparent; }
 .affiliate-modal{
   width:95%;
   max-width:760px;
+  max-height:70vh;
   background:var(--card);
   color:var(--text);
   border:1px solid var(--border);
   border-radius:14px;
   box-shadow:0 18px 40px rgba(0,0,0,.35);
   padding:16px;
+  display:flex;
+  flex-direction:column;
 }
 
 .affiliate-users-list{
   margin-top:10px;
-  max-height:60vh;
+  flex:1;
+  min-height:0;
   overflow-y:auto;
   overflow-x:hidden;
 }
