@@ -156,7 +156,7 @@ app.post("/scan-food", scanFoodUpload, async (req, res) => {
 
 app.post("/create-user", async (req, res) => {
   try {
-    const { name, username, password, whatsapp, role } = req.body;
+    const { name, username, password, whatsapp, role, affiliateCode } = req.body;
 
     if (!name || !username || !password) {
       return res
@@ -165,6 +165,29 @@ app.post("/create-user", async (req, res) => {
     }
 
     const rawUsername = username.trim();
+
+    const trimmedAffiliateCode = (affiliateCode || "").trim();
+    let affiliate = null;
+
+    if (trimmedAffiliateCode) {
+      const { data: affiliateRow, error: affiliateError } = await supabase
+        .from("affiliates")
+        .select("id, code, is_active")
+        .eq("code", trimmedAffiliateCode)
+        .eq("is_active", true)
+        .maybeSingle();
+
+      if (affiliateError) {
+        console.error("Erro ao buscar afiliado:", affiliateError);
+        return res.status(400).json({ error: affiliateError.message });
+      }
+
+      if (!affiliateRow) {
+        return res.status(400).json({ error: "Código de afiliado inválido" });
+      }
+
+      affiliate = affiliateRow;
+    }
 
     // Se o "username" já for um e-mail válido, usa ele direto.
     // Senão, gera um e-mail fake tipo fulano@example.com
@@ -231,6 +254,8 @@ app.post("/create-user", async (req, res) => {
         whatsapp,
         billing_status: "active",
         billing_due_day: BILLING_DEFAULT_DUE_DAY,
+        affiliate_id: affiliate?.id || null,
+        affiliate_code: affiliate?.code || null,
       });
 
     if (authTableError) {
