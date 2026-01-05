@@ -1623,6 +1623,12 @@ function App() {
     }
   };
 
+  const normalizeAffiliateStats = (item) => ({
+    ...item,
+    active_clients_count: item?.active_clients_count ?? item?.active_users ?? 0,
+    inactive_clients_count: item?.inactive_clients_count ?? item?.inactive_users ?? item?.pending_users ?? 0,
+  });
+
   const loadAffiliates = async () => {
     if (!client || profile?.role !== 'admin') return;
 
@@ -1657,7 +1663,8 @@ function App() {
         throw new Error(body?.error || 'Erro ao carregar afiliados.');
       }
 
-      setAffiliates(Array.isArray(body) ? body : []);
+      const parsed = Array.isArray(body) ? body.map(normalizeAffiliateStats) : [];
+      setAffiliates(parsed);
     } catch (err) {
       console.warn('Erro ao carregar afiliados', err);
       setAffiliates([]);
@@ -1802,7 +1809,11 @@ function App() {
         throw new Error(body?.error || 'Erro ao carregar clientes.');
       }
 
-      setAffiliateUsers(Array.isArray(body) ? body : []);
+      const parsedUsers = Array.isArray(body)
+        ? body.map((user) => ({ ...user, status: user.status || user.billing_status }))
+        : [];
+
+      setAffiliateUsers(parsedUsers);
     } catch (err) {
       console.warn('Erro ao listar clientes do afiliado', err);
       pushToast('Não foi possível carregar os clientes desse afiliado.', 'warning');
@@ -2243,7 +2254,7 @@ function App() {
                     <th>Nome</th>
                     <th>Status</th>
                     <th>Ativos</th>
-                    <th>Pendentes</th>
+                    <th>Inativos</th>
                     <th>Comissão mês</th>
                     <th>Ações</th>
                   </tr>
@@ -2254,8 +2265,8 @@ function App() {
                       <td>{item.code}</td>
                       <td>{item.name}</td>
                       <td>{item.is_active ? 'Ativo' : 'Inativo'}</td>
-                      <td>{item.active_users ?? 0}</td>
-                      <td>{item.pending_users ?? 0}</td>
+                      <td>{item.active_clients_count ?? item.active_users ?? 0}</td>
+                      <td>{item.inactive_clients_count ?? item.inactive_users ?? 0}</td>
                       <td>{formatCurrency((item.commission_month_cents || 0) / 100)}</td>
                       <td className="table-actions">
                         <button className="ghost" onClick={() => handleViewAffiliateUsers(item)}>Ver clientes</button>
@@ -2344,7 +2355,13 @@ function App() {
                       <tr key={user.id || user.auth_id}>
                         <td>{user.name || '-'}</td>
                         <td>{user.email || '-'}</td>
-                        <td>{user.billing_status || '-'}</td>
+                        <td>
+                          {user.status === 'active'
+                            ? 'ATIVO'
+                            : user.status === 'inactive'
+                              ? 'INATIVO'
+                              : '-'}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
