@@ -43,7 +43,8 @@ const defaultUserForm = {
   username: '',
   password: '',
   whatsapp: '',
-  role: 'user'
+  role: 'user',
+  affiliateCode: ''
 };
 
 const normalizeBaseUrl = (value) => {
@@ -1062,7 +1063,7 @@ function App() {
         try {
           const { data, error } = await client
             .from('profiles_auth')
-            .select('id, auth_id, name, username, whatsapp, role, email, created_at, subscription_status, due_day, last_paid_at')
+            .select('id, auth_id, name, username, whatsapp, role, email, created_at, subscription_status, due_day, last_paid_at, affiliate_id, affiliate_code')
             .order('name', { ascending: true });
 
           if (error) throw error;
@@ -1497,16 +1498,23 @@ function App() {
         }
 
         // Criar usuário via backend
+        const trimmedAffiliateCode = (userForm.affiliateCode || '').trim();
+        const createUserPayload = {
+          name: userForm.name,
+          username: userForm.username,
+          password: userForm.password,
+          whatsapp: userForm.whatsapp,
+          role: userForm.role,
+        };
+
+        if (trimmedAffiliateCode) {
+          createUserPayload.affiliateCode = trimmedAffiliateCode;
+        }
+
         const response = await fetch(`${workoutApiBase}/create-user`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            name: userForm.name,
-            username: userForm.username,
-            password: userForm.password,
-            whatsapp: userForm.whatsapp,
-            role: userForm.role
-          })
+          body: JSON.stringify(createUserPayload)
         });
 
         const body = await response.json();
@@ -2114,6 +2122,14 @@ function App() {
                   <option value="admin">Admin</option>
                 </select>
               </div>
+              <div>
+                <label>Código do afiliado (opcional)</label>
+                <input
+                  value={userForm.affiliateCode}
+                  onChange={(e) => setUserForm({ ...userForm, affiliateCode: e.target.value })}
+                  placeholder="ex: AFI-001"
+                />
+              </div>
               <div className="admin-user-actions">
                 <button className="primary" onClick={handleSaveUser}>
                   {editingUserId ? 'Salvar alterações' : 'Adicionar usuário'}
@@ -2132,7 +2148,8 @@ function App() {
                   username: user.username,
                   whatsapp: user.whatsapp,
                   role: user.role,
-                  password: ''
+                  password: '',
+                  affiliateCode: user.affiliate_code || ''
                 });
               }}
               onDelete={handleDeleteUser}
