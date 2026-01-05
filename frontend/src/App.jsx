@@ -92,6 +92,7 @@ const formatTimeRange = (start, end) => {
 };
 
 const BILLING_DUE_DAY = 20;
+const FIXED_COMMISSION_CENTS = 2000;
 
 const computeEffectiveSubscriptionStatus = (user, today = new Date()) => {
   if (!user) return 'active';
@@ -948,12 +949,14 @@ function App() {
     whatsapp: '',
     email: '',
     pix_key: '',
-    commission_cents: 2000
   });
   const [affiliatesLoading, setAffiliatesLoading] = useState(false);
   const [affiliateUsers, setAffiliateUsers] = useState([]);
   const [affiliateUsersLoading, setAffiliateUsersLoading] = useState(false);
   const [selectedAffiliate, setSelectedAffiliate] = useState(null);
+  const affiliateUsersList = affiliateUsers || [];
+  const fixedCommissionBRL = formatCurrency(FIXED_COMMISSION_CENTS / 100);
+  const affiliateClientsTotal = formatCurrency((affiliateUsersList.length * FIXED_COMMISSION_CENTS) / 100);
 
   const [txFilters, setTxFilters] = useState(defaultTxFilters);
   const [eventFilters, setEventFilters] = useState(defaultEventFilters);
@@ -1703,11 +1706,8 @@ function App() {
         whatsapp: affiliateForm.whatsapp || undefined,
         email: affiliateForm.email || undefined,
         pix_key: affiliateForm.pix_key || undefined,
+        commission_cents: FIXED_COMMISSION_CENTS,
       };
-
-      if (affiliateForm.commission_cents !== '' && affiliateForm.commission_cents !== null) {
-        payload.commission_cents = Number(affiliateForm.commission_cents);
-      }
 
       const response = await fetch(`${workoutApiBase}/admin/affiliates`, {
         method: 'POST',
@@ -1736,7 +1736,6 @@ function App() {
         whatsapp: '',
         email: '',
         pix_key: '',
-        commission_cents: 2000
       });
       loadAffiliates();
     } catch (err) {
@@ -2217,15 +2216,6 @@ function App() {
                   placeholder="CPF, e-mail ou aleatória"
                 />
               </div>
-              <div>
-                <label>Comissão (centavos)</label>
-                <input
-                  type="number"
-                  value={affiliateForm.commission_cents}
-                  onChange={(e) => setAffiliateForm({ ...affiliateForm, commission_cents: e.target.value })}
-                  placeholder="2000"
-                />
-              </div>
               <div className="admin-user-actions">
                 <button className="primary" onClick={handleSaveAffiliate}>Criar afiliado</button>
                 <button
@@ -2237,7 +2227,6 @@ function App() {
                       whatsapp: '',
                       email: '',
                       pix_key: '',
-                      commission_cents: 2000,
                     })
                   }
                 >
@@ -2338,23 +2327,25 @@ function App() {
 
             <div className="affiliate-users-list">
               {affiliateUsersLoading && <p className="muted">Carregando clientes...</p>}
-              {!affiliateUsersLoading && (affiliateUsers || []).length === 0 && (
+              {!affiliateUsersLoading && affiliateUsersList.length === 0 && (
                 <p className="muted">Nenhum cliente vinculado.</p>
               )}
-              {!affiliateUsersLoading && (affiliateUsers || []).length > 0 && (
+              {!affiliateUsersLoading && affiliateUsersList.length > 0 && (
                 <table>
                   <thead>
                     <tr>
                       <th>Nome</th>
                       <th>E-mail</th>
+                      <th>Valor</th>
                       <th>Status</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {(affiliateUsers || []).map((user) => (
+                    {affiliateUsersList.map((user) => (
                       <tr key={user.id || user.auth_id}>
                         <td>{user.name || '-'}</td>
                         <td>{user.email || '-'}</td>
+                        <td>{fixedCommissionBRL}</td>
                         <td>
                           {user.status === 'active'
                             ? 'ATIVO'
@@ -2368,6 +2359,12 @@ function App() {
                 </table>
               )}
             </div>
+            {!affiliateUsersLoading && affiliateUsersList.length > 0 && (
+              <div className="affiliate-modal-total">
+                <span>Total:</span>
+                <strong>{affiliateClientsTotal}</strong>
+              </div>
+            )}
           </div>
         </div>
       )}

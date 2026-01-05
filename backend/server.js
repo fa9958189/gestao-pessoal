@@ -693,8 +693,10 @@ app.post("/admin/affiliates", async (req, res) => {
       pix_key: pix_key || null,
     };
 
-    if (commission_cents !== undefined && commission_cents !== null) {
+    if (commission_cents !== undefined && commission_cents !== null && commission_cents !== "") {
       payload.commission_cents = Number(commission_cents);
+    } else {
+      payload.commission_cents = 2000;
     }
 
     const { data, error } = await supabase
