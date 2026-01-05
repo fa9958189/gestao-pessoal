@@ -1031,6 +1031,34 @@ canvas{ background:transparent; }
   margin-top:6px;
 }
 
+.affiliate-modal-backdrop{
+  position:fixed;
+  inset:0;
+  background:rgba(0,0,0,0.45);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:12px;
+  z-index:900;
+}
+
+.affiliate-modal{
+  width:95%;
+  max-width:760px;
+  background:var(--card);
+  color:var(--text);
+  border:1px solid var(--border);
+  border-radius:14px;
+  box-shadow:0 18px 40px rgba(0,0,0,.35);
+  padding:16px;
+}
+
+.affiliate-users-list{
+  margin-top:10px;
+  max-height:360px;
+  overflow:auto;
+}
+
 @media (max-width: 900px){
   .chart-with-legend{ grid-template-columns:1fr; }
 }

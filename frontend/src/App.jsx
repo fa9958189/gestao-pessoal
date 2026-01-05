@@ -916,6 +916,15 @@ function App() {
 
   const isAdmin = profile?.role === 'admin';
 
+  const affiliateRef = useMemo(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('ref')?.trim() || '';
+    } catch (err) {
+      return '';
+    }
+  }, []);
+
   const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
   const [profileDetails, setProfileDetails] = useState(null);
 
@@ -931,6 +940,19 @@ function App() {
   const [userForm, setUserForm] = useState(defaultUserForm);
   const [editingUserId, setEditingUserId] = useState(null);
   const [editingUserOriginal, setEditingUserOriginal] = useState(null);
+  const [affiliates, setAffiliates] = useState([]);
+  const [affiliateForm, setAffiliateForm] = useState({
+    code: '',
+    name: '',
+    whatsapp: '',
+    email: '',
+    pix_key: '',
+    commission_cents: 2000
+  });
+  const [affiliatesLoading, setAffiliatesLoading] = useState(false);
+  const [affiliateUsers, setAffiliateUsers] = useState([]);
+  const [affiliateUsersLoading, setAffiliateUsersLoading] = useState(false);
+  const [selectedAffiliate, setSelectedAffiliate] = useState(null);
 
   const [txFilters, setTxFilters] = useState(defaultTxFilters);
   const [eventFilters, setEventFilters] = useState(defaultEventFilters);
@@ -1126,10 +1148,16 @@ function App() {
   }, [session]);
 
   useEffect(() => {
-    if (!isAdmin && activeView === 'users') {
+    if (!isAdmin && (activeView === 'users' || activeView === 'affiliates')) {
       setActiveView('transactions');
     }
   }, [isAdmin, activeView]);
+
+  useEffect(() => {
+    if (activeView === 'affiliates' && isAdmin) {
+      loadAffiliates();
+    }
+  }, [activeView, isAdmin]);
 
   const filteredTransactions = useMemo(() => {
     return transactions.filter((tx) => {
@@ -1200,6 +1228,8 @@ function App() {
                     const authUser = signInData.user; // <-- ESTE é o id que o Supabase usa nas FKs
                     console.log('authUser.id:', authUser.id);
 
+                    const accessToken = signInData?.session?.access_token;
+
                     // 2) Buscar o registro correspondente em profiles_auth pelo auth_id
                     const { data: authProfile, error: authProfileError } = await client
                       .from('profiles_auth')
@@ -1212,6 +1242,26 @@ function App() {
 
                     if (authProfileError || !authProfile) {
                       throw new Error('Perfil de autenticação não encontrado em profiles_auth.');
+                    }
+
+                    if (
+                      affiliateRef &&
+                      workoutApiBase &&
+                      /^https?:\/\//i.test(workoutApiBase) &&
+                      accessToken
+                    ) {
+                      try {
+                        await fetch(`${workoutApiBase}/public/affiliate/apply`, {
+                          method: 'POST',
+                          headers: {
+                            'Content-Type': 'application/json',
+                            Authorization: `Bearer ${accessToken}`,
+                          },
+                          body: JSON.stringify({ affiliate_code: affiliateRef }),
+                        });
+                      } catch (applyErr) {
+                        console.warn('Não foi possível aplicar código de afiliado automaticamente.', applyErr);
+                      }
                     }
 
                     // 3) Guardar sessão no localStorage
@@ -1257,6 +1307,11 @@ function App() {
 
   const handleApiForbidden = () => {
     pushToast('Conta inativa. Entre em contato com o administrador.', 'danger');
+  };
+
+  const getAccessToken = async () => {
+    const { data: sessionData } = await client.auth.getSession();
+    return sessionData?.session?.access_token || '';
   };
 
                   // Salvar transação (local + Supabase)
@@ -1560,6 +1615,233 @@ function App() {
     }
   };
 
+  const loadAffiliates = async () => {
+    if (!client || profile?.role !== 'admin') return;
+
+    if (!workoutApiBase || !/^https?:\/\//i.test(workoutApiBase)) {
+      pushToast('Backend não configurado para afiliados.', 'warning');
+      return;
+    }
+
+    setAffiliatesLoading(true);
+
+    try {
+      const accessToken = await getAccessToken();
+      if (!accessToken) {
+        pushToast('Sessão expirada. Faça login novamente.', 'warning');
+        return;
+      }
+
+      const response = await fetch(`${workoutApiBase}/admin/affiliates`, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`
+        }
+      });
+
+      const body = await response.json().catch(() => ([]));
+
+      if (response.status === 403) {
+        handleApiForbidden();
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error(body?.error || 'Erro ao carregar afiliados.');
+      }
+
+      setAffiliates(Array.isArray(body) ? body : []);
+    } catch (err) {
+      console.warn('Erro ao carregar afiliados', err);
+      setAffiliates([]);
+      pushToast('Não foi possível carregar afiliados.', 'warning');
+    } finally {
+      setAffiliatesLoading(false);
+    }
+  };
+
+  const handleSaveAffiliate = async () => {
+    if (!client || profile?.role !== 'admin') {
+      pushToast('Somente administradores podem criar afiliados.', 'warning');
+      return;
+    }
+
+    if (!workoutApiBase || !/^https?:\/\//i.test(workoutApiBase)) {
+      pushToast('Backend não configurado para afiliados.', 'warning');
+      return;
+    }
+
+    if (!affiliateForm.code.trim() || !affiliateForm.name.trim()) {
+      pushToast('Informe código e nome do afiliado.', 'warning');
+      return;
+    }
+
+    try {
+      const accessToken = await getAccessToken();
+      if (!accessToken) {
+        pushToast('Sessão expirada. Faça login novamente.', 'warning');
+        return;
+      }
+
+      const payload = {
+        code: affiliateForm.code.trim(),
+        name: affiliateForm.name.trim(),
+        whatsapp: affiliateForm.whatsapp || undefined,
+        email: affiliateForm.email || undefined,
+        pix_key: affiliateForm.pix_key || undefined,
+      };
+
+      if (affiliateForm.commission_cents !== '' && affiliateForm.commission_cents !== null) {
+        payload.commission_cents = Number(affiliateForm.commission_cents);
+      }
+
+      const response = await fetch(`${workoutApiBase}/admin/affiliates`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`
+        },
+        body: JSON.stringify(payload)
+      });
+
+      const body = await response.json().catch(() => ({}));
+
+      if (response.status === 403) {
+        handleApiForbidden();
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error(body?.error || 'Erro ao criar afiliado.');
+      }
+
+      pushToast('Afiliado criado.', 'success');
+      setAffiliateForm({
+        code: '',
+        name: '',
+        whatsapp: '',
+        email: '',
+        pix_key: '',
+        commission_cents: 2000
+      });
+      loadAffiliates();
+    } catch (err) {
+      console.warn('Erro ao salvar afiliado', err);
+      pushToast(err?.message || 'Erro ao salvar afiliado.', 'danger');
+    }
+  };
+
+  const handleToggleAffiliate = async (affiliate) => {
+    if (!client || profile?.role !== 'admin') return;
+    if (!workoutApiBase || !/^https?:\/\//i.test(workoutApiBase)) return;
+
+    try {
+      const accessToken = await getAccessToken();
+      if (!accessToken) return;
+
+      const response = await fetch(`${workoutApiBase}/admin/affiliates/${affiliate.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`
+        },
+        body: JSON.stringify({ is_active: !affiliate.is_active })
+      });
+
+      const body = await response.json().catch(() => ({}));
+
+      if (response.status === 403) {
+        handleApiForbidden();
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error(body?.error || 'Erro ao atualizar afiliado.');
+      }
+
+      loadAffiliates();
+    } catch (err) {
+      console.warn('Erro ao alterar status do afiliado', err);
+      pushToast(err?.message || 'Não foi possível atualizar afiliado.', 'warning');
+    }
+  };
+
+  const handleViewAffiliateUsers = async (affiliate) => {
+    if (!client || profile?.role !== 'admin') return;
+    if (!workoutApiBase || !/^https?:\/\//i.test(workoutApiBase)) return;
+
+    setSelectedAffiliate(affiliate);
+    setAffiliateUsers([]);
+    setAffiliateUsersLoading(true);
+
+    try {
+      const accessToken = await getAccessToken();
+      if (!accessToken) return;
+
+      const response = await fetch(`${workoutApiBase}/admin/affiliates/${affiliate.id}/users`, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`
+        }
+      });
+
+      const body = await response.json().catch(() => ([]));
+
+      if (response.status === 403) {
+        handleApiForbidden();
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error(body?.error || 'Erro ao carregar clientes.');
+      }
+
+      setAffiliateUsers(Array.isArray(body) ? body : []);
+    } catch (err) {
+      console.warn('Erro ao listar clientes do afiliado', err);
+      pushToast('Não foi possível carregar os clientes desse afiliado.', 'warning');
+    } finally {
+      setAffiliateUsersLoading(false);
+    }
+  };
+
+  const handleMarkAffiliatePaid = async (affiliate) => {
+    if (!client || profile?.role !== 'admin') return;
+    if (!workoutApiBase || !/^https?:\/\//i.test(workoutApiBase)) return;
+
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+
+    try {
+      const accessToken = await getAccessToken();
+      if (!accessToken) return;
+
+      const response = await fetch(`${workoutApiBase}/admin/affiliates/${affiliate.id}/payouts/mark-paid`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`
+        },
+        body: JSON.stringify({ period_month: monthStart })
+      });
+
+      const body = await response.json().catch(() => ({}));
+
+      if (response.status === 403) {
+        handleApiForbidden();
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error(body?.error || 'Erro ao registrar pagamento.');
+      }
+
+      pushToast('Pagamento do mês marcado como pago.', 'success');
+      loadAffiliates();
+    } catch (err) {
+      console.warn('Erro ao registrar pagamento de afiliado', err);
+      pushToast(err?.message || 'Não foi possível marcar como pago.', 'warning');
+    }
+  };
+
   const renderAgenda = () => (
     <aside className="card">
       <h2 className="title">Agenda</h2>
@@ -1653,12 +1935,20 @@ function App() {
           Transações
         </button>
         {isAdmin && (
-          <button
-            className={activeView === 'users' ? 'tab active' : 'tab'}
-            onClick={() => setActiveView('users')}
-          >
-            Cadastro de Usuários
-          </button>
+          <>
+            <button
+              className={activeView === 'users' ? 'tab active' : 'tab'}
+              onClick={() => setActiveView('users')}
+            >
+              Cadastro de Usuários
+            </button>
+            <button
+              className={activeView === 'affiliates' ? 'tab active' : 'tab'}
+              onClick={() => setActiveView('affiliates')}
+            >
+              Afiliados
+            </button>
+          </>
         )}
         <button
           className={activeView === 'workout' ? 'tab active' : 'tab'}
@@ -1852,6 +2142,126 @@ function App() {
         </div>
       )}
 
+      {activeView === 'affiliates' && isAdmin && (
+        <div className="container single-card">
+          <section className="card admin-card" id="adminAffiliatesSection">
+            <h2 className="title">Afiliados</h2>
+            <p className="muted">Gerencie parceiros e visualize seus clientes.</p>
+
+            <div className="grid grid-2 admin-user-form">
+              <div>
+                <label>Código</label>
+                <input
+                  value={affiliateForm.code}
+                  onChange={(e) => setAffiliateForm({ ...affiliateForm, code: e.target.value })}
+                  placeholder="AFI-001"
+                />
+              </div>
+              <div>
+                <label>Nome</label>
+                <input
+                  value={affiliateForm.name}
+                  onChange={(e) => setAffiliateForm({ ...affiliateForm, name: e.target.value })}
+                  placeholder="Nome do afiliado"
+                />
+              </div>
+              <div>
+                <label>WhatsApp</label>
+                <input
+                  value={affiliateForm.whatsapp}
+                  onChange={(e) => setAffiliateForm({ ...affiliateForm, whatsapp: e.target.value })}
+                  placeholder="+5511999999999"
+                />
+              </div>
+              <div>
+                <label>E-mail</label>
+                <input
+                  value={affiliateForm.email}
+                  onChange={(e) => setAffiliateForm({ ...affiliateForm, email: e.target.value })}
+                  placeholder="contato@exemplo.com"
+                />
+              </div>
+              <div>
+                <label>Chave PIX</label>
+                <input
+                  value={affiliateForm.pix_key}
+                  onChange={(e) => setAffiliateForm({ ...affiliateForm, pix_key: e.target.value })}
+                  placeholder="CPF, e-mail ou aleatória"
+                />
+              </div>
+              <div>
+                <label>Comissão (centavos)</label>
+                <input
+                  type="number"
+                  value={affiliateForm.commission_cents}
+                  onChange={(e) => setAffiliateForm({ ...affiliateForm, commission_cents: e.target.value })}
+                  placeholder="2000"
+                />
+              </div>
+              <div className="admin-user-actions">
+                <button className="primary" onClick={handleSaveAffiliate}>Criar afiliado</button>
+                <button
+                  className="ghost"
+                  onClick={() =>
+                    setAffiliateForm({
+                      code: '',
+                      name: '',
+                      whatsapp: '',
+                      email: '',
+                      pix_key: '',
+                      commission_cents: 2000,
+                    })
+                  }
+                >
+                  Limpar
+                </button>
+              </div>
+            </div>
+
+            <div className="users-table-container" style={{ marginTop: 12 }}>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Código</th>
+                    <th>Nome</th>
+                    <th>Status</th>
+                    <th>Ativos</th>
+                    <th>Pendentes</th>
+                    <th>Comissão mês</th>
+                    <th>Ações</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(affiliates || []).map((item) => (
+                    <tr key={item.id}>
+                      <td>{item.code}</td>
+                      <td>{item.name}</td>
+                      <td>{item.is_active ? 'Ativo' : 'Inativo'}</td>
+                      <td>{item.active_users ?? 0}</td>
+                      <td>{item.pending_users ?? 0}</td>
+                      <td>{formatCurrency((item.commission_month_cents || 0) / 100)}</td>
+                      <td className="table-actions">
+                        <button className="ghost" onClick={() => handleViewAffiliateUsers(item)}>Ver clientes</button>
+                        <button className="ghost" onClick={() => handleToggleAffiliate(item)}>
+                          {item.is_active ? 'Inativar' : 'Ativar'}
+                        </button>
+                        <button className="ghost" onClick={() => handleMarkAffiliatePaid(item)}>
+                          Marcar pago (mês atual)
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {affiliatesLoading && <p className="muted">Carregando afiliados...</p>}
+              {!affiliatesLoading && !(affiliates || []).length && (
+                <p className="muted">Nenhum afiliado cadastrado.</p>
+              )}
+            </div>
+          </section>
+        </div>
+      )}
+
       {activeView === 'workout' && (
         <div className="container single-card">
           <section className="card">
@@ -1870,6 +2280,61 @@ function App() {
               userId={session?.user?.id}
             />
           </section>
+        </div>
+      )}
+
+      {selectedAffiliate && (
+        <div
+          className="affiliate-modal-backdrop"
+          onClick={() => {
+            setSelectedAffiliate(null);
+            setAffiliateUsers([]);
+          }}
+        >
+          <div className="affiliate-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <h3>{selectedAffiliate.name}</h3>
+                <p className="muted">{selectedAffiliate.code}</p>
+              </div>
+              <button
+                className="ghost"
+                onClick={() => {
+                  setSelectedAffiliate(null);
+                  setAffiliateUsers([]);
+                }}
+              >
+                Fechar
+              </button>
+            </div>
+
+            <div className="affiliate-users-list">
+              {affiliateUsersLoading && <p className="muted">Carregando clientes...</p>}
+              {!affiliateUsersLoading && (affiliateUsers || []).length === 0 && (
+                <p className="muted">Nenhum cliente vinculado.</p>
+              )}
+              {!affiliateUsersLoading && (affiliateUsers || []).length > 0 && (
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Nome</th>
+                      <th>E-mail</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(affiliateUsers || []).map((user) => (
+                      <tr key={user.id || user.auth_id}>
+                        <td>{user.name || '-'}</td>
+                        <td>{user.email || '-'}</td>
+                        <td>{user.billing_status || '-'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </>
