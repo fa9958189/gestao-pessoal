@@ -573,6 +573,334 @@ app.patch("/admin/users/:authId/billing", async (req, res) => {
   }
 });
 
+// =========================
+// Afiliados (admin)
+// =========================
+
+app.get("/admin/affiliates", async (req, res) => {
+  try {
+    const authData = await authenticateRequest(req, res, { requireAdmin: true });
+    if (!authData) return;
+
+    const { data: affiliates, error: affiliatesError } = await supabase
+      .from("affiliates")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (affiliatesError) {
+      if (affiliatesError.code === "42P01") return res.json([]);
+      console.error("Erro ao listar affiliates:", affiliatesError);
+      return res.status(400).json({ error: affiliatesError.message });
+    }
+
+    let profiles = [];
+    try {
+      const { data: profileRows, error: profileErr } = await supabase
+        .from("profiles_auth")
+        .select("affiliate_id, billing_status")
+        .not("affiliate_id", "is", null);
+
+      if (profileErr && profileErr.code !== "42P01") {
+        throw profileErr;
+      }
+
+      profiles = profileRows || [];
+    } catch (err) {
+      console.error("Erro ao buscar perfis de afiliados:", err);
+    }
+
+    const counts = new Map();
+    profiles.forEach((row) => {
+      if (!row.affiliate_id) return;
+      const current = counts.get(row.affiliate_id) || {
+        total: 0,
+        active: 0,
+        pending: 0,
+      };
+      current.total += 1;
+      if (row.billing_status === "pending") current.pending += 1;
+      if (row.billing_status === "active") current.active += 1;
+      counts.set(row.affiliate_id, current);
+    });
+
+    const response = (affiliates || []).map((affiliate) => {
+      const stat = counts.get(affiliate.id) || { total: 0, active: 0, pending: 0 };
+      const commissionMonthCents = (stat.active || 0) * (affiliate.commission_cents || 0);
+
+      return {
+        ...affiliate,
+        total_users: stat.total || 0,
+        active_users: stat.active || 0,
+        pending_users: stat.pending || 0,
+        commission_month_cents: commissionMonthCents,
+      };
+    });
+
+    return res.json(response);
+  } catch (err) {
+    console.error("Erro inesperado em GET /admin/affiliates:", err);
+    return res.status(500).json({ error: "Erro interno ao listar afiliados." });
+  }
+});
+
+app.post("/admin/affiliates", async (req, res) => {
+  try {
+    const authData = await authenticateRequest(req, res, { requireAdmin: true });
+    if (!authData) return;
+
+    const { code, name, whatsapp, email, pix_key, commission_cents } = req.body || {};
+
+    if (!code || !name) {
+      return res.status(400).json({ error: "code e name são obrigatórios" });
+    }
+
+    const payload = {
+      code: String(code).trim(),
+      name: String(name).trim(),
+      whatsapp: whatsapp || null,
+      email: email || null,
+      pix_key: pix_key || null,
+    };
+
+    if (commission_cents !== undefined && commission_cents !== null) {
+      payload.commission_cents = Number(commission_cents);
+    }
+
+    const { data, error } = await supabase
+      .from("affiliates")
+      .insert(payload)
+      .select("*")
+      .single();
+
+    if (error) {
+      console.error("Erro ao criar affiliate:", error);
+      return res.status(400).json({ error: error.message });
+    }
+
+    return res.json(data);
+  } catch (err) {
+    console.error("Erro inesperado em POST /admin/affiliates:", err);
+    return res.status(500).json({ error: "Erro interno ao criar afiliado." });
+  }
+});
+
+app.patch("/admin/affiliates/:id", async (req, res) => {
+  try {
+    const authData = await authenticateRequest(req, res, { requireAdmin: true });
+    if (!authData) return;
+
+    const { id } = req.params;
+    if (!id) return res.status(400).json({ error: "id é obrigatório" });
+
+    const allowedFields = [
+      "code",
+      "name",
+      "whatsapp",
+      "email",
+      "pix_key",
+      "commission_cents",
+      "is_active",
+    ];
+
+    const updates = {};
+    allowedFields.forEach((field) => {
+      if (req.body?.[field] !== undefined) {
+        updates[field] = req.body[field];
+      }
+    });
+
+    if (!Object.keys(updates).length) {
+      return res.status(400).json({ error: "Nenhuma atualização enviada" });
+    }
+
+    const { data, error } = await supabase
+      .from("affiliates")
+      .update(updates)
+      .eq("id", id)
+      .select("*")
+      .maybeSingle();
+
+    if (error) {
+      console.error("Erro ao atualizar affiliate:", error);
+      return res.status(400).json({ error: error.message });
+    }
+
+    return res.json(data);
+  } catch (err) {
+    console.error("Erro inesperado em PATCH /admin/affiliates/:id:", err);
+    return res.status(500).json({ error: "Erro interno ao atualizar afiliado." });
+  }
+});
+
+app.get("/admin/affiliates/:id/users", async (req, res) => {
+  try {
+    const authData = await authenticateRequest(req, res, { requireAdmin: true });
+    if (!authData) return;
+
+    const { id } = req.params;
+    if (!id) return res.status(400).json({ error: "id é obrigatório" });
+
+    const { data, error } = await supabase
+      .from("profiles_auth")
+      .select(
+        "id, auth_id, name, username, email, whatsapp, billing_status, affiliate_id, affiliate_code, created_at"
+      )
+      .eq("affiliate_id", id)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("Erro ao listar usuários do afiliado:", error);
+      return res.status(400).json({ error: error.message });
+    }
+
+    return res.json(data || []);
+  } catch (err) {
+    console.error("Erro inesperado em GET /admin/affiliates/:id/users:", err);
+    return res.status(500).json({ error: "Erro interno ao listar usuários do afiliado." });
+  }
+});
+
+app.post("/admin/affiliates/:id/payouts/mark-paid", async (req, res) => {
+  try {
+    const authData = await authenticateRequest(req, res, { requireAdmin: true });
+    if (!authData) return;
+
+    const { id } = req.params;
+    const rawPeriod = req.body?.period_month;
+
+    if (!id || !rawPeriod) {
+      return res.status(400).json({ error: "id e period_month são obrigatórios" });
+    }
+
+    const parsedDate = new Date(rawPeriod);
+    if (Number.isNaN(parsedDate.getTime())) {
+      return res.status(400).json({ error: "period_month inválido" });
+    }
+
+    const monthStart = new Date(parsedDate.getFullYear(), parsedDate.getMonth(), 1)
+      .toISOString()
+      .slice(0, 10);
+
+    const { data: affiliate, error: affiliateError } = await supabase
+      .from("affiliates")
+      .select("id, commission_cents")
+      .eq("id", id)
+      .maybeSingle();
+
+    if (affiliateError) {
+      console.error("Erro ao buscar afiliado:", affiliateError);
+      return res.status(400).json({ error: affiliateError.message });
+    }
+
+    if (!affiliate) {
+      return res.status(404).json({ error: "Afiliado não encontrado" });
+    }
+
+    const { data: affiliateUsers, error: usersError } = await supabase
+      .from("profiles_auth")
+      .select("billing_status")
+      .eq("affiliate_id", id);
+
+    if (usersError && usersError.code !== "42P01") {
+      console.error("Erro ao contar usuários do afiliado:", usersError);
+      return res.status(400).json({ error: usersError.message });
+    }
+
+    const activeUsers = (affiliateUsers || []).filter(
+      (user) => user.billing_status === "active"
+    ).length;
+
+    const amountCents = activeUsers * (affiliate.commission_cents || 0);
+    const paidAt = new Date().toISOString();
+
+    const { data, error } = await supabase
+      .from("affiliate_payouts")
+      .upsert(
+        {
+          affiliate_id: id,
+          period_month: monthStart,
+          amount_cents: amountCents,
+          paid_at: paidAt,
+        },
+        { onConflict: "affiliate_id,period_month" }
+      )
+      .select("*")
+      .maybeSingle();
+
+    if (error) {
+      console.error("Erro ao registrar pagamento de afiliado:", error);
+      return res.status(400).json({ error: error.message });
+    }
+
+    return res.json({ ok: true, payout: data });
+  } catch (err) {
+    console.error("Erro inesperado em POST /admin/affiliates/:id/payouts/mark-paid:", err);
+    return res.status(500).json({ error: "Erro interno ao registrar pagamento." });
+  }
+});
+
+// =========================
+// Afiliados (público autenticado)
+// =========================
+
+app.post("/public/affiliate/apply", async (req, res) => {
+  try {
+    const authData = await authenticateRequest(req, res, { requireAdmin: false });
+    if (!authData) return;
+
+    const affiliate_code = req.body?.affiliate_code?.trim();
+
+    if (!affiliate_code) {
+      return res.status(400).json({ error: "affiliate_code é obrigatório" });
+    }
+
+    const { data: affiliate, error: affiliateError } = await supabase
+      .from("affiliates")
+      .select("id, code, is_active")
+      .eq("code", affiliate_code)
+      .maybeSingle();
+
+    if (affiliateError) {
+      console.error("Erro ao buscar affiliate:", affiliateError);
+      return res.status(400).json({ error: affiliateError.message });
+    }
+
+    if (!affiliate || affiliate.is_active === false) {
+      return res.status(400).json({ error: "Código de afiliado inválido ou inativo." });
+    }
+
+    const { data: profileRow, error: profileErr } = await supabase
+      .from("profiles_auth")
+      .select("id, auth_id, affiliate_id")
+      .or(`auth_id.eq.${authData.userId},id.eq.${authData.userId}`)
+      .maybeSingle();
+
+    if (profileErr) {
+      console.error("Erro ao verificar perfil para affiliate:", profileErr);
+      return res.status(400).json({ error: profileErr.message });
+    }
+
+    if (profileRow?.affiliate_id) {
+      return res.status(400).json({ error: "Usuário já possui afiliado vinculado." });
+    }
+
+    const { error: updateErr } = await supabase
+      .from("profiles_auth")
+      .update({ affiliate_id: affiliate.id, affiliate_code: affiliate.code })
+      .or(`auth_id.eq.${authData.userId},id.eq.${authData.userId}`);
+
+    if (updateErr) {
+      console.error("Erro ao vincular afiliado:", updateErr);
+      return res.status(400).json({ error: updateErr.message });
+    }
+
+    return res.json({ ok: true, affiliate_id: affiliate.id });
+  } catch (err) {
+    console.error("Erro inesperado em POST /public/affiliate/apply:", err);
+    return res.status(500).json({ error: "Erro interno ao vincular afiliado." });
+  }
+});
+
 // Helpers para novas rotas de Rotina de Treino
 const getUserIdFromRequest = (req) =>
   req.body?.user_id ||
