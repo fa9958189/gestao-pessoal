@@ -36,6 +36,7 @@ app.use(cors());
 app.use(express.json());
 
 const BILLING_DEFAULT_DUE_DAY = 20;
+const AFFILIATE_COMMISSION_CENTS = 2000;
 
 const getCurrentPeriodMonth = (today = new Date()) =>
   new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10);
@@ -658,7 +659,7 @@ app.get("/admin/affiliates", async (req, res) => {
       if (!row.affiliate_id) return acc;
 
       const status = (row.billing_status || "").toLowerCase();
-      const isActive = status === "active";
+      const isActive = status !== "inactive";
 
       const current = acc.get(row.affiliate_id) || {
         totalClients: 0,
@@ -686,7 +687,7 @@ app.get("/admin/affiliates", async (req, res) => {
       const inactiveClients = stat.inactiveClients || 0;
       const totalClients = stat.totalClients || 0;
 
-      const commissionMonthCents = activeClients * (affiliate.commission_cents || 0);
+      const commissionMonthCents = activeClients * AFFILIATE_COMMISSION_CENTS;
       const payoutRow = payoutMap.get(affiliate.id) || null;
       const payoutStatus = payoutRow?.paid_at ? "PAGO" : "PENDENTE";
       const currentPayoutStatus = payoutRow?.paid_at ? "paid" : "pending";
@@ -831,7 +832,7 @@ app.get("/admin/affiliates/:id/users", async (req, res) => {
     }
 
     const normalizedUsers = (data || []).map((user) => {
-      const normalizedStatus = user.billing_status === "active" ? "active" : "inactive";
+      const normalizedStatus = user.billing_status === "inactive" ? "inactive" : "active";
 
       return {
         ...user,
@@ -841,7 +842,9 @@ app.get("/admin/affiliates/:id/users", async (req, res) => {
       };
     });
 
-    return res.json(normalizedUsers);
+    const totalCommissionCents = normalizedUsers.filter((user) => user.is_active).length * AFFILIATE_COMMISSION_CENTS;
+
+    return res.json({ users: normalizedUsers, total_commission_cents: totalCommissionCents });
   } catch (err) {
     console.error("Erro inesperado em GET /admin/affiliates/:id/users:", err);
     return res.status(500).json({ error: "Erro interno ao listar usuários do afiliado." });
@@ -887,10 +890,10 @@ app.post("/admin/affiliates/:id/payouts/mark-paid", async (req, res) => {
     }
 
     const activeUsers = (affiliateUsers || []).filter(
-      (user) => user.billing_status === "active"
+      (user) => (user.billing_status || "").toLowerCase() !== "inactive"
     ).length;
 
-    const amountCents = activeUsers * (affiliate.commission_cents || 0);
+    const amountCents = activeUsers * AFFILIATE_COMMISSION_CENTS;
     const paidAt = new Date().toISOString();
 
     const { data, error } = await supabase
