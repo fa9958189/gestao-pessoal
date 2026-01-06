@@ -980,8 +980,20 @@ function App() {
   const [affiliateUsersLoading, setAffiliateUsersLoading] = useState(false);
   const [selectedAffiliate, setSelectedAffiliate] = useState(null);
   const affiliateUsersList = affiliateUsers || [];
+  const affiliateUsersComputed = affiliateUsersList.map((user) => {
+    const billing = (user.billing_status || user.status || "").toLowerCase();
+    const isActive = user.is_active ?? billing === "active";
+    return {
+      ...user,
+      billing_status: billing,
+      status: billing,
+      is_active: isActive,
+    };
+  });
   const fixedCommissionBRL = formatCurrency(FIXED_COMMISSION_CENTS / 100);
-  const affiliateClientsTotal = formatCurrency((affiliateUsersList.length * FIXED_COMMISSION_CENTS) / 100);
+  const affiliateClientsTotal = formatCurrency(
+    (affiliateUsersComputed.filter((user) => user.is_active).length * FIXED_COMMISSION_CENTS) / 100
+  );
 
   const [txFilters, setTxFilters] = useState(defaultTxFilters);
   const [eventFilters, setEventFilters] = useState(defaultEventFilters);
@@ -1670,13 +1682,13 @@ function App() {
     inactive_clients_count: item?.inactive_clients_count ?? item?.inactive_users ?? item?.pending_users ?? 0,
     current_payout_period: item?.current_payout_period || item?.period_month || getCurrentPeriodMonth(),
     current_payout_label: (item?.payout_ref || item?.current_payout_period || item?.period_month || getCurrentPeriodMonth()).slice(0, 7),
-    current_payout_status: item?.current_payout_status || (item?.current_payout_paid_at || item?.paid_at ? 'paid' : 'pending'),
+    current_payout_status: item?.payout_status_month_current || item?.current_payout_status || (item?.current_payout_paid_at || item?.paid_at ? 'paid' : 'pending'),
     current_payout_paid_at: item?.current_payout_paid_at || item?.paid_at || null,
     payout_ref: item?.payout_ref || (item?.current_payout_period || item?.period_month)?.slice(0, 7) || null,
+    payout_status_month_current: item?.payout_status_month_current || item?.current_payout_status || (item?.current_payout_paid_at || item?.paid_at ? 'paid' : 'pending'),
     payout_status: (() => {
-      const raw = (item?.payout_status || '').toString().toUpperCase();
-      if (raw === 'PAGO' || raw === 'PENDENTE') return raw;
-      if (item?.current_payout_status === 'paid') return 'PAGO';
+      const raw = (item?.payout_status_month_current || item?.payout_status || '').toString().toUpperCase();
+      if (raw === 'PAID' || raw === 'PAGO') return 'PAGO';
       return 'PENDENTE';
     })(),
   });
@@ -1823,7 +1835,15 @@ function App() {
       }
 
       const parsedUsers = Array.isArray(body)
-        ? body.map((user) => ({ ...user, status: user.status || user.billing_status }))
+        ? body.map((user) => {
+            const normalized = (user.status || user.billing_status || '').toLowerCase();
+            return {
+              ...user,
+              status: normalized,
+              billing_status: normalized,
+              is_active: user.is_active ?? normalized === 'active',
+            };
+          })
         : [];
 
       setAffiliateUsers(parsedUsers);
@@ -1870,13 +1890,15 @@ function App() {
       const payout = body?.payout;
       const payoutRef = body?.payout_ref || (payout?.period_month || monthStart).slice(0, 7);
       const payoutStatus = body?.payout_status || 'PAGO';
+      const payoutStatusValue = body?.payout_status_month_current || 'paid';
       setAffiliates((prev) => prev.map((item) =>
         item.id === affiliate.id
           ? {
               ...item,
               payout_status: payoutStatus,
               payout_ref: payoutRef,
-              current_payout_status: 'paid',
+              current_payout_status: payoutStatusValue,
+              payout_status_month_current: payoutStatusValue,
               current_payout_period: payout?.period_month || monthStart,
               current_payout_label: payoutRef || (payout?.period_month || monthStart).slice(0, 7),
               current_payout_paid_at: payout?.paid_at || new Date().toISOString(),
@@ -2382,18 +2404,12 @@ function App() {
                     </tr>
                   </thead>
                   <tbody>
-                    {affiliateUsersList.map((user) => (
+                    {affiliateUsersComputed.map((user) => (
                       <tr key={user.id || user.auth_id}>
                         <td>{user.name || '-'}</td>
                         <td>{user.email || '-'}</td>
-                        <td>{fixedCommissionBRL}</td>
-                        <td>
-                          {user.status === 'active'
-                            ? 'ATIVO'
-                            : user.status === 'inactive'
-                              ? 'INATIVO'
-                              : '-'}
-                        </td>
+                        <td>{formatCurrency((user.is_active ? FIXED_COMMISSION_CENTS : 0) / 100)}</td>
+                        <td>{user.is_active ? 'ATIVO' : 'INATIVO'}</td>
                       </tr>
                     ))}
                   </tbody>

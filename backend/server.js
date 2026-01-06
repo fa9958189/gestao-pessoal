@@ -642,9 +642,7 @@ app.get("/admin/affiliates", async (req, res) => {
     try {
       const { data: profileRows, error: profileErr } = await supabase
         .from("profiles_auth")
-        .select(
-          "affiliate_id, billing_status, last_payment_at, last_paid_at, billing_last_paid_at"
-        )
+        .select("affiliate_id, billing_status")
         .not("affiliate_id", "is", null);
 
       if (profileErr && profileErr.code !== "42P01") {
@@ -657,36 +655,22 @@ app.get("/admin/affiliates", async (req, res) => {
     }
 
     const counts = new Map();
-    const today = new Date();
-    const currentMonth = today.getMonth();
-    const currentYear = today.getFullYear();
 
     profiles.forEach((row) => {
       if (!row.affiliate_id) return;
 
       const status = (row.billing_status || "").toLowerCase();
-      const lastPaymentRaw =
-        row.last_payment_at || row.last_paid_at || row.billing_last_paid_at;
-      const lastPaymentDate = lastPaymentRaw ? new Date(lastPaymentRaw) : null;
-      const paidThisMonth =
-        status === "paid" ||
-        (lastPaymentDate &&
-          lastPaymentDate.getFullYear() === currentYear &&
-          lastPaymentDate.getMonth() === currentMonth);
-
-      const isActive = status === "active" || status === "paid";
+      const isActive = status === "active";
 
       const current = counts.get(row.affiliate_id) || {
         total: 0,
         active: 0,
         inactive: 0,
-        activePaid: 0,
       };
 
       current.total += 1;
       if (isActive) {
         current.active += 1;
-        if (paidThisMonth) current.activePaid += 1;
       } else {
         current.inactive += 1;
       }
@@ -695,13 +679,12 @@ app.get("/admin/affiliates", async (req, res) => {
     });
 
     const response = (affiliates || []).map((affiliate) => {
-      const stat =
-        counts.get(affiliate.id) || { total: 0, active: 0, inactive: 0, activePaid: 0 };
+      const stat = counts.get(affiliate.id) || { total: 0, active: 0, inactive: 0 };
       const commissionMonthCents = (stat.active || 0) * (affiliate.commission_cents || 0);
       const payoutRow = payoutMap.get(affiliate.id) || null;
-      const payoutStatus =
-        stat.active > 0 && stat.active === stat.activePaid ? "PAGO" : "PENDENTE";
+      const payoutStatus = payoutRow?.paid_at ? "PAGO" : "PENDENTE";
       const currentPayoutStatus = payoutRow?.paid_at ? "paid" : "pending";
+      const payoutPeriod = payoutRow?.period_month || currentPeriodMonth;
 
       return {
         ...affiliate,
@@ -710,12 +693,14 @@ app.get("/admin/affiliates", async (req, res) => {
         inactive_users: stat.inactive || 0,
         active_clients_count: stat.active || 0,
         inactive_clients_count: stat.inactive || 0,
-        active_paid_clients_count: stat.activePaid || 0,
+        active_paid_clients_count: stat.active || 0,
         pending_users: stat.inactive || 0,
         commission_month_cents: commissionMonthCents,
         current_payout_status: currentPayoutStatus,
-        current_payout_period: payoutRow?.period_month || currentPeriodMonth,
+        current_payout_period: payoutPeriod,
         current_payout_paid_at: payoutRow?.paid_at || null,
+        payout_status_month_current: currentPayoutStatus,
+        payout_ref: payoutPeriod.slice(0, 7),
         payout_status: payoutStatus,
       };
     });
@@ -846,6 +831,7 @@ app.get("/admin/affiliates/:id/users", async (req, res) => {
         ...user,
         billing_status: normalizedStatus,
         status: normalizedStatus,
+        is_active: normalizedStatus === "active",
       };
     });
 
@@ -862,20 +848,12 @@ app.post("/admin/affiliates/:id/payouts/mark-paid", async (req, res) => {
     if (!authData) return;
 
     const { id } = req.params;
-    const rawPeriod = req.body?.period_month;
 
-    if (!id || !rawPeriod) {
-      return res.status(400).json({ error: "id e period_month são obrigatórios" });
+    if (!id) {
+      return res.status(400).json({ error: "id é obrigatório" });
     }
 
-    const parsedDate = new Date(rawPeriod);
-    if (Number.isNaN(parsedDate.getTime())) {
-      return res.status(400).json({ error: "period_month inválido" });
-    }
-
-    const monthStart = new Date(parsedDate.getFullYear(), parsedDate.getMonth(), 1)
-      .toISOString()
-      .slice(0, 10);
+    const monthStart = getCurrentPeriodMonth();
 
     const { data: affiliate, error: affiliateError } = await supabase
       .from("affiliates")
@@ -935,6 +913,8 @@ app.post("/admin/affiliates/:id/payouts/mark-paid", async (req, res) => {
       payout: data,
       payout_status: "PAGO",
       payout_ref: payoutRef,
+      payout_status_month_current: "paid",
+      current_period_month: monthStart,
     });
   } catch (err) {
     console.error("Erro inesperado em POST /admin/affiliates/:id/payouts/mark-paid:", err);
