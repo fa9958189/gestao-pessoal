@@ -979,21 +979,23 @@ function App() {
   const [affiliateUsers, setAffiliateUsers] = useState([]);
   const [affiliateUsersLoading, setAffiliateUsersLoading] = useState(false);
   const [selectedAffiliate, setSelectedAffiliate] = useState(null);
+  const [affiliateUsersCommissionCents, setAffiliateUsersCommissionCents] = useState(0);
   const affiliateUsersList = affiliateUsers || [];
   const affiliateUsersComputed = affiliateUsersList.map((user) => {
     const billing = (user.billing_status || user.status || "").toLowerCase();
-    const isActive = user.is_active ?? billing === "active";
+    const normalizedStatus = billing === "inactive" ? "inactive" : "active";
+    const isActive = user.is_active ?? normalizedStatus === "active";
     return {
       ...user,
-      billing_status: billing,
-      status: billing,
+      billing_status: normalizedStatus,
+      status: normalizedStatus,
       is_active: isActive,
     };
   });
   const fixedCommissionBRL = formatCurrency(FIXED_COMMISSION_CENTS / 100);
-  const affiliateClientsTotal = formatCurrency(
-    (affiliateUsersComputed.filter((user) => user.is_active).length * FIXED_COMMISSION_CENTS) / 100
-  );
+  const affiliateCommissionCents = affiliateUsersCommissionCents
+    || (affiliateUsersComputed.filter((user) => user.is_active).length * FIXED_COMMISSION_CENTS);
+  const affiliateClientsTotal = formatCurrency(affiliateCommissionCents / 100);
 
   const [txFilters, setTxFilters] = useState(defaultTxFilters);
   const [eventFilters, setEventFilters] = useState(defaultEventFilters);
@@ -1670,6 +1672,7 @@ function App() {
         };
       }));
       loadRemoteData();
+      loadAffiliates();
     } catch (err) {
       console.warn('Erro ao atualizar status de assinatura', err);
       pushToast(err.message || 'Erro ao atualizar assinatura.', 'danger');
@@ -1812,6 +1815,7 @@ function App() {
     setSelectedAffiliate(affiliate);
     setAffiliateUsers([]);
     setAffiliateUsersLoading(true);
+    setAffiliateUsersCommissionCents(0);
 
     try {
       const accessToken = await getAccessToken();
@@ -1834,19 +1838,25 @@ function App() {
         throw new Error(body?.error || 'Erro ao carregar clientes.');
       }
 
-      const parsedUsers = Array.isArray(body)
-        ? body.map((user) => {
-            const normalized = (user.status || user.billing_status || '').toLowerCase();
-            return {
-              ...user,
-              status: normalized,
-              billing_status: normalized,
-              is_active: user.is_active ?? normalized === 'active',
-            };
-          })
-        : [];
+      const responseUsers = Array.isArray(body) ? body : Array.isArray(body?.users) ? body.users : [];
+
+      const parsedUsers = responseUsers.map((user) => {
+        const rawStatus = (user.status || user.billing_status || '').toLowerCase();
+        const normalized = rawStatus === 'inactive' ? 'inactive' : 'active';
+        return {
+          ...user,
+          status: normalized,
+          billing_status: normalized,
+          is_active: user.is_active ?? normalized === 'active',
+        };
+      });
+
+      const commissionCents = Number.isFinite(body?.total_commission_cents)
+        ? Number(body.total_commission_cents)
+        : parsedUsers.filter((user) => user.is_active).length * FIXED_COMMISSION_CENTS;
 
       setAffiliateUsers(parsedUsers);
+      setAffiliateUsersCommissionCents(commissionCents);
     } catch (err) {
       console.warn('Erro ao listar clientes do afiliado', err);
       pushToast('Não foi possível carregar os clientes desse afiliado.', 'warning');
@@ -2369,6 +2379,7 @@ function App() {
           onClick={() => {
             setSelectedAffiliate(null);
             setAffiliateUsers([]);
+            setAffiliateUsersCommissionCents(0);
           }}
         >
           <div className="affiliate-modal" onClick={(e) => e.stopPropagation()}>
@@ -2382,6 +2393,7 @@ function App() {
                 onClick={() => {
                   setSelectedAffiliate(null);
                   setAffiliateUsers([]);
+                  setAffiliateUsersCommissionCents(0);
                 }}
               >
                 Fechar
@@ -2409,7 +2421,7 @@ function App() {
                         <td>{user.name || '-'}</td>
                         <td>{user.email || '-'}</td>
                         <td>{formatCurrency((user.is_active ? FIXED_COMMISSION_CENTS : 0) / 100)}</td>
-                        <td>{user.is_active ? 'ATIVO' : 'INATIVO'}</td>
+                        <td>{(user.status === 'inactive' ? 'INATIVO' : 'ATIVO')}</td>
                       </tr>
                     ))}
                   </tbody>
