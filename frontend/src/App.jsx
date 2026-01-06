@@ -975,6 +975,7 @@ function App() {
     pix_key: '',
   });
   const [affiliatesLoading, setAffiliatesLoading] = useState(false);
+  const [affiliatePayoutLoadingId, setAffiliatePayoutLoadingId] = useState(null);
   const [affiliateUsers, setAffiliateUsers] = useState([]);
   const [affiliateUsersLoading, setAffiliateUsersLoading] = useState(false);
   const [selectedAffiliate, setSelectedAffiliate] = useState(null);
@@ -1668,9 +1669,10 @@ function App() {
     active_clients_count: item?.active_clients_count ?? item?.active_users ?? 0,
     inactive_clients_count: item?.inactive_clients_count ?? item?.inactive_users ?? item?.pending_users ?? 0,
     current_payout_period: item?.current_payout_period || item?.period_month || getCurrentPeriodMonth(),
-    current_payout_label: (item?.current_payout_period || item?.period_month || getCurrentPeriodMonth()).slice(0, 7),
+    current_payout_label: (item?.payout_ref || item?.current_payout_period || item?.period_month || getCurrentPeriodMonth()).slice(0, 7),
     current_payout_status: item?.current_payout_status || (item?.current_payout_paid_at || item?.paid_at ? 'paid' : 'pending'),
     current_payout_paid_at: item?.current_payout_paid_at || item?.paid_at || null,
+    payout_ref: item?.payout_ref || (item?.current_payout_period || item?.period_month)?.slice(0, 7) || null,
     payout_status: (() => {
       const raw = (item?.payout_status || '').toString().toUpperCase();
       if (raw === 'PAGO' || raw === 'PENDENTE') return raw;
@@ -1838,6 +1840,7 @@ function App() {
     if (!workoutApiBase || !/^https?:\/\//i.test(workoutApiBase)) return;
 
     const monthStart = getCurrentPeriodMonth();
+    setAffiliatePayoutLoadingId(affiliate.id);
 
     try {
       const accessToken = await getAccessToken();
@@ -1865,21 +1868,26 @@ function App() {
 
       pushToast('Pagamento do mês marcado como pago.', 'success');
       const payout = body?.payout;
+      const payoutRef = body?.payout_ref || (payout?.period_month || monthStart).slice(0, 7);
+      const payoutStatus = body?.payout_status || 'PAGO';
       setAffiliates((prev) => prev.map((item) =>
         item.id === affiliate.id
           ? {
               ...item,
+              payout_status: payoutStatus,
+              payout_ref: payoutRef,
               current_payout_status: 'paid',
               current_payout_period: payout?.period_month || monthStart,
-              current_payout_label: (payout?.period_month || monthStart).slice(0, 7),
+              current_payout_label: payoutRef || (payout?.period_month || monthStart).slice(0, 7),
               current_payout_paid_at: payout?.paid_at || new Date().toISOString(),
             }
           : item
       ));
-      loadAffiliates();
     } catch (err) {
       console.warn('Erro ao registrar pagamento de afiliado', err);
       pushToast(err?.message || 'Não foi possível marcar como pago.', 'warning');
+    } finally {
+      setAffiliatePayoutLoadingId(null);
     }
   };
 
@@ -2285,14 +2293,18 @@ function App() {
                           <span className={`badge ${item.payout_status === 'PAGO' ? 'badge-paid' : 'badge-payment-pending'}`}>
                             {item.payout_status === 'PAGO' ? 'PAGO' : 'PENDENTE'}
                           </span>
-                          <small className="muted">Ref.: {item.current_payout_label || '-'}</small>
+                          <small className="muted">Ref.: {item.payout_ref || item.current_payout_label || '-'}</small>
                         </div>
                       </td>
                       <td>{formatCurrency((item.commission_month_cents || 0) / 100)}</td>
                       <td className="table-actions">
                         <button className="ghost" onClick={() => handleViewAffiliateUsers(item)}>Ver clientes</button>
-                        <button className="ghost" onClick={() => handleMarkAffiliatePaid(item)}>
-                          Marcar pago (mês atual)
+                        <button
+                          className="ghost"
+                          onClick={() => handleMarkAffiliatePaid(item)}
+                          disabled={affiliatePayoutLoadingId === item.id}
+                        >
+                          {affiliatePayoutLoadingId === item.id ? 'Marcando...' : 'Marcar pago (mês atual)'}
                         </button>
                       </td>
                     </tr>
