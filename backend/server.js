@@ -643,7 +643,7 @@ app.get("/admin/affiliates", async (req, res) => {
     try {
       const { data: profileRows, error: profileErr } = await supabase
         .from("profiles_auth")
-        .select("affiliate_id, billing_status")
+        .select("affiliate_id, subscription_status, billing_status")
         .not("affiliate_id", "is", null);
 
       if (profileErr && profileErr.code !== "42P01") {
@@ -658,7 +658,9 @@ app.get("/admin/affiliates", async (req, res) => {
     const counts = profiles.reduce((acc, row) => {
       if (!row.affiliate_id) return acc;
 
-      const status = (row.billing_status || "").toLowerCase();
+      const sub = (row.subscription_status || "").toLowerCase();
+      const bill = (row.billing_status || "").toLowerCase();
+      const status = sub || bill;
       const isActive = status !== "inactive";
 
       const current = acc.get(row.affiliate_id) || {
@@ -821,7 +823,7 @@ app.get("/admin/affiliates/:id/users", async (req, res) => {
     const { data, error } = await supabase
       .from("profiles_auth")
       .select(
-        "id, auth_id, name, username, email, whatsapp, billing_status, affiliate_id, affiliate_code, created_at"
+        "id, auth_id, name, username, email, whatsapp, subscription_status, billing_status, affiliate_id, affiliate_code, created_at"
       )
       .eq("affiliate_id", id)
       .order("created_at", { ascending: false });
@@ -832,7 +834,8 @@ app.get("/admin/affiliates/:id/users", async (req, res) => {
     }
 
     const normalizedUsers = (data || []).map((user) => {
-      const normalizedStatus = user.billing_status === "inactive" ? "inactive" : "active";
+      const raw = (user.subscription_status || user.billing_status || "").toLowerCase();
+      const normalizedStatus = raw === "inactive" ? "inactive" : "active";
 
       return {
         ...user,
