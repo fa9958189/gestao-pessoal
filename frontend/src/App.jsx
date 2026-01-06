@@ -1671,6 +1671,12 @@ function App() {
     current_payout_label: (item?.current_payout_period || item?.period_month || getCurrentPeriodMonth()).slice(0, 7),
     current_payout_status: item?.current_payout_status || (item?.current_payout_paid_at || item?.paid_at ? 'paid' : 'pending'),
     current_payout_paid_at: item?.current_payout_paid_at || item?.paid_at || null,
+    payout_status: (() => {
+      const raw = (item?.payout_status || '').toString().toUpperCase();
+      if (raw === 'PAGO' || raw === 'PENDENTE') return raw;
+      if (item?.current_payout_status === 'paid') return 'PAGO';
+      return 'PENDENTE';
+    })(),
   });
 
   const loadAffiliates = async () => {
@@ -1782,41 +1788,6 @@ function App() {
     } catch (err) {
       console.warn('Erro ao salvar afiliado', err);
       pushToast(err?.message || 'Erro ao salvar afiliado.', 'danger');
-    }
-  };
-
-  const handleToggleAffiliate = async (affiliate) => {
-    if (!client || profile?.role !== 'admin') return;
-    if (!workoutApiBase || !/^https?:\/\//i.test(workoutApiBase)) return;
-
-    try {
-      const accessToken = await getAccessToken();
-      if (!accessToken) return;
-
-      const response = await fetch(`${workoutApiBase}/admin/affiliates/${affiliate.id}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${accessToken}`
-        },
-        body: JSON.stringify({ is_active: !affiliate.is_active })
-      });
-
-      const body = await response.json().catch(() => ({}));
-
-      if (response.status === 403) {
-        handleApiForbidden();
-        return;
-      }
-
-      if (!response.ok) {
-        throw new Error(body?.error || 'Erro ao atualizar afiliado.');
-      }
-
-      loadAffiliates();
-    } catch (err) {
-      console.warn('Erro ao alterar status do afiliado', err);
-      pushToast(err?.message || 'Não foi possível atualizar afiliado.', 'warning');
     }
   };
 
@@ -2311,8 +2282,8 @@ function App() {
                       <td>{item.inactive_clients_count ?? item.inactive_users ?? 0}</td>
                       <td>
                         <div className="column" style={{ gap: 4, alignItems: 'flex-start' }}>
-                          <span className={`badge ${item.current_payout_status === 'paid' ? 'badge-paid' : 'badge-payment-pending'}`}>
-                            {item.current_payout_status === 'paid' ? 'PAGO' : 'PENDENTE'}
+                          <span className={`badge ${item.payout_status === 'PAGO' ? 'badge-paid' : 'badge-payment-pending'}`}>
+                            {item.payout_status === 'PAGO' ? 'PAGO' : 'PENDENTE'}
                           </span>
                           <small className="muted">Ref.: {item.current_payout_label || '-'}</small>
                         </div>
@@ -2320,9 +2291,6 @@ function App() {
                       <td>{formatCurrency((item.commission_month_cents || 0) / 100)}</td>
                       <td className="table-actions">
                         <button className="ghost" onClick={() => handleViewAffiliateUsers(item)}>Ver clientes</button>
-                        <button className="ghost" onClick={() => handleToggleAffiliate(item)}>
-                          {item.is_active ? 'Inativar' : 'Ativar'}
-                        </button>
                         <button className="ghost" onClick={() => handleMarkAffiliatePaid(item)}>
                           Marcar pago (mês atual)
                         </button>
