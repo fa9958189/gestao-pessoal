@@ -654,33 +654,39 @@ app.get("/admin/affiliates", async (req, res) => {
       console.error("Erro ao buscar perfis de afiliados:", err);
     }
 
-    const counts = new Map();
-
-    profiles.forEach((row) => {
-      if (!row.affiliate_id) return;
+    const counts = profiles.reduce((acc, row) => {
+      if (!row.affiliate_id) return acc;
 
       const status = (row.billing_status || "").toLowerCase();
       const isActive = status === "active";
 
-      const current = counts.get(row.affiliate_id) || {
-        total: 0,
-        active: 0,
-        inactive: 0,
+      const current = acc.get(row.affiliate_id) || {
+        totalClients: 0,
+        activeClients: 0,
+        inactiveClients: 0,
       };
 
-      current.total += 1;
+      current.totalClients += 1;
       if (isActive) {
-        current.active += 1;
+        current.activeClients += 1;
       } else {
-        current.inactive += 1;
+        current.inactiveClients += 1;
       }
 
-      counts.set(row.affiliate_id, current);
-    });
+      acc.set(row.affiliate_id, current);
+      return acc;
+    }, new Map());
 
     const response = (affiliates || []).map((affiliate) => {
-      const stat = counts.get(affiliate.id) || { total: 0, active: 0, inactive: 0 };
-      const commissionMonthCents = (stat.active || 0) * (affiliate.commission_cents || 0);
+      const stat =
+        counts.get(affiliate.id) ||
+        { totalClients: 0, activeClients: 0, inactiveClients: 0 };
+
+      const activeClients = stat.activeClients || 0;
+      const inactiveClients = stat.inactiveClients || 0;
+      const totalClients = stat.totalClients || 0;
+
+      const commissionMonthCents = activeClients * (affiliate.commission_cents || 0);
       const payoutRow = payoutMap.get(affiliate.id) || null;
       const payoutStatus = payoutRow?.paid_at ? "PAGO" : "PENDENTE";
       const currentPayoutStatus = payoutRow?.paid_at ? "paid" : "pending";
@@ -688,13 +694,13 @@ app.get("/admin/affiliates", async (req, res) => {
 
       return {
         ...affiliate,
-        total_users: stat.total || 0,
-        active_users: stat.active || 0,
-        inactive_users: stat.inactive || 0,
-        active_clients_count: stat.active || 0,
-        inactive_clients_count: stat.inactive || 0,
-        active_paid_clients_count: stat.active || 0,
-        pending_users: stat.inactive || 0,
+        total_users: totalClients,
+        active_users: activeClients,
+        inactive_users: inactiveClients,
+        active_clients_count: activeClients,
+        inactive_clients_count: inactiveClients,
+        active_paid_clients_count: activeClients,
+        pending_users: inactiveClients,
         commission_month_cents: commissionMonthCents,
         current_payout_status: currentPayoutStatus,
         current_payout_period: payoutPeriod,
