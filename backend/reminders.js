@@ -1,5 +1,6 @@
 import "dotenv/config";
 import { createClient } from "@supabase/supabase-js";
+import { runWhatsAppAlerts } from "./alerts.js";
 
 const MOTIVATIONAL_MESSAGES = [
   "Disciplina vence a motivação.",
@@ -65,6 +66,7 @@ const TZ = "America/Sao_Paulo";
 const REMINDER_PROVIDER = "z-api";
 const REMINDER_INTERVAL_MINUTES =
   Number(process.env.REMINDER_INTERVAL_MINUTES) || 15;
+const ALERT_INTERVAL_MINUTES = Number(process.env.ALERT_INTERVAL_MINUTES) || 60;
 
 function getNowInSaoPaulo() {
   return new Date(new Date().toLocaleString("en-US", { timeZone: TZ }));
@@ -768,6 +770,20 @@ export async function sendWhatsAppMessage({ phone, message }) {
 }
 
 export const sendZapiMessage = sendWhatsAppMessage;
+
+runWhatsAppAlerts({
+  supabase,
+  sendMessage: sendWhatsAppMessage,
+}).catch((err) => console.error("❌ Erro inicial nos alertas:", err));
+
+setInterval(
+  () =>
+    runWhatsAppAlerts({
+      supabase,
+      sendMessage: sendWhatsAppMessage,
+    }).catch((err) => console.error("❌ Erro no ciclo de alertas:", err)),
+  ALERT_INTERVAL_MINUTES * 60 * 1000
+);
 
 function formatHHMM(now) {
   const hours = String(now.getHours()).padStart(2, "0");
