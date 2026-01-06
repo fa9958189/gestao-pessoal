@@ -928,7 +928,14 @@ app.post("/admin/affiliates/:id/payouts/mark-paid", async (req, res) => {
       return res.status(400).json({ error: error.message });
     }
 
-    return res.json({ ok: true, payout: data });
+    const payoutRef = (data?.period_month || monthStart).slice(0, 7);
+
+    return res.json({
+      ok: true,
+      payout: data,
+      payout_status: "PAGO",
+      payout_ref: payoutRef,
+    });
   } catch (err) {
     console.error("Erro inesperado em POST /admin/affiliates/:id/payouts/mark-paid:", err);
     return res.status(500).json({ error: "Erro interno ao registrar pagamento." });
