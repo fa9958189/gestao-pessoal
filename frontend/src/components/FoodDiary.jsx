@@ -224,6 +224,18 @@ function FoodDiary({ userId, supabase, notify }) {
     return { totalCalories, totalProtein, totalWaterMl, totalWaterLiters };
   }, [dayEntries]);
 
+  const totalCalories = totals.totalCalories;
+  const totalProtein = totals.totalProtein;
+  const totalWater = totals.totalWaterLiters;
+  const calorieGoal = goals.calories || 0;
+  const proteinGoal = goals.protein || 0;
+  const waterGoal = goals.water || 0;
+
+  const goalsMet =
+    totalCalories <= calorieGoal &&
+    totalProtein >= proteinGoal &&
+    totalWater >= waterGoal;
+
   const bmi = useMemo(() => {
     const h = Number(body.heightCm);
     const w = Number(body.weightKg);
@@ -1062,8 +1074,7 @@ function FoodDiary({ userId, supabase, notify }) {
                 <div>
                   Calorias:{' '}
                   <strong>
-                    {formatNumber(totals.totalCalories, 0)} /{' '}
-                    {formatNumber(goals.calories || 0, 0)} kcal
+                    {formatNumber(totalCalories, 0)} / {formatNumber(calorieGoal, 0)} kcal
                   </strong>
                 </div>
                 <div className="food-diary-bar">
@@ -1075,8 +1086,7 @@ function FoodDiary({ userId, supabase, notify }) {
                 <div>
                   Proteína:{' '}
                   <strong>
-                    {formatNumber(totals.totalProtein, 0)} /{' '}
-                    {formatNumber(goals.protein || 0, 0)} g
+                    {formatNumber(totalProtein, 0)} / {formatNumber(proteinGoal, 0)} g
                   </strong>
                 </div>
                 <div className="food-diary-bar">
@@ -1088,14 +1098,25 @@ function FoodDiary({ userId, supabase, notify }) {
                 <div>
                   Água:{' '}
                   <strong>
-                    {formatNumber(totals.totalWaterLiters, 2)} /{' '}
-                    {formatNumber(goals.water || 0, 2)} L
+                    {formatNumber(totalWater, 2)} / {formatNumber(waterGoal, 2)} L
                   </strong>
                 </div>
                 <div className="food-diary-bar">
                   {renderBlocks(totals.totalWaterLiters, goals.water || 1)}
                 </div>
               </div>
+            </div>
+
+            <div
+              style={{
+                marginTop: 8,
+                fontSize: 12,
+                color: goalsMet ? '#16a34a' : '#dc2626',
+              }}
+            >
+              {goalsMet
+                ? '✅ Meta do dia batida. Bom trabalho!'
+                : '⚠️ Meta do dia não batida. Um alerta será enviado no WhatsApp às 23h.'}
             </div>
           </div>
 
