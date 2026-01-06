@@ -1,6 +1,9 @@
 const TZ = "America/Sao_Paulo";
 const ALERT_WINDOW_START_HOUR = 8;
 const ALERT_WINDOW_END_HOUR = 20;
+const DAILY_GOALS_WINDOW_START_HOUR = 23;
+const DAILY_GOALS_WINDOW_END_HOUR = 23;
+const DAILY_GOALS_WINDOW_END_MINUTE = 20;
 
 const DEFAULT_MAX_PER_DAY = 3;
 const DEFAULT_LOW_BALANCE_BRL = 200;
@@ -18,6 +21,9 @@ const DEFAULT_JUNK_KEYWORDS = [
 ];
 const DEFAULT_JUNK_REPEAT_COUNT = 3;
 const DEFAULT_PROTEIN_MIN = 80;
+const DEFAULT_CALORIE_GOAL = 2000;
+const DEFAULT_PROTEIN_GOAL = 120;
+const DEFAULT_WATER_GOAL_L = 2.5;
 
 const numberFormatter = new Intl.NumberFormat("pt-BR", {
   style: "currency",
@@ -77,6 +83,16 @@ function getDayBounds(date) {
 function isWithinAlertWindow(date) {
   const hour = date.getHours();
   return hour >= ALERT_WINDOW_START_HOUR && hour <= ALERT_WINDOW_END_HOUR;
+}
+
+function isWithinDailyGoalsWindow(date) {
+  const hour = date.getHours();
+  const minute = date.getMinutes();
+  return (
+    hour >= DAILY_GOALS_WINDOW_START_HOUR &&
+    hour <= DAILY_GOALS_WINDOW_END_HOUR &&
+    minute <= DAILY_GOALS_WINDOW_END_MINUTE
+  );
 }
 
 function parseKeywords() {
@@ -347,11 +363,100 @@ async function buildFoodAlerts(supabase, user, todayStr, today) {
   return alerts;
 }
 
+async function buildDailyGoalsMissedAlert(supabase, user, todayStr) {
+  const userId = user.auth_id || user.id;
+  if (!userId) return [];
+
+  const { data: profile, error: profileError } = await supabase
+    .from("food_diary_profile")
+    .select("calorie_goal, protein_goal, water_goal_l")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (profileError) {
+    console.error("❌ Erro ao buscar metas do diário alimentar:", profileError.message);
+    return [];
+  }
+
+  const goalCalories = Number(profile?.calorie_goal) || DEFAULT_CALORIE_GOAL;
+  const goalProtein = Number(profile?.protein_goal) || DEFAULT_PROTEIN_GOAL;
+  const goalWaterL = Number(profile?.water_goal_l) || DEFAULT_WATER_GOAL_L;
+
+  const { data: entries, error: entriesError } = await supabase
+    .from("food_diary_entries")
+    .select("calories, protein, water_ml")
+    .eq("user_id", userId)
+    .eq("entry_date", todayStr);
+
+  if (entriesError) {
+    console.error("❌ Erro ao buscar entradas do diário alimentar:", entriesError.message);
+    return [];
+  }
+
+  const totals = (entries || []).reduce(
+    (acc, entry) => {
+      acc.calories += Number(entry.calories || 0);
+      acc.protein += Number(entry.protein || 0);
+      acc.waterMl += Number(entry.water_ml || 0);
+      return acc;
+    },
+    { calories: 0, protein: 0, waterMl: 0 }
+  );
+
+  const totalCalories = totals.calories;
+  const totalProtein = totals.protein;
+  const totalWaterL = totals.waterMl / 1000;
+
+  const caloriesMissed = totalCalories > goalCalories;
+  const proteinMissed = totalProtein < goalProtein;
+  const waterMissed = totalWaterL < goalWaterL;
+
+  if (!caloriesMissed && !proteinMissed && !waterMissed) {
+    return [];
+  }
+
+  const lines = [
+    "⚠️ Gestão Pessoal — Fechamento do dia",
+    "Hoje você não bateu suas metas:",
+  ];
+
+  if (caloriesMissed) {
+    lines.push(
+      `• Calorias: ${totalCalories.toFixed(0)}/${goalCalories.toFixed(0)} (acima)`
+    );
+  }
+
+  if (proteinMissed) {
+    lines.push(
+      `• Proteína: ${totalProtein.toFixed(0)}/${goalProtein.toFixed(0)}g (abaixo)`
+    );
+  }
+
+  if (waterMissed) {
+    lines.push(
+      `• Água: ${totalWaterL.toFixed(1)}/${goalWaterL.toFixed(1)}L (abaixo)`
+    );
+  }
+
+  lines.push("Amanhã a gente ajusta isso. Constância ganha. 💪");
+
+  return [
+    {
+      alertType: "food_daily_goals_missed",
+      alertKey: todayStr,
+      message: lines.join("\n"),
+    },
+  ];
+}
+
 export async function runWhatsAppAlerts({ supabase, sendMessage, now = new Date() }) {
   if (!supabase || typeof sendMessage !== "function") return;
 
   const nowInSp = toSaoPaulo(now);
-  if (!isWithinAlertWindow(nowInSp)) {
+  const withinDefaultWindow = isWithinAlertWindow(nowInSp);
+  const withinDailyGoalsWindow = isWithinDailyGoalsWindow(nowInSp);
+
+  if (!withinDefaultWindow && !withinDailyGoalsWindow) {
     return;
   }
 
@@ -388,36 +493,62 @@ export async function runWhatsAppAlerts({ supabase, sendMessage, now = new Date(
       continue;
     }
 
-    const financeAlerts = await buildFinanceAlerts(supabase, user, todayStr);
-    for (const alert of financeAlerts) {
-      await sendUserAlert({
-        supabase,
-        user,
-        alertType: alert.alertType,
-        alertKey: alert.alertKey,
-        message: alert.message,
-        dailyLimit: maxPerDay,
-        todayCount,
-        sendMessage,
-      });
-      if (todayCount.value >= maxPerDay) break;
+    if (withinDefaultWindow) {
+      const financeAlerts = await buildFinanceAlerts(supabase, user, todayStr);
+      for (const alert of financeAlerts) {
+        await sendUserAlert({
+          supabase,
+          user,
+          alertType: alert.alertType,
+          alertKey: alert.alertKey,
+          message: alert.message,
+          dailyLimit: maxPerDay,
+          todayCount,
+          sendMessage,
+        });
+        if (todayCount.value >= maxPerDay) break;
+      }
+
+      if (todayCount.value >= maxPerDay) continue;
+
+      const foodAlerts = await buildFoodAlerts(supabase, user, todayStr, nowInSp);
+      for (const alert of foodAlerts) {
+        await sendUserAlert({
+          supabase,
+          user,
+          alertType: alert.alertType,
+          alertKey: alert.alertKey,
+          message: alert.message,
+          dailyLimit: maxPerDay,
+          todayCount,
+          sendMessage,
+        });
+        if (todayCount.value >= maxPerDay) break;
+      }
     }
 
     if (todayCount.value >= maxPerDay) continue;
 
-    const foodAlerts = await buildFoodAlerts(supabase, user, todayStr, nowInSp);
-    for (const alert of foodAlerts) {
-      await sendUserAlert({
+    if (withinDailyGoalsWindow) {
+      const dailyGoalsAlerts = await buildDailyGoalsMissedAlert(
         supabase,
         user,
-        alertType: alert.alertType,
-        alertKey: alert.alertKey,
-        message: alert.message,
-        dailyLimit: maxPerDay,
-        todayCount,
-        sendMessage,
-      });
-      if (todayCount.value >= maxPerDay) break;
+        todayStr
+      );
+
+      for (const alert of dailyGoalsAlerts) {
+        await sendUserAlert({
+          supabase,
+          user,
+          alertType: alert.alertType,
+          alertKey: alert.alertKey,
+          message: alert.message,
+          dailyLimit: maxPerDay,
+          todayCount,
+          sendMessage,
+        });
+        if (todayCount.value >= maxPerDay) break;
+      }
     }
   }
 }
