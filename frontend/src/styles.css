@@ -197,6 +197,34 @@ h2.title, h3.title{ margin:0 0 10px; font-weight:600; }
 .user-list-wrapper{ overflow:auto; }
 .user-empty.hidden{ display:none; }
 
+/* ===== Fix desktop: Cadastro de Usuários não estourar largura ===== */
+.users-table-container{
+  overflow-x: auto;              /* rolagem horizontal dentro do container */
+  -webkit-overflow-scrolling: touch;
+  max-width: 100%;
+}
+
+.usuarios-scroll{
+  overflow-x: auto;              /* garante rolagem também no desktop */
+  -webkit-overflow-scrolling: touch;
+  max-width: 100%;
+}
+
+/* a tabela pode ser larga, mas deve rolar dentro do card */
+.usuarios-scroll table,
+.users-table{
+  min-width: 950px;              /* parecido com padrão das outras tabelas */
+  width: 100%;
+}
+
+/* impede “vazamento” de grid/flex por conteúdo grande */
+.admin-card,
+.user-list-wrapper,
+.users-table-container,
+.usuarios-scroll{
+  min-width: 0;
+}
+
 .admin-card th.right,
 .admin-card td.actions{
   text-align:right;
