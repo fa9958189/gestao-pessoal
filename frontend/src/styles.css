@@ -1062,6 +1062,7 @@ canvas{ background:transparent; }
   margin-top:10px;
   flex:1;
   min-height:0;
+  max-height:55vh;
   overflow-y:auto;
   overflow-x:hidden;
 }
