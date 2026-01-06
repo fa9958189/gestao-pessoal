@@ -2155,7 +2155,7 @@ function App() {
       )}
 
       {activeView === 'users' && isAdmin && (
-        <div className="container single-card">
+        <div className="container single-card admin-users-container">
           <section className="card admin-card" id="adminUsersSection">
             <h2 className="title">Cadastro de Usuários</h2>
             <p className="muted">Somente administradores podem acessar esta área.</p>
