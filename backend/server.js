@@ -160,7 +160,15 @@ app.post("/scan-food", scanFoodUpload, async (req, res) => {
 
 app.post("/create-user", async (req, res) => {
   try {
-    const { name, username, password, whatsapp, role, affiliateCode } = req.body;
+    const {
+      name,
+      username,
+      password,
+      whatsapp,
+      role,
+      affiliateCode,
+      apply_trial: applyTrial,
+    } = req.body;
 
     if (!name || !username || !password) {
       return res
@@ -247,6 +255,12 @@ app.post("/create-user", async (req, res) => {
     }
 
     // 3) Grava em profiles_auth
+    const now = new Date();
+    const trialStartAt = applyTrial ? now.toISOString() : null;
+    const trialEndAt = applyTrial
+      ? new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString()
+      : null;
+
     const { error: authTableError } = await supabase
       .from("profiles_auth")
       .insert({
@@ -260,6 +274,14 @@ app.post("/create-user", async (req, res) => {
         billing_due_day: BILLING_DEFAULT_DUE_DAY,
         affiliate_id: affiliate?.id || null,
         affiliate_code: affiliate?.code || null,
+        ...(applyTrial
+          ? {
+              trial_start_at: trialStartAt,
+              trial_end_at: trialEndAt,
+              trial_status: "trial",
+              subscription_status: "active",
+            }
+          : {}),
       });
 
     if (authTableError) {

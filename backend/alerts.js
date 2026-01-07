@@ -279,6 +279,107 @@ async function logAlert(supabase, { userId, alertType, alertKey }) {
   return true;
 }
 
+async function handleTrialExpirations({ supabase, sendMessage, now }) {
+  const adminNumber =
+    process.env.ADMIN_WHATSAPP_NUMBER || "+5563992393705";
+  const referenceDate = now instanceof Date ? now : new Date(now || Date.now());
+  const alertDate = formatDate(toSaoPaulo(referenceDate));
+
+  const { data: trialUsers, error } = await supabase
+    .from("profiles_auth")
+    .select("id, auth_id, name, email, whatsapp, trial_end_at")
+    .eq("trial_status", "trial")
+    .eq("subscription_status", "active")
+    .lte("trial_end_at", referenceDate.toISOString());
+
+  if (error) {
+    console.error("❌ Erro ao buscar trials expirados:", error.message);
+    return;
+  }
+
+  for (const user of trialUsers || []) {
+    const userId = user.auth_id || user.id;
+    if (!userId) continue;
+
+    const alertKey = `${userId}-${alertDate}`;
+    let alreadySent = false;
+
+    try {
+      alreadySent = await hasAlertBeenSent(
+        supabase,
+        userId,
+        "trial_expired",
+        alertKey
+      );
+    } catch (err) {
+      console.error("❌ Erro ao validar alerta de trial:", err.message || err);
+      continue;
+    }
+
+    if (alreadySent) {
+      continue;
+    }
+
+    const { error: updateError } = await supabase
+      .from("profiles_auth")
+      .update({
+        subscription_status: "inactive",
+        trial_status: null,
+      })
+      .or(`auth_id.eq.${userId},id.eq.${userId}`);
+
+    if (updateError) {
+      console.error("❌ Erro ao expirar trial:", updateError.message);
+      continue;
+    }
+
+    const userMessage = [
+      "⏳ Gestão Pessoal",
+      "Seu período de 7 dias grátis acabou hoje.",
+      "Se quiser continuar com acesso total, fale com nossa equipe comercial e conclua sua assinatura. 💪",
+    ].join("\n");
+
+    const adminMessage = [
+      "⚠️ Trial finalizado",
+      `O usuário ${user.name || "Sem nome"} (${user.email || "sem e-mail"}) terminou os 7 dias grátis e foi inativado automaticamente.`,
+      `WhatsApp: ${user.whatsapp || "não informado"}`,
+    ].join("\n");
+
+    let sentUser = false;
+    let sentAdmin = false;
+
+    if (user.whatsapp) {
+      try {
+        const resp = await sendMessage({ phone: user.whatsapp, message: userMessage });
+        sentUser = resp?.ok !== false;
+      } catch (err) {
+        console.error(`❌ Falha ao enviar WhatsApp de trial para usuário ${userId}:`, err);
+      }
+    }
+
+    if (adminNumber) {
+      try {
+        const resp = await sendMessage({ phone: adminNumber, message: adminMessage });
+        sentAdmin = resp?.ok !== false;
+      } catch (err) {
+        console.error(`❌ Falha ao enviar WhatsApp de trial para admin ${userId}:`, err);
+      }
+    }
+
+    if (sentUser || sentAdmin) {
+      try {
+        await logAlert(supabase, {
+          userId,
+          alertType: "trial_expired",
+          alertKey,
+        });
+      } catch (err) {
+        console.error("❌ Erro ao registrar log de trial expirado:", err);
+      }
+    }
+  }
+}
+
 async function sendUserAlert({
   supabase,
   user,
@@ -684,6 +785,8 @@ async function buildMealMissingReminders(supabase, user, todayStr, nowInSp) {
 
 export async function runWhatsAppAlerts({ supabase, sendMessage, now = new Date() }) {
   if (!supabase || typeof sendMessage !== "function") return;
+
+  await handleTrialExpirations({ supabase, sendMessage, now });
 
   const nowInSp = toSaoPaulo(now);
   const withinDefaultWindow = isWithinAlertWindow(nowInSp);

@@ -44,7 +44,8 @@ const defaultUserForm = {
   password: '',
   whatsapp: '',
   role: 'user',
-  affiliateCode: ''
+  affiliateCode: '',
+  applyTrial: false
 };
 
 const normalizeBaseUrl = (value) => {
@@ -1553,6 +1554,9 @@ function App() {
         if (trimmedAffiliateCode) {
           createUserPayload.affiliateCode = trimmedAffiliateCode;
         }
+        if (userForm.applyTrial) {
+          createUserPayload.apply_trial = true;
+        }
 
         const response = await fetch(`${workoutApiBase}/create-user`, {
           method: 'POST',
@@ -2203,6 +2207,18 @@ function App() {
                   placeholder="ex: AFI-001"
                 />
               </div>
+              {!editingUserId && (
+                <div className="checkbox-row">
+                  <label className="checkbox-label">
+                    <input
+                      type="checkbox"
+                      checked={userForm.applyTrial}
+                      onChange={(e) => setUserForm({ ...userForm, applyTrial: e.target.checked })}
+                    />
+                    <span>Aplicar 7 dias grátis</span>
+                  </label>
+                </div>
+              )}
               <div className="admin-user-actions">
                 <button className="primary" onClick={handleSaveUser}>
                   {editingUserId ? 'Salvar alterações' : 'Adicionar usuário'}
@@ -2222,7 +2238,8 @@ function App() {
                   whatsapp: user.whatsapp,
                   role: user.role,
                   password: '',
-                  affiliateCode: user.affiliate_code || ''
+                  affiliateCode: user.affiliate_code || '',
+                  applyTrial: false
                 });
               }}
               onDelete={handleDeleteUser}
