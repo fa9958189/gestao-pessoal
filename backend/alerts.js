@@ -24,6 +24,36 @@ const DEFAULT_PROTEIN_MIN = 80;
 const DEFAULT_CALORIE_GOAL = 2000;
 const DEFAULT_PROTEIN_GOAL = 120;
 const DEFAULT_WATER_GOAL_L = 2.5;
+const MEAL_WINDOWS = [
+  {
+    label: "Café da manhã",
+    startHour: 7,
+    startMinute: 0,
+    endHour: 7,
+    endMinute: 20,
+  },
+  {
+    label: "Almoço",
+    startHour: 11,
+    startMinute: 0,
+    endHour: 11,
+    endMinute: 20,
+  },
+  {
+    label: "Lanche",
+    startHour: 15,
+    startMinute: 40,
+    endHour: 16,
+    endMinute: 0,
+  },
+  {
+    label: "Jantar",
+    startHour: 19,
+    startMinute: 30,
+    endHour: 19,
+    endMinute: 50,
+  },
+];
 
 const numberFormatter = new Intl.NumberFormat("pt-BR", {
   style: "currency",
@@ -93,6 +123,17 @@ function isWithinDailyGoalsWindow(date) {
     hour <= DAILY_GOALS_WINDOW_END_HOUR &&
     minute <= DAILY_GOALS_WINDOW_END_MINUTE
   );
+}
+
+function isWithinWindow(date, window) {
+  const minutes = date.getHours() * 60 + date.getMinutes();
+  const start = window.startHour * 60 + window.startMinute;
+  const end = window.endHour * 60 + window.endMinute;
+  return minutes >= start && minutes <= end;
+}
+
+function getMealWindow(date) {
+  return MEAL_WINDOWS.find((window) => isWithinWindow(date, window)) || null;
 }
 
 function parseKeywords() {
@@ -449,14 +490,87 @@ async function buildDailyGoalsMissedAlert(supabase, user, todayStr) {
   ];
 }
 
+async function buildMealMissingReminders(supabase, user, todayStr, nowInSp) {
+  const userId = user.auth_id || user.id;
+  if (!userId) return [];
+
+  const mealWindow = getMealWindow(nowInSp);
+  if (!mealWindow) return [];
+
+  const { data: profile, error: profileError } = await supabase
+    .from("food_diary_profile")
+    .select("user_id")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (profileError) {
+    console.error("❌ Erro ao buscar perfil do diário alimentar:", profileError.message);
+    return [];
+  }
+
+  if (!profile) {
+    const weekStart = new Date(nowInSp);
+    weekStart.setDate(weekStart.getDate() - 6);
+    const weekStartStr = formatDate(weekStart);
+
+    const { data: recentEntries, error: recentError } = await supabase
+      .from("food_diary_entries")
+      .select("id")
+      .eq("user_id", userId)
+      .gte("entry_date", weekStartStr)
+      .lte("entry_date", todayStr)
+      .limit(1);
+
+    if (recentError) {
+      console.error("❌ Erro ao buscar entradas recentes do diário alimentar:", recentError.message);
+      return [];
+    }
+
+    if (!recentEntries || recentEntries.length === 0) {
+      return [];
+    }
+  }
+
+  const expectedMealType = mealWindow.label;
+  const { data: entries, error: entriesError } = await supabase
+    .from("food_diary_entries")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("entry_date", todayStr)
+    .eq("meal_type", expectedMealType)
+    .limit(1);
+
+  if (entriesError) {
+    console.error("❌ Erro ao verificar refeição do dia:", entriesError.message);
+    return [];
+  }
+
+  if (entries && entries.length > 0) {
+    return [];
+  }
+
+  return [
+    {
+      alertType: "food_meal_missing",
+      alertKey: `${todayStr}-${expectedMealType}`,
+      message: [
+        "⏰ Gestão Pessoal: lembrete rápido",
+        `Ainda não foi registrado: ${expectedMealType}.`,
+        "Não perde o foco — registra pra manter o acompanhamento. 💪",
+      ].join("\n"),
+    },
+  ];
+}
+
 export async function runWhatsAppAlerts({ supabase, sendMessage, now = new Date() }) {
   if (!supabase || typeof sendMessage !== "function") return;
 
   const nowInSp = toSaoPaulo(now);
   const withinDefaultWindow = isWithinAlertWindow(nowInSp);
   const withinDailyGoalsWindow = isWithinDailyGoalsWindow(nowInSp);
+  const withinMealWindow = Boolean(getMealWindow(nowInSp));
 
-  if (!withinDefaultWindow && !withinDailyGoalsWindow) {
+  if (!withinDefaultWindow && !withinDailyGoalsWindow && !withinMealWindow) {
     return;
   }
 
@@ -513,6 +627,31 @@ export async function runWhatsAppAlerts({ supabase, sendMessage, now = new Date(
 
       const foodAlerts = await buildFoodAlerts(supabase, user, todayStr, nowInSp);
       for (const alert of foodAlerts) {
+        await sendUserAlert({
+          supabase,
+          user,
+          alertType: alert.alertType,
+          alertKey: alert.alertKey,
+          message: alert.message,
+          dailyLimit: maxPerDay,
+          todayCount,
+          sendMessage,
+        });
+        if (todayCount.value >= maxPerDay) break;
+      }
+    }
+
+    if (todayCount.value >= maxPerDay) continue;
+
+    if (withinMealWindow) {
+      const mealMissingAlerts = await buildMealMissingReminders(
+        supabase,
+        user,
+        todayStr,
+        nowInSp
+      );
+
+      for (const alert of mealMissingAlerts) {
         await sendUserAlert({
           supabase,
           user,
