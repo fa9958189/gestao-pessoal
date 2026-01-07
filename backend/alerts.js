@@ -24,6 +24,12 @@ const DEFAULT_PROTEIN_MIN = 80;
 const DEFAULT_CALORIE_GOAL = 2000;
 const DEFAULT_PROTEIN_GOAL = 120;
 const DEFAULT_WATER_GOAL_L = 2.5;
+const DEFAULT_MEAL_ADAPTIVE_ENABLED = true;
+const DEFAULT_MEAL_LOOKBACK_DAYS = 14;
+const DEFAULT_MEAL_MIN_SAMPLES = 3;
+const DEFAULT_MEAL_WINDOW_MINUTES = 20;
+const MEAL_DAY_START_MINUTES = 300;
+const MEAL_DAY_END_MINUTES = 1350;
 const MEAL_WINDOWS = [
   {
     label: "Café da manhã",
@@ -132,8 +138,69 @@ function isWithinWindow(date, window) {
   return minutes >= start && minutes <= end;
 }
 
+function getFallbackMealWindows() {
+  return MEAL_WINDOWS.map((window) => ({
+    label: window.label,
+    startMin: window.startHour * 60 + window.startMinute,
+    endMin: window.endHour * 60 + window.endMinute,
+  }));
+}
+
 function getMealWindow(date) {
   return MEAL_WINDOWS.find((window) => isWithinWindow(date, window)) || null;
+}
+
+function getMealWindowByMinutes(mealWindows, nowMinutes) {
+  return mealWindows.find(
+    (window) => nowMinutes >= window.startMin && nowMinutes <= window.endMin
+  );
+}
+
+function parseBooleanEnv(value, fallback) {
+  if (value === undefined) return fallback;
+  return value === "true" || value === "1";
+}
+
+function getAdaptiveMealConfig() {
+  return {
+    enabled: parseBooleanEnv(
+      process.env.ALERT_MEAL_ADAPTIVE,
+      DEFAULT_MEAL_ADAPTIVE_ENABLED
+    ),
+    lookbackDays:
+      Number(process.env.ALERT_MEAL_LOOKBACK_DAYS) || DEFAULT_MEAL_LOOKBACK_DAYS,
+    minSamples: Number(process.env.ALERT_MEAL_MIN_SAMPLES) || DEFAULT_MEAL_MIN_SAMPLES,
+    windowMinutes:
+      Number(process.env.ALERT_MEAL_WINDOW_MINUTES) || DEFAULT_MEAL_WINDOW_MINUTES,
+  };
+}
+
+function clampMealWindow(startMin, endMin) {
+  const start = Math.max(startMin, MEAL_DAY_START_MINUTES);
+  const end = Math.min(endMin, MEAL_DAY_END_MINUTES);
+  if (end < start) {
+    return { startMin: start, endMin: start };
+  }
+  return { startMin: start, endMin: end };
+}
+
+function median(values) {
+  if (!values.length) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  if (sorted.length % 2 === 0) {
+    return (sorted[mid - 1] + sorted[mid]) / 2;
+  }
+  return sorted[mid];
+}
+
+function isWithinMealReminderWindow(date) {
+  const { enabled } = getAdaptiveMealConfig();
+  if (!enabled) {
+    return Boolean(getMealWindow(date));
+  }
+  const minutes = date.getHours() * 60 + date.getMinutes();
+  return minutes >= MEAL_DAY_START_MINUTES && minutes <= MEAL_DAY_END_MINUTES;
 }
 
 function parseKeywords() {
@@ -494,7 +561,60 @@ async function buildMealMissingReminders(supabase, user, todayStr, nowInSp) {
   const userId = user.auth_id || user.id;
   if (!userId) return [];
 
-  const mealWindow = getMealWindow(nowInSp);
+  const adaptiveConfig = getAdaptiveMealConfig();
+  const fallbackWindows = getFallbackMealWindows();
+  let mealWindows = fallbackWindows;
+
+  if (adaptiveConfig.enabled) {
+    const lookbackStart = new Date(nowInSp);
+    lookbackStart.setDate(lookbackStart.getDate() - adaptiveConfig.lookbackDays);
+    const lookbackIso = lookbackStart.toISOString();
+    const { data: historyEntries, error: historyError } = await supabase
+      .from("food_diary_entries")
+      .select("meal_type, created_at")
+      .eq("user_id", userId)
+      .gte("created_at", lookbackIso);
+
+    if (historyError) {
+      console.error(
+        "❌ Erro ao buscar histórico de refeições:",
+        historyError.message
+      );
+    } else {
+      const mealSamples = {};
+      for (const entry of historyEntries || []) {
+        if (!entry.meal_type || !entry.created_at) continue;
+        if (!MEAL_WINDOWS.find((window) => window.label === entry.meal_type)) {
+          continue;
+        }
+        const localTime = toSaoPaulo(entry.created_at);
+        const minutes = localTime.getHours() * 60 + localTime.getMinutes();
+        if (!mealSamples[entry.meal_type]) {
+          mealSamples[entry.meal_type] = [];
+        }
+        mealSamples[entry.meal_type].push(minutes);
+      }
+
+      mealWindows = fallbackWindows.map((window) => {
+        const samples = mealSamples[window.label] || [];
+        if (samples.length < adaptiveConfig.minSamples) {
+          return window;
+        }
+        const medianMinutes = median(samples);
+        if (medianMinutes === null) {
+          return window;
+        }
+        const { startMin, endMin } = clampMealWindow(
+          medianMinutes - adaptiveConfig.windowMinutes,
+          medianMinutes + adaptiveConfig.windowMinutes
+        );
+        return { label: window.label, startMin, endMin };
+      });
+    }
+  }
+
+  const nowMinutes = nowInSp.getHours() * 60 + nowInSp.getMinutes();
+  const mealWindow = getMealWindowByMinutes(mealWindows, nowMinutes);
   if (!mealWindow) return [];
 
   const { data: profile, error: profileError } = await supabase
@@ -568,7 +688,7 @@ export async function runWhatsAppAlerts({ supabase, sendMessage, now = new Date(
   const nowInSp = toSaoPaulo(now);
   const withinDefaultWindow = isWithinAlertWindow(nowInSp);
   const withinDailyGoalsWindow = isWithinDailyGoalsWindow(nowInSp);
-  const withinMealWindow = Boolean(getMealWindow(nowInSp));
+  const withinMealWindow = isWithinMealReminderWindow(nowInSp);
 
   if (!withinDefaultWindow && !withinDailyGoalsWindow && !withinMealWindow) {
     return;
