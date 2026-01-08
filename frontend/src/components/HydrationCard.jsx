@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  addWaterEntry,
-  deleteLatestWaterEntry,
-  fetchWaterByDate,
+  addHydrationEntry,
+  fetchHydrationState,
+  undoHydrationEntry,
 } from '../hydrationApi';
 
 const DAILY_GOAL_ML = 3000;
@@ -22,7 +22,9 @@ const getLocalDateString = () => {
 };
 
 function HydrationCard({ userId, supabase, notify, selectedDate }) {
-  const [entries, setEntries] = useState([]);
+  const [hydrationTotalMl, setHydrationTotalMl] = useState(0);
+  const [hydrationGoalMl, setHydrationGoalMl] = useState(DAILY_GOAL_ML);
+  const [hydrationLastEntryId, setHydrationLastEntryId] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState(null);
@@ -31,12 +33,8 @@ function HydrationCard({ userId, supabase, notify, selectedDate }) {
     [selectedDate],
   );
 
-  const totalMl = useMemo(
-    () => entries.reduce((sum, item) => sum + (Number(item.amountMl) || 0), 0),
-    [entries],
-  );
-
-  const goalMl = DAILY_GOAL_ML;
+  const totalMl = useMemo(() => hydrationTotalMl, [hydrationTotalMl]);
+  const goalMl = hydrationGoalMl || DAILY_GOAL_ML;
   const progress = Math.min(100, Math.round((totalMl / goalMl) * 100));
 
   useEffect(() => {
@@ -47,9 +45,11 @@ function HydrationCard({ userId, supabase, notify, selectedDate }) {
       try {
         setIsLoading(true);
         setError(null);
-        const data = await fetchWaterByDate(userId, date, supabase);
+        const data = await fetchHydrationState({ dayDate: date }, supabase);
         if (!isMounted) return;
-        setEntries(data || []);
+        setHydrationTotalMl(Number(data?.hydrationTotalMl || 0));
+        setHydrationGoalMl(Number(data?.hydrationGoalMl || DAILY_GOAL_ML));
+        setHydrationLastEntryId(data?.hydrationLastEntryId ?? null);
       } catch (err) {
         console.warn('Erro ao carregar hidratação', err);
         if (isMounted) {
@@ -79,11 +79,10 @@ function HydrationCard({ userId, supabase, notify, selectedDate }) {
     if (!userId) return;
     try {
       setIsSaving(true);
-      const created = await addWaterEntry(
-        { userId, date, amountMl },
-        supabase,
-      );
-      setEntries((prev) => [created, ...prev]);
+      const result = await addHydrationEntry({ dayDate: date, amountMl }, supabase);
+      setHydrationTotalMl(Number(result?.hydrationTotalMl || 0));
+      setHydrationGoalMl(Number(result?.hydrationGoalMl || goalMl));
+      setHydrationLastEntryId(result?.hydrationLastEntryId ?? null);
       if (typeof notify === 'function') {
         notify('Hidratação registrada.', 'success');
       }
@@ -101,14 +100,20 @@ function HydrationCard({ userId, supabase, notify, selectedDate }) {
     if (!userId) return;
     try {
       setIsSaving(true);
-      const deleted = await deleteLatestWaterEntry(userId, date, supabase);
-      if (deleted) {
-        setEntries((prev) => prev.filter((item) => item.id !== deleted.id));
+      const result = await undoHydrationEntry({ dayDate: date }, supabase);
+      if (result?.ok === false && result?.reason === 'no_hydration') {
         if (typeof notify === 'function') {
-          notify('Último registro removido.', 'success');
+          notify('Nenhum registro para desfazer.', 'warning');
         }
-      } else if (typeof notify === 'function') {
-        notify('Nenhum registro para desfazer.', 'warning');
+        setHydrationTotalMl(Number(result?.hydrationTotalMl || 0));
+        setHydrationLastEntryId(result?.hydrationLastEntryId ?? null);
+        return;
+      }
+
+      setHydrationTotalMl(Number(result?.hydrationTotalMl || 0));
+      setHydrationLastEntryId(result?.hydrationLastEntryId ?? null);
+      if (typeof notify === 'function') {
+        notify('Último registro removido.', 'success');
       }
     } catch (err) {
       console.warn('Erro ao desfazer hidratação', err);
@@ -156,7 +161,7 @@ function HydrationCard({ userId, supabase, notify, selectedDate }) {
             type="button"
             className="ghost"
             onClick={handleUndo}
-            disabled={isSaving || isLoading || entries.length === 0}
+            disabled={isSaving || isLoading || !hydrationLastEntryId}
           >
             Desfazer último
           </button>
