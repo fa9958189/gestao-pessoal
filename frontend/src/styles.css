@@ -812,6 +812,32 @@ canvas{ background:transparent; }
   padding-right: 4px;
 }
 
+.food-picker-step {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.food-picker-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.food-picker-macros {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(140px, 1fr));
+  gap: 10px;
+}
+
+.food-picker-macro-card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+}
+
 .food-picker-item {
   display: flex;
   align-items: center;

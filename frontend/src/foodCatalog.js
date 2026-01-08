@@ -41,7 +41,7 @@ export const FOOD_CATALOG = [
     categoria: 'Proteínas',
     icon: 'Egg',
     kcalPorPorcao: 78,
-    descricaoPorcao: '1 unidade',
+    descricaoPorcao: '1 unidade (50 g)',
     proteina: 6
   },
   {
@@ -63,7 +63,7 @@ export const FOOD_CATALOG = [
     proteina: 10
   },
   {
-    id: 'batata-doce',
+    id: 'batata-doce-assada',
     nome: 'Batata-doce assada',
     categoria: 'Tubérculos',
     icon: 'Soup',
@@ -95,7 +95,7 @@ export const FOOD_CATALOG = [
     categoria: 'Café da manhã',
     icon: 'Wheat',
     kcalPorPorcao: 210,
-    descricaoPorcao: '1 unidade média',
+    descricaoPorcao: '1 unidade média (60 g)',
     proteina: 5
   },
   {
@@ -104,35 +104,17 @@ export const FOOD_CATALOG = [
     categoria: 'Café da manhã',
     icon: 'Wheat',
     kcalPorPorcao: 70,
-    descricaoPorcao: '2 unidades',
+    descricaoPorcao: '2 unidades (30 g)',
     proteina: 2
   },
   {
-    id: 'banana',
-    nome: 'Banana',
-    categoria: 'Frutas',
-    icon: 'Apple',
-    kcalPorPorcao: 90,
-    descricaoPorcao: '1 unidade média',
-    proteina: 1
-  },
-  {
-    id: 'mamão',
+    id: 'mamao',
     nome: 'Mamão papaia',
     categoria: 'Frutas',
     icon: 'Apple',
     kcalPorPorcao: 55,
-    descricaoPorcao: '1/2 unidade',
+    descricaoPorcao: '1/2 unidade (150 g)',
     proteina: 1
-  },
-  {
-    id: 'aveia',
-    nome: 'Aveia em flocos',
-    categoria: 'Café da manhã',
-    icon: 'Soup',
-    kcalPorPorcao: 150,
-    descricaoPorcao: '3 colheres de sopa (30g)',
-    proteina: 5
   },
   {
     id: 'iogurte-natural',
@@ -149,17 +131,8 @@ export const FOOD_CATALOG = [
     categoria: 'Café da manhã',
     icon: 'Egg',
     kcalPorPorcao: 140,
-    descricaoPorcao: '2 ovos',
+    descricaoPorcao: '2 ovos (100 g)',
     proteina: 12
-  },
-  {
-    id: 'frango-grelhado',
-    nome: 'Frango grelhado',
-    categoria: 'Carnes',
-    icon: 'Drumstick',
-    kcalPorPorcao: 150,
-    descricaoPorcao: '100 g',
-    proteina: 30
   },
   {
     id: 'patinho-moido',
@@ -205,15 +178,6 @@ export const FOOD_CATALOG = [
     kcalPorPorcao: 190,
     descricaoPorcao: '100 g',
     proteina: 22
-  },
-  {
-    id: 'arroz-branco',
-    nome: 'Arroz branco cozido',
-    categoria: 'Acompanhamentos',
-    icon: 'Soup',
-    kcalPorPorcao: 130,
-    descricaoPorcao: '1 xícara (150 g)',
-    proteina: 2
   },
   {
     id: 'arroz-integral',
@@ -266,7 +230,7 @@ export const FOOD_CATALOG = [
     categoria: 'Saladas',
     icon: 'Soup',
     kcalPorPorcao: 22,
-    descricaoPorcao: '1 unidade média',
+    descricaoPorcao: '1 unidade média (120 g)',
     proteina: 1
   },
   {
@@ -279,7 +243,7 @@ export const FOOD_CATALOG = [
     proteina: 1
   },
   {
-    id: 'batata-doce',
+    id: 'batata-doce-cozida',
     nome: 'Batata-doce cozida',
     categoria: 'Legumes',
     icon: 'Soup',
@@ -302,7 +266,7 @@ export const FOOD_CATALOG = [
     categoria: 'Snacks',
     icon: 'Cookie',
     kcalPorPorcao: 90,
-    descricaoPorcao: '1 unidade',
+    descricaoPorcao: '1 unidade (25 g)',
     proteina: 2
   },
   {
@@ -311,7 +275,7 @@ export const FOOD_CATALOG = [
     categoria: 'Snacks',
     icon: 'Cookie',
     kcalPorPorcao: 150,
-    descricaoPorcao: '2 unidades',
+    descricaoPorcao: '2 unidades (30 g)',
     proteina: 1
   },
   {
@@ -320,7 +284,7 @@ export const FOOD_CATALOG = [
     categoria: 'Snacks',
     icon: 'CupSoda',
     kcalPorPorcao: 55,
-    descricaoPorcao: '1 xícara',
+    descricaoPorcao: '1 xícara (10 g)',
     proteina: 2
   },
   {
@@ -397,11 +361,11 @@ export const FOOD_CATALOG = [
   },
   {
     id: 'salgado-assado',
-    nome: 'Salgado assado (ex.: pão de frango, empadão)',
+    nome: 'Salgado assado (ex.: empadão)',
     categoria: 'Lanches',
     icon: 'Cookie',
     kcalPorPorcao: 220,
-    descricaoPorcao: '1 unidade média',
+    descricaoPorcao: '1 unidade média (120 g)',
     proteina: 8
   },
   {
@@ -410,7 +374,7 @@ export const FOOD_CATALOG = [
     categoria: 'Lanches',
     icon: 'Cookie',
     kcalPorPorcao: 260,
-    descricaoPorcao: '1 unidade média',
+    descricaoPorcao: '1 unidade média (120 g)',
     proteina: 9
   },
   {
@@ -419,7 +383,7 @@ export const FOOD_CATALOG = [
     categoria: 'Lanches',
     icon: 'Cookie',
     kcalPorPorcao: 280,
-    descricaoPorcao: '1 fatia média',
+    descricaoPorcao: '1 fatia média (120 g)',
     proteina: 12
   },
   {
@@ -428,17 +392,8 @@ export const FOOD_CATALOG = [
     categoria: 'Lanches',
     icon: 'Cookie',
     kcalPorPorcao: 350,
-    descricaoPorcao: '1 unidade média',
+    descricaoPorcao: '1 unidade média (180 g)',
     proteina: 16
-  },
-  {
-    id: 'feijao-simples',
-    nome: 'Feijão cozido (simples)',
-    categoria: 'Acompanhamentos',
-    icon: 'Soup',
-    kcalPorPorcao: 95,
-    descricaoPorcao: '1 concha média (100 g)',
-    proteina: 6
   },
   {
     id: 'feijoada',
@@ -482,7 +437,7 @@ export const FOOD_CATALOG = [
     categoria: 'Saladas',
     icon: 'Soup',
     kcalPorPorcao: 35,
-    descricaoPorcao: '1 prato pequeno',
+    descricaoPorcao: '1 prato pequeno (150 g)',
     proteina: 1
   },
   {
@@ -491,7 +446,7 @@ export const FOOD_CATALOG = [
     categoria: 'Saladas',
     icon: 'Soup',
     kcalPorPorcao: 70,
-    descricaoPorcao: '1 prato médio',
+    descricaoPorcao: '1 prato médio (250 g)',
     proteina: 3
   },
   {
@@ -509,7 +464,7 @@ export const FOOD_CATALOG = [
     categoria: 'Sobremesas',
     icon: 'Cookie',
     kcalPorPorcao: 240,
-    descricaoPorcao: '1 fatia média',
+    descricaoPorcao: '1 fatia média (80 g)',
     proteina: 4
   },
   {
@@ -518,7 +473,7 @@ export const FOOD_CATALOG = [
     categoria: 'Sobremesas',
     icon: 'IceCream',
     kcalPorPorcao: 220,
-    descricaoPorcao: '1 fatia média',
+    descricaoPorcao: '1 fatia média (90 g)',
     proteina: 6
   },
   {
@@ -527,7 +482,7 @@ export const FOOD_CATALOG = [
     categoria: 'Sobremesas',
     icon: 'IceCream',
     kcalPorPorcao: 90,
-    descricaoPorcao: '1 unidade média',
+    descricaoPorcao: '1 unidade média (20 g)',
     proteina: 1
   },
   {
@@ -563,7 +518,7 @@ export const FOOD_CATALOG = [
     categoria: 'Lanches',
     icon: 'Cookie',
     kcalPorPorcao: 280,
-    descricaoPorcao: '1 unidade',
+    descricaoPorcao: '1 unidade (180 g)',
     proteina: 10
   },
   {
@@ -572,7 +527,376 @@ export const FOOD_CATALOG = [
     categoria: 'Lanches',
     icon: 'Cookie',
     kcalPorPorcao: 300,
-    descricaoPorcao: '1 unidade média',
+    descricaoPorcao: '1 unidade média (150 g)',
     proteina: 10
+  },
+  {
+    id: 'batata-inglesa-cozida',
+    nome: 'Batata inglesa cozida',
+    categoria: 'Legumes',
+    icon: 'Soup',
+    kcalPorPorcao: 87,
+    descricaoPorcao: '1 unidade média (130 g)',
+    proteina: 2
+  },
+  {
+    id: 'pure-batata',
+    nome: 'Purê de batata',
+    categoria: 'Acompanhamentos',
+    icon: 'Soup',
+    kcalPorPorcao: 130,
+    descricaoPorcao: '1/2 prato (150 g)',
+    proteina: 3
+  },
+  {
+    id: 'cuscuz-nordestino',
+    nome: 'Cuscuz nordestino',
+    categoria: 'Cereais',
+    icon: 'Soup',
+    kcalPorPorcao: 110,
+    descricaoPorcao: '1 porção (100 g)',
+    proteina: 3
+  },
+  {
+    id: 'quinoa-cozida',
+    nome: 'Quinoa cozida',
+    categoria: 'Grãos',
+    icon: 'Soup',
+    kcalPorPorcao: 120,
+    descricaoPorcao: '1/2 xícara (100 g)',
+    proteina: 4
+  },
+  {
+    id: 'grao-de-bico',
+    nome: 'Grão-de-bico cozido',
+    categoria: 'Grãos',
+    icon: 'Soup',
+    kcalPorPorcao: 164,
+    descricaoPorcao: '1/2 xícara (100 g)',
+    proteina: 9
+  },
+  {
+    id: 'lentilha-cozida',
+    nome: 'Lentilha cozida',
+    categoria: 'Grãos',
+    icon: 'Soup',
+    kcalPorPorcao: 116,
+    descricaoPorcao: '1/2 xícara (100 g)',
+    proteina: 9
+  },
+  {
+    id: 'feijao-branco',
+    nome: 'Feijão branco cozido',
+    categoria: 'Acompanhamentos',
+    icon: 'Soup',
+    kcalPorPorcao: 110,
+    descricaoPorcao: '1 concha média (100 g)',
+    proteina: 7
+  },
+  {
+    id: 'brocolis-cozido',
+    nome: 'Brócolis cozido',
+    categoria: 'Legumes',
+    icon: 'Soup',
+    kcalPorPorcao: 35,
+    descricaoPorcao: '1 xícara (100 g)',
+    proteina: 3
+  },
+  {
+    id: 'couve-flor',
+    nome: 'Couve-flor cozida',
+    categoria: 'Legumes',
+    icon: 'Soup',
+    kcalPorPorcao: 25,
+    descricaoPorcao: '1 xícara (100 g)',
+    proteina: 2
+  },
+  {
+    id: 'abobrinha',
+    nome: 'Abobrinha cozida',
+    categoria: 'Legumes',
+    icon: 'Soup',
+    kcalPorPorcao: 20,
+    descricaoPorcao: '1 xícara (100 g)',
+    proteina: 1
+  },
+  {
+    id: 'berinjela',
+    nome: 'Berinjela cozida',
+    categoria: 'Legumes',
+    icon: 'Soup',
+    kcalPorPorcao: 25,
+    descricaoPorcao: '1 xícara (100 g)',
+    proteina: 1
+  },
+  {
+    id: 'pepino',
+    nome: 'Pepino',
+    categoria: 'Saladas',
+    icon: 'Soup',
+    kcalPorPorcao: 16,
+    descricaoPorcao: '1 xícara (100 g)',
+    proteina: 1
+  },
+  {
+    id: 'beterraba',
+    nome: 'Beterraba cozida',
+    categoria: 'Legumes',
+    icon: 'Soup',
+    kcalPorPorcao: 43,
+    descricaoPorcao: '1/2 xícara (100 g)',
+    proteina: 2
+  },
+  {
+    id: 'couve',
+    nome: 'Couve refogada',
+    categoria: 'Legumes',
+    icon: 'Soup',
+    kcalPorPorcao: 35,
+    descricaoPorcao: '1/2 prato (100 g)',
+    proteina: 3
+  },
+  {
+    id: 'espinafre',
+    nome: 'Espinafre cozido',
+    categoria: 'Legumes',
+    icon: 'Soup',
+    kcalPorPorcao: 23,
+    descricaoPorcao: '1/2 prato (100 g)',
+    proteina: 3
+  },
+  {
+    id: 'maca',
+    nome: 'Maçã',
+    categoria: 'Frutas',
+    icon: 'Apple',
+    kcalPorPorcao: 72,
+    descricaoPorcao: '1 unidade média (130 g)',
+    proteina: 0
+  },
+  {
+    id: 'laranja',
+    nome: 'Laranja',
+    categoria: 'Frutas',
+    icon: 'Apple',
+    kcalPorPorcao: 62,
+    descricaoPorcao: '1 unidade média (140 g)',
+    proteina: 1
+  },
+  {
+    id: 'pera',
+    nome: 'Pera',
+    categoria: 'Frutas',
+    icon: 'Apple',
+    kcalPorPorcao: 85,
+    descricaoPorcao: '1 unidade média (160 g)',
+    proteina: 1
+  },
+  {
+    id: 'uva',
+    nome: 'Uva',
+    categoria: 'Frutas',
+    icon: 'Apple',
+    kcalPorPorcao: 83,
+    descricaoPorcao: '1 cacho pequeno (120 g)',
+    proteina: 1
+  },
+  {
+    id: 'morango',
+    nome: 'Morango',
+    categoria: 'Frutas',
+    icon: 'Apple',
+    kcalPorPorcao: 45,
+    descricaoPorcao: '1 xícara (150 g)',
+    proteina: 1
+  },
+  {
+    id: 'melancia',
+    nome: 'Melancia',
+    categoria: 'Frutas',
+    icon: 'Apple',
+    kcalPorPorcao: 60,
+    descricaoPorcao: '1 fatia (200 g)',
+    proteina: 1
+  },
+  {
+    id: 'abacate',
+    nome: 'Abacate',
+    categoria: 'Frutas',
+    icon: 'Apple',
+    kcalPorPorcao: 160,
+    descricaoPorcao: '1/2 unidade (100 g)',
+    proteina: 2
+  },
+  {
+    id: 'presunto',
+    nome: 'Presunto',
+    categoria: 'Frios',
+    icon: 'Soup',
+    kcalPorPorcao: 80,
+    descricaoPorcao: '2 fatias (40 g)',
+    proteina: 8
+  },
+  {
+    id: 'peito-peru',
+    nome: 'Peito de peru',
+    categoria: 'Frios',
+    icon: 'Soup',
+    kcalPorPorcao: 60,
+    descricaoPorcao: '2 fatias (40 g)',
+    proteina: 9
+  },
+  {
+    id: 'queijo-cottage',
+    nome: 'Queijo cottage',
+    categoria: 'Laticínios',
+    icon: 'Cheese',
+    kcalPorPorcao: 98,
+    descricaoPorcao: '1/2 xícara (100 g)',
+    proteina: 11
+  },
+  {
+    id: 'leite-desnatado',
+    nome: 'Leite desnatado',
+    categoria: 'Bebidas',
+    icon: 'Milk',
+    kcalPorPorcao: 70,
+    descricaoPorcao: '1 copo (200 ml)',
+    proteina: 7
+  },
+  {
+    id: 'leite-integral',
+    nome: 'Leite integral',
+    categoria: 'Bebidas',
+    icon: 'Milk',
+    kcalPorPorcao: 120,
+    descricaoPorcao: '1 copo (200 ml)',
+    proteina: 6
+  },
+  {
+    id: 'iogurte-proteico',
+    nome: 'Iogurte proteico',
+    categoria: 'Laticínios',
+    icon: 'Milk',
+    kcalPorPorcao: 120,
+    descricaoPorcao: '1 pote (160 g)',
+    proteina: 15
+  },
+  {
+    id: 'whey-protein',
+    nome: 'Whey protein',
+    categoria: 'Suplementos',
+    icon: 'Milk',
+    kcalPorPorcao: 120,
+    descricaoPorcao: '1 scoop (30 g)',
+    proteina: 24
+  },
+  {
+    id: 'granola',
+    nome: 'Granola',
+    categoria: 'Café da manhã',
+    icon: 'Wheat',
+    kcalPorPorcao: 220,
+    descricaoPorcao: '1/2 xícara (50 g)',
+    proteina: 5
+  },
+  {
+    id: 'amendoim',
+    nome: 'Amendoim',
+    categoria: 'Snacks',
+    icon: 'Soup',
+    kcalPorPorcao: 180,
+    descricaoPorcao: '1 punhado (30 g)',
+    proteina: 8
+  },
+  {
+    id: 'castanha-do-para',
+    nome: 'Castanha-do-pará',
+    categoria: 'Snacks',
+    icon: 'Soup',
+    kcalPorPorcao: 130,
+    descricaoPorcao: '4 unidades (20 g)',
+    proteina: 3
+  },
+  {
+    id: 'chocolate-barra',
+    nome: 'Chocolate ao leite',
+    categoria: 'Sobremesas',
+    icon: 'Cookie',
+    kcalPorPorcao: 140,
+    descricaoPorcao: '2 quadradinhos (25 g)',
+    proteina: 2
+  },
+  {
+    id: 'brownie',
+    nome: 'Brownie',
+    categoria: 'Sobremesas',
+    icon: 'Cookie',
+    kcalPorPorcao: 240,
+    descricaoPorcao: '1 pedaço (60 g)',
+    proteina: 3
+  },
+  {
+    id: 'agua-coco',
+    nome: 'Água de coco',
+    categoria: 'Bebidas',
+    icon: 'CupSoda',
+    kcalPorPorcao: 45,
+    descricaoPorcao: '1 copo (200 ml)',
+    proteina: 1
+  },
+  {
+    id: 'suco-uva',
+    nome: 'Suco de uva',
+    categoria: 'Bebidas',
+    icon: 'CupSoda',
+    kcalPorPorcao: 120,
+    descricaoPorcao: '1 copo (200 ml)',
+    proteina: 0
+  },
+  {
+    id: 'azeite-oliva',
+    nome: 'Azeite de oliva',
+    categoria: 'Gorduras',
+    icon: 'Soup',
+    kcalPorPorcao: 90,
+    descricaoPorcao: '1 colher de sopa (10 g)',
+    proteina: 0
+  },
+  {
+    id: 'manteiga',
+    nome: 'Manteiga',
+    categoria: 'Gorduras',
+    icon: 'Soup',
+    kcalPorPorcao: 72,
+    descricaoPorcao: '1 colher de sopa (10 g)',
+    proteina: 0
+  },
+  {
+    id: 'farofa',
+    nome: 'Farofa',
+    categoria: 'Acompanhamentos',
+    icon: 'Soup',
+    kcalPorPorcao: 120,
+    descricaoPorcao: '2 colheres de sopa (30 g)',
+    proteina: 2
+  },
+  {
+    id: 'milho-cozido',
+    nome: 'Milho cozido',
+    categoria: 'Legumes',
+    icon: 'Soup',
+    kcalPorPorcao: 96,
+    descricaoPorcao: '1 espiga média (100 g)',
+    proteina: 3
+  },
+  {
+    id: 'ervilha',
+    nome: 'Ervilha cozida',
+    categoria: 'Legumes',
+    icon: 'Soup',
+    kcalPorPorcao: 60,
+    descricaoPorcao: '1/2 xícara (80 g)',
+    proteina: 4
   }
 ];
