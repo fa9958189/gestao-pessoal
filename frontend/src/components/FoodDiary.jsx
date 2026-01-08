@@ -18,8 +18,7 @@ import { scanFood } from '../services/foodScannerApi';
 
 const defaultGoals = {
   calories: 2000,
-  protein: 120,
-  water: 2.5
+  protein: 120
 };
 
 const defaultBody = {
@@ -63,10 +62,8 @@ function FoodDiary({ userId, supabase, notify }) {
   const [form, setForm] = useState({
     mealType: 'Almoço',
     food: '',
-    quantity: '',
     calories: '',
     protein: '',
-    waterMl: '',
     time: '',
     notes: ''
   });
@@ -146,10 +143,6 @@ function FoodDiary({ userId, supabase, notify }) {
             profile?.proteinGoal != null
               ? Number(profile.proteinGoal)
               : defaultGoals.protein,
-          water:
-            profile?.waterGoalLiters != null
-              ? Number(profile.waterGoalLiters)
-              : defaultGoals.water,
         });
 
         setBody({
@@ -216,25 +209,15 @@ function FoodDiary({ userId, supabase, notify }) {
       (sum, item) => sum + (Number(item.protein) || 0),
       0
     );
-    const totalWaterMl = dayEntries.reduce(
-      (sum, item) => sum + (Number(item.waterMl) || 0),
-      0
-    );
-    const totalWaterLiters = totalWaterMl / 1000;
-    return { totalCalories, totalProtein, totalWaterMl, totalWaterLiters };
+    return { totalCalories, totalProtein };
   }, [dayEntries]);
 
   const totalCalories = totals.totalCalories;
   const totalProtein = totals.totalProtein;
-  const totalWater = totals.totalWaterLiters;
   const calorieGoal = goals.calories || 0;
   const proteinGoal = goals.protein || 0;
-  const waterGoal = goals.water || 0;
 
-  const goalsMet =
-    totalCalories <= calorieGoal &&
-    totalProtein >= proteinGoal &&
-    totalWater >= waterGoal;
+  const goalsMet = totalCalories <= calorieGoal && totalProtein >= proteinGoal;
 
   const bmi = useMemo(() => {
     const h = Number(body.heightCm);
@@ -258,7 +241,6 @@ function FoodDiary({ userId, supabase, notify }) {
       quantidade: foodData.quantidadeTexto,
       calorias: Number(foodData.kcal) || 0,
       proteina: Number(foodData.proteina) || 0,
-      agua: 0,
     };
 
     setScanPreview((prev) => {
@@ -372,7 +354,6 @@ function FoodDiary({ userId, supabase, notify }) {
     setForm((prev) => ({
       ...prev,
       food: item.nome || prev.food,
-      quantity: item.quantidade || prev.quantity,
       calories:
         item.calorias != null
           ? String(item.calorias)
@@ -381,10 +362,6 @@ function FoodDiary({ userId, supabase, notify }) {
         item.proteina != null
           ? String(item.proteina)
           : prev.protein,
-      waterMl:
-        item.agua != null
-          ? String(item.agua)
-          : prev.waterMl,
     }));
   };
 
@@ -395,9 +372,8 @@ function FoodDiary({ userId, supabase, notify }) {
       (acc, item) => ({
         calorias: acc.calorias + (Number(item.calorias) || 0),
         proteina: acc.proteina + (Number(item.proteina) || 0),
-        agua: acc.agua + (Number(item.agua) || 0),
       }),
-      { calorias: 0, proteina: 0, agua: 0 }
+      { calorias: 0, proteina: 0 }
     );
 
     setForm((prev) => ({
@@ -408,7 +384,6 @@ function FoodDiary({ userId, supabase, notify }) {
         .join(', ') || prev.food,
       calories: String(total.calorias),
       protein: String(total.proteina),
-      waterMl: String(total.agua),
     }));
   };
 
@@ -473,10 +448,8 @@ function FoodDiary({ userId, supabase, notify }) {
     const payload = {
       mealType: form.mealType,
       food: form.food,
-      quantity: form.quantity,
       calories: form.calories ? Number(form.calories) : 0,
       protein: form.protein ? Number(form.protein) : 0,
-      waterMl: form.waterMl ? Number(form.waterMl) : 0,
       time: form.time,
       notes: form.notes,
       entryDate: selectedDate,
@@ -510,10 +483,8 @@ function FoodDiary({ userId, supabase, notify }) {
       setForm({
         mealType: 'Almoço',
         food: '',
-        quantity: '',
         calories: '',
         protein: '',
-        waterMl: '',
         time: '',
         notes: ''
       });
@@ -543,10 +514,8 @@ function FoodDiary({ userId, supabase, notify }) {
     setForm({
       mealType: entry.mealType || 'Almoço',
       food: entry.food || '',
-      quantity: entry.quantity || '',
       calories: entry.calories != null ? String(entry.calories) : '',
       protein: entry.protein != null ? String(entry.protein) : '',
-      waterMl: entry.waterMl != null ? String(entry.waterMl) : '',
       time: entry.time || '',
       notes: entry.notes || ''
     });
@@ -653,7 +622,6 @@ function FoodDiary({ userId, supabase, notify }) {
         userId,
         calorieGoal: goals.calories,
         proteinGoal: goals.protein,
-        waterGoalLiters: goals.water,
         heightCm,
         weightKg,
       });
@@ -882,7 +850,7 @@ function FoodDiary({ userId, supabase, notify }) {
                         {item.nome} – {item.quantidade}
                       </div>
                       <div className="muted" style={{ fontSize: 12 }}>
-                        {item.calorias} kcal • {item.proteina} g proteína • {item.agua} ml água
+                        {item.calorias} kcal • {item.proteina} g proteína
                       </div>
                       <button
                         type="button"
@@ -909,15 +877,6 @@ function FoodDiary({ userId, supabase, notify }) {
 
             <div className="row" style={{ gap: 8 }}>
               <div className="field" style={{ flex: 1 }}>
-                <label>Quantidade</label>
-                <input
-                  type="text"
-                  placeholder="Ex.: 100 g, 1 unidade, 1 copo"
-                  value={form.quantity}
-                  onChange={(e) => handleChangeForm('quantity', e.target.value)}
-                />
-              </div>
-              <div className="field" style={{ flex: 1 }}>
                 <label>Calorias (kcal)</label>
                 <input
                   type="number"
@@ -940,17 +899,6 @@ function FoodDiary({ userId, supabase, notify }) {
                   value={form.protein}
                   onChange={(e) => handleChangeForm('protein', e.target.value)}
                   placeholder="Ex.: 25"
-                />
-              </div>
-              <div className="field" style={{ flex: 1 }}>
-                <label>Água (ml) – opcional</label>
-                <input
-                  type="number"
-                  step="50"
-                  min="0"
-                  value={form.waterMl}
-                  onChange={(e) => handleChangeForm('waterMl', e.target.value)}
-                  placeholder="Ex.: 250"
                 />
               </div>
             </div>
@@ -1013,17 +961,9 @@ function FoodDiary({ userId, supabase, notify }) {
                 </div>
                 <div className="food-diary-entry-meta">
                   {item.food && <span>{item.food}</span>}
-                  {item.quantity && (
-                    <span className="muted">• {item.quantity}</span>
-                  )}
                   {item.protein ? (
                     <span className="muted">
                       • {formatNumber(item.protein, 0)} g proteína
-                    </span>
-                  ) : null}
-                  {item.waterMl ? (
-                    <span className="muted">
-                      • {formatNumber(item.waterMl / 1000, 2)} L água
                     </span>
                   ) : null}
                 </div>
@@ -1093,18 +1033,6 @@ function FoodDiary({ userId, supabase, notify }) {
                   {renderBlocks(totals.totalProtein, goals.protein || 1)}
                 </div>
               </div>
-
-              <div className="food-diary-meta-row">
-                <div>
-                  Água:{' '}
-                  <strong>
-                    {formatNumber(totalWater, 2)} / {formatNumber(waterGoal, 2)} L
-                  </strong>
-                </div>
-                <div className="food-diary-bar">
-                  {renderBlocks(totals.totalWaterLiters, goals.water || 1)}
-                </div>
-              </div>
             </div>
 
             <div
@@ -1144,16 +1072,6 @@ function FoodDiary({ userId, supabase, notify }) {
                 onChange={(e) =>
                   handleGoalChange('protein', e.target.value)
                 }
-              />
-            </div>
-            <div className="field">
-              <label>Meta de água (L/dia)</label>
-              <input
-                type="number"
-                min="0"
-                step="0.1"
-                value={goals.water}
-                onChange={(e) => handleGoalChange('water', e.target.value)}
               />
             </div>
           </div>
