@@ -7,6 +7,7 @@ import {
   updateMeal,
 } from '../foodDiaryApi';
 import FoodDiaryReports from './FoodDiaryReports';
+import HydrationCard from './HydrationCard';
 import {
   fetchWeightHistory,
   saveWeightEntry,
@@ -45,6 +46,12 @@ const formatNumber = (value, decimals = 0) => {
   });
 };
 
+const getLocalDateString = () => {
+  const now = new Date();
+  const offsetMs = now.getTimezoneOffset() * 60 * 1000;
+  return new Date(now.getTime() - offsetMs).toISOString().slice(0, 10);
+};
+
 function FoodDiary({ userId, supabase, notify }) {
   const [entriesByDate, setEntriesByDate] = useState({});
   const [goals, setGoals] = useState(defaultGoals);
@@ -55,7 +62,7 @@ function FoodDiary({ userId, supabase, notify }) {
   const [, setLoadingWeightHistory] = useState(false);
   const [error, setError] = useState(null);
   const [selectedDate, setSelectedDate] = useState(
-    () => new Date().toISOString().slice(0, 10)
+    () => getLocalDateString()
   );
   const [tab, setTab] = useState('diario');
 
@@ -1047,6 +1054,13 @@ function FoodDiary({ userId, supabase, notify }) {
                 : '⚠️ Meta do dia não batida. Um alerta será enviado no WhatsApp às 23h.'}
             </div>
           </div>
+
+          <HydrationCard
+            userId={userId}
+            supabase={supabase}
+            notify={notify}
+            selectedDate={selectedDate}
+          />
 
           <div className="food-diary-summary-card">
             <h5 className="title" style={{ margin: 0, fontSize: 14 }}>
