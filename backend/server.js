@@ -24,8 +24,10 @@ import {
   upsertWorkoutTemplate,
 } from "./workoutsStorage.js";
 import {
+  addHydration,
   getFoodDiaryState,
   saveFoodDiaryState,
+  undoLastHydration,
 } from "./foodDiaryStorage.js";
 
 const require = createRequire(import.meta.url);
@@ -1038,6 +1040,11 @@ const parseList = (value) =>
 const joinList = (value) =>
   Array.isArray(value) ? value.map((item) => String(item).trim()).filter(Boolean).join(", ") : "";
 
+const getLocalDateString = (now = new Date()) => {
+  const offsetMs = now.getTimezoneOffset() * 60 * 1000;
+  return new Date(now.getTime() - offsetMs).toISOString().slice(0, 10);
+};
+
 const mapRoutineRow = (row = {}) => ({
   id: row.id,
   name: row.name,
@@ -1751,6 +1758,114 @@ app.get("/api/food-diary/state", async (req, res) => {
       .json({ error: "Erro interno ao buscar diário alimentar" });
   }
 });
+
+const hydrationStatePayload = (state) => ({
+  ok: true,
+  hydrationTotalMl: state?.hydrationTotalMl ?? 0,
+  hydrationGoalMl: state?.hydrationGoalMl ?? 0,
+  hydrationLastEntryId: state?.hydrationLastEntryId ?? null,
+});
+
+const handleHydrationState = async (req, res) => {
+  try {
+    const authData = await authenticateRequest(req, res, { requireAdmin: false });
+    if (!authData) return;
+
+    const dayDate = req.query?.dayDate || getLocalDateString();
+    const state = await getFoodDiaryState(authData.userId, { dayDate });
+    return res.json(hydrationStatePayload(state));
+  } catch (err) {
+    console.error("Erro ao buscar hidratação", err);
+    return res.status(500).json({ ok: false, error: "Erro interno ao buscar hidratação" });
+  }
+};
+
+const handleHydrationAdd = async (req, res) => {
+  try {
+    const authData = await authenticateRequest(req, res, { requireAdmin: false });
+    if (!authData) return;
+
+    const amountMl = Number(req.body?.amountMl);
+    const dayDate = req.body?.dayDate || getLocalDateString();
+
+    if (!Number.isFinite(amountMl) || amountMl <= 0 || amountMl > 5000) {
+      return res.status(400).json({
+        ok: false,
+        error: "amountMl precisa ser um número entre 1 e 5000.",
+      });
+    }
+
+    const result = await addHydration({
+      supabase,
+      userId: authData.userId,
+      dayDate,
+      amountMl,
+    });
+
+    if (!result.ok) {
+      console.error("Erro ao inserir hidratação:", result.error);
+      return res.status(500).json({
+        ok: false,
+        error: result.error?.message || "Não foi possível salvar a hidratação.",
+      });
+    }
+
+    const state = await getFoodDiaryState(authData.userId, { dayDate });
+    return res.json(hydrationStatePayload(state));
+  } catch (err) {
+    console.error("Erro ao salvar hidratação", err);
+    return res.status(500).json({ ok: false, error: "Erro interno ao salvar hidratação" });
+  }
+};
+
+const handleHydrationUndo = async (req, res) => {
+  try {
+    const authData = await authenticateRequest(req, res, { requireAdmin: false });
+    if (!authData) return;
+
+    const dayDate = req.body?.dayDate || getLocalDateString();
+    const result = await undoLastHydration({
+      supabase,
+      userId: authData.userId,
+      dayDate,
+    });
+
+    if (!result.ok) {
+      if (result.reason === "no_hydration") {
+        const state = await getFoodDiaryState(authData.userId, { dayDate });
+        return res.json({
+          ok: false,
+          reason: "no_hydration",
+          hydrationTotalMl: state?.hydrationTotalMl ?? 0,
+          hydrationLastEntryId: state?.hydrationLastEntryId ?? null,
+        });
+      }
+
+      console.error("Erro ao desfazer hidratação:", result.error);
+      return res.status(500).json({
+        ok: false,
+        error: result.error?.message || "Não foi possível desfazer a hidratação.",
+      });
+    }
+
+    const state = await getFoodDiaryState(authData.userId, { dayDate });
+    return res.json({
+      ok: true,
+      hydrationTotalMl: state?.hydrationTotalMl ?? 0,
+      hydrationLastEntryId: state?.hydrationLastEntryId ?? null,
+    });
+  } catch (err) {
+    console.error("Erro ao desfazer hidratação", err);
+    return res.status(500).json({ ok: false, error: "Erro interno ao desfazer hidratação" });
+  }
+};
+
+app.get("/api/food-diary/hydration/state", handleHydrationState);
+app.post("/api/food-diary/hydration/add", handleHydrationAdd);
+app.post("/api/food-diary/hydration/undo", handleHydrationUndo);
+
+app.post("/api/hydration/add", handleHydrationAdd);
+app.post("/api/hydration/undo", handleHydrationUndo);
 
 app.put("/api/food-diary/state", async (req, res) => {
   try {

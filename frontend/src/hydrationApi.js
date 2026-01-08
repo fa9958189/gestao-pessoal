@@ -24,68 +24,86 @@ const getSupabaseClient = (supabaseClient) => {
   return getSupabaseClient.cached;
 };
 
-const normalizeWaterEntry = (item) => ({
-  id: item.id,
-  amountMl: item.amount_ml != null ? Number(item.amount_ml) : 0,
-  createdAt: item.created_at,
-  date: item.date,
-});
+const normalizeBaseUrl = (value) =>
+  typeof value === 'string' && value.trim()
+    ? value.trim().replace(/\/+$/, '')
+    : '';
 
-export const fetchWaterByDate = async (userId, date, supabaseClient) => {
+const getApiBaseUrl = () =>
+  normalizeBaseUrl(
+    window.APP_CONFIG?.apiBaseUrl ||
+      import.meta.env.VITE_API_BASE_URL ||
+      import.meta.env.VITE_API_URL ||
+      import.meta.env.VITE_BACKEND_URL,
+  );
+
+const getAuthHeaders = async (supabaseClient) => {
   const supabase = getSupabaseClient(supabaseClient);
-  const { data, error } = await supabase
-    .from('water_intake')
-    .select('id, amount_ml, created_at, date')
-    .eq('user_id', userId)
-    .eq('date', date)
-    .order('created_at', { ascending: false });
+  const { data } = await supabase.auth.getSession();
+  const accessToken = data?.session?.access_token;
 
-  if (error) throw error;
-  return (data || []).map(normalizeWaterEntry);
+  return accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
 };
 
-export const addWaterEntry = async (
-  { userId, date, amountMl },
-  supabaseClient,
-) => {
-  const supabase = getSupabaseClient(supabaseClient);
-  const payload = {
-    user_id: userId,
-    date,
-    amount_ml: amountMl,
-  };
+const requestJson = async (url, options = {}) => {
+  const response = await fetch(url, options);
+  const payload = await response.json().catch(() => ({}));
 
-  const { data, error } = await supabase
-    .from('water_intake')
-    .insert([payload])
-    .select()
-    .single();
+  if (!response.ok) {
+    const message =
+      payload?.error || payload?.message || 'Erro ao comunicar com o servidor.';
+    const error = new Error(message);
+    error.status = response.status;
+    error.payload = payload;
+    throw error;
+  }
 
-  if (error) throw error;
-  return normalizeWaterEntry(data);
+  return payload;
 };
 
-export const deleteLatestWaterEntry = async (userId, date, supabaseClient) => {
-  const supabase = getSupabaseClient(supabaseClient);
-  const { data, error } = await supabase
-    .from('water_intake')
-    .select('id, amount_ml, created_at, date')
-    .eq('user_id', userId)
-    .eq('date', date)
-    .order('created_at', { ascending: false })
-    .limit(1);
+export const fetchHydrationState = async ({ dayDate }, supabaseClient) => {
+  const baseUrl = getApiBaseUrl();
+  if (!baseUrl) {
+    throw new Error('API base não configurada.');
+  }
 
-  if (error) throw error;
-  if (!data || data.length === 0) return null;
+  const headers = await getAuthHeaders(supabaseClient);
+  const query = dayDate ? `?dayDate=${encodeURIComponent(dayDate)}` : '';
+  return requestJson(`${baseUrl}/api/food-diary/hydration/state${query}`, {
+    headers,
+  });
+};
 
-  const latest = data[0];
-  const { data: deleted, error: deleteError } = await supabase
-    .from('water_intake')
-    .delete()
-    .eq('id', latest.id)
-    .select()
-    .single();
+export const addHydrationEntry = async ({ dayDate, amountMl }, supabaseClient) => {
+  const baseUrl = getApiBaseUrl();
+  if (!baseUrl) {
+    throw new Error('API base não configurada.');
+  }
 
-  if (deleteError) throw deleteError;
-  return normalizeWaterEntry(deleted);
+  const headers = await getAuthHeaders(supabaseClient);
+  return requestJson(`${baseUrl}/api/food-diary/hydration/add`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...headers,
+    },
+    body: JSON.stringify({ dayDate, amountMl }),
+  });
+};
+
+export const undoHydrationEntry = async ({ dayDate }, supabaseClient) => {
+  const baseUrl = getApiBaseUrl();
+  if (!baseUrl) {
+    throw new Error('API base não configurada.');
+  }
+
+  const headers = await getAuthHeaders(supabaseClient);
+  return requestJson(`${baseUrl}/api/food-diary/hydration/undo`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...headers,
+    },
+    body: JSON.stringify({ dayDate }),
+  });
 };
