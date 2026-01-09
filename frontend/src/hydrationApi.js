@@ -68,8 +68,8 @@ export const fetchHydrationState = async ({ dayDate }, supabaseClient) => {
   }
 
   const headers = await getAuthHeaders(supabaseClient);
-  const query = dayDate ? `?dayDate=${encodeURIComponent(dayDate)}` : '';
-  return requestJson(`${baseUrl}/api/food-diary/hydration/state${query}`, {
+  const query = dayDate ? `?date=${encodeURIComponent(dayDate)}` : '';
+  return requestJson(`${baseUrl}/api/water${query}`, {
     headers,
   });
 };
@@ -81,13 +81,13 @@ export const addHydrationEntry = async ({ dayDate, amountMl }, supabaseClient) =
   }
 
   const headers = await getAuthHeaders(supabaseClient);
-  return requestJson(`${baseUrl}/api/food-diary/hydration/add`, {
+  return requestJson(`${baseUrl}/api/water/add`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       ...headers,
     },
-    body: JSON.stringify({ dayDate, amountMl }),
+    body: JSON.stringify({ date: dayDate, amount_ml: amountMl }),
   });
 };
 
@@ -98,12 +98,29 @@ export const undoHydrationEntry = async ({ dayDate }, supabaseClient) => {
   }
 
   const headers = await getAuthHeaders(supabaseClient);
-  return requestJson(`${baseUrl}/api/food-diary/hydration/undo`, {
+  return requestJson(`${baseUrl}/api/water/undo`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       ...headers,
     },
-    body: JSON.stringify({ dayDate }),
+    body: JSON.stringify({ date: dayDate }),
+  });
+};
+
+export const updateHydrationGoal = async ({ goalLiters }, supabaseClient) => {
+  const baseUrl = getApiBaseUrl();
+  if (!baseUrl) {
+    throw new Error('API base não configurada.');
+  }
+
+  const headers = await getAuthHeaders(supabaseClient);
+  return requestJson(`${baseUrl}/api/water/goal`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      ...headers,
+    },
+    body: JSON.stringify({ goal_l: goalLiters }),
   });
 };

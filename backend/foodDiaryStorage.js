@@ -11,6 +11,8 @@ const DEFAULT_BODY = {
   weightKg: "",
 };
 
+const DEFAULT_WATER_GOAL_L = DEFAULT_GOALS.water;
+
 const getLocalDateString = (now = new Date()) => {
   const offsetMs = now.getTimezoneOffset() * 60 * 1000;
   return new Date(now.getTime() - offsetMs).toISOString().slice(0, 10);
@@ -56,12 +58,196 @@ const mapBodyFromProfile = (profile) => ({
       : DEFAULT_BODY.weightKg,
 });
 
+const toNumberOrNull = (value) => {
+  if (value == null || value === "") return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const mapWaterGoalFromAuth = (profile) => {
+  const candidate =
+    profile?.water_goal_l ?? profile?.water_goal ?? profile?.water ?? null;
+  return toNumberOrNull(candidate);
+};
+
+const getWaterGoalL = async (supabaseClient, userId, fallbackProfile) => {
+  const { data: authProfile, error: authError } = await supabaseClient
+    .from("profiles_auth")
+    .select("water_goal_l, water_goal, water")
+    .eq("auth_id", userId)
+    .maybeSingle();
+
+  if (authError) throw authError;
+
+  const authGoal = mapWaterGoalFromAuth(authProfile);
+  if (authGoal != null) {
+    return authGoal;
+  }
+
+  if (fallbackProfile?.water_goal_l != null) {
+    return Number(fallbackProfile.water_goal_l);
+  }
+
+  const { data: diaryProfile, error: diaryError } = await supabaseClient
+    .from("food_diary_profile")
+    .select("water_goal_l")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (diaryError) throw diaryError;
+
+  if (diaryProfile?.water_goal_l != null) {
+    return Number(diaryProfile.water_goal_l);
+  }
+
+  return DEFAULT_WATER_GOAL_L;
+};
+
+const getHydrationRowsFromDiary = async (supabaseClient, userId, dayDate) => {
+  const { data, error } = await supabaseClient
+    .from("food_diary_entries")
+    .select("id, water_ml, created_at")
+    .eq("user_id", userId)
+    .eq("meal_type", "hydration")
+    .or(`day_date.eq.${dayDate},entry_date.eq.${dayDate}`)
+    .order("created_at", { ascending: false });
+
+  if (error) throw error;
+
+  return data || [];
+};
+
+const getHydrationRowsFromLogs = async (supabaseClient, userId, dayDate) => {
+  const { data, error } = await supabaseClient
+    .from("hydration_logs")
+    .select("id, amount_ml, created_at")
+    .eq("user_id", userId)
+    .eq("day_date", dayDate)
+    .order("created_at", { ascending: false });
+
+  if (error) throw error;
+
+  return data || [];
+};
+
+const getLatestHydrationEntry = (logRows, diaryRows) => {
+  const latestLog = logRows?.[0];
+  const latestDiary = diaryRows?.[0];
+
+  if (!latestLog && !latestDiary) {
+    return null;
+  }
+
+  const logTime = latestLog?.created_at
+    ? new Date(latestLog.created_at).getTime()
+    : null;
+  const diaryTime = latestDiary?.created_at
+    ? new Date(latestDiary.created_at).getTime()
+    : null;
+
+  if (logTime != null && diaryTime != null) {
+    return logTime >= diaryTime
+      ? { source: "hydration_logs", id: latestLog.id }
+      : { source: "food_diary_entries", id: latestDiary.id };
+  }
+
+  if (logTime != null) {
+    return { source: "hydration_logs", id: latestLog.id };
+  }
+
+  if (diaryTime != null) {
+    return { source: "food_diary_entries", id: latestDiary.id };
+  }
+
+  return latestLog
+    ? { source: "hydration_logs", id: latestLog.id }
+    : { source: "food_diary_entries", id: latestDiary.id };
+};
+
+const getHydrationTotals = async (supabaseClient, userId, dayDate) => {
+  const [logRows, diaryRows] = await Promise.all([
+    getHydrationRowsFromLogs(supabaseClient, userId, dayDate),
+    getHydrationRowsFromDiary(supabaseClient, userId, dayDate),
+  ]);
+
+  const totalFromLogs = (logRows || []).reduce(
+    (sum, row) => sum + Number(row.amount_ml || 0),
+    0
+  );
+  const totalFromDiary = (diaryRows || []).reduce(
+    (sum, row) => sum + Number(row.water_ml || 0),
+    0
+  );
+
+  const latest = getLatestHydrationEntry(logRows, diaryRows);
+
+  return {
+    totalMl: totalFromLogs + totalFromDiary,
+    latestEntry: latest,
+  };
+};
+
+export const getWaterSummary = async ({
+  supabase: supabaseClient = supabase,
+  userId,
+  dayDate,
+}) => {
+  const resolvedDate = dayDate || getLocalDateString();
+  const [totals, goalL] = await Promise.all([
+    getHydrationTotals(supabaseClient, userId, resolvedDate),
+    getWaterGoalL(supabaseClient, userId),
+  ]);
+
+  const totalMl = totals.totalMl || 0;
+  const totalL = Number((totalMl / 1000).toFixed(2));
+
+  return {
+    totalMl,
+    totalL,
+    goalL,
+    lastEntryId: totals.latestEntry?.id ?? null,
+  };
+};
+
+export const updateWaterGoal = async ({
+  supabase: supabaseClient = supabase,
+  userId,
+  goalLiters,
+}) => {
+  const parsedGoal = toNumberOrNull(goalLiters);
+  if (parsedGoal == null || parsedGoal <= 0) {
+    return { ok: false, error: new Error("Meta de água inválida.") };
+  }
+
+  const { error: authError } = await supabaseClient
+    .from("profiles_auth")
+    .update({ water_goal_l: parsedGoal })
+    .eq("auth_id", userId);
+
+  if (authError) {
+    return { ok: false, error: authError };
+  }
+
+  const { error: diaryError } = await supabaseClient
+    .from("food_diary_profile")
+    .upsert(
+      {
+        user_id: userId,
+        water_goal_l: parsedGoal,
+      },
+      { onConflict: "user_id" }
+    );
+
+  if (diaryError) {
+    return { ok: false, error: diaryError };
+  }
+
+  return { ok: true, goalL: parsedGoal };
+};
+
 export const getFoodDiaryState = async (userId, { dayDate } = {}) => {
   const entriesByDate = {};
   const resolvedDayDate = dayDate || getLocalDateString();
-  let hydrationTotalMl = 0;
-  let hydrationLastEntryId = null;
-  let hydrationLastTimestamp = null;
 
   const { data: entries, error: entriesError } = await supabase
     .from("food_diary_entries")
@@ -77,20 +263,6 @@ export const getFoodDiaryState = async (userId, { dayDate } = {}) => {
     if (!date) return;
 
     if (row.meal_type === "hydration") {
-      if (date === resolvedDayDate) {
-        hydrationTotalMl += Number(row.water_ml || 0);
-        const createdAt = row.created_at ? new Date(row.created_at).getTime() : null;
-
-        if (createdAt != null) {
-          if (hydrationLastTimestamp == null || createdAt > hydrationLastTimestamp) {
-            hydrationLastTimestamp = createdAt;
-            hydrationLastEntryId = row.id;
-          }
-        } else if (hydrationLastEntryId == null || row.id > hydrationLastEntryId) {
-          hydrationLastEntryId = row.id;
-        }
-      }
-
       return;
     }
 
@@ -108,6 +280,14 @@ export const getFoodDiaryState = async (userId, { dayDate } = {}) => {
 
   const goals = mapGoalsFromProfile(profile);
   const body = mapBodyFromProfile(profile);
+  const waterGoalL = await getWaterGoalL(supabase, userId, profile);
+  goals.water = waterGoalL;
+
+  const hydrationTotals = await getHydrationTotals(
+    supabase,
+    userId,
+    resolvedDayDate
+  );
 
   const { data: weightRows, error: weightError } = await supabase
     .from("food_weight_history")
@@ -130,9 +310,9 @@ export const getFoodDiaryState = async (userId, { dayDate } = {}) => {
     goals,
     body,
     weightHistory,
-    hydrationTotalMl,
-    hydrationGoalMl: Number(goals.water || DEFAULT_GOALS.water) * 1000,
-    hydrationLastEntryId,
+    hydrationTotalMl: hydrationTotals.totalMl,
+    hydrationGoalMl: Number(waterGoalL || DEFAULT_GOALS.water) * 1000,
+    hydrationLastEntryId: hydrationTotals.latestEntry?.id ?? null,
   };
 };
 
@@ -160,6 +340,18 @@ export const saveFoodDiaryState = async (userId, state = {}) => {
     .upsert(profilePayload, { onConflict: "user_id" });
 
   if (profileError) throw profileError;
+
+  if (goals.water != null) {
+    const result = await updateWaterGoal({
+      supabase,
+      userId,
+      goalLiters: goals.water,
+    });
+
+    if (!result.ok) {
+      throw result.error;
+    }
+  }
 
   const latestWeight = weightHistory.find(
     (item) => item?.date && item?.weightKg != null
@@ -207,18 +399,11 @@ export const addHydration = async ({
   const payload = {
     user_id: userId,
     day_date: dayDate,
-    meal_type: "hydration",
-    food_name: "Água",
-    quantity_text: `${amountMl} ml`,
-    calories_kcal: 0,
-    protein_g: 0,
-    water_ml: amountMl,
-    time_str: null,
-    notes: null,
+    amount_ml: amountMl,
   };
 
   const { data, error } = await supabaseClient
-    .from("food_diary_entries")
+    .from("hydration_logs")
     .insert(payload)
     .select("id")
     .single();
@@ -235,27 +420,21 @@ export const undoLastHydration = async ({
   userId,
   dayDate,
 }) => {
-  const { data: hydrationRows, error: fetchError } = await supabaseClient
-    .from("food_diary_entries")
-    .select("id")
-    .eq("user_id", userId)
-    .eq("day_date", dayDate)
-    .eq("meal_type", "hydration")
-    .order("created_at", { ascending: false })
-    .order("id", { ascending: false })
-    .limit(1);
+  const [logRows, diaryRows] = await Promise.all([
+    getHydrationRowsFromLogs(supabaseClient, userId, dayDate),
+    getHydrationRowsFromDiary(supabaseClient, userId, dayDate),
+  ]);
 
-  if (fetchError) {
-    return { ok: false, error: fetchError };
-  }
-
-  const latest = hydrationRows?.[0];
+  const latest = getLatestHydrationEntry(logRows, diaryRows);
   if (!latest?.id) {
     return { ok: false, reason: "no_hydration" };
   }
 
+  const tableName =
+    latest.source === "food_diary_entries" ? "food_diary_entries" : "hydration_logs";
+
   const { error: deleteError } = await supabaseClient
-    .from("food_diary_entries")
+    .from(tableName)
     .delete()
     .eq("id", latest.id);
 
