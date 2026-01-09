@@ -120,9 +120,9 @@ const getHydrationRowsFromDiary = async (supabaseClient, userId, dayDate) => {
 const getHydrationRowsFromLogs = async (supabaseClient, userId, dayDate) => {
   const { data, error } = await supabaseClient
     .from("hydration_logs")
-    .select("id, amount_ml, created_at")
+    .select("id, amount_ml, water_ml, day_date, entry_date, created_at")
     .eq("user_id", userId)
-    .eq("day_date", dayDate)
+    .or(`day_date.eq.${dayDate},entry_date.eq.${dayDate}`)
     .order("created_at", { ascending: false });
 
   if (error) throw error;
@@ -399,7 +399,9 @@ export const addHydration = async ({
   const payload = {
     user_id: userId,
     day_date: dayDate,
+    entry_date: dayDate,
     amount_ml: amountMl,
+    water_ml: amountMl,
   };
 
   const { data, error } = await supabaseClient
