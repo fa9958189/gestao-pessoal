@@ -26,8 +26,10 @@ import {
 import {
   addHydration,
   getFoodDiaryState,
+  getWaterSummary,
   saveFoodDiaryState,
   undoLastHydration,
+  updateWaterGoal,
 } from "./foodDiaryStorage.js";
 
 const require = createRequire(import.meta.url);
@@ -1766,12 +1768,19 @@ const hydrationStatePayload = (state) => ({
   hydrationLastEntryId: state?.hydrationLastEntryId ?? null,
 });
 
+const waterStatePayload = (summary) => ({
+  total_ml: summary?.totalMl ?? 0,
+  total_l: summary?.totalL ?? 0,
+  goal_l: summary?.goalL ?? 0,
+  last_entry_id: summary?.lastEntryId ?? null,
+});
+
 const handleHydrationState = async (req, res) => {
   try {
     const authData = await authenticateRequest(req, res, { requireAdmin: false });
     if (!authData) return;
 
-    const dayDate = req.query?.dayDate || getLocalDateString();
+    const dayDate = req.query?.dayDate || req.query?.date || getLocalDateString();
     const state = await getFoodDiaryState(authData.userId, { dayDate });
     return res.json(hydrationStatePayload(state));
   } catch (err) {
@@ -1785,8 +1794,8 @@ const handleHydrationAdd = async (req, res) => {
     const authData = await authenticateRequest(req, res, { requireAdmin: false });
     if (!authData) return;
 
-    const amountMl = Number(req.body?.amountMl);
-    const dayDate = req.body?.dayDate || getLocalDateString();
+    const amountMl = Number(req.body?.amountMl ?? req.body?.amount_ml);
+    const dayDate = req.body?.dayDate || req.body?.date || getLocalDateString();
 
     if (!Number.isFinite(amountMl) || amountMl <= 0 || amountMl > 5000) {
       return res.status(400).json({
@@ -1823,7 +1832,7 @@ const handleHydrationUndo = async (req, res) => {
     const authData = await authenticateRequest(req, res, { requireAdmin: false });
     if (!authData) return;
 
-    const dayDate = req.body?.dayDate || getLocalDateString();
+    const dayDate = req.body?.dayDate || req.body?.date || getLocalDateString();
     const result = await undoLastHydration({
       supabase,
       userId: authData.userId,
@@ -1860,12 +1869,157 @@ const handleHydrationUndo = async (req, res) => {
   }
 };
 
+const handleWaterState = async (req, res) => {
+  try {
+    const authData = await authenticateRequest(req, res, { requireAdmin: false });
+    if (!authData) return;
+
+    const dayDate = req.query?.date || req.query?.dayDate || getLocalDateString();
+    const summary = await getWaterSummary({
+      supabase,
+      userId: authData.userId,
+      dayDate,
+    });
+
+    return res.json({ ok: true, ...waterStatePayload(summary) });
+  } catch (err) {
+    console.error("Erro ao buscar água", err);
+    return res.status(500).json({ ok: false, error: "Erro interno ao buscar água" });
+  }
+};
+
+const handleWaterAdd = async (req, res) => {
+  try {
+    const authData = await authenticateRequest(req, res, { requireAdmin: false });
+    if (!authData) return;
+
+    const amountMl = Number(req.body?.amount_ml ?? req.body?.amountMl);
+    const dayDate = req.body?.date || req.body?.dayDate || getLocalDateString();
+
+    if (!Number.isFinite(amountMl) || amountMl <= 0 || amountMl > 5000) {
+      return res.status(400).json({
+        ok: false,
+        error: "amount_ml precisa ser um número entre 1 e 5000.",
+      });
+    }
+
+    const result = await addHydration({
+      supabase,
+      userId: authData.userId,
+      dayDate,
+      amountMl,
+    });
+
+    if (!result.ok) {
+      console.error("Erro ao inserir água:", result.error);
+      return res.status(500).json({
+        ok: false,
+        error: result.error?.message || "Não foi possível salvar a água.",
+      });
+    }
+
+    const summary = await getWaterSummary({
+      supabase,
+      userId: authData.userId,
+      dayDate,
+    });
+
+    return res.json({ ok: true, ...waterStatePayload(summary) });
+  } catch (err) {
+    console.error("Erro ao salvar água", err);
+    return res.status(500).json({ ok: false, error: "Erro interno ao salvar água" });
+  }
+};
+
+const handleWaterUndo = async (req, res) => {
+  try {
+    const authData = await authenticateRequest(req, res, { requireAdmin: false });
+    if (!authData) return;
+
+    const dayDate = req.body?.date || req.body?.dayDate || getLocalDateString();
+    const result = await undoLastHydration({
+      supabase,
+      userId: authData.userId,
+      dayDate,
+    });
+
+    if (!result.ok) {
+      if (result.reason === "no_hydration") {
+        const summary = await getWaterSummary({
+          supabase,
+          userId: authData.userId,
+          dayDate,
+        });
+
+        return res.json({
+          ok: false,
+          reason: "no_hydration",
+          ...waterStatePayload(summary),
+        });
+      }
+
+      console.error("Erro ao desfazer água:", result.error);
+      return res.status(500).json({
+        ok: false,
+        error: result.error?.message || "Não foi possível desfazer a água.",
+      });
+    }
+
+    const summary = await getWaterSummary({
+      supabase,
+      userId: authData.userId,
+      dayDate,
+    });
+
+    return res.json({ ok: true, ...waterStatePayload(summary) });
+  } catch (err) {
+    console.error("Erro ao desfazer água", err);
+    return res.status(500).json({ ok: false, error: "Erro interno ao desfazer água" });
+  }
+};
+
+const handleWaterGoalUpdate = async (req, res) => {
+  try {
+    const authData = await authenticateRequest(req, res, { requireAdmin: false });
+    if (!authData) return;
+
+    const goalL = req.body?.goal_l ?? req.body?.goalL;
+    const result = await updateWaterGoal({
+      supabase,
+      userId: authData.userId,
+      goalLiters: goalL,
+    });
+
+    if (!result.ok) {
+      console.error("Erro ao salvar meta de água:", result.error);
+      return res.status(400).json({
+        ok: false,
+        error: result.error?.message || "Não foi possível salvar a meta de água.",
+      });
+    }
+
+    return res.json({ ok: true, goal_l: result.goalL });
+  } catch (err) {
+    console.error("Erro ao salvar meta de água", err);
+    return res
+      .status(500)
+      .json({ ok: false, error: "Erro interno ao salvar meta de água" });
+  }
+};
+
 app.get("/api/food-diary/hydration/state", handleHydrationState);
 app.post("/api/food-diary/hydration/add", handleHydrationAdd);
 app.post("/api/food-diary/hydration/undo", handleHydrationUndo);
 
+app.get("/api/water", handleWaterState);
+app.post("/api/water/add", handleWaterAdd);
+app.post("/api/water/undo", handleWaterUndo);
+app.put("/api/water/goal", handleWaterGoalUpdate);
+
 app.post("/api/hydration/add", handleHydrationAdd);
 app.post("/api/hydration/undo", handleHydrationUndo);
+app.get("/api/hydration/state", handleHydrationState);
+app.get("/api/hydration", handleWaterState);
 
 app.put("/api/food-diary/state", async (req, res) => {
   try {

@@ -21,7 +21,19 @@ const getLocalDateString = () => {
   return new Date(now.getTime() - offsetMs).toISOString().slice(0, 10);
 };
 
-function HydrationCard({ userId, supabase, notify, selectedDate }) {
+const normalizeWaterPayload = (payload) => {
+  const totalMl = Number(payload?.total_ml ?? payload?.totalMl ?? 0);
+  const goalL = Number(payload?.goal_l ?? payload?.goalL ?? 0);
+  const goalMl = Number.isFinite(goalL) && goalL > 0 ? goalL * 1000 : DAILY_GOAL_ML;
+
+  return {
+    totalMl,
+    goalMl,
+    lastEntryId: payload?.last_entry_id ?? payload?.lastEntryId ?? null,
+  };
+};
+
+function HydrationCard({ userId, supabase, notify, selectedDate, onStateChange }) {
   const [hydrationTotalMl, setHydrationTotalMl] = useState(0);
   const [hydrationGoalMl, setHydrationGoalMl] = useState(DAILY_GOAL_ML);
   const [hydrationLastEntryId, setHydrationLastEntryId] = useState(null);
@@ -47,13 +59,17 @@ function HydrationCard({ userId, supabase, notify, selectedDate }) {
         setError(null);
         const data = await fetchHydrationState({ dayDate: date }, supabase);
         if (!isMounted) return;
-        setHydrationTotalMl(Number(data?.hydrationTotalMl || 0));
-        setHydrationGoalMl(Number(data?.hydrationGoalMl || DAILY_GOAL_ML));
-        setHydrationLastEntryId(data?.hydrationLastEntryId ?? null);
+        const normalized = normalizeWaterPayload(data);
+        setHydrationTotalMl(normalized.totalMl);
+        setHydrationGoalMl(normalized.goalMl);
+        setHydrationLastEntryId(normalized.lastEntryId);
+        if (typeof onStateChange === 'function') {
+          onStateChange(normalized);
+        }
       } catch (err) {
-        console.warn('Erro ao carregar hidratação', err);
+        console.error('Erro ao carregar água', err);
         if (isMounted) {
-          setError('Não foi possível carregar a hidratação do dia.');
+          setError('Não foi possível carregar a água do dia.');
         }
       } finally {
         if (isMounted) {
@@ -80,16 +96,23 @@ function HydrationCard({ userId, supabase, notify, selectedDate }) {
     try {
       setIsSaving(true);
       const result = await addHydrationEntry({ dayDate: date, amountMl }, supabase);
-      setHydrationTotalMl(Number(result?.hydrationTotalMl || 0));
-      setHydrationGoalMl(Number(result?.hydrationGoalMl || goalMl));
-      setHydrationLastEntryId(result?.hydrationLastEntryId ?? null);
+      const normalized = normalizeWaterPayload(result);
+      setHydrationTotalMl(normalized.totalMl);
+      setHydrationGoalMl(normalized.goalMl || goalMl);
+      setHydrationLastEntryId(normalized.lastEntryId);
+      if (typeof onStateChange === 'function') {
+        onStateChange({
+          ...normalized,
+          goalMl: normalized.goalMl || goalMl,
+        });
+      }
       if (typeof notify === 'function') {
-        notify('Hidratação registrada.', 'success');
+        notify('Água registrada.', 'success');
       }
     } catch (err) {
-      console.warn('Erro ao salvar hidratação', err);
+      console.error('Erro ao salvar água', err);
       if (typeof notify === 'function') {
-        notify('Não foi possível salvar a hidratação.', 'error');
+        notify('Não foi possível salvar a água.', 'error');
       }
     } finally {
       setIsSaving(false);
@@ -105,18 +128,26 @@ function HydrationCard({ userId, supabase, notify, selectedDate }) {
         if (typeof notify === 'function') {
           notify('Nenhum registro para desfazer.', 'warning');
         }
-        setHydrationTotalMl(Number(result?.hydrationTotalMl || 0));
-        setHydrationLastEntryId(result?.hydrationLastEntryId ?? null);
+        const normalized = normalizeWaterPayload(result);
+        setHydrationTotalMl(normalized.totalMl);
+        setHydrationLastEntryId(normalized.lastEntryId);
+        if (typeof onStateChange === 'function') {
+          onStateChange(normalized);
+        }
         return;
       }
 
-      setHydrationTotalMl(Number(result?.hydrationTotalMl || 0));
-      setHydrationLastEntryId(result?.hydrationLastEntryId ?? null);
+      const normalized = normalizeWaterPayload(result);
+      setHydrationTotalMl(normalized.totalMl);
+      setHydrationLastEntryId(normalized.lastEntryId);
+      if (typeof onStateChange === 'function') {
+        onStateChange(normalized);
+      }
       if (typeof notify === 'function') {
         notify('Último registro removido.', 'success');
       }
     } catch (err) {
-      console.warn('Erro ao desfazer hidratação', err);
+      console.error('Erro ao desfazer água', err);
       if (typeof notify === 'function') {
         notify('Não foi possível desfazer o registro.', 'error');
       }
@@ -128,7 +159,7 @@ function HydrationCard({ userId, supabase, notify, selectedDate }) {
   return (
     <div className="food-diary-summary-card hydration-card">
       <h5 className="title" style={{ margin: 0, fontSize: 14 }}>
-        Hidratação
+        Água
       </h5>
       <div className="muted" style={{ fontSize: 13 }}>
         Total de hoje: <strong>{formatLiters(totalMl)} L</strong>

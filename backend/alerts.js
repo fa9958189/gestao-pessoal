@@ -587,9 +587,25 @@ async function buildDailyGoalsMissedAlert(supabase, user, todayStr) {
     return [];
   }
 
+  const { data: authProfile, error: authError } = await supabase
+    .from("profiles_auth")
+    .select("water_goal_l, water_goal, water")
+    .eq("auth_id", userId)
+    .maybeSingle();
+
+  if (authError) {
+    console.error("❌ Erro ao buscar meta de água em profiles_auth:", authError.message);
+  }
+
+  const authWaterGoal = Number(
+    authProfile?.water_goal_l ?? authProfile?.water_goal ?? authProfile?.water
+  );
+
   const goalCalories = Number(profile?.calorie_goal) || DEFAULT_CALORIE_GOAL;
   const goalProtein = Number(profile?.protein_goal) || DEFAULT_PROTEIN_GOAL;
-  const goalWaterL = Number(profile?.water_goal_l) || DEFAULT_WATER_GOAL_L;
+  const goalWaterL = Number.isFinite(authWaterGoal)
+    ? authWaterGoal
+    : Number(profile?.water_goal_l) || DEFAULT_WATER_GOAL_L;
 
   const { data: entries, error: entriesError } = await supabase
     .from("food_diary_entries")
@@ -612,9 +628,24 @@ async function buildDailyGoalsMissedAlert(supabase, user, todayStr) {
     { calories: 0, protein: 0, waterMl: 0 }
   );
 
+  const { data: hydrationLogs, error: hydrationError } = await supabase
+    .from("hydration_logs")
+    .select("amount_ml")
+    .eq("user_id", userId)
+    .eq("day_date", todayStr);
+
+  if (hydrationError) {
+    console.error("❌ Erro ao buscar hidratação:", hydrationError.message);
+  }
+
+  const hydrationMl = (hydrationLogs || []).reduce(
+    (sum, row) => sum + Number(row.amount_ml || 0),
+    0
+  );
+
   const totalCalories = totals.calories;
   const totalProtein = totals.protein;
-  const totalWaterL = totals.waterMl / 1000;
+  const totalWaterL = (totals.waterMl + hydrationMl) / 1000;
 
   const caloriesMissed = totalCalories > goalCalories;
   const proteinMissed = totalProtein < goalProtein;

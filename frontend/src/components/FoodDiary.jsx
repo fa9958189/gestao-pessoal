@@ -16,10 +16,12 @@ import {
   deleteWeightEntry,
 } from '../weightApi';
 import { scanFood } from '../services/foodScannerApi';
+import { updateHydrationGoal } from '../hydrationApi';
 
 const defaultGoals = {
   calories: 2000,
-  protein: 120
+  protein: 120,
+  water: 2.5,
 };
 
 const defaultBody = {
@@ -57,6 +59,11 @@ function FoodDiary({ userId, supabase, notify }) {
   const [goals, setGoals] = useState(defaultGoals);
   const [body, setBody] = useState(defaultBody);
   const [weightHistory, setWeightHistory] = useState(defaultWeightHistory);
+  const [waterSummary, setWaterSummary] = useState({
+    totalMl: 0,
+    goalMl: defaultGoals.water * 1000,
+  });
+  const [hydrationGoalLoaded, setHydrationGoalLoaded] = useState(false);
   const [, setIsLoading] = useState(true);
   const [, setSavingEntry] = useState(false);
   const [, setLoadingWeightHistory] = useState(false);
@@ -150,6 +157,10 @@ function FoodDiary({ userId, supabase, notify }) {
             profile?.proteinGoal != null
               ? Number(profile.proteinGoal)
               : defaultGoals.protein,
+          water:
+            profile?.waterGoalLiters != null
+              ? Number(profile.waterGoalLiters)
+              : defaultGoals.water,
         });
 
         setBody({
@@ -223,8 +234,13 @@ function FoodDiary({ userId, supabase, notify }) {
   const totalProtein = totals.totalProtein;
   const calorieGoal = goals.calories || 0;
   const proteinGoal = goals.protein || 0;
+  const waterTotalLiters = waterSummary.totalMl / 1000;
+  const waterGoalLiters = waterSummary.goalMl / 1000;
 
-  const goalsMet = totalCalories <= calorieGoal && totalProtein >= proteinGoal;
+  const goalsMet =
+    totalCalories <= calorieGoal &&
+    totalProtein >= proteinGoal &&
+    (!waterGoalLiters || waterTotalLiters >= waterGoalLiters);
 
   const bmi = useMemo(() => {
     const h = Number(body.heightCm);
@@ -629,9 +645,18 @@ function FoodDiary({ userId, supabase, notify }) {
         userId,
         calorieGoal: goals.calories,
         proteinGoal: goals.protein,
+        waterGoalLiters: goals.water,
         heightCm,
         weightKg,
       });
+
+      if (goals.water != null) {
+        await updateHydrationGoal({ goalLiters: goals.water }, supabase);
+        setWaterSummary((prev) => ({
+          ...prev,
+          goalMl: Number(goals.water) * 1000,
+        }));
+      }
 
       if (weightKg) {
         const entryDate = selectedDate;
@@ -671,6 +696,21 @@ function FoodDiary({ userId, supabase, notify }) {
       if (typeof notify === 'function') {
         notify('Não foi possível salvar o peso.', 'error');
       }
+    }
+  };
+
+  const handleHydrationStateChange = (state) => {
+    const totalMl = Number(state?.totalMl ?? 0);
+    const goalMl = Number(state?.goalMl ?? defaultGoals.water * 1000);
+
+    setWaterSummary({ totalMl, goalMl });
+
+    if (!hydrationGoalLoaded && Number.isFinite(goalMl) && goalMl > 0) {
+      setGoals((prev) => ({
+        ...prev,
+        water: Number((goalMl / 1000).toFixed(2)),
+      }));
+      setHydrationGoalLoaded(true);
     }
   };
 
@@ -1040,6 +1080,18 @@ function FoodDiary({ userId, supabase, notify }) {
                   {renderBlocks(totals.totalProtein, goals.protein || 1)}
                 </div>
               </div>
+
+              <div className="food-diary-meta-row">
+                <div>
+                  Água:{' '}
+                  <strong>
+                    {formatNumber(waterTotalLiters, 1)} / {formatNumber(waterGoalLiters, 1)} L
+                  </strong>
+                </div>
+                <div className="food-diary-bar">
+                  {renderBlocks(waterTotalLiters, waterGoalLiters || 1)}
+                </div>
+              </div>
             </div>
 
             <div
@@ -1060,6 +1112,7 @@ function FoodDiary({ userId, supabase, notify }) {
             supabase={supabase}
             notify={notify}
             selectedDate={selectedDate}
+            onStateChange={handleHydrationStateChange}
           />
 
           <div className="food-diary-summary-card">
@@ -1085,6 +1138,18 @@ function FoodDiary({ userId, supabase, notify }) {
                 value={goals.protein}
                 onChange={(e) =>
                   handleGoalChange('protein', e.target.value)
+                }
+              />
+            </div>
+            <div className="field">
+              <label>Meta de água (L/dia)</label>
+              <input
+                type="number"
+                min="0"
+                step="0.1"
+                value={goals.water}
+                onChange={(e) =>
+                  handleGoalChange('water', e.target.value)
                 }
               />
             </div>
