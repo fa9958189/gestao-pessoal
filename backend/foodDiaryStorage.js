@@ -109,10 +109,17 @@ const getHydrationRowsFromDiary = async (supabaseClient, userId, dayDate) => {
     .select("id, water_ml, created_at")
     .eq("user_id", userId)
     .eq("meal_type", "hydration")
-    .or(`day_date.eq.${dayDate},entry_date.eq.${dayDate}`)
+    .eq("entry_date", dayDate)
     .order("created_at", { ascending: false });
 
-  if (error) throw error;
+  // Não deixa quebrar o /api/water se isso falhar
+  if (error) {
+    console.warn(
+      "Aviso: não foi possível buscar hidratação do diário:",
+      error.message
+    );
+    return [];
+  }
 
   return data || [];
 };
