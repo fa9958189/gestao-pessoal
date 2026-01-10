@@ -809,6 +809,7 @@ function FoodDiary({ userId, supabase, notify }) {
     totals.totalCalories,
     0
   )} kcal`;
+  const scanHelpText = 'Ajude a identificar melhor o seu alimento';
 
   return (
     <div className="food-diary">
@@ -819,6 +820,7 @@ function FoodDiary({ userId, supabase, notify }) {
               Para analisar melhor, descreva rapidamente o que você está comendo.
             </div>
             <div className="scan-modal-body">
+              <small className="food-help-text">{scanHelpText}</small>
               <input
                 type="text"
                 placeholder="Ex.: arroz, feijão e frango grelhado"
@@ -956,7 +958,6 @@ function FoodDiary({ userId, supabase, notify }) {
             </div>
 
             <div className="field">
-              <label>Ajude a identificar melhor seu alimento</label>
               <input
                 type="text"
                 placeholder="Ex: milho cozido com maionese, 1 espiga média"
