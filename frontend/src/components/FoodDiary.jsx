@@ -8,15 +8,9 @@ import {
 } from '../foodDiaryApi';
 import FoodDiaryReports from './FoodDiaryReports';
 import HydrationCard from './HydrationCard';
-import {
-  fetchWeightHistory,
-  saveWeightEntry,
-  fetchWeightProfile,
-  saveWeightProfile,
-  deleteWeightEntry,
-} from '../weightApi';
 import { scanFood } from '../services/foodScannerApi';
-import { updateHydrationGoal } from '../hydrationApi';
+
+const API_BASE = import.meta.env.VITE_API_URL || "";
 
 const defaultGoals = {
   calories: 2000,
@@ -57,11 +51,6 @@ const getLocalDateString = () => {
 function FoodDiary({ userId, supabase, notify }) {
   const [entriesByDate, setEntriesByDate] = useState({});
   const [goals, setGoals] = useState(defaultGoals);
-  const [savedGoals, setSavedGoals] = useState({
-    calories: 2200,
-    protein: 170,
-    water: 2.5,
-  });
   const [body, setBody] = useState(defaultBody);
   const [weightHistory, setWeightHistory] = useState(defaultWeightHistory);
   const [waterSummary, setWaterSummary] = useState({
@@ -96,8 +85,83 @@ function FoodDiary({ userId, supabase, notify }) {
   const [isScanModalOpen, setIsScanModalOpen] = useState(false);
   const inputCameraRef = useRef(null);
   const inputGalleryRef = useRef(null);
+  const goalAutosaveTimeoutRef = useRef(null);
+  const hasEditedGoalsRef = useRef(false);
+  const entriesByDateRef = useRef(entriesByDate);
+  const bodyRef = useRef(body);
+  const weightHistoryRef = useRef(weightHistory);
 
   const isMobile = () => /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+  const fetchFoodDiaryState = async (currentUserId) => {
+    const response = await fetch(
+      `${API_BASE}/api/food-diary/state?user_id=${encodeURIComponent(
+        currentUserId,
+      )}`,
+    );
+
+    if (!response.ok) {
+      throw new Error('Não foi possível carregar o diário alimentar.');
+    }
+
+    return response.json();
+  };
+
+  const saveFoodDiaryState = async (payload) => {
+    const response = await fetch(`${API_BASE}/api/food-diary/state`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      throw new Error('Não foi possível salvar o diário alimentar.');
+    }
+
+    return response.json();
+  };
+
+  const applyFoodDiaryState = (state) => {
+    const nextGoals = {
+      calories:
+        state?.goals?.calories != null
+          ? Number(state.goals.calories)
+          : defaultGoals.calories,
+      protein:
+        state?.goals?.protein != null
+          ? Number(state.goals.protein)
+          : defaultGoals.protein,
+      water:
+        state?.goals?.water != null
+          ? Number(state.goals.water)
+          : defaultGoals.water,
+    };
+
+    setGoals(nextGoals);
+    setWaterSummary((prev) => ({
+      totalMl: state?.hydrationTotalMl ?? prev.totalMl ?? 0,
+      goalMl:
+        state?.hydrationGoalMl != null
+          ? Number(state.hydrationGoalMl)
+          : nextGoals.water * 1000,
+    }));
+
+    setBody({
+      heightCm:
+        state?.body?.heightCm != null && state.body.heightCm !== ''
+          ? String(state.body.heightCm)
+          : '',
+      weightKg:
+        state?.body?.weightKg != null && state.body.weightKg !== ''
+          ? String(state.body.weightKg)
+          : '',
+    });
+
+    setWeightHistory(state?.weightHistory || defaultWeightHistory);
+    setHydrationGoalLoaded(true);
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -144,69 +208,31 @@ function FoodDiary({ userId, supabase, notify }) {
   }, [error]);
 
   useEffect(() => {
-    let isMounted = true;
+    entriesByDateRef.current = entriesByDate;
+  }, [entriesByDate]);
 
-    const loadWeightProfile = async () => {
-      if (!userId) return;
+  useEffect(() => {
+    bodyRef.current = body;
+  }, [body]);
 
-      try {
-        const profile = await fetchWeightProfile(userId);
-        if (!isMounted) return;
-
-        const nextGoals = {
-          calories:
-            profile?.calorieGoal != null
-              ? Number(profile.calorieGoal)
-              : defaultGoals.calories,
-          protein:
-            profile?.proteinGoal != null
-              ? Number(profile.proteinGoal)
-              : defaultGoals.protein,
-          water:
-            profile?.waterGoalLiters != null
-              ? Number(profile.waterGoalLiters)
-              : defaultGoals.water,
-        };
-
-        setGoals(nextGoals);
-        setSavedGoals(nextGoals);
-
-        setBody({
-          heightCm:
-            profile?.heightCm != null && profile.heightCm !== ''
-              ? String(profile.heightCm)
-              : '',
-          weightKg:
-            profile?.weightKg != null && profile.weightKg !== ''
-              ? String(profile.weightKg)
-              : '',
-        });
-      } catch (err) {
-        console.warn('Erro ao carregar perfil de metas e peso', err);
-      }
-    };
-
-    loadWeightProfile();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [userId]);
+  useEffect(() => {
+    weightHistoryRef.current = weightHistory;
+  }, [weightHistory]);
 
   useEffect(() => {
     let isMounted = true;
 
-    const loadWeight = async () => {
+    const loadFoodDiaryState = async () => {
       if (!userId) return;
 
       try {
         setLoadingWeightHistory(true);
-        const historyFromDb = await fetchWeightHistory(userId);
+        const state = await fetchFoodDiaryState(userId);
         if (!isMounted) return;
 
-        setWeightHistory(historyFromDb || defaultWeightHistory);
+        applyFoodDiaryState(state);
       } catch (err) {
-        console.warn('Erro ao carregar histórico de peso', err);
+        console.warn('Erro ao carregar perfil de metas e peso', err);
         if (isMounted) {
           setError('Não foi possível carregar o histórico de peso.');
         }
@@ -217,12 +243,44 @@ function FoodDiary({ userId, supabase, notify }) {
       }
     };
 
-    loadWeight();
+    loadFoodDiaryState();
 
     return () => {
       isMounted = false;
     };
   }, [userId]);
+
+  useEffect(() => {
+    if (!userId || !hasEditedGoalsRef.current) return;
+
+    if (goalAutosaveTimeoutRef.current) {
+      clearTimeout(goalAutosaveTimeoutRef.current);
+    }
+
+    goalAutosaveTimeoutRef.current = setTimeout(async () => {
+      try {
+        await saveFoodDiaryState({
+          user_id: userId,
+          entriesByDate: entriesByDateRef.current,
+          goals,
+          body: bodyRef.current,
+          weightHistory: weightHistoryRef.current,
+        });
+      } catch (error) {
+        console.error('Falha ao salvar metas', error);
+        setError('Não foi possível salvar as metas.');
+        if (typeof notify === 'function') {
+          notify('Não foi possível salvar as metas.', 'error');
+        }
+      }
+    }, 700);
+
+    return () => {
+      if (goalAutosaveTimeoutRef.current) {
+        clearTimeout(goalAutosaveTimeoutRef.current);
+      }
+    };
+  }, [goals, userId, notify]);
 
   const dayEntries = entriesByDate[selectedDate] || [];
 
@@ -595,8 +653,16 @@ function FoodDiary({ userId, supabase, notify }) {
     if (!entry || !entry.date || !entry.recordedAt || !userId) return;
 
     try {
-      // Usa a função do weightApi para remover o registro no Supabase
-      await deleteWeightEntry(userId, entry.date, entry.recordedAt, supabase);
+      const { error: deleteError } = await supabase
+        .from('food_weight_history')
+        .delete()
+        .match({
+          user_id: userId,
+          entry_date: entry.date,
+          recorded_at: entry.recordedAt,
+        });
+
+      if (deleteError) throw deleteError;
 
       // Atualiza o estado local removendo o item
       setWeightHistory((prev) =>
@@ -619,10 +685,20 @@ function FoodDiary({ userId, supabase, notify }) {
   };
 
   const handleGoalChange = (field, value) => {
+    hasEditedGoalsRef.current = true;
+    const nextValue = value === '' ? '' : Number(value);
+
     setGoals((prev) => ({
       ...prev,
-      [field]: value === '' ? '' : Number(value)
+      [field]: nextValue,
     }));
+
+    if (field === 'water') {
+      setWaterSummary((prev) => ({
+        ...prev,
+        goalMl: nextValue === '' ? 0 : Number(nextValue) * 1000,
+      }));
+    }
   };
 
   const handleBodyChange = (field, value) => {
@@ -634,41 +710,6 @@ function FoodDiary({ userId, supabase, notify }) {
     // Apenas atualizar o estado local.
     // O salvamento no Supabase será feito manualmente pelo botão.
     setBody(nextBody);
-  };
-
-  const handleSaveGoalsOnly = async () => {
-    try {
-      if (!userId) {
-        setError('Usuário não identificado para salvar as metas.');
-        notify?.('Não foi possível salvar as metas.', 'error');
-        return;
-      }
-
-      await saveWeightProfile({
-        userId,
-        calorieGoal: goals.calories,
-        proteinGoal: goals.protein,
-        waterGoalLiters: goals.water,
-        heightCm: null,
-        weightKg: null,
-      });
-
-      if (goals.water != null) {
-        await updateHydrationGoal({ goalLiters: goals.water }, supabase);
-        setWaterSummary((prev) => ({
-          ...prev,
-          goalMl: Number(goals.water) * 1000,
-        }));
-      }
-
-      setSavedGoals({ ...goals });
-
-      notify?.('Metas salvas com sucesso.', 'success');
-    } catch (error) {
-      console.error('Falha ao salvar metas', error);
-      setError('Não foi possível salvar as metas.');
-      notify?.('Não foi possível salvar as metas.', 'error');
-    }
   };
 
   const handleSaveBodyAndWeight = async (nextBody = body) => {
@@ -684,54 +725,39 @@ function FoodDiary({ userId, supabase, notify }) {
       const heightCm = nextBody.heightCm ? Number(nextBody.heightCm) : null;
       const weightKg = nextBody.weightKg ? Number(nextBody.weightKg) : null;
 
-      await saveWeightProfile({
-        userId,
-        calorieGoal: savedGoals.calories,
-        proteinGoal: savedGoals.protein,
-        waterGoalLiters: savedGoals.water,
-        heightCm,
-        weightKg,
-      });
+      const updatedBody = {
+        ...nextBody,
+        heightCm: heightCm ?? '',
+        weightKg: weightKg ?? '',
+      };
 
-      if (savedGoals.water != null) {
-        await updateHydrationGoal({ goalLiters: savedGoals.water }, supabase);
-        setWaterSummary((prev) => ({
-          ...prev,
-          goalMl: Number(savedGoals.water) * 1000,
-        }));
-      }
+      let updatedWeightHistory = weightHistory;
 
       if (weightKg) {
-        const entryDate = selectedDate;
-        const saved = await saveWeightEntry({
-          userId,
-          entryDate,
+        const newEntry = {
+          date: selectedDate,
           weightKg,
-        });
+        };
 
-        setWeightHistory((prev) => {
-          if (!saved) return prev;
+        updatedWeightHistory = [
+          newEntry,
+          ...weightHistory.filter((item) => item.date !== selectedDate),
+        ];
+      }
 
-          const newItem = {
-            date: saved.entry_date,
-            weightKg: Number(saved.weight_kg),
-            recordedAt: saved.recorded_at,
-          };
+      await saveFoodDiaryState({
+        user_id: userId,
+        entriesByDate,
+        goals,
+        body: updatedBody,
+        weightHistory: updatedWeightHistory,
+      });
 
-          const filtered = prev.filter(
-            (x) =>
-              !(
-                x.date === newItem.date &&
-                x.recordedAt === newItem.recordedAt
-              ),
-          );
+      const refreshedState = await fetchFoodDiaryState(userId);
+      applyFoodDiaryState(refreshedState);
 
-          return [newItem, ...filtered];
-        });
-
-        if (typeof notify === 'function') {
-          notify('Peso salvo com sucesso.', 'success');
-        }
+      if (typeof notify === 'function') {
+        notify('Peso salvo com sucesso.', 'success');
       }
     } catch (error) {
       console.error('Falha ao salvar peso', error);
@@ -1196,14 +1222,6 @@ function FoodDiary({ userId, supabase, notify }) {
                 }
               />
             </div>
-            <button
-              type="button"
-              className="primary"
-              style={{ marginTop: 10, width: '100%' }}
-              onClick={() => handleSaveGoalsOnly()}
-            >
-              Salvar alterações
-            </button>
           </div>
 
           <div className="food-diary-summary-card">
