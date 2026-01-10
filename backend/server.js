@@ -7,6 +7,7 @@ import { createRequire } from "module";
 import { fileURLToPath } from "url";
 import multer from "multer";
 import { supabase } from "./supabase.js";
+import foodsRouter from "./routes/foods.js";
 import {
   sendWhatsAppMessage,
   startEventReminderWorker,
@@ -38,6 +39,7 @@ const sharp = require("sharp");
 const app = express();
 app.use(cors());
 app.use(express.json());
+app.use("/api/foods", foodsRouter);
 
 const BILLING_DEFAULT_DUE_DAY = 20;
 const AFFILIATE_COMMISSION_CENTS = 2000;
