@@ -17,6 +17,32 @@ const defaultTxForm = {
   category: ''
 };
 
+const CATEGORIES = {
+  expenses: [
+    'Alimentação',
+    'Mercado',
+    'Lazer',
+    'Academia / Esporte',
+    'Saúde',
+    'Transporte',
+    'Moradia',
+    'Contas (água, luz, internet, etc.)',
+    'Educação',
+    'Compras',
+    'Assinaturas',
+    'Outros'
+  ],
+  income: [
+    'Salário',
+    'Vendas',
+    'Freelance',
+    'Comissão',
+    'Pix recebido',
+    'Reembolso',
+    'Outros'
+  ]
+};
+
 const defaultTxFilters = {
   from: '',
   to: '',
@@ -997,6 +1023,9 @@ function App() {
   const affiliateCommissionCents = affiliateUsersCommissionCents
     || (affiliateUsersComputed.filter((user) => user.is_active).length * FIXED_COMMISSION_CENTS);
   const affiliateClientsTotal = formatCurrency(affiliateCommissionCents / 100);
+
+  const txCategories = txForm.type === 'income' ? CATEGORIES.income : CATEGORIES.expenses;
+  const hasLegacyCategory = txForm.category && !txCategories.includes(txForm.category);
 
   const [txFilters, setTxFilters] = useState(defaultTxFilters);
   const [eventFilters, setEventFilters] = useState(defaultEventFilters);
@@ -2094,7 +2123,17 @@ function App() {
                 </div>
                 <div style={{ flex: 1 }}>
                   <label>Categoria</label>
-                  <input value={txForm.category} onChange={(e) => setTxForm({ ...txForm, category: e.target.value })} placeholder="Ex.: Vendas/Estoque" />
+                  <select value={txForm.category} onChange={(e) => setTxForm({ ...txForm, category: e.target.value })}>
+                    {hasLegacyCategory && (
+                      <option value={txForm.category}>Categoria atual: {txForm.category}</option>
+                    )}
+                    <option value="">Selecione</option>
+                    {txCategories.map((category) => (
+                      <option key={category} value={category}>
+                        {category}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
               <div className="row" style={{ justifyContent: 'flex-end', marginTop: 8 }}>
