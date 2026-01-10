@@ -57,6 +57,11 @@ const getLocalDateString = () => {
 function FoodDiary({ userId, supabase, notify }) {
   const [entriesByDate, setEntriesByDate] = useState({});
   const [goals, setGoals] = useState(defaultGoals);
+  const [savedGoals, setSavedGoals] = useState({
+    calories: 2200,
+    protein: 170,
+    water: 2.5,
+  });
   const [body, setBody] = useState(defaultBody);
   const [weightHistory, setWeightHistory] = useState(defaultWeightHistory);
   const [waterSummary, setWaterSummary] = useState({
@@ -148,7 +153,7 @@ function FoodDiary({ userId, supabase, notify }) {
         const profile = await fetchWeightProfile(userId);
         if (!isMounted) return;
 
-        setGoals({
+        const nextGoals = {
           calories:
             profile?.calorieGoal != null
               ? Number(profile.calorieGoal)
@@ -161,7 +166,10 @@ function FoodDiary({ userId, supabase, notify }) {
             profile?.waterGoalLiters != null
               ? Number(profile.waterGoalLiters)
               : defaultGoals.water,
-        });
+        };
+
+        setGoals(nextGoals);
+        setSavedGoals(nextGoals);
 
         setBody({
           heightCm:
@@ -628,6 +636,41 @@ function FoodDiary({ userId, supabase, notify }) {
     setBody(nextBody);
   };
 
+  const handleSaveGoalsOnly = async () => {
+    try {
+      if (!userId) {
+        setError('Usuário não identificado para salvar as metas.');
+        notify?.('Não foi possível salvar as metas.', 'error');
+        return;
+      }
+
+      await saveWeightProfile({
+        userId,
+        calorieGoal: goals.calories,
+        proteinGoal: goals.protein,
+        waterGoalLiters: goals.water,
+        heightCm: null,
+        weightKg: null,
+      });
+
+      if (goals.water != null) {
+        await updateHydrationGoal({ goalLiters: goals.water }, supabase);
+        setWaterSummary((prev) => ({
+          ...prev,
+          goalMl: Number(goals.water) * 1000,
+        }));
+      }
+
+      setSavedGoals({ ...goals });
+
+      notify?.('Metas salvas com sucesso.', 'success');
+    } catch (error) {
+      console.error('Falha ao salvar metas', error);
+      setError('Não foi possível salvar as metas.');
+      notify?.('Não foi possível salvar as metas.', 'error');
+    }
+  };
+
   const handleSaveBodyAndWeight = async (nextBody = body) => {
     try {
       if (!userId) {
@@ -643,18 +686,18 @@ function FoodDiary({ userId, supabase, notify }) {
 
       await saveWeightProfile({
         userId,
-        calorieGoal: goals.calories,
-        proteinGoal: goals.protein,
-        waterGoalLiters: goals.water,
+        calorieGoal: savedGoals.calories,
+        proteinGoal: savedGoals.protein,
+        waterGoalLiters: savedGoals.water,
         heightCm,
         weightKg,
       });
 
-      if (goals.water != null) {
-        await updateHydrationGoal({ goalLiters: goals.water }, supabase);
+      if (savedGoals.water != null) {
+        await updateHydrationGoal({ goalLiters: savedGoals.water }, supabase);
         setWaterSummary((prev) => ({
           ...prev,
-          goalMl: Number(goals.water) * 1000,
+          goalMl: Number(savedGoals.water) * 1000,
         }));
       }
 
@@ -1157,7 +1200,7 @@ function FoodDiary({ userId, supabase, notify }) {
               type="button"
               className="primary"
               style={{ marginTop: 10, width: '100%' }}
-              onClick={() => handleSaveBodyAndWeight()}
+              onClick={() => handleSaveGoalsOnly()}
             >
               Salvar alterações
             </button>
