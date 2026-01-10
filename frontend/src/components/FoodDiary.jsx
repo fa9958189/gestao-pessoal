@@ -237,6 +237,14 @@ function FoodDiary({ userId, supabase, notify }) {
   }, [userId]);
 
   const persistDailyGoals = async (nextGoals) => {
+    const waterGoal = Number(nextGoals.water || 0);
+    if (waterGoal < 0) {
+      setError('Não foi possível salvar as metas.');
+      if (typeof notify === 'function') {
+        notify('Não foi possível salvar as metas.', 'error');
+      }
+      return;
+    }
     const saved = await saveGoals({
       supabase,
       userId,
