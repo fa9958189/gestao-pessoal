@@ -960,7 +960,6 @@ function FoodDiary({ userId, supabase, notify }) {
             <div className="field">
               <input
                 type="text"
-                placeholder="Ex: milho cozido com maionese, 1 espiga média"
                 value={scanDescription}
                 onChange={(e) => setScanDescription(e.target.value)}
               />
