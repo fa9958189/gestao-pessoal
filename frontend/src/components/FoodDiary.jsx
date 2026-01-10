@@ -1153,6 +1153,14 @@ function FoodDiary({ userId, supabase, notify }) {
                 }
               />
             </div>
+            <button
+              type="button"
+              className="primary"
+              style={{ marginTop: 10, width: '100%' }}
+              onClick={() => handleSaveBodyAndWeight()}
+            >
+              Salvar alterações
+            </button>
           </div>
 
           <div className="food-diary-summary-card">
