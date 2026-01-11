@@ -7,6 +7,7 @@ import {
   updateMeal,
 } from '../foodDiaryApi';
 import FoodDiaryReports from './FoodDiaryReports';
+import GeneralReport from './GeneralReport';
 import HydrationCard from './HydrationCard';
 import { updateHydrationGoal } from '../hydrationApi';
 import { scanFood } from '../services/foodScannerApi';
@@ -25,7 +26,10 @@ const defaultGoals = {
 
 const defaultBody = {
   heightCm: '',
-  weightKg: ''
+  weightKg: '',
+  sex: '',
+  age: '',
+  activityLevel: '',
 };
 
 const defaultWeightHistory = [];
@@ -211,6 +215,12 @@ function FoodDiary({ userId, supabase, notify }) {
           weightKg:
             todayWeight?.weight_kg != null && todayWeight.weight_kg !== ''
               ? String(todayWeight.weight_kg)
+              : '',
+          sex: profile?.sex != null ? String(profile.sex) : '',
+          age: profile?.age != null ? String(profile.age) : '',
+          activityLevel:
+            profile?.activity_level != null
+              ? String(profile.activity_level)
               : '',
         });
 
@@ -746,6 +756,9 @@ function FoodDiary({ userId, supabase, notify }) {
 
       const heightCm = nextBody.heightCm ? Number(nextBody.heightCm) : null;
       const weightKg = nextBody.weightKg ? Number(nextBody.weightKg) : null;
+      const age = nextBody.age ? Number(nextBody.age) : null;
+      const sex = nextBody.sex || null;
+      const activityLevel = nextBody.activityLevel || null;
       const entryDate = getLocalDateString();
 
       await saveWeightHeight({
@@ -753,6 +766,9 @@ function FoodDiary({ userId, supabase, notify }) {
         userId,
         weightKg,
         heightCm,
+        age,
+        sex,
+        activityLevel,
         entryDate,
       });
 
@@ -775,6 +791,12 @@ function FoodDiary({ userId, supabase, notify }) {
           todayWeight?.weight_kg != null && todayWeight.weight_kg !== ''
             ? String(todayWeight.weight_kg)
             : weightKg ?? '',
+        sex: profile?.sex != null ? String(profile.sex) : sex ?? '',
+        age: profile?.age != null ? String(profile.age) : age ?? '',
+        activityLevel:
+          profile?.activity_level != null
+            ? String(profile.activity_level)
+            : activityLevel ?? '',
       });
 
       if (typeof notify === 'function') {
@@ -877,6 +899,13 @@ function FoodDiary({ userId, supabase, notify }) {
           onClick={() => setTab('relatorios')}
         >
           Relatórios
+        </button>
+        <button
+          type="button"
+          className={tab === 'relatorio-geral' ? 'primary' : 'ghost'}
+          onClick={() => setTab('relatorio-geral')}
+        >
+          Relatório Geral
         </button>
       </div>
 
@@ -1274,6 +1303,43 @@ function FoodDiary({ userId, supabase, notify }) {
                 }
               />
             </div>
+            <div className="field">
+              <label>Sexo</label>
+              <select
+                value={body.sex}
+                onChange={(e) => handleBodyChange('sex', e.target.value)}
+              >
+                <option value="">Selecione</option>
+                <option value="Masculino">Masculino</option>
+                <option value="Feminino">Feminino</option>
+              </select>
+            </div>
+            <div className="field">
+              <label>Idade</label>
+              <input
+                type="number"
+                min="0"
+                step="1"
+                value={body.age}
+                onChange={(e) => handleBodyChange('age', e.target.value)}
+              />
+            </div>
+            <div className="field">
+              <label>Nível de atividade</label>
+              <select
+                value={body.activityLevel}
+                onChange={(e) =>
+                  handleBodyChange('activityLevel', e.target.value)
+                }
+              >
+                <option value="">Selecione</option>
+                <option value="Sedentário">Sedentário</option>
+                <option value="Leve">Leve</option>
+                <option value="Moderado">Moderado</option>
+                <option value="Alto">Alto</option>
+                <option value="Muito alto">Muito alto</option>
+              </select>
+            </div>
             {bmi && (
               <div className="muted" style={{ fontSize: 13 }}>
                 IMC:{' '}
@@ -1349,8 +1415,17 @@ function FoodDiary({ userId, supabase, notify }) {
         </>
       )}
 
+      {tab === 'relatorio-geral' && (
+        <GeneralReport body={body} weightHistory={weightHistory} />
+      )}
+
       {tab === 'relatorios' && (
-        <FoodDiaryReports userId={userId} supabase={supabase} />
+        <FoodDiaryReports
+          userId={userId}
+          supabase={supabase}
+          selectedDate={selectedDate}
+          goals={goals}
+        />
       )}
     </div>
   );
