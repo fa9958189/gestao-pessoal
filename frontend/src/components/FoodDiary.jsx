@@ -35,6 +35,58 @@ const defaultBody = {
 
 const defaultWeightHistory = [];
 const BLOCKS = 10;
+const sexUiToDbMap = {
+  Masculino: 'masculino',
+  Feminino: 'feminino',
+};
+const sexDbToUiMap = {
+  masculino: 'Masculino',
+  feminino: 'Feminino',
+};
+const activityUiToDbMap = {
+  Sedentário: 'sedentário',
+  Leve: 'leve',
+  Moderado: 'moderado',
+  Alto: 'alto',
+  'Muito alto': 'muito alto',
+};
+const activityDbToUiMap = {
+  'sedentário': 'Sedentário',
+  leve: 'Leve',
+  moderado: 'Moderado',
+  alto: 'Alto',
+  'muito alto': 'Muito alto',
+};
+
+const normalizeSexForDb = (value) => {
+  if (value == null || value === '') return null;
+  const normalized = String(value).trim().toLowerCase();
+  if (sexDbToUiMap[normalized]) return normalized;
+  return sexUiToDbMap[value] ?? null;
+};
+
+const normalizeSexForUi = (value) => {
+  if (value == null || value === '') return null;
+  const normalized = String(value).trim().toLowerCase();
+  return sexDbToUiMap[normalized] ?? sexDbToUiMap[normalizeSexForDb(value)] ?? null;
+};
+
+const normalizeActivityForDb = (value) => {
+  if (value == null || value === '') return null;
+  const normalized = String(value).trim().toLowerCase();
+  if (activityDbToUiMap[normalized]) return normalized;
+  return activityUiToDbMap[value] ?? null;
+};
+
+const normalizeActivityForUi = (value) => {
+  if (value == null || value === '') return null;
+  const normalized = String(value).trim().toLowerCase();
+  return (
+    activityDbToUiMap[normalized] ??
+    activityDbToUiMap[normalizeActivityForDb(value)] ??
+    null
+  );
+};
 
 const renderBlocks = (current, goal) => {
   if (!goal || goal <= 0) return '⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜';
@@ -238,18 +290,12 @@ function FoodDiary({ userId, supabase, notify }) {
               : null,
           weightKg:
             todayWeightValue ?? profileWeightValue,
-          sex:
-            normalizedProfile?.sex != null
-              ? String(normalizedProfile.sex)
-              : null,
+          sex: normalizeSexForUi(normalizedProfile?.sex),
           age:
             normalizedProfile?.age != null
               ? String(normalizedProfile.age)
               : null,
-          activityLevel:
-            normalizedProfile?.activityLevel != null
-              ? String(normalizedProfile.activityLevel)
-              : null,
+          activityLevel: normalizeActivityForUi(normalizedProfile?.activityLevel),
         };
 
         setBody(nextBody);
@@ -851,17 +897,12 @@ function FoodDiary({ userId, supabase, notify }) {
       return Number.isFinite(numeric) ? numeric : null;
     };
 
-    const normalizeText = (value) => {
-      if (value == null || value === '') return null;
-      return String(value);
-    };
-
     return {
       heightCm: normalizeNumber(values.heightCm),
       weightKg: normalizeNumber(values.weightKg),
-      sex: normalizeText(values.sex),
+      sex: normalizeSexForDb(values.sex),
       age: normalizeInteger(values.age),
-      activityLevel: normalizeText(values.activityLevel),
+      activityLevel: normalizeActivityForDb(values.activityLevel),
     };
   };
 
@@ -943,8 +984,8 @@ function FoodDiary({ userId, supabase, notify }) {
             : null),
         sex:
           normalizedProfile?.sex != null
-            ? String(normalizedProfile.sex)
-            : normalizedCurrent.sex,
+            ? normalizeSexForUi(normalizedProfile.sex)
+            : normalizeSexForUi(normalizedCurrent.sex),
         age:
           normalizedProfile?.age != null
             ? String(normalizedProfile.age)
@@ -953,8 +994,8 @@ function FoodDiary({ userId, supabase, notify }) {
               : null,
         activityLevel:
           normalizedProfile?.activityLevel != null
-            ? String(normalizedProfile.activityLevel)
-            : normalizedCurrent.activityLevel,
+            ? normalizeActivityForUi(normalizedProfile.activityLevel)
+            : normalizeActivityForUi(normalizedCurrent.activityLevel),
       };
 
       setBody(refreshedBody);

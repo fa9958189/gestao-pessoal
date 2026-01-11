@@ -6,29 +6,6 @@ const ensureSupabase = (supabase, context) => {
   }
 };
 
-const normalizeSexForUi = (value) => {
-  if (!value) return null;
-  const normalized = String(value).trim().toLowerCase();
-  if (normalized === 'masculino') return 'Masculino';
-  if (normalized === 'feminino') return 'Feminino';
-  return String(value);
-};
-
-const normalizeActivityForUi = (value) => {
-  if (!value) return null;
-  const normalized = String(value).trim().toLowerCase();
-  if (normalized === 'sedentario' || normalized === 'sedentário') {
-    return 'Sedentário';
-  }
-  if (normalized === 'leve') return 'Leve';
-  if (normalized === 'moderado') return 'Moderado';
-  if (normalized === 'alto') return 'Alto';
-  if (normalized === 'muito alto' || normalized === 'muito-alto') {
-    return 'Muito alto';
-  }
-  return String(value);
-};
-
 const normalizeSexForStorage = (value) => {
   if (value == null || value === '') return null;
   const normalized = String(value).trim().toLowerCase();
@@ -59,19 +36,23 @@ const normalizeProfileRow = (row) => {
     };
   }
 
+  const heightValue =
+    row.height_cm ?? row.altura_cm ?? row.heightCm ?? row.alturaCm ?? null;
+  const weightValue =
+    row.current_weight_kg ??
+    row.weight_kg ??
+    row.peso_kg ??
+    row.pesoKg ??
+    row.currentWeightKg ??
+    null;
+  const ageValue = row.age ?? row.idade ?? null;
+
   return {
-    heightCm:
-      row.height_cm ?? row.altura_cm ?? row.heightCm ?? row.alturaCm ?? null,
-    weightKg:
-      row.current_weight_kg ??
-      row.weight_kg ??
-      row.peso_kg ??
-      row.pesoKg ??
-      row.currentWeightKg ??
-      null,
-    sex: normalizeSexForUi(row.sex ?? row.sexo ?? null),
-    age: row.age ?? row.idade ?? null,
-    activityLevel: normalizeActivityForUi(
+    heightCm: heightValue != null ? Number(heightValue) : null,
+    weightKg: weightValue != null ? Number(weightValue) : null,
+    sex: normalizeSexForStorage(row.sex ?? row.sexo ?? null),
+    age: ageValue != null ? Number.parseInt(ageValue, 10) : null,
+    activityLevel: normalizeActivityForStorage(
       row.activity_level ??
         row.nivel_atividade ??
         row.nivelAtividade ??
@@ -124,13 +105,19 @@ export async function saveProfile({
 
   const normalizedSex = normalizeSexForStorage(sex);
   const normalizedActivity = normalizeActivityForStorage(activityLevel);
+  const normalizedAge =
+    age != null && age !== '' ? Number.parseInt(age, 10) : null;
+  const normalizedHeight =
+    heightCm != null && heightCm !== '' ? Number(heightCm) : null;
+  const normalizedWeight =
+    weightKg != null && weightKg !== '' ? Number(weightKg) : null;
 
   const profilePayload = {
     user_id: userId,
-    ...(heightCm !== undefined ? { height_cm: heightCm ?? null } : {}),
-    ...(weightKg !== undefined ? { current_weight_kg: weightKg ?? null } : {}),
+    ...(heightCm !== undefined ? { height_cm: normalizedHeight } : {}),
+    ...(weightKg !== undefined ? { current_weight_kg: normalizedWeight } : {}),
     ...(sex !== undefined ? { sex: normalizedSex } : {}),
-    ...(age !== undefined ? { age: age ?? null } : {}),
+    ...(age !== undefined ? { age: normalizedAge } : {}),
     ...(activityLevel !== undefined
       ? { activity_level: normalizedActivity }
       : {}),
@@ -152,10 +139,10 @@ export async function saveProfile({
   }
 
   const legacyPayload = {
-    ...(heightCm !== undefined ? { altura_cm: heightCm ?? null } : {}),
-    ...(weightKg !== undefined ? { weight_kg: weightKg ?? null } : {}),
+    ...(heightCm !== undefined ? { altura_cm: normalizedHeight } : {}),
+    ...(weightKg !== undefined ? { weight_kg: normalizedWeight } : {}),
     ...(sex !== undefined ? { sexo: normalizedSex } : {}),
-    ...(age !== undefined ? { idade: age ?? null } : {}),
+    ...(age !== undefined ? { idade: normalizedAge } : {}),
     ...(activityLevel !== undefined
       ? { nivel_atividade: normalizedActivity }
       : {}),
@@ -180,15 +167,15 @@ export async function saveProfile({
 
   let weightData = null;
 
-  if (weightKg != null) {
+  if (normalizedWeight != null) {
     const { data, error } = await supabase
       .from('food_weight_history')
       .upsert(
         {
           user_id: userId,
           entry_date: entryDate,
-          weight_kg: weightKg,
-          height_cm: heightCm ?? null,
+          weight_kg: normalizedWeight,
+          height_cm: normalizedHeight,
         },
         { onConflict: 'user_id,entry_date' },
       )
