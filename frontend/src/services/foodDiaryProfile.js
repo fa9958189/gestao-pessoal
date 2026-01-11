@@ -49,53 +49,59 @@ export async function saveWeightHeight({
 
   const profilePayload = {
     user_id: userId,
-    height_cm: heightCm ?? null,
-    sex: sex ?? null,
-    age: age ?? null,
-    activity_level: activityLevel ?? null,
+    ...(heightCm !== undefined ? { height_cm: heightCm ?? null } : {}),
+    ...(sex !== undefined ? { sex: sex ?? null } : {}),
+    ...(age !== undefined ? { age: age ?? null } : {}),
+    ...(activityLevel !== undefined
+      ? { activity_level: activityLevel ?? null }
+      : {}),
   };
 
   let profileData = null;
-  const { data: initialProfileData, error: profileError } = await supabase
-    .from('food_diary_profile')
-    .upsert(profilePayload, { onConflict: 'user_id' })
-    .select('*')
-    .maybeSingle();
-
-  if (profileError) {
-    const message = profileError?.message || '';
-    const missingColumn =
-      message.toLowerCase().includes('column') &&
-      message.toLowerCase().includes('does not exist');
-
-    if (!missingColumn) {
-      throw profileError;
-    }
-
-    const { data: fallbackData, error: fallbackError } = await supabase
+  if (Object.keys(profilePayload).length > 1) {
+    const { data: initialProfileData, error: profileError } = await supabase
       .from('food_diary_profile')
-      .upsert(
-        {
-          user_id: userId,
-          height_cm: heightCm ?? null,
-        },
-        { onConflict: 'user_id' },
-      )
+      .upsert(profilePayload, { onConflict: 'user_id' })
       .select('*')
       .maybeSingle();
 
-    if (fallbackError) {
-      throw fallbackError;
-    }
+    if (profileError) {
+      const message = profileError?.message || '';
+      const missingColumn =
+        message.toLowerCase().includes('column') &&
+        message.toLowerCase().includes('does not exist');
 
-    profileData = fallbackData ?? null;
-  } else {
-    profileData = initialProfileData ?? null;
+      if (!missingColumn) {
+        throw profileError;
+      }
+
+      if (heightCm !== undefined) {
+        const { data: fallbackData, error: fallbackError } = await supabase
+          .from('food_diary_profile')
+          .upsert(
+            {
+              user_id: userId,
+              height_cm: heightCm ?? null,
+            },
+            { onConflict: 'user_id' },
+          )
+          .select('*')
+          .maybeSingle();
+
+        if (fallbackError) {
+          throw fallbackError;
+        }
+
+        profileData = fallbackData ?? null;
+      }
+    } else {
+      profileData = initialProfileData ?? null;
+    }
   }
 
   let weightData = null;
 
-  if (weightKg != null && weightKg !== '') {
+  if (weightKg != null) {
     const { data, error } = await supabase
       .from('food_weight_history')
       .upsert(

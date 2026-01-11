@@ -25,11 +25,11 @@ const defaultGoals = {
 };
 
 const defaultBody = {
-  heightCm: '',
-  weightKg: '',
-  sex: '',
-  age: '',
-  activityLevel: '',
+  heightCm: null,
+  weightKg: null,
+  sex: null,
+  age: null,
+  activityLevel: null,
 };
 
 const defaultWeightHistory = [];
@@ -98,6 +98,7 @@ function FoodDiary({ userId, supabase, notify }) {
   const goalAutosaveTimeoutRef = useRef(null);
   const hasEditedGoalsRef = useRef(false);
   const lastSavedWaterGoalRef = useRef(defaultGoals.water);
+  const initialBodyRef = useRef(defaultBody);
 
   const isMobile = () => /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
@@ -207,22 +208,25 @@ function FoodDiary({ userId, supabase, notify }) {
           goalMl: nextGoals.water * 1000,
         }));
 
-        setBody({
+        const nextBody = {
           heightCm:
             profile?.height_cm != null && profile.height_cm !== ''
               ? String(profile.height_cm)
-              : '',
+              : null,
           weightKg:
             todayWeight?.weight_kg != null && todayWeight.weight_kg !== ''
               ? String(todayWeight.weight_kg)
-              : '',
-          sex: profile?.sex != null ? String(profile.sex) : '',
-          age: profile?.age != null ? String(profile.age) : '',
+              : null,
+          sex: profile?.sex != null ? String(profile.sex) : null,
+          age: profile?.age != null ? String(profile.age) : null,
           activityLevel:
             profile?.activity_level != null
               ? String(profile.activity_level)
-              : '',
-        });
+              : null,
+        };
+
+        setBody(nextBody);
+        initialBodyRef.current = nextBody;
 
         setWeightHistory(history || defaultWeightHistory);
         setHydrationGoalLoaded(true);
@@ -744,6 +748,33 @@ function FoodDiary({ userId, supabase, notify }) {
     setBody(nextBody);
   };
 
+  const normalizeBodyValues = (values) => {
+    const normalizeNumber = (value) => {
+      if (value == null || value === '') return null;
+      const numeric = Number(value);
+      return Number.isFinite(numeric) ? numeric : null;
+    };
+
+    const normalizeInteger = (value) => {
+      if (value == null || value === '') return null;
+      const numeric = Number.parseInt(value, 10);
+      return Number.isFinite(numeric) ? numeric : null;
+    };
+
+    const normalizeText = (value) => {
+      if (value == null || value === '') return null;
+      return String(value);
+    };
+
+    return {
+      heightCm: normalizeNumber(values.heightCm),
+      weightKg: normalizeNumber(values.weightKg),
+      sex: normalizeText(values.sex),
+      age: normalizeInteger(values.age),
+      activityLevel: normalizeText(values.activityLevel),
+    };
+  };
+
   const handleSaveBodyAndWeight = async (nextBody = body) => {
     try {
       if (!userId) {
@@ -754,21 +785,37 @@ function FoodDiary({ userId, supabase, notify }) {
         return;
       }
 
-      const heightCm = nextBody.heightCm ? Number(nextBody.heightCm) : null;
-      const weightKg = nextBody.weightKg ? Number(nextBody.weightKg) : null;
-      const age = nextBody.age ? Number(nextBody.age) : null;
-      const sex = nextBody.sex || null;
-      const activityLevel = nextBody.activityLevel || null;
+      const normalizedCurrent = normalizeBodyValues(nextBody);
+      const normalizedInitial = normalizeBodyValues(initialBodyRef.current);
+      const fieldsToCheck = [
+        'heightCm',
+        'weightKg',
+        'sex',
+        'age',
+        'activityLevel',
+      ];
+      const payload = fieldsToCheck.reduce((acc, key) => {
+        if (!Object.is(normalizedCurrent[key], normalizedInitial[key])) {
+          acc[key] = normalizedCurrent[key];
+        }
+        return acc;
+      }, {});
+      const cleanedPayload = Object.fromEntries(
+        Object.entries(payload).filter(
+          ([, value]) => value !== null && value !== undefined,
+        ),
+      );
+
+      if (Object.keys(cleanedPayload).length === 0) {
+        return;
+      }
+
       const entryDate = getLocalDateString();
 
       await saveWeightHeight({
         supabase,
         userId,
-        weightKg,
-        heightCm,
-        age,
-        sex,
-        activityLevel,
+        ...cleanedPayload,
         entryDate,
       });
 
@@ -777,27 +824,39 @@ function FoodDiary({ userId, supabase, notify }) {
         loadTodayWeight({ supabase, userId, entryDate }),
       ]);
 
-      if (weightKg != null) {
+      if (cleanedPayload.weightKg != null) {
         const refreshedHistory = await fetchWeightHistoryFromDb(userId);
         setWeightHistory(refreshedHistory);
       }
 
-      setBody({
+      const refreshedBody = {
         heightCm:
           profile?.height_cm != null && profile.height_cm !== ''
             ? String(profile.height_cm)
-            : heightCm ?? '',
+            : normalizedCurrent.heightCm != null
+              ? String(normalizedCurrent.heightCm)
+              : null,
         weightKg:
           todayWeight?.weight_kg != null && todayWeight.weight_kg !== ''
             ? String(todayWeight.weight_kg)
-            : weightKg ?? '',
-        sex: profile?.sex != null ? String(profile.sex) : sex ?? '',
-        age: profile?.age != null ? String(profile.age) : age ?? '',
+            : normalizedCurrent.weightKg != null
+              ? String(normalizedCurrent.weightKg)
+              : null,
+        sex: profile?.sex != null ? String(profile.sex) : normalizedCurrent.sex,
+        age:
+          profile?.age != null
+            ? String(profile.age)
+            : normalizedCurrent.age != null
+              ? String(normalizedCurrent.age)
+              : null,
         activityLevel:
           profile?.activity_level != null
             ? String(profile.activity_level)
-            : activityLevel ?? '',
-      });
+            : normalizedCurrent.activityLevel,
+      };
+
+      setBody(refreshedBody);
+      initialBodyRef.current = refreshedBody;
 
       if (typeof notify === 'function') {
         notify('Peso salvo com sucesso.', 'success');
@@ -1285,7 +1344,7 @@ function FoodDiary({ userId, supabase, notify }) {
               <input
                 type="number"
                 min="0"
-                value={body.heightCm}
+                value={body.heightCm ?? ''}
                 onChange={(e) =>
                   handleBodyChange('heightCm', e.target.value)
                 }
@@ -1297,7 +1356,7 @@ function FoodDiary({ userId, supabase, notify }) {
                 type="number"
                 min="0"
                 step="0.1"
-                value={body.weightKg}
+                value={body.weightKg ?? ''}
                 onChange={(e) =>
                   handleBodyChange('weightKg', e.target.value)
                 }
@@ -1306,7 +1365,7 @@ function FoodDiary({ userId, supabase, notify }) {
             <div className="field">
               <label>Sexo</label>
               <select
-                value={body.sex}
+                value={body.sex ?? ''}
                 onChange={(e) => handleBodyChange('sex', e.target.value)}
               >
                 <option value="">Selecione</option>
@@ -1320,14 +1379,14 @@ function FoodDiary({ userId, supabase, notify }) {
                 type="number"
                 min="0"
                 step="1"
-                value={body.age}
+                value={body.age ?? ''}
                 onChange={(e) => handleBodyChange('age', e.target.value)}
               />
             </div>
             <div className="field">
               <label>Nível de atividade</label>
               <select
-                value={body.activityLevel}
+                value={body.activityLevel ?? ''}
                 onChange={(e) =>
                   handleBodyChange('activityLevel', e.target.value)
                 }
