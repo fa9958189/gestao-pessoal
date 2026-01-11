@@ -6,6 +6,48 @@ const ensureSupabase = (supabase, context) => {
   }
 };
 
+const normalizeSexForUi = (value) => {
+  if (!value) return null;
+  const normalized = String(value).trim().toLowerCase();
+  if (normalized === 'masculino') return 'Masculino';
+  if (normalized === 'feminino') return 'Feminino';
+  return String(value);
+};
+
+const normalizeActivityForUi = (value) => {
+  if (!value) return null;
+  const normalized = String(value).trim().toLowerCase();
+  if (normalized === 'sedentario' || normalized === 'sedentário') {
+    return 'Sedentário';
+  }
+  if (normalized === 'leve') return 'Leve';
+  if (normalized === 'moderado') return 'Moderado';
+  if (normalized === 'alto') return 'Alto';
+  if (normalized === 'muito alto' || normalized === 'muito-alto') {
+    return 'Muito alto';
+  }
+  return String(value);
+};
+
+const normalizeSexForStorage = (value) => {
+  if (value == null || value === '') return null;
+  const normalized = String(value).trim().toLowerCase();
+  if (normalized === 'masculino' || normalized === 'feminino') {
+    return normalized;
+  }
+  if (normalized === 'masc') return 'masculino';
+  if (normalized === 'fem') return 'feminino';
+  return normalized;
+};
+
+const normalizeActivityForStorage = (value) => {
+  if (value == null || value === '') return null;
+  const normalized = String(value).trim().toLowerCase();
+  if (normalized === 'sedentario') return 'sedentário';
+  if (normalized === 'muito-alto') return 'muito alto';
+  return normalized;
+};
+
 const normalizeProfileRow = (row) => {
   if (!row) {
     return {
@@ -19,12 +61,23 @@ const normalizeProfileRow = (row) => {
 
   return {
     heightCm:
-      row.height_cm ?? row.heightCm ?? row.altura_cm ?? row.alturaCm ?? null,
+      row.height_cm ?? row.altura_cm ?? row.heightCm ?? row.alturaCm ?? null,
     weightKg:
-      row.weight_kg ?? row.weightKg ?? row.peso_kg ?? row.pesoKg ?? null,
-    sex: row.sexo ?? row.sex ?? null,
-    age: row.idade ?? row.age ?? null,
-    activityLevel: row.activity_level ?? row.activityLevel ?? null,
+      row.current_weight_kg ??
+      row.weight_kg ??
+      row.peso_kg ??
+      row.pesoKg ??
+      row.currentWeightKg ??
+      null,
+    sex: normalizeSexForUi(row.sex ?? row.sexo ?? null),
+    age: row.age ?? row.idade ?? null,
+    activityLevel: normalizeActivityForUi(
+      row.activity_level ??
+        row.nivel_atividade ??
+        row.nivelAtividade ??
+        row.activityLevel ??
+        null,
+    ),
   };
 };
 
@@ -57,7 +110,7 @@ export async function saveGoals({
   return data ?? payload;
 }
 
-export async function saveWeightHeight({
+export async function saveProfile({
   supabase,
   userId,
   weightKg,
@@ -67,21 +120,19 @@ export async function saveWeightHeight({
   activityLevel,
   entryDate = todayString(),
 }) {
-  ensureSupabase(supabase, 'salvar peso');
+  ensureSupabase(supabase, 'salvar perfil');
+
+  const normalizedSex = normalizeSexForStorage(sex);
+  const normalizedActivity = normalizeActivityForStorage(activityLevel);
 
   const profilePayload = {
     user_id: userId,
-    ...(heightCm !== undefined && heightCm !== ''
-      ? { height_cm: heightCm ?? null }
-      : {}),
-    ...(sex !== undefined && sex !== ''
-      ? { sexo: sex ?? null }
-      : {}),
-    ...(age !== undefined && age !== ''
-      ? { idade: age ?? null }
-      : {}),
-    ...(activityLevel !== undefined && activityLevel !== ''
-      ? { activity_level: activityLevel ?? null }
+    ...(heightCm !== undefined ? { height_cm: heightCm ?? null } : {}),
+    ...(weightKg !== undefined ? { current_weight_kg: weightKg ?? null } : {}),
+    ...(sex !== undefined ? { sex: normalizedSex } : {}),
+    ...(age !== undefined ? { age: age ?? null } : {}),
+    ...(activityLevel !== undefined
+      ? { activity_level: normalizedActivity }
       : {}),
   };
 
@@ -94,42 +145,36 @@ export async function saveWeightHeight({
       .maybeSingle();
 
     if (profileError) {
-      const message = profileError?.message || '';
+      throw profileError;
+    }
+
+    profileData = initialProfileData ?? null;
+  }
+
+  const legacyPayload = {
+    ...(heightCm !== undefined ? { altura_cm: heightCm ?? null } : {}),
+    ...(weightKg !== undefined ? { weight_kg: weightKg ?? null } : {}),
+    ...(sex !== undefined ? { sexo: normalizedSex } : {}),
+    ...(age !== undefined ? { idade: age ?? null } : {}),
+    ...(activityLevel !== undefined
+      ? { nivel_atividade: normalizedActivity }
+      : {}),
+  };
+
+  if (Object.keys(legacyPayload).length > 0) {
+    const { error: legacyError } = await supabase
+      .from('food_diary_profile')
+      .update(legacyPayload)
+      .eq('user_id', userId);
+
+    if (legacyError) {
+      const message = legacyError?.message || '';
       const missingColumn =
         message.toLowerCase().includes('column') &&
         message.toLowerCase().includes('does not exist');
-
       if (!missingColumn) {
-        throw profileError;
+        throw legacyError;
       }
-
-      const fallbackPayload = {
-        user_id: userId,
-        ...(heightCm !== undefined && heightCm !== ''
-          ? { height_cm: heightCm ?? null }
-          : {}),
-        ...(sex !== undefined && sex !== '' ? { sex: sex ?? null } : {}),
-        ...(age !== undefined && age !== '' ? { age: age ?? null } : {}),
-        ...(activityLevel !== undefined && activityLevel !== ''
-          ? { activityLevel: activityLevel ?? null }
-          : {}),
-      };
-
-      if (Object.keys(fallbackPayload).length > 1) {
-        const { data: fallbackData, error: fallbackError } = await supabase
-          .from('food_diary_profile')
-          .upsert(fallbackPayload, { onConflict: 'user_id' })
-          .select('*')
-          .maybeSingle();
-
-        if (fallbackError) {
-          throw fallbackError;
-        }
-
-        profileData = fallbackData ?? null;
-      }
-    } else {
-      profileData = initialProfileData ?? null;
     }
   }
 
