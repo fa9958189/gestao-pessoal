@@ -40,24 +40,57 @@ export async function saveWeightHeight({
   userId,
   weightKg,
   heightCm,
+  sex,
+  age,
+  activityLevel,
   entryDate = todayString(),
 }) {
   ensureSupabase(supabase, 'salvar peso');
 
-  const { data: profileData, error: profileError } = await supabase
+  const profilePayload = {
+    user_id: userId,
+    height_cm: heightCm ?? null,
+    sex: sex ?? null,
+    age: age ?? null,
+    activity_level: activityLevel ?? null,
+  };
+
+  let profileData = null;
+  const { data: initialProfileData, error: profileError } = await supabase
     .from('food_diary_profile')
-    .upsert(
-      {
-        user_id: userId,
-        height_cm: heightCm ?? null,
-      },
-      { onConflict: 'user_id' },
-    )
+    .upsert(profilePayload, { onConflict: 'user_id' })
     .select('*')
     .maybeSingle();
 
   if (profileError) {
-    throw profileError;
+    const message = profileError?.message || '';
+    const missingColumn =
+      message.toLowerCase().includes('column') &&
+      message.toLowerCase().includes('does not exist');
+
+    if (!missingColumn) {
+      throw profileError;
+    }
+
+    const { data: fallbackData, error: fallbackError } = await supabase
+      .from('food_diary_profile')
+      .upsert(
+        {
+          user_id: userId,
+          height_cm: heightCm ?? null,
+        },
+        { onConflict: 'user_id' },
+      )
+      .select('*')
+      .maybeSingle();
+
+    if (fallbackError) {
+      throw fallbackError;
+    }
+
+    profileData = fallbackData ?? null;
+  } else {
+    profileData = initialProfileData ?? null;
   }
 
   let weightData = null;

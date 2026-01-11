@@ -761,6 +761,109 @@ canvas{ background:transparent; }
   letter-spacing: 1px;
 }
 
+.general-report {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.general-report-alert {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(251, 191, 36, 0.1);
+  border: 1px solid rgba(251, 191, 36, 0.25);
+  color: #facc15;
+  font-size: 13px;
+}
+
+.general-report-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.general-report-card {
+  padding: 14px;
+  border-radius: 14px;
+  background: var(--card-2);
+  border: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.general-report-card-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.general-report-value {
+  font-size: 24px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.general-report-unit {
+  margin-left: 6px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.general-report-status {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #94a3b8;
+}
+
+.general-report-status.success {
+  color: #22c55e;
+}
+
+.general-report-status.danger {
+  color: #f87171;
+}
+
+.general-report-status.reference {
+  color: #60a5fa;
+}
+
+.general-report-bar {
+  position: relative;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.general-report-bar-track {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #1d4ed8, #22c55e, #f97316);
+  opacity: 0.35;
+}
+
+.general-report-marker {
+  position: absolute;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #f8fafc;
+  border: 2px solid #0f172a;
+  transform: translate(-50%, -50%);
+}
+
+.general-report-range {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--muted);
+}
+
 .food-diary-entries {
   margin-top: 8px;
   max-height: 230px;
