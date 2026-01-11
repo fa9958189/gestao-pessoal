@@ -13,6 +13,7 @@ import { updateHydrationGoal } from '../hydrationApi';
 import { scanFood } from '../services/foodScannerApi';
 import {
   loadGoals,
+  loadProfile,
   loadTodayWeight,
   saveGoals,
   saveWeightHeight,
@@ -77,6 +78,7 @@ function FoodDiary({ userId, supabase, notify }) {
   const [, setIsLoading] = useState(true);
   const [, setSavingEntry] = useState(false);
   const [, setLoadingWeightHistory] = useState(false);
+  const [profileLoading, setProfileLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedDate, setSelectedDate] = useState(
     () => getLocalDateString()
@@ -179,14 +181,21 @@ function FoodDiary({ userId, supabase, notify }) {
     let isMounted = true;
 
     const loadFoodDiaryState = async () => {
-      if (!userId || !supabase) return;
+      if (!userId || !supabase) {
+        if (isMounted) {
+          setProfileLoading(false);
+        }
+        return;
+      }
 
       try {
         setLoadingWeightHistory(true);
+        setProfileLoading(true);
         setError(null);
 
-        const [profile, todayWeight, history] = await Promise.all([
+        const [profile, normalizedProfile, todayWeight, history] = await Promise.all([
           loadGoals({ supabase, userId }),
+          loadProfile({ supabase, userId }),
           loadTodayWeight({ supabase, userId }),
           fetchWeightHistoryFromDb(userId),
         ]);
@@ -216,18 +225,24 @@ function FoodDiary({ userId, supabase, notify }) {
 
         const nextBody = {
           heightCm:
-            profile?.height_cm != null && profile.height_cm !== ''
-              ? String(profile.height_cm)
+            normalizedProfile?.heightCm != null && normalizedProfile.heightCm !== ''
+              ? String(normalizedProfile.heightCm)
               : null,
           weightKg:
             todayWeight?.weight_kg != null && todayWeight.weight_kg !== ''
               ? String(todayWeight.weight_kg)
               : null,
-          sex: profile?.sex != null ? String(profile.sex) : null,
-          age: profile?.age != null ? String(profile.age) : null,
+          sex:
+            normalizedProfile?.sex != null
+              ? String(normalizedProfile.sex)
+              : null,
+          age:
+            normalizedProfile?.age != null
+              ? String(normalizedProfile.age)
+              : null,
           activityLevel:
-            profile?.activity_level != null
-              ? String(profile.activity_level)
+            normalizedProfile?.activityLevel != null
+              ? String(normalizedProfile.activityLevel)
               : null,
         };
 
@@ -245,6 +260,7 @@ function FoodDiary({ userId, supabase, notify }) {
       } finally {
         if (isMounted) {
           setLoadingWeightHistory(false);
+          setProfileLoading(false);
         }
       }
     };
@@ -887,8 +903,9 @@ function FoodDiary({ userId, supabase, notify }) {
         entryDate,
       });
 
-      const [profile, todayWeight] = await Promise.all([
+      const [profile, normalizedProfile, todayWeight] = await Promise.all([
         loadGoals({ supabase, userId }),
+        loadProfile({ supabase, userId }),
         loadTodayWeight({ supabase, userId, entryDate }),
       ]);
 
@@ -899,8 +916,8 @@ function FoodDiary({ userId, supabase, notify }) {
 
       const refreshedBody = {
         heightCm:
-          profile?.height_cm != null && profile.height_cm !== ''
-            ? String(profile.height_cm)
+          normalizedProfile?.heightCm != null && normalizedProfile.heightCm !== ''
+            ? String(normalizedProfile.heightCm)
             : normalizedCurrent.heightCm != null
               ? String(normalizedCurrent.heightCm)
               : null,
@@ -910,16 +927,19 @@ function FoodDiary({ userId, supabase, notify }) {
             : normalizedCurrent.weightKg != null
               ? String(normalizedCurrent.weightKg)
               : null,
-        sex: profile?.sex != null ? String(profile.sex) : normalizedCurrent.sex,
+        sex:
+          normalizedProfile?.sex != null
+            ? String(normalizedProfile.sex)
+            : normalizedCurrent.sex,
         age:
-          profile?.age != null
-            ? String(profile.age)
+          normalizedProfile?.age != null
+            ? String(normalizedProfile.age)
             : normalizedCurrent.age != null
               ? String(normalizedCurrent.age)
               : null,
         activityLevel:
-          profile?.activity_level != null
-            ? String(profile.activity_level)
+          normalizedProfile?.activityLevel != null
+            ? String(normalizedProfile.activityLevel)
             : normalizedCurrent.activityLevel,
       };
 
@@ -1589,7 +1609,11 @@ function FoodDiary({ userId, supabase, notify }) {
       )}
 
       {tab === 'relatorio-geral' && (
-        <GeneralReport body={body} weightHistory={weightHistory} />
+        <GeneralReport
+          body={body}
+          weightHistory={weightHistory}
+          profileLoading={profileLoading}
+        />
       )}
 
       {tab === 'relatorios' && (

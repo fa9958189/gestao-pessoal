@@ -6,6 +6,28 @@ const ensureSupabase = (supabase, context) => {
   }
 };
 
+const normalizeProfileRow = (row) => {
+  if (!row) {
+    return {
+      heightCm: null,
+      weightKg: null,
+      sex: null,
+      age: null,
+      activityLevel: null,
+    };
+  }
+
+  return {
+    heightCm:
+      row.height_cm ?? row.heightCm ?? row.altura_cm ?? row.alturaCm ?? null,
+    weightKg:
+      row.weight_kg ?? row.weightKg ?? row.peso_kg ?? row.pesoKg ?? null,
+    sex: row.sexo ?? row.sex ?? null,
+    age: row.idade ?? row.age ?? null,
+    activityLevel: row.activity_level ?? row.activityLevel ?? null,
+  };
+};
+
 export async function saveGoals({
   supabase,
   userId,
@@ -49,10 +71,16 @@ export async function saveWeightHeight({
 
   const profilePayload = {
     user_id: userId,
-    ...(heightCm !== undefined ? { height_cm: heightCm ?? null } : {}),
-    ...(sex !== undefined ? { sex: sex ?? null } : {}),
-    ...(age !== undefined ? { age: age ?? null } : {}),
-    ...(activityLevel !== undefined
+    ...(heightCm !== undefined && heightCm !== ''
+      ? { height_cm: heightCm ?? null }
+      : {}),
+    ...(sex !== undefined && sex !== ''
+      ? { sexo: sex ?? null }
+      : {}),
+    ...(age !== undefined && age !== ''
+      ? { idade: age ?? null }
+      : {}),
+    ...(activityLevel !== undefined && activityLevel !== ''
       ? { activity_level: activityLevel ?? null }
       : {}),
   };
@@ -75,16 +103,22 @@ export async function saveWeightHeight({
         throw profileError;
       }
 
-      if (heightCm !== undefined) {
+      const fallbackPayload = {
+        user_id: userId,
+        ...(heightCm !== undefined && heightCm !== ''
+          ? { height_cm: heightCm ?? null }
+          : {}),
+        ...(sex !== undefined && sex !== '' ? { sex: sex ?? null } : {}),
+        ...(age !== undefined && age !== '' ? { age: age ?? null } : {}),
+        ...(activityLevel !== undefined && activityLevel !== ''
+          ? { activityLevel: activityLevel ?? null }
+          : {}),
+      };
+
+      if (Object.keys(fallbackPayload).length > 1) {
         const { data: fallbackData, error: fallbackError } = await supabase
           .from('food_diary_profile')
-          .upsert(
-            {
-              user_id: userId,
-              height_cm: heightCm ?? null,
-            },
-            { onConflict: 'user_id' },
-          )
+          .upsert(fallbackPayload, { onConflict: 'user_id' })
           .select('*')
           .maybeSingle();
 
@@ -140,6 +174,22 @@ export async function loadGoals({ supabase, userId }) {
   }
 
   return data ?? null;
+}
+
+export async function loadProfile({ supabase, userId }) {
+  ensureSupabase(supabase, 'carregar perfil');
+
+  const { data, error } = await supabase
+    .from('food_diary_profile')
+    .select('*')
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  return normalizeProfileRow(data ?? null);
 }
 
 export async function loadTodayWeight({ supabase, userId, entryDate = todayString() }) {

@@ -55,7 +55,7 @@ const MetricCard = ({
   );
 };
 
-function GeneralReport({ body, weightHistory }) {
+function GeneralReport({ body, weightHistory, profileLoading = false }) {
   const latestWeight = useMemo(() => {
     if (!Array.isArray(weightHistory) || weightHistory.length === 0) {
       return null;
@@ -106,6 +106,7 @@ function GeneralReport({ body, weightHistory }) {
   const leanMass = weightKg && fatMass != null ? weightKg - fatMass : null;
 
   const needsProfileData = !sex || !age || !activityLevel;
+  const showProfileBanner = !profileLoading && needsProfileData;
 
   return (
     <div className="general-report">
@@ -121,7 +122,7 @@ function GeneralReport({ body, weightHistory }) {
         </span>
       </div>
 
-      {needsProfileData && (
+      {showProfileBanner && (
         <div className="general-report-alert">
           Preencha sexo/idade/atividade no Diário Alimentar para liberar as
           estimativas.
