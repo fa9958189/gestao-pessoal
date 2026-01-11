@@ -16,7 +16,7 @@ import {
   loadProfile,
   loadTodayWeight,
   saveGoals,
-  saveWeightHeight,
+  saveProfile,
 } from '../services/foodDiaryProfile';
 
 const defaultGoals = {
@@ -223,15 +223,21 @@ function FoodDiary({ userId, supabase, notify }) {
           goalMl: nextGoals.water * 1000,
         }));
 
+        const todayWeightValue =
+          todayWeight?.weight_kg != null && todayWeight.weight_kg !== ''
+            ? String(todayWeight.weight_kg)
+            : null;
+        const profileWeightValue =
+          normalizedProfile?.weightKg != null && normalizedProfile.weightKg !== ''
+            ? String(normalizedProfile.weightKg)
+            : null;
         const nextBody = {
           heightCm:
             normalizedProfile?.heightCm != null && normalizedProfile.heightCm !== ''
               ? String(normalizedProfile.heightCm)
               : null,
           weightKg:
-            todayWeight?.weight_kg != null && todayWeight.weight_kg !== ''
-              ? String(todayWeight.weight_kg)
-              : null,
+            todayWeightValue ?? profileWeightValue,
           sex:
             normalizedProfile?.sex != null
               ? String(normalizedProfile.sex)
@@ -896,7 +902,7 @@ function FoodDiary({ userId, supabase, notify }) {
 
       const entryDate = getLocalDateString();
 
-      await saveWeightHeight({
+      await saveProfile({
         supabase,
         userId,
         ...cleanedPayload,
@@ -914,6 +920,14 @@ function FoodDiary({ userId, supabase, notify }) {
         setWeightHistory(refreshedHistory);
       }
 
+      const refreshedTodayWeight =
+        todayWeight?.weight_kg != null && todayWeight.weight_kg !== ''
+          ? String(todayWeight.weight_kg)
+          : null;
+      const refreshedProfileWeight =
+        normalizedProfile?.weightKg != null && normalizedProfile.weightKg !== ''
+          ? String(normalizedProfile.weightKg)
+          : null;
       const refreshedBody = {
         heightCm:
           normalizedProfile?.heightCm != null && normalizedProfile.heightCm !== ''
@@ -922,11 +936,11 @@ function FoodDiary({ userId, supabase, notify }) {
               ? String(normalizedCurrent.heightCm)
               : null,
         weightKg:
-          todayWeight?.weight_kg != null && todayWeight.weight_kg !== ''
-            ? String(todayWeight.weight_kg)
-            : normalizedCurrent.weightKg != null
-              ? String(normalizedCurrent.weightKg)
-              : null,
+          refreshedTodayWeight ??
+          refreshedProfileWeight ??
+          (normalizedCurrent.weightKg != null
+            ? String(normalizedCurrent.weightKg)
+            : null),
         sex:
           normalizedProfile?.sex != null
             ? String(normalizedProfile.sex)
