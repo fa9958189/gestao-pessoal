@@ -51,6 +51,12 @@ const formatNumber = (value, decimals = 0) => {
   });
 };
 
+const scaleByGrams = (value, grams, baseGrams) => {
+  const safeBase = Number(baseGrams) || 100;
+  const safeGrams = Number(grams) || safeBase;
+  return (Number(value) || 0) * (safeGrams / safeBase);
+};
+
 const getLocalDateString = () => {
   const now = new Date();
   const offsetMs = now.getTimezoneOffset() * 60 * 1000;
@@ -455,7 +461,35 @@ function FoodDiary({ userId, supabase, notify }) {
     try {
       const sanitizedFile = await prepareImageForScan(file);
       const analysis = await scanFood(sanitizedFile, scanDescription);
-      setScanPreview(Array.isArray(analysis?.itens) ? analysis.itens : []);
+      const normalizeScanItem = (item) => {
+        const directBase =
+          Number(item?.baseGrams ?? item?.gramsBase ?? item?.grams ?? item?.gramas);
+        let parsedBase = directBase;
+
+        if (!Number.isFinite(parsedBase) && typeof item?.quantidade === 'string') {
+          const match = item.quantidade.match(/[\d,.]+/);
+          if (match) {
+            parsedBase = Number(match[0].replace(',', '.'));
+          }
+        }
+
+        const baseGrams = Number.isFinite(parsedBase) && parsedBase > 0 ? parsedBase : 100;
+        const baseCalories = Number(item?.calorias) || 0;
+        const baseProtein = Number(item?.proteina) || 0;
+
+        return {
+          ...item,
+          baseGrams,
+          grams: baseGrams,
+          baseCalories,
+          baseProtein,
+        };
+      };
+
+      const items = Array.isArray(analysis?.itens)
+        ? analysis.itens.map((item) => normalizeScanItem(item))
+        : [];
+      setScanPreview(items);
       setError(null);
       if (typeof notify === 'function') {
         notify('Alimento escaneado com sucesso.', 'success');
@@ -476,17 +510,19 @@ function FoodDiary({ userId, supabase, notify }) {
 
   const handleApplyScannedItem = (item) => {
     if (!item) return;
+    const baseGrams = Number(item.baseGrams) || 100;
+    const grams = Number(item.grams) || baseGrams;
+    const calories = Math.round(
+      scaleByGrams(item.baseCalories ?? item.calorias, grams, baseGrams),
+    );
+    const protein = Number(
+      scaleByGrams(item.baseProtein ?? item.proteina, grams, baseGrams).toFixed(1),
+    );
     setForm((prev) => ({
       ...prev,
       food: item.nome || prev.food,
-      calories:
-        item.calorias != null
-          ? String(item.calorias)
-          : prev.calories,
-      protein:
-        item.proteina != null
-          ? String(item.proteina)
-          : prev.protein,
+      calories: String(calories),
+      protein: String(protein),
     }));
   };
 
@@ -495,8 +531,24 @@ function FoodDiary({ userId, supabase, notify }) {
 
     const total = scanPreview.reduce(
       (acc, item) => ({
-        calorias: acc.calorias + (Number(item.calorias) || 0),
-        proteina: acc.proteina + (Number(item.proteina) || 0),
+        calorias:
+          acc.calorias +
+          Math.round(
+            scaleByGrams(
+              item.baseCalories ?? item.calorias,
+              item.grams,
+              item.baseGrams,
+            ),
+          ),
+        proteina:
+          acc.proteina +
+          Number(
+            scaleByGrams(
+              item.baseProtein ?? item.proteina,
+              item.grams,
+              item.baseGrams,
+            ).toFixed(1),
+          ),
       }),
       { calorias: 0, proteina: 0 }
     );
@@ -508,7 +560,7 @@ function FoodDiary({ userId, supabase, notify }) {
         .filter(Boolean)
         .join(', ') || prev.food,
       calories: String(total.calorias),
-      protein: String(total.proteina),
+      protein: total.proteina.toFixed(1),
     }));
   };
 
@@ -543,6 +595,22 @@ function FoodDiary({ userId, supabase, notify }) {
 
   const handleCloseScanModal = () => {
     setIsScanModalOpen(false);
+  };
+
+  const handleScannedGramsChange = (index, value) => {
+    if (!Array.isArray(scanPreview)) return;
+    if (value === '') return;
+
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) return;
+
+    const clamped = Math.min(2000, Math.max(1, Math.round(numeric)));
+
+    setScanPreview((prev) =>
+      prev.map((item, idx) =>
+        idx === index ? { ...item, grams: clamped } : item,
+      ),
+    );
   };
 
   const handleOpenScanFilePicker = () => {
@@ -1072,11 +1140,57 @@ function FoodDiary({ userId, supabase, notify }) {
                 <ul style={{ listStyle: 'none', padding: 0, margin: '6px 0 0 0' }}>
                   {scanPreview.map((item, index) => (
                     <li key={index} style={{ marginBottom: 6 }}>
-                      <div style={{ fontSize: 13 }}>
-                        {item.nome} – {item.quantidade}
+                      <div
+                        style={{
+                          fontSize: 13,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 8,
+                          flexWrap: 'wrap',
+                        }}
+                      >
+                        <span>
+                          {item.nome}
+                          {item.quantidade ? ` – ${item.quantidade}` : ''}
+                        </span>
+                        <label
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 4,
+                          }}
+                        >
+                          <input
+                            type="number"
+                            min="1"
+                            max="2000"
+                            step="1"
+                            value={item.grams}
+                            onChange={(e) =>
+                              handleScannedGramsChange(index, e.target.value)
+                            }
+                            style={{ width: 72 }}
+                          />
+                          <span>g</span>
+                        </label>
                       </div>
                       <div className="muted" style={{ fontSize: 12 }}>
-                        {item.calorias} kcal • {item.proteina} g proteína
+                        {Math.round(
+                          scaleByGrams(
+                            item.baseCalories ?? item.calorias,
+                            item.grams,
+                            item.baseGrams,
+                          ),
+                        )}{' '}
+                        kcal •{' '}
+                        {Number(
+                          scaleByGrams(
+                            item.baseProtein ?? item.proteina,
+                            item.grams,
+                            item.baseGrams,
+                          ).toFixed(1),
+                        )}{' '}
+                        g proteína
                       </div>
                       <button
                         type="button"
