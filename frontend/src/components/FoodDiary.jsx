@@ -29,65 +29,10 @@ const defaultGoals = {
 const defaultBody = {
   heightCm: null,
   weightKg: null,
-  sex: null,
-  age: null,
-  activityLevel: null,
 };
 
 const defaultWeightHistory = [];
 const BLOCKS = 10;
-const sexUiToDbMap = {
-  Masculino: 'masculino',
-  Feminino: 'feminino',
-};
-const sexDbToUiMap = {
-  masculino: 'Masculino',
-  feminino: 'Feminino',
-};
-const activityUiToDbMap = {
-  Sedentário: 'sedentário',
-  Leve: 'leve',
-  Moderado: 'moderado',
-  Alto: 'alto',
-  'Muito alto': 'muito alto',
-};
-const activityDbToUiMap = {
-  'sedentário': 'Sedentário',
-  leve: 'Leve',
-  moderado: 'Moderado',
-  alto: 'Alto',
-  'muito alto': 'Muito alto',
-};
-
-const normalizeSexForDb = (value) => {
-  if (value == null || value === '') return null;
-  const normalized = String(value).trim().toLowerCase();
-  if (sexDbToUiMap[normalized]) return normalized;
-  return sexUiToDbMap[value] ?? null;
-};
-
-const normalizeSexForUi = (value) => {
-  if (value == null || value === '') return null;
-  const normalized = String(value).trim().toLowerCase();
-  return sexDbToUiMap[normalized] ?? sexDbToUiMap[normalizeSexForDb(value)] ?? null;
-};
-
-const normalizeActivityForDb = (value) => {
-  if (value == null || value === '') return null;
-  const normalized = String(value).trim().toLowerCase();
-  if (activityDbToUiMap[normalized]) return normalized;
-  return activityUiToDbMap[value] ?? null;
-};
-
-const normalizeActivityForUi = (value) => {
-  if (value == null || value === '') return null;
-  const normalized = String(value).trim().toLowerCase();
-  return (
-    activityDbToUiMap[normalized] ??
-    activityDbToUiMap[normalizeActivityForDb(value)] ??
-    null
-  );
-};
 
 const renderBlocks = (current, goal) => {
   if (!goal || goal <= 0) return '⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜';
@@ -300,12 +245,6 @@ function FoodDiary({ userId, supabase, notify }) {
               : null,
           weightKg:
             todayWeightValue ?? profileWeightValue,
-          sex: normalizeSexForUi(normalizedProfile?.sex),
-          age:
-            normalizedProfile?.age != null
-              ? String(normalizedProfile.age)
-              : null,
-          activityLevel: normalizeActivityForUi(normalizedProfile?.activityLevel),
         };
 
         setBody(nextBody);
@@ -902,25 +841,16 @@ function FoodDiary({ userId, supabase, notify }) {
       return parseNumberInput(value);
     };
 
-    const normalizeInteger = (value) => {
-      if (value == null || value === '') return null;
-      const numeric = Number.parseInt(value, 10);
-      return Number.isFinite(numeric) ? numeric : null;
-    };
-
     return {
       heightCm: normalizeNumber(values.heightCm),
       weightKg: normalizeNumber(values.weightKg),
-      sex: normalizeSexForDb(values.sex),
-      age: normalizeInteger(values.age),
-      activityLevel: normalizeActivityForDb(values.activityLevel),
     };
   };
 
   const buildProfilePayload = (currentValues, initialValues) => {
     const normalizedCurrent = normalizeBodyValues(currentValues);
     const normalizedInitial = normalizeBodyValues(initialValues);
-    const fieldsToCheck = ['heightCm', 'sex', 'age', 'activityLevel'];
+    const fieldsToCheck = ['heightCm'];
     const payload = fieldsToCheck.reduce((acc, key) => {
       if (!Object.is(normalizedCurrent[key], normalizedInitial[key])) {
         acc[key] = normalizedCurrent[key];
@@ -964,18 +894,6 @@ function FoodDiary({ userId, supabase, notify }) {
           cleanedPayload.heightCm != null
             ? String(cleanedPayload.heightCm)
             : nextBody.heightCm,
-        sex:
-          cleanedPayload.sex != null
-            ? normalizeSexForUi(cleanedPayload.sex)
-            : nextBody.sex,
-        age:
-          cleanedPayload.age != null
-            ? String(cleanedPayload.age)
-            : nextBody.age,
-        activityLevel:
-          cleanedPayload.activityLevel != null
-            ? normalizeActivityForUi(cleanedPayload.activityLevel)
-            : nextBody.activityLevel,
       };
 
       setBody(refreshedBody);
@@ -985,12 +903,6 @@ function FoodDiary({ userId, supabase, notify }) {
           normalizedCurrent.heightCm != null
             ? String(normalizedCurrent.heightCm)
             : initialBodyRef.current.heightCm,
-        sex: normalizeSexForUi(normalizedCurrent.sex),
-        age:
-          normalizedCurrent.age != null
-            ? String(normalizedCurrent.age)
-            : initialBodyRef.current.age,
-        activityLevel: normalizeActivityForUi(normalizedCurrent.activityLevel),
       };
     } catch (error) {
       console.error('Falha ao salvar perfil', error);
@@ -1074,9 +986,6 @@ function FoodDiary({ userId, supabase, notify }) {
     };
   }, [
     body.heightCm,
-    body.sex,
-    body.age,
-    body.activityLevel,
     userId,
     profileLoading,
   ]);
@@ -1627,43 +1536,6 @@ function FoodDiary({ userId, supabase, notify }) {
             >
               Salvar peso
             </button>
-            <div className="field">
-              <label>Sexo</label>
-              <select
-                value={body.sex ?? ''}
-                onChange={(e) => handleBodyChange('sex', e.target.value)}
-              >
-                <option value="">Selecione</option>
-                <option value="Masculino">Masculino</option>
-                <option value="Feminino">Feminino</option>
-              </select>
-            </div>
-            <div className="field">
-              <label>Idade</label>
-              <input
-                type="number"
-                min="0"
-                step="1"
-                value={body.age ?? ''}
-                onChange={(e) => handleBodyChange('age', e.target.value)}
-              />
-            </div>
-            <div className="field">
-              <label>Nível de atividade</label>
-              <select
-                value={body.activityLevel ?? ''}
-                onChange={(e) =>
-                  handleBodyChange('activityLevel', e.target.value)
-                }
-              >
-                <option value="">Selecione</option>
-                <option value="Sedentário">Sedentário</option>
-                <option value="Leve">Leve</option>
-                <option value="Moderado">Moderado</option>
-                <option value="Alto">Alto</option>
-                <option value="Muito alto">Muito alto</option>
-              </select>
-            </div>
             {bmi && (
               <div className="muted" style={{ fontSize: 13 }}>
                 IMC:{' '}
@@ -1735,7 +1607,8 @@ function FoodDiary({ userId, supabase, notify }) {
         <GeneralReport
           body={body}
           weightHistory={weightHistory}
-          profileLoading={profileLoading}
+          userId={userId}
+          supabase={supabase}
         />
       )}
 

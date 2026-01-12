@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   activityMultiplier,
   calcBMI,
@@ -6,7 +6,37 @@ import {
   calcBodyFatDeurenberg,
 } from '../utils/generalReportMetrics';
 import { generalReportRanges } from '../services/generalReportRanges';
+import { loadProfile, saveProfile } from '../services/foodDiaryProfile';
 import MetricGauge from './MetricGauge';
+
+const normalizeSexForUi = (value) => {
+  if (value == null || value === '') return '';
+  const normalized = String(value).trim().toLowerCase();
+  if (normalized === 'masculino') return 'Masculino';
+  if (normalized === 'feminino') return 'Feminino';
+  return value;
+};
+
+const normalizeActivityForUi = (value) => {
+  if (value == null || value === '') return '';
+  const normalized = String(value).trim().toLowerCase();
+  switch (normalized) {
+    case 'sedentário':
+    case 'sedentario':
+      return 'Sedentário';
+    case 'leve':
+      return 'Leve';
+    case 'moderado':
+      return 'Moderado';
+    case 'alto':
+      return 'Alto';
+    case 'muito alto':
+    case 'muito-alto':
+      return 'Muito alto';
+    default:
+      return value;
+  }
+};
 
 const formatNumber = (value, decimals = 0) => {
   const number = Number(value);
@@ -55,7 +85,87 @@ const MetricCard = ({
   );
 };
 
-function GeneralReport({ body, weightHistory, profileLoading = false }) {
+const defaultProfile = {
+  sex: '',
+  age: '',
+  activityLevel: '',
+};
+
+function GeneralReport({ body, weightHistory, userId, supabase }) {
+  const [profile, setProfile] = useState(defaultProfile);
+  const [profileLoading, setProfileLoading] = useState(true);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadProfileData = async () => {
+      if (!userId || !supabase) {
+        if (isMounted) {
+          setProfileLoading(false);
+        }
+        return;
+      }
+
+      try {
+        setProfileLoading(true);
+        const loadedProfile = await loadProfile({ supabase, userId });
+        if (!isMounted) return;
+        setProfile({
+          sex: normalizeSexForUi(loadedProfile?.sex),
+          age:
+            loadedProfile?.age != null
+              ? String(loadedProfile.age)
+              : '',
+          activityLevel: normalizeActivityForUi(
+            loadedProfile?.activityLevel,
+          ),
+        });
+      } catch (error) {
+        console.warn('Falha ao carregar perfil do relatório geral', error);
+      } finally {
+        if (isMounted) {
+          setProfileLoading(false);
+        }
+      }
+    };
+
+    loadProfileData();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [supabase, userId]);
+
+  const handleProfileChange = async (field, value) => {
+    const nextProfile = {
+      ...profile,
+      [field]: value,
+    };
+
+    setProfile(nextProfile);
+
+    if (!userId || !supabase) return;
+
+    try {
+      const payload = { supabase, userId };
+      if (field === 'sex') {
+        payload.sex = value;
+      }
+      if (field === 'activityLevel') {
+        payload.activityLevel = value;
+      }
+      if (field === 'age') {
+        const normalizedAge =
+          value === '' ? null : Number.parseInt(value, 10);
+        payload.age = Number.isFinite(normalizedAge) ? normalizedAge : null;
+      }
+
+      await saveProfile(payload);
+    } catch (error) {
+      console.error('Falha ao salvar perfil do relatório geral', error);
+    }
+  };
+
   const latestWeight = useMemo(() => {
     if (!Array.isArray(weightHistory) || weightHistory.length === 0) {
       return null;
@@ -69,9 +179,9 @@ function GeneralReport({ body, weightHistory, profileLoading = false }) {
     Number(body?.weightKg) ||
     (latestWeight?.weightKg != null ? Number(latestWeight.weightKg) : null);
   const heightCm = body?.heightCm ? Number(body.heightCm) : null;
-  const sex = body?.sex || '';
-  const age = body?.age ? Number(body.age) : null;
-  const activityLevel = body?.activityLevel || '';
+  const sex = profile.sex || '';
+  const age = profile.age ? Number(profile.age) : null;
+  const activityLevel = profile.activityLevel || '';
 
   const bmiValue = useMemo(() => calcBMI(weightKg, heightCm), [
     weightKg,
@@ -124,10 +234,57 @@ function GeneralReport({ body, weightHistory, profileLoading = false }) {
 
       {showProfileBanner && (
         <div className="general-report-alert">
-          Preencha sexo/idade/atividade no Diário Alimentar para liberar as
+          Preencha sexo/idade/atividade aqui no Relatório Geral para liberar as
           estimativas.
         </div>
       )}
+
+      <div className="food-diary-summary-card">
+        <h5 className="title" style={{ margin: 0, fontSize: 14 }}>
+          Perfil para estimativas
+        </h5>
+        <div className="field">
+          <label>Sexo</label>
+          <select
+            value={profile.sex}
+            onChange={(event) =>
+              handleProfileChange('sex', event.target.value)
+            }
+          >
+            <option value="">Selecione</option>
+            <option value="Masculino">Masculino</option>
+            <option value="Feminino">Feminino</option>
+          </select>
+        </div>
+        <div className="field">
+          <label>Idade</label>
+          <input
+            type="number"
+            min="0"
+            step="1"
+            value={profile.age}
+            onChange={(event) =>
+              handleProfileChange('age', event.target.value)
+            }
+          />
+        </div>
+        <div className="field">
+          <label>Nível de atividade</label>
+          <select
+            value={profile.activityLevel}
+            onChange={(event) =>
+              handleProfileChange('activityLevel', event.target.value)
+            }
+          >
+            <option value="">Selecione</option>
+            <option value="Sedentário">Sedentário</option>
+            <option value="Leve">Leve</option>
+            <option value="Moderado">Moderado</option>
+            <option value="Alto">Alto</option>
+            <option value="Muito alto">Muito alto</option>
+          </select>
+        </div>
+      </div>
 
       <div className="general-report-grid">
         <MetricCard
