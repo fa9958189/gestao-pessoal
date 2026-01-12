@@ -17,6 +17,7 @@ import {
   loadTodayWeight,
   saveGoals,
   saveProfile,
+  saveWeightEntry,
 } from '../services/foodDiaryProfile';
 
 const defaultGoals = {
@@ -102,6 +103,13 @@ const formatNumber = (value, decimals = 0) => {
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals
   });
+};
+
+const parseNumberInput = (value) => {
+  if (value == null || value === '') return null;
+  const normalized = String(value).trim().replace(/\s/g, '').replace(',', '.');
+  const numeric = Number(normalized);
+  return Number.isFinite(numeric) ? numeric : null;
 };
 
 const scaleByGrams = (value, grams, baseGrams) => {
@@ -891,9 +899,7 @@ function FoodDiary({ userId, supabase, notify }) {
 
   const normalizeBodyValues = (values) => {
     const normalizeNumber = (value) => {
-      if (value == null || value === '') return null;
-      const numeric = Number(value);
-      return Number.isFinite(numeric) ? numeric : null;
+      return parseNumberInput(value);
     };
 
     const normalizeInteger = (value) => {
@@ -946,13 +952,10 @@ function FoodDiary({ userId, supabase, notify }) {
         return;
       }
 
-      const entryDate = getLocalDateString();
-
       await saveProfile({
         supabase,
         userId,
         ...cleanedPayload,
-        entryDate,
       });
 
       const refreshedBody = {
@@ -1008,8 +1011,8 @@ function FoodDiary({ userId, supabase, notify }) {
         return;
       }
 
-      const normalized = normalizeBodyValues(nextBody);
-      if (!Number.isFinite(normalized.weightKg)) {
+      const normalizedWeight = parseNumberInput(nextBody.weightKg);
+      if (!Number.isFinite(normalizedWeight)) {
         setError('Não foi possível salvar o peso.');
         if (typeof notify === 'function') {
           notify('Não foi possível salvar o peso.', 'error');
@@ -1017,12 +1020,14 @@ function FoodDiary({ userId, supabase, notify }) {
         return;
       }
 
+      const normalizedHeight = parseNumberInput(nextBody.heightCm);
       const entryDate = getLocalDateString();
 
-      await saveProfile({
+      await saveWeightEntry({
         supabase,
         userId,
-        weightKg: normalized.weightKg,
+        weightKg: normalizedWeight,
+        ...(normalizedHeight != null ? { heightCm: normalizedHeight } : {}),
         entryDate,
       });
 
@@ -1031,7 +1036,7 @@ function FoodDiary({ userId, supabase, notify }) {
 
       setBody((prev) => ({
         ...prev,
-        weightKg: String(normalized.weightKg),
+        weightKg: String(normalizedWeight),
       }));
 
       if (typeof notify === 'function') {

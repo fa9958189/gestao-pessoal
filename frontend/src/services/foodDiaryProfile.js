@@ -99,7 +99,6 @@ export async function saveProfile({
   sex,
   age,
   activityLevel,
-  entryDate = todayString(),
 }) {
   ensureSupabase(supabase, 'salvar perfil');
 
@@ -165,17 +164,48 @@ export async function saveProfile({
     }
   }
 
-  let weightData = null;
+  return { profileData };
+}
 
-  if (normalizedWeight != null) {
+export async function saveWeightEntry({
+  supabase,
+  userId,
+  weightKg,
+  heightCm,
+  entryDate = todayString(),
+}) {
+  ensureSupabase(supabase, 'salvar peso');
+
+  const normalizedWeight =
+    weightKg != null && weightKg !== '' ? Number(weightKg) : null;
+  if (!Number.isFinite(normalizedWeight)) {
+    throw new Error('Peso inválido para salvar.');
+  }
+
+  const normalizedHeight =
+    heightCm != null && heightCm !== '' ? Number(heightCm) : null;
+
+  const { data: existing, error: lookupError } = await supabase
+    .from('food_weight_history')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('entry_date', entryDate)
+    .maybeSingle();
+
+  if (lookupError) {
+    throw lookupError;
+  }
+
+  const payload = {
+    weight_kg: normalizedWeight,
+    ...(normalizedHeight != null ? { height_cm: normalizedHeight } : {}),
+  };
+
+  if (existing?.id) {
     const { data, error } = await supabase
       .from('food_weight_history')
-      .insert({
-        user_id: userId,
-        entry_date: entryDate,
-        weight_kg: normalizedWeight,
-        height_cm: normalizedHeight,
-      })
+      .update(payload)
+      .eq('id', existing.id)
       .select('*')
       .maybeSingle();
 
@@ -183,10 +213,24 @@ export async function saveProfile({
       throw error;
     }
 
-    weightData = data ?? null;
+    return data ?? null;
   }
 
-  return { profileData, weightData };
+  const { data, error } = await supabase
+    .from('food_weight_history')
+    .insert({
+      user_id: userId,
+      entry_date: entryDate,
+      ...payload,
+    })
+    .select('*')
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  return data ?? null;
 }
 
 export async function loadGoals({ supabase, userId }) {
