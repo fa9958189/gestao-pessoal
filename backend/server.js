@@ -15,6 +15,7 @@ import {
   startDailyWorkoutScheduleWorker,
   startWorkoutReminderWorker,
 } from "./reminders.js";
+import { startDailyGoalsReminder } from "./jobs/dailyGoalsReminder.js";
 import { analyzeFoodImage } from "./ai/foodScanner.js";
 import {
   createWorkoutSession,
@@ -51,6 +52,7 @@ const getCurrentPeriodMonth = (today = new Date()) =>
 startEventReminderWorker();
 startDailyWorkoutScheduleWorker();
 startDailyRemindersWorker();
+startDailyGoalsReminder();
 
 app.get("/debug/zapi-test", async (req, res) => {
   try {
