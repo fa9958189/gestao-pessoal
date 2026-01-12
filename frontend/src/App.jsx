@@ -113,6 +113,37 @@ const formatDate = (value) => {
   }
 };
 
+const parseDateSafe = (value) => {
+  if (!value) return null;
+  const parsed = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed;
+};
+
+const getTrialEnd = (user) => {
+  if (!user) return null;
+  const explicitEnd = parseDateSafe(user.trial_end_at || user.trialEndAt);
+  if (explicitEnd) return explicitEnd;
+  const createdAt = parseDateSafe(user.created_at || user.createdAt);
+  if (!createdAt) return null;
+  const end = new Date(createdAt);
+  end.setDate(end.getDate() + 7);
+  return end;
+};
+
+const getDaysLeft = (endDate) => {
+  if (!endDate) return null;
+  const diffMs = endDate.getTime() - Date.now();
+  return Math.ceil(diffMs / (24 * 60 * 60 * 1000));
+};
+
+const formatTrialLabel = (daysLeft) => {
+  if (daysLeft === null || Number.isNaN(daysLeft)) return '-';
+  if (daysLeft <= 0) return 'Teste acabou';
+  if (daysLeft === 1) return 'Falta 1 dia';
+  return `Faltam ${daysLeft} dias`;
+};
+
 const formatTimeRange = (start, end) => {
   if (!start && !end) return '-';
   return [start, end].filter(Boolean).join(' – ');
@@ -415,13 +446,14 @@ const UsersTable = ({ items, onEdit, onDelete, onBillingAction }) => (
               <th>Vencimento</th>
               <th>Último pagamento</th>
               <th>Criado em</th>
+              <th>Teste</th>
               <th className="right">Ações</th>
             </tr>
           </thead>
           <tbody id="userTableBody">
             {items.length === 0 && (
               <tr>
-                <td colSpan="9" className="muted user-empty">
+                <td colSpan="11" className="muted user-empty">
                   Nenhum usuário cadastrado além de você.
                 </td>
               </tr>
@@ -465,6 +497,13 @@ const UsersTable = ({ items, onEdit, onDelete, onBillingAction }) => (
                 <td>dia {user.due_day || BILLING_DUE_DAY}</td>
                 <td>{formatDate(user.last_payment_at || user.last_paid_at)}</td>
                 <td>{formatDate(user.created_at)}</td>
+                <td>
+                  {(() => {
+                    const trialEnd = getTrialEnd(user);
+                    const daysLeft = getDaysLeft(trialEnd);
+                    return formatTrialLabel(daysLeft);
+                  })()}
+                </td>
                 <td className="right">
                   <div className="table-actions">
                     <button className="icon-button" onClick={() => onEdit(user)} title="Editar">
