@@ -159,6 +159,8 @@ function FoodDiary({ userId, supabase, notify }) {
   const hasEditedGoalsRef = useRef(false);
   const lastSavedWaterGoalRef = useRef(defaultGoals.water);
   const initialBodyRef = useRef(defaultBody);
+  const profileAutosaveTimeoutRef = useRef(null);
+  const hasEditedProfileRef = useRef(false);
 
   const isMobile = () => /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
@@ -880,8 +882,11 @@ function FoodDiary({ userId, supabase, notify }) {
     };
 
     // Apenas atualizar o estado local.
-    // O salvamento no Supabase será feito manualmente pelo botão.
     setBody(nextBody);
+
+    if (field !== 'weightKg') {
+      hasEditedProfileRef.current = true;
+    }
   };
 
   const normalizeBodyValues = (values) => {
@@ -906,35 +911,35 @@ function FoodDiary({ userId, supabase, notify }) {
     };
   };
 
-  const handleSaveBodyAndWeight = async (nextBody = body) => {
+  const buildProfilePayload = (currentValues, initialValues) => {
+    const normalizedCurrent = normalizeBodyValues(currentValues);
+    const normalizedInitial = normalizeBodyValues(initialValues);
+    const fieldsToCheck = ['heightCm', 'sex', 'age', 'activityLevel'];
+    const payload = fieldsToCheck.reduce((acc, key) => {
+      if (!Object.is(normalizedCurrent[key], normalizedInitial[key])) {
+        acc[key] = normalizedCurrent[key];
+      }
+      return acc;
+    }, {});
+
+    const cleanedPayload = Object.fromEntries(
+      Object.entries(payload).filter(
+        ([, value]) => value !== null && value !== undefined,
+      ),
+    );
+
+    return { cleanedPayload, normalizedCurrent };
+  };
+
+  const handleSaveProfile = async (nextBody = body) => {
     try {
       if (!userId) {
-        setError('Usuário não identificado para salvar o peso.');
-        if (typeof notify === 'function') {
-          notify('Não foi possível salvar o peso.', 'error');
-        }
         return;
       }
 
-      const normalizedCurrent = normalizeBodyValues(nextBody);
-      const normalizedInitial = normalizeBodyValues(initialBodyRef.current);
-      const fieldsToCheck = [
-        'heightCm',
-        'weightKg',
-        'sex',
-        'age',
-        'activityLevel',
-      ];
-      const payload = fieldsToCheck.reduce((acc, key) => {
-        if (!Object.is(normalizedCurrent[key], normalizedInitial[key])) {
-          acc[key] = normalizedCurrent[key];
-        }
-        return acc;
-      }, {});
-      const cleanedPayload = Object.fromEntries(
-        Object.entries(payload).filter(
-          ([, value]) => value !== null && value !== undefined,
-        ),
+      const { cleanedPayload, normalizedCurrent } = buildProfilePayload(
+        nextBody,
+        initialBodyRef.current,
       );
 
       if (Object.keys(cleanedPayload).length === 0) {
@@ -950,56 +955,84 @@ function FoodDiary({ userId, supabase, notify }) {
         entryDate,
       });
 
-      const [profile, normalizedProfile, todayWeight] = await Promise.all([
-        loadGoals({ supabase, userId }),
-        loadProfile({ supabase, userId }),
-        loadTodayWeight({ supabase, userId, entryDate }),
-      ]);
-
-      if (cleanedPayload.weightKg != null) {
-        const refreshedHistory = await fetchWeightHistoryFromDb(userId);
-        setWeightHistory(refreshedHistory);
-      }
-
-      const refreshedTodayWeight =
-        todayWeight?.weight_kg != null && todayWeight.weight_kg !== ''
-          ? String(todayWeight.weight_kg)
-          : null;
-      const refreshedProfileWeight =
-        normalizedProfile?.weightKg != null && normalizedProfile.weightKg !== ''
-          ? String(normalizedProfile.weightKg)
-          : null;
       const refreshedBody = {
+        ...nextBody,
         heightCm:
-          normalizedProfile?.heightCm != null && normalizedProfile.heightCm !== ''
-            ? String(normalizedProfile.heightCm)
-            : normalizedCurrent.heightCm != null
-              ? String(normalizedCurrent.heightCm)
-              : null,
-        weightKg:
-          refreshedTodayWeight ??
-          refreshedProfileWeight ??
-          (normalizedCurrent.weightKg != null
-            ? String(normalizedCurrent.weightKg)
-            : null),
+          cleanedPayload.heightCm != null
+            ? String(cleanedPayload.heightCm)
+            : nextBody.heightCm,
         sex:
-          normalizedProfile?.sex != null
-            ? normalizeSexForUi(normalizedProfile.sex)
-            : normalizeSexForUi(normalizedCurrent.sex),
+          cleanedPayload.sex != null
+            ? normalizeSexForUi(cleanedPayload.sex)
+            : nextBody.sex,
         age:
-          normalizedProfile?.age != null
-            ? String(normalizedProfile.age)
-            : normalizedCurrent.age != null
-              ? String(normalizedCurrent.age)
-              : null,
+          cleanedPayload.age != null
+            ? String(cleanedPayload.age)
+            : nextBody.age,
         activityLevel:
-          normalizedProfile?.activityLevel != null
-            ? normalizeActivityForUi(normalizedProfile.activityLevel)
-            : normalizeActivityForUi(normalizedCurrent.activityLevel),
+          cleanedPayload.activityLevel != null
+            ? normalizeActivityForUi(cleanedPayload.activityLevel)
+            : nextBody.activityLevel,
       };
 
       setBody(refreshedBody);
-      initialBodyRef.current = refreshedBody;
+      initialBodyRef.current = {
+        ...initialBodyRef.current,
+        heightCm:
+          normalizedCurrent.heightCm != null
+            ? String(normalizedCurrent.heightCm)
+            : initialBodyRef.current.heightCm,
+        sex: normalizeSexForUi(normalizedCurrent.sex),
+        age:
+          normalizedCurrent.age != null
+            ? String(normalizedCurrent.age)
+            : initialBodyRef.current.age,
+        activityLevel: normalizeActivityForUi(normalizedCurrent.activityLevel),
+      };
+    } catch (error) {
+      console.error('Falha ao salvar perfil', error);
+      setError('Não foi possível salvar os dados do perfil.');
+      if (typeof notify === 'function') {
+        notify('Não foi possível salvar os dados do perfil.', 'error');
+      }
+    }
+  };
+
+  const handleSaveWeight = async (nextBody = body) => {
+    try {
+      if (!userId) {
+        setError('Usuário não identificado para salvar o peso.');
+        if (typeof notify === 'function') {
+          notify('Não foi possível salvar o peso.', 'error');
+        }
+        return;
+      }
+
+      const normalized = normalizeBodyValues(nextBody);
+      if (!Number.isFinite(normalized.weightKg)) {
+        setError('Não foi possível salvar o peso.');
+        if (typeof notify === 'function') {
+          notify('Não foi possível salvar o peso.', 'error');
+        }
+        return;
+      }
+
+      const entryDate = getLocalDateString();
+
+      await saveProfile({
+        supabase,
+        userId,
+        weightKg: normalized.weightKg,
+        entryDate,
+      });
+
+      const refreshedHistory = await fetchWeightHistoryFromDb(userId);
+      setWeightHistory(refreshedHistory);
+
+      setBody((prev) => ({
+        ...prev,
+        weightKg: String(normalized.weightKg),
+      }));
 
       if (typeof notify === 'function') {
         notify('Peso salvo com sucesso.', 'success');
@@ -1012,6 +1045,36 @@ function FoodDiary({ userId, supabase, notify }) {
       }
     }
   };
+
+  useEffect(() => {
+    if (!userId || profileLoading || !hasEditedProfileRef.current) return;
+
+    if (profileAutosaveTimeoutRef.current) {
+      clearTimeout(profileAutosaveTimeoutRef.current);
+    }
+
+    profileAutosaveTimeoutRef.current = setTimeout(async () => {
+      try {
+        await handleSaveProfile(body);
+        hasEditedProfileRef.current = false;
+      } catch (error) {
+        console.error('Falha ao salvar dados do perfil', error);
+      }
+    }, 600);
+
+    return () => {
+      if (profileAutosaveTimeoutRef.current) {
+        clearTimeout(profileAutosaveTimeoutRef.current);
+      }
+    };
+  }, [
+    body.heightCm,
+    body.sex,
+    body.age,
+    body.activityLevel,
+    userId,
+    profileLoading,
+  ]);
 
   const handleHydrationStateChange = (state) => {
     const totalMl = Number(state?.totalMl ?? 0);
@@ -1551,6 +1614,14 @@ function FoodDiary({ userId, supabase, notify }) {
                 }
               />
             </div>
+            <button
+              type="button"
+              className="primary"
+              style={{ marginTop: 10 }}
+              onClick={() => handleSaveWeight()}
+            >
+              Salvar peso
+            </button>
             <div className="field">
               <label>Sexo</label>
               <select
@@ -1642,14 +1713,6 @@ function FoodDiary({ userId, supabase, notify }) {
               </div>
             )}
 
-            <button
-              type="button"
-              className="primary"
-              style={{ marginTop: 10 }}
-              onClick={() => handleSaveBodyAndWeight()}
-            >
-              Salvar metas e peso
-            </button>
           </div>
         </aside>
       </div>

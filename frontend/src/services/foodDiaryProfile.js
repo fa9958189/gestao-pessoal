@@ -170,15 +170,12 @@ export async function saveProfile({
   if (normalizedWeight != null) {
     const { data, error } = await supabase
       .from('food_weight_history')
-      .upsert(
-        {
-          user_id: userId,
-          entry_date: entryDate,
-          weight_kg: normalizedWeight,
-          height_cm: normalizedHeight,
-        },
-        { onConflict: 'user_id,entry_date' },
-      )
+      .insert({
+        user_id: userId,
+        entry_date: entryDate,
+        weight_kg: normalizedWeight,
+        height_cm: normalizedHeight,
+      })
       .select('*')
       .maybeSingle();
 
@@ -232,6 +229,8 @@ export async function loadTodayWeight({ supabase, userId, entryDate = todayStrin
     .select('*')
     .eq('user_id', userId)
     .eq('entry_date', entryDate)
+    .order('recorded_at', { ascending: false })
+    .limit(1)
     .maybeSingle();
 
   if (error) {
