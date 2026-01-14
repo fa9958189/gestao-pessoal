@@ -72,27 +72,42 @@ const normalizeSexForStorage = (value) => {
 
 const normalizeActivityForStorage = (value) => {
   if (value == null || value === '') return null;
-  const normalized = String(value).trim().toLowerCase();
 
-  // Normaliza variações comuns
-  if (normalized === 'sedentario') return 'sedentário';
-  if (normalized === 'muito-alto') return 'muito alto';
+  const raw = String(value).trim();
+  const normalized = raw.toLowerCase();
 
-  // Mapeia os valores do SELECT da UI (Leve/Moderado/Alto/Muito alto)
-  // para os valores que você provavelmente travou na constraint (levemente/moderadamente/ativo/muito ativo)
+  // UI -> Storage (banco)
+  // UI: Sedentário | Leve | Moderado | Alto | Muito alto
+  // Storage: sedentário | levemente | moderadamente | ativo | muito ativo
+  if (normalized === 'sedentário' || normalized === 'sedentario') {
+    return 'sedentário';
+  }
   if (normalized === 'leve') return 'levemente';
   if (normalized === 'moderado') return 'moderadamente';
   if (normalized === 'alto') return 'ativo';
-  if (normalized === 'muito alto') return 'muito ativo';
+  if (normalized === 'muito alto' || normalized === 'muito-alto') {
+    return 'muito ativo';
+  }
+
+  // Se já vier no formato de storage, mantém
+  if (
+    normalized === 'levemente' ||
+    normalized === 'moderadamente' ||
+    normalized === 'ativo' ||
+    normalized === 'muito ativo'
+  ) {
+    return normalized;
+  }
 
   return normalized;
 };
 
 const normalizeActivityForUi = (value) => {
-  if (value == null || value === '') return '';
+  if (value == null || value === '') return null;
+
   const normalized = String(value).trim().toLowerCase();
 
-  // Volta pro texto que a UI já usa
+  // Storage -> UI
   if (normalized === 'sedentário' || normalized === 'sedentario') {
     return 'Sedentário';
   }
@@ -108,6 +123,9 @@ const normalizeActivityForUi = (value) => {
   ) {
     return 'Muito alto';
   }
+
+  // Se por algum motivo já veio UI, retorna do jeito certo
+  if (normalized === 'sedentário') return 'Sedentário';
 
   return value;
 };
@@ -139,7 +157,7 @@ const normalizeProfileRow = (row) => {
     weightKg: weightValue != null ? Number(weightValue) : null,
     sex: normalizeSexForStorage(row.sex ?? row.sexo ?? null),
     age: ageValue != null ? Number.parseInt(ageValue, 10) : null,
-    activityLevel: normalizeActivityForStorage(
+    activityLevel: normalizeActivityForUi(
       row.activity_level ??
         row.nivel_atividade ??
         row.nivelAtividade ??
