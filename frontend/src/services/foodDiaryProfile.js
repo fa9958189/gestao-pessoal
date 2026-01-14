@@ -74,58 +74,37 @@ const normalizeActivityForStorage = (value) => {
   if (value == null || value === '') return null;
 
   const raw = String(value).trim();
-  const normalized = raw.toLowerCase();
+  const v = raw.toLowerCase();
 
-  // UI -> Storage (banco)
-  // UI: Sedentário | Leve | Moderado | Alto | Muito alto
-  // Storage: sedentário | levemente | moderadamente | ativo | muito ativo
-  if (normalized === 'sedentário' || normalized === 'sedentario') {
-    return 'sedentário';
-  }
-  if (normalized === 'leve') return 'levemente';
-  if (normalized === 'moderado') return 'moderadamente';
-  if (normalized === 'alto') return 'ativo';
-  if (normalized === 'muito alto' || normalized === 'muito-alto') {
-    return 'muito ativo';
-  }
+  // UI -> STORAGE (o que vai pro banco)
+  if (v === 'sedentário' || v === 'sedentario') return 'sedentário';
+  if (v === 'leve') return 'levemente';
+  if (v === 'moderado') return 'moderadamente';
+  if (v === 'alto') return 'ativo';
+  if (v === 'muito alto' || v === 'muito-alto') return 'muito ativo';
 
-  // Se já vier no formato de storage, mantém
-  if (
-    normalized === 'levemente' ||
-    normalized === 'moderadamente' ||
-    normalized === 'ativo' ||
-    normalized === 'muito ativo'
-  ) {
-    return normalized;
+  // Se já vier no formato STORAGE, mantém
+  if (['sedentário', 'levemente', 'moderadamente', 'ativo', 'muito ativo'].includes(v)) {
+    return v;
   }
 
-  return normalized;
+  return v;
 };
 
 const normalizeActivityForUi = (value) => {
   if (value == null || value === '') return null;
 
-  const normalized = String(value).trim().toLowerCase();
+  const v = String(value).trim().toLowerCase();
 
-  // Storage -> UI
-  if (normalized === 'sedentário' || normalized === 'sedentario') {
-    return 'Sedentário';
-  }
-  if (normalized === 'levemente' || normalized === 'leve') return 'Leve';
-  if (normalized === 'moderadamente' || normalized === 'moderado') {
-    return 'Moderado';
-  }
-  if (normalized === 'ativo' || normalized === 'alto') return 'Alto';
-  if (
-    normalized === 'muito ativo' ||
-    normalized === 'muito alto' ||
-    normalized === 'muito-alto'
-  ) {
-    return 'Muito alto';
-  }
+  // STORAGE -> UI
+  if (v === 'sedentário' || v === 'sedentario') return 'Sedentário';
+  if (v === 'levemente' || v === 'leve') return 'Leve';
+  if (v === 'moderadamente' || v === 'moderado') return 'Moderado';
+  if (v === 'ativo' || v === 'alto') return 'Alto';
+  if (v === 'muito ativo' || v === 'muito alto' || v === 'muito-alto') return 'Muito alto';
 
-  // Se por algum motivo já veio UI, retorna do jeito certo
-  if (normalized === 'sedentário') return 'Sedentário';
+  // Se já vier UI, tenta padronizar a primeira letra
+  if (v === 'sedentário') return 'Sedentário';
 
   return value;
 };
