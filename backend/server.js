@@ -649,6 +649,9 @@ app.post("/admin/broadcast-whatsapp", async (req, res) => {
 
     let query = supabase
       .from("profiles_auth")
+      .select(
+        "auth_id, name, username, whatsapp, role, billing_status, trial_status, trial_end_at",
+      )
       .neq("role", "admin")
       .not("whatsapp", "is", null);
 
@@ -658,7 +661,7 @@ app.post("/admin/broadcast-whatsapp", async (req, res) => {
       query = query.eq("trial_status", "trial");
     }
 
-    const { data, error } = await query.select("user_id, whatsapp");
+    const { data, error } = await query;
     if (error) {
       console.error("Erro ao listar usuários para broadcast:", error);
       return res.status(400).json({ error: error.message });
@@ -666,14 +669,7 @@ app.post("/admin/broadcast-whatsapp", async (req, res) => {
 
     const users = data || [];
 
-    const recipients = (users || [])
-      .map((u) => ({
-        user_id: u.user_id,
-        whatsapp: u.whatsapp,
-      }))
-      .filter((u) => u.whatsapp);
-
-    if (recipients.length === 0) {
+    if (users.length === 0) {
       return res.json({ ok: true, total: 0, sent: 0, failed: 0, failures: [] });
     }
 
@@ -681,38 +677,18 @@ app.post("/admin/broadcast-whatsapp", async (req, res) => {
     let failed = 0;
     const failures = [];
 
-    for (const u of recipients) {
+    for (const user of users) {
       try {
-        const result = await sendWhatsAppMessage({
-          phone: u.whatsapp,
+        await sendWhatsAppMessage({
+          phone: user.whatsapp,
           message: cleanMessage,
         });
-        if (result?.ok) {
-          sent += 1;
-        } else {
-          const status = result?.status;
-          if (status === 401 || status === 403) {
-            return res.status(401).json({
-              ok: false,
-              error:
-                "Sessão/token do WhatsApp inválido. Refaça a autenticação da API.",
-            });
-          }
-
-          failed += 1;
-          failures.push({
-            user_id: u.user_id,
-            whatsapp: u.whatsapp,
-            error:
-              result?.body ||
-              `Falha ao enviar (status ${status ?? "desconhecido"})`,
-          });
-        }
+        sent += 1;
       } catch (err) {
         failed += 1;
         failures.push({
-          user_id: u.user_id,
-          whatsapp: u.whatsapp,
+          auth_id: user.auth_id,
+          whatsapp: user.whatsapp,
           error: err?.message || String(err),
         });
       }
@@ -722,7 +698,7 @@ app.post("/admin/broadcast-whatsapp", async (req, res) => {
 
     return res.json({
       ok: true,
-      total: recipients.length,
+      total: users.length,
       sent,
       failed,
       failures,
