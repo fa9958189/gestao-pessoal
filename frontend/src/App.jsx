@@ -1667,7 +1667,23 @@ function App() {
         return;
       }
 
-      const accessToken = session?.access_token;
+      // Pega a sessão DIRETO do Supabase (não depende do state "session")
+      let accessToken = null;
+
+      try {
+        const { data } = await client.auth.getSession();
+        accessToken = data?.session?.access_token || null;
+
+        // Se não tiver token, tenta refresh uma vez
+        if (!accessToken) {
+          await client.auth.refreshSession();
+          const { data: data2 } = await client.auth.getSession();
+          accessToken = data2?.session?.access_token || null;
+        }
+      } catch (e) {
+        console.warn('Falha ao obter sessão:', e);
+      }
+
       if (!accessToken) {
         pushToast('Sessão inválida. Faça login novamente.', 'danger');
         return;
