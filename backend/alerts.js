@@ -285,16 +285,45 @@ async function handleTrialExpirations({ supabase, sendMessage, now }) {
   const referenceDate = now instanceof Date ? now : new Date(now || Date.now());
   const alertDate = formatDate(toSaoPaulo(referenceDate));
 
-  const { data: trialUsers, error } = await supabase
-    .from("profiles_auth")
-    .select("id, auth_id, name, email, whatsapp, trial_end_at")
-    .eq("trial_status", "trial")
-    .eq("subscription_status", "active")
-    .lte("trial_end_at", referenceDate.toISOString());
+  let trialUsers = [];
+  try {
+    const { data, error } = await supabase
+      .from("profiles_auth")
+      .select("id, auth_id, name, email, whatsapp, trial_end_at, trial_notified_at")
+      .eq("trial_status", "trial")
+      .eq("subscription_status", "active")
+      .is("trial_notified_at", null)
+      .lte("trial_end_at", referenceDate.toISOString());
 
-  if (error) {
-    console.error("❌ Erro ao buscar trials expirados:", error.message);
-    return;
+    if (error) {
+      throw error;
+    }
+
+    trialUsers = data || [];
+  } catch (error) {
+    const message = String(error?.message || "").toLowerCase();
+    const missingColumn =
+      error?.code === "42703" ||
+      (message.includes("column") && message.includes("trial"));
+
+    if (!missingColumn) {
+      console.error("❌ Erro ao buscar trials expirados:", error.message);
+      return;
+    }
+
+    const { data, error: fallbackError } = await supabase
+      .from("profiles_auth")
+      .select("id, auth_id, name, email, whatsapp, trial_end_at")
+      .eq("trial_status", "trial")
+      .eq("subscription_status", "active")
+      .lte("trial_end_at", referenceDate.toISOString());
+
+    if (fallbackError) {
+      console.error("❌ Erro ao buscar trials expirados:", fallbackError.message);
+      return;
+    }
+
+    trialUsers = data || [];
   }
 
   for (const user of trialUsers || []) {
@@ -317,19 +346,6 @@ async function handleTrialExpirations({ supabase, sendMessage, now }) {
     }
 
     if (alreadySent) {
-      continue;
-    }
-
-    const { error: updateError } = await supabase
-      .from("profiles_auth")
-      .update({
-        subscription_status: "inactive",
-        trial_status: null,
-      })
-      .or(`auth_id.eq.${userId},id.eq.${userId}`);
-
-    if (updateError) {
-      console.error("❌ Erro ao expirar trial:", updateError.message);
       continue;
     }
 
@@ -375,6 +391,19 @@ async function handleTrialExpirations({ supabase, sendMessage, now }) {
         });
       } catch (err) {
         console.error("❌ Erro ao registrar log de trial expirado:", err);
+      }
+
+      const { error: updateError } = await supabase
+        .from("profiles_auth")
+        .update({
+          subscription_status: "inactive",
+          trial_status: "expired",
+          trial_notified_at: new Date().toISOString(),
+        })
+        .or(`auth_id.eq.${userId},id.eq.${userId}`);
+
+      if (updateError) {
+        console.error("❌ Erro ao expirar trial:", updateError.message);
       }
     }
   }
