@@ -72,41 +72,7 @@ const normalizeSexForStorage = (value) => {
 
 const normalizeActivityForStorage = (value) => {
   if (value == null || value === '') return null;
-
-  const raw = String(value).trim();
-  const v = raw.toLowerCase();
-
-  // UI -> STORAGE (o que vai pro banco)
-  if (v === 'sedentário' || v === 'sedentario') return 'sedentário';
-  if (v === 'leve') return 'levemente';
-  if (v === 'moderado') return 'moderadamente';
-  if (v === 'alto') return 'ativo';
-  if (v === 'muito alto' || v === 'muito-alto') return 'muito ativo';
-
-  // Se já vier no formato STORAGE, mantém
-  if (['sedentário', 'levemente', 'moderadamente', 'ativo', 'muito ativo'].includes(v)) {
-    return v;
-  }
-
-  return v;
-};
-
-const normalizeActivityForUi = (value) => {
-  if (value == null || value === '') return null;
-
-  const v = String(value).trim().toLowerCase();
-
-  // STORAGE -> UI
-  if (v === 'sedentário' || v === 'sedentario') return 'Sedentário';
-  if (v === 'levemente' || v === 'leve') return 'Leve';
-  if (v === 'moderadamente' || v === 'moderado') return 'Moderado';
-  if (v === 'ativo' || v === 'alto') return 'Alto';
-  if (v === 'muito ativo' || v === 'muito alto' || v === 'muito-alto') return 'Muito alto';
-
-  // Se já vier UI, tenta padronizar a primeira letra
-  if (v === 'sedentário') return 'Sedentário';
-
-  return value;
+  return String(value).trim();
 };
 
 const normalizeProfileRow = (row) => {
@@ -136,7 +102,7 @@ const normalizeProfileRow = (row) => {
     weightKg: weightValue != null ? Number(weightValue) : null,
     sex: normalizeSexForStorage(row.sex ?? row.sexo ?? null),
     age: ageValue != null ? Number.parseInt(ageValue, 10) : null,
-    activityLevel: normalizeActivityForUi(
+    activityLevel: normalizeActivityForStorage(
       row.activity_level ??
         row.nivel_atividade ??
         row.nivelAtividade ??
@@ -377,9 +343,6 @@ export async function loadProfile({ supabase, userId }) {
         authRow.activity_level,
       );
     }
-
-    // também devolve versão já “bonitinha” se alguém usar direto (não quebra nada)
-    merged.activityLevelUi = normalizeActivityForUi(authRow.activity_level);
   }
 
   return merged;

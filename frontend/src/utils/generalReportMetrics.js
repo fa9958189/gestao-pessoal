@@ -18,16 +18,26 @@ export const calcBMR_MifflinStJeor = ({ sex, age, weightKg, heightCm }) => {
 };
 
 export const activityMultiplier = (level) => {
-  switch (level) {
-    case 'Sedentário':
+  if (level == null || level === '') return null;
+  const normalized = String(level).trim().toLowerCase();
+  switch (normalized) {
+    case 'sedentário':
+    case 'sedentario':
       return 1.2;
-    case 'Leve':
+    case 'levemente ativo':
+    case 'levemente':
+    case 'leve':
       return 1.375;
-    case 'Moderado':
+    case 'moderadamente ativo':
+    case 'moderadamente':
+    case 'moderado':
       return 1.55;
-    case 'Alto':
+    case 'ativo':
+    case 'alto':
       return 1.725;
-    case 'Muito alto':
+    case 'muito ativo':
+    case 'muito alto':
+    case 'muito-alto':
       return 1.9;
     default:
       return null;
