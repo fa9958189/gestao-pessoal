@@ -265,11 +265,8 @@ app.post("/create-user", async (req, res) => {
     }
 
     // 3) Grava em profiles_auth
-    const now = new Date();
-    const trialStartAt = applyTrial ? now.toISOString() : null;
-    const trialEndAt = applyTrial
-      ? new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString()
-      : null;
+    const nowIso = new Date().toISOString();
+    const trialEndIso = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
     const { error: authTableError } = await supabase
       .from("profiles_auth")
@@ -286,9 +283,10 @@ app.post("/create-user", async (req, res) => {
         affiliate_code: affiliate?.code || null,
         ...(applyTrial
           ? {
-              trial_start_at: trialStartAt,
-              trial_end_at: trialEndAt,
+              trial_start_at: nowIso,
+              trial_end_at: trialEndIso,
               trial_status: "trial",
+              trial_notified_at: null,
               subscription_status: "active",
             }
           : {}),
@@ -651,7 +649,6 @@ app.post("/admin/broadcast-whatsapp", async (req, res) => {
 
     let query = supabase
       .from("profiles_auth")
-      .select("auth_id, name, whatsapp, role, billing_status, subscription_status, trial_status")
       .neq("role", "admin")
       .not("whatsapp", "is", null);
 
@@ -661,11 +658,38 @@ app.post("/admin/broadcast-whatsapp", async (req, res) => {
       query = query.eq("trial_status", "trial");
     }
 
-    const { data: users, error } = await query;
+    let users = [];
+    try {
+      const { data, error } = await query.select(
+        "auth_id, name, username, whatsapp, role, billing_status, subscription_status, trial_status, trial_end_at"
+      );
 
-    if (error) {
-      console.error("Erro ao listar usuários para broadcast:", error);
-      return res.status(400).json({ error: error.message });
+      if (error) {
+        throw error;
+      }
+
+      users = data || [];
+    } catch (error) {
+      const message = String(error?.message || "").toLowerCase();
+      const missingColumn =
+        error?.code === "42703" ||
+        (message.includes("column") && message.includes("trial"));
+
+      if (!missingColumn) {
+        console.error("Erro ao listar usuários para broadcast:", error);
+        return res.status(400).json({ error: error.message });
+      }
+
+      const { data, error: fallbackError } = await query.select(
+        "auth_id, name, username, whatsapp, role, billing_status, subscription_status, trial_status"
+      );
+
+      if (fallbackError) {
+        console.error("Erro ao listar usuários para broadcast:", fallbackError);
+        return res.status(400).json({ error: fallbackError.message });
+      }
+
+      users = data || [];
     }
 
     const recipients = (users || [])
