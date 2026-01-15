@@ -658,44 +658,17 @@ app.post("/admin/broadcast-whatsapp", async (req, res) => {
       query = query.eq("trial_status", "trial");
     }
 
-    let users = [];
-    try {
-      const { data, error } = await query.select(
-        "auth_id, name, username, whatsapp, role, billing_status, subscription_status, trial_status, trial_end_at"
-      );
-
-      if (error) {
-        throw error;
-      }
-
-      users = data || [];
-    } catch (error) {
-      const message = String(error?.message || "").toLowerCase();
-      const missingColumn =
-        error?.code === "42703" ||
-        (message.includes("column") && message.includes("trial"));
-
-      if (!missingColumn) {
-        console.error("Erro ao listar usuários para broadcast:", error);
-        return res.status(400).json({ error: error.message });
-      }
-
-      const { data, error: fallbackError } = await query.select(
-        "auth_id, name, username, whatsapp, role, billing_status, subscription_status, trial_status"
-      );
-
-      if (fallbackError) {
-        console.error("Erro ao listar usuários para broadcast:", fallbackError);
-        return res.status(400).json({ error: fallbackError.message });
-      }
-
-      users = data || [];
+    const { data, error } = await query.select("user_id, whatsapp");
+    if (error) {
+      console.error("Erro ao listar usuários para broadcast:", error);
+      return res.status(400).json({ error: error.message });
     }
+
+    const users = data || [];
 
     const recipients = (users || [])
       .map((u) => ({
-        auth_id: u.auth_id,
-        name: u.name,
+        user_id: u.user_id,
         whatsapp: u.whatsapp,
       }))
       .filter((u) => u.whatsapp);
@@ -710,15 +683,35 @@ app.post("/admin/broadcast-whatsapp", async (req, res) => {
 
     for (const u of recipients) {
       try {
-        await sendWhatsAppMessage({
+        const result = await sendWhatsAppMessage({
           phone: u.whatsapp,
           message: cleanMessage,
         });
-        sent += 1;
+        if (result?.ok) {
+          sent += 1;
+        } else {
+          const status = result?.status;
+          if (status === 401 || status === 403) {
+            return res.status(401).json({
+              ok: false,
+              error:
+                "Sessão/token do WhatsApp inválido. Refaça a autenticação da API.",
+            });
+          }
+
+          failed += 1;
+          failures.push({
+            user_id: u.user_id,
+            whatsapp: u.whatsapp,
+            error:
+              result?.body ||
+              `Falha ao enviar (status ${status ?? "desconhecido"})`,
+          });
+        }
       } catch (err) {
         failed += 1;
         failures.push({
-          auth_id: u.auth_id,
+          user_id: u.user_id,
           whatsapp: u.whatsapp,
           error: err?.message || String(err),
         });

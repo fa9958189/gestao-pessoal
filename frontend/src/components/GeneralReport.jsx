@@ -17,27 +17,6 @@ const normalizeSexForUi = (value) => {
   return value;
 };
 
-const normalizeActivityForUi = (value) => {
-  if (value == null || value === '') return '';
-  const normalized = String(value).trim().toLowerCase();
-  switch (normalized) {
-    case 'sedentário':
-    case 'sedentario':
-      return 'Sedentário';
-    case 'leve':
-      return 'Leve';
-    case 'moderado':
-      return 'Moderado';
-    case 'alto':
-      return 'Alto';
-    case 'muito alto':
-    case 'muito-alto':
-      return 'Muito alto';
-    default:
-      return value;
-  }
-};
-
 const formatNumber = (value, decimals = 0) => {
   const number = Number(value);
   if (!Number.isFinite(number)) return '—';
@@ -116,9 +95,7 @@ function GeneralReport({ body, weightHistory, userId, supabase }) {
             loadedProfile?.age != null
               ? String(loadedProfile.age)
               : '',
-          activityLevel: normalizeActivityForUi(
-            loadedProfile?.activityLevel,
-          ),
+          activityLevel: loadedProfile?.activityLevel ?? '',
         });
       } catch (error) {
         console.warn('Falha ao carregar perfil do relatório geral', error);
@@ -277,11 +254,11 @@ function GeneralReport({ body, weightHistory, userId, supabase }) {
             }
           >
             <option value="">Selecione</option>
-            <option value="Sedentário">Sedentário</option>
-            <option value="Leve">Leve</option>
-            <option value="Moderado">Moderado</option>
-            <option value="Alto">Alto</option>
-            <option value="Muito alto">Muito alto</option>
+            <option value="sedentário">Sedentário</option>
+            <option value="levemente ativo">Levemente ativo</option>
+            <option value="moderadamente ativo">Moderadamente ativo</option>
+            <option value="ativo">Ativo</option>
+            <option value="muito ativo">Muito ativo</option>
           </select>
         </div>
       </div>
