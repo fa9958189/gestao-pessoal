@@ -48,6 +48,8 @@ const AFFILIATE_COMMISSION_CENTS = 2000;
 const getCurrentPeriodMonth = (today = new Date()) =>
   new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10);
 
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 // Inicia o job de lembretes (agenda)
 startEventReminderWorker();
 startDailyWorkoutScheduleWorker();
@@ -629,6 +631,88 @@ app.patch("/admin/users/:authId/billing", async (req, res) => {
   } catch (err) {
     console.error("Erro inesperado em PATCH /admin/users/:authId/billing:", err);
     return res.status(500).json({ error: "Erro interno ao atualizar billing." });
+  }
+});
+
+app.post("/admin/broadcast-whatsapp", async (req, res) => {
+  try {
+    const authData = await authenticateRequest(req, res, { requireAdmin: true });
+    if (!authData) return;
+
+    const { message, audience = "active" } = req.body || {};
+
+    if (!message || String(message).trim().length < 2) {
+      return res
+        .status(400)
+        .json({ error: "Mensagem obrigatória (mínimo 2 caracteres)." });
+    }
+
+    const cleanMessage = String(message).trim();
+
+    let query = supabase
+      .from("profiles_auth")
+      .select("auth_id, name, whatsapp, role, billing_status, subscription_status, trial_status")
+      .neq("role", "admin")
+      .not("whatsapp", "is", null);
+
+    if (audience === "active") {
+      query = query.eq("billing_status", "active");
+    } else if (audience === "trial") {
+      query = query.eq("trial_status", "trial");
+    }
+
+    const { data: users, error } = await query;
+
+    if (error) {
+      console.error("Erro ao listar usuários para broadcast:", error);
+      return res.status(400).json({ error: error.message });
+    }
+
+    const recipients = (users || [])
+      .map((u) => ({
+        auth_id: u.auth_id,
+        name: u.name,
+        whatsapp: u.whatsapp,
+      }))
+      .filter((u) => u.whatsapp);
+
+    if (recipients.length === 0) {
+      return res.json({ ok: true, total: 0, sent: 0, failed: 0, failures: [] });
+    }
+
+    let sent = 0;
+    let failed = 0;
+    const failures = [];
+
+    for (const u of recipients) {
+      try {
+        await sendWhatsAppMessage({
+          phone: u.whatsapp,
+          message: cleanMessage,
+        });
+        sent += 1;
+      } catch (err) {
+        failed += 1;
+        failures.push({
+          auth_id: u.auth_id,
+          whatsapp: u.whatsapp,
+          error: err?.message || String(err),
+        });
+      }
+
+      await sleep(350);
+    }
+
+    return res.json({
+      ok: true,
+      total: recipients.length,
+      sent,
+      failed,
+      failures,
+    });
+  } catch (err) {
+    console.error("Erro no broadcast:", err);
+    return res.status(500).json({ error: "Erro interno no servidor" });
   }
 });
 
