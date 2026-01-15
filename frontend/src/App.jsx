@@ -1030,6 +1030,11 @@ function App() {
   const [txForm, setTxForm] = useState(defaultTxForm);
   const [eventForm, setEventForm] = useState(defaultEventForm);
   const [userForm, setUserForm] = useState(defaultUserForm);
+  const [broadcastOpen, setBroadcastOpen] = useState(false);
+  const [broadcastMessage, setBroadcastMessage] = useState('');
+  const [broadcastAudience, setBroadcastAudience] = useState('active');
+  const [broadcastSending, setBroadcastSending] = useState(false);
+  const [broadcastResult, setBroadcastResult] = useState(null);
   const [editingUserId, setEditingUserId] = useState(null);
   const [editingUserOriginal, setEditingUserOriginal] = useState(null);
   const [affiliates, setAffiliates] = useState([]);
@@ -1652,6 +1657,58 @@ function App() {
     }
   };
 
+  const handleBroadcastWhatsapp = async () => {
+    try {
+      setBroadcastResult(null);
+
+      const msg = String(broadcastMessage || '').trim();
+      if (msg.length < 2) {
+        pushToast('Digite uma mensagem (mín. 2 caracteres).', 'danger');
+        return;
+      }
+
+      const accessToken = session?.access_token;
+      if (!accessToken) {
+        pushToast('Sessão inválida. Faça login novamente.', 'danger');
+        return;
+      }
+
+      setBroadcastSending(true);
+
+      const resp = await fetch(`${workoutApiBase}/admin/broadcast-whatsapp`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          message: msg,
+          audience: broadcastAudience,
+        }),
+      });
+
+      const data = await resp.json().catch(() => ({}));
+
+      if (!resp.ok) {
+        pushToast(data?.error || 'Falha ao enviar broadcast.', 'danger');
+        setBroadcastSending(false);
+        return;
+      }
+
+      setBroadcastResult(data);
+      pushToast(
+        `Broadcast enviado: ${data.sent}/${data.total} (falhas: ${data.failed})`,
+        'success'
+      );
+
+      setBroadcastSending(false);
+    } catch (err) {
+      console.error(err);
+      pushToast('Erro inesperado no broadcast.', 'danger');
+      setBroadcastSending(false);
+    }
+  };
+
   const handleDeleteUser = async (user) => {
     if (!client || profile?.role !== 'admin') {
       pushToast('Somente administradores podem excluir usuários.', 'warning');
@@ -2241,6 +2298,72 @@ function App() {
           <section className="card admin-card" id="adminUsersSection">
             <h2 className="title">Cadastro de Usuários</h2>
             <p className="muted">Somente administradores podem acessar esta área.</p>
+
+            <div style={{ marginTop: 12, marginBottom: 12 }}>
+              <button
+                className="ghost"
+                onClick={() => setBroadcastOpen((v) => !v)}
+                style={{ width: '100%' }}
+              >
+                {broadcastOpen ? 'Fechar aviso geral (WhatsApp)' : 'Abrir aviso geral (WhatsApp)'}
+              </button>
+
+              {broadcastOpen && (
+                <div className="card" style={{ marginTop: 10, padding: 14 }}>
+                  <div className="row" style={{ alignItems: 'center', gap: 10 }}>
+                    <div style={{ flex: 1 }}>
+                      <label>Público</label>
+                      <select
+                        value={broadcastAudience}
+                        onChange={(e) => setBroadcastAudience(e.target.value)}
+                      >
+                        <option value="active">Somente ativos</option>
+                        <option value="trial">Somente em teste</option>
+                        <option value="all">Todos com WhatsApp</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div style={{ marginTop: 10 }}>
+                    <label>Mensagem</label>
+                    <textarea
+                      value={broadcastMessage}
+                      onChange={(e) => setBroadcastMessage(e.target.value)}
+                      placeholder="Ex: ⚠️ Amanhã (09h) faremos manutenção rápida no sistema. Pode ficar instável por até 30 minutos."
+                      rows={5}
+                    />
+                  </div>
+
+                  <div className="row" style={{ justifyContent: 'flex-end', gap: 10, marginTop: 10 }}>
+                    <button
+                      className="ghost"
+                      onClick={() => {
+                        setBroadcastMessage('');
+                        setBroadcastResult(null);
+                      }}
+                      disabled={broadcastSending}
+                    >
+                      Limpar
+                    </button>
+
+                    <button
+                      className="primary"
+                      onClick={handleBroadcastWhatsapp}
+                      disabled={broadcastSending}
+                    >
+                      {broadcastSending ? 'Enviando...' : 'Enviar para todos'}
+                    </button>
+                  </div>
+
+                  {broadcastResult && (
+                    <div style={{ marginTop: 10 }} className="muted">
+                      Resultado: enviados {broadcastResult.sent}/{broadcastResult.total} • falhas:{' '}
+                      {broadcastResult.failed}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
 
             <div className="grid grid-2 admin-user-form">
               <div>
