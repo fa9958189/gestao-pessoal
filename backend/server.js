@@ -640,37 +640,83 @@ app.post("/admin/broadcast-whatsapp", async (req, res) => {
     const { message, audience = "active" } = req.body || {};
 
     if (!message || String(message).trim().length < 2) {
-      return res
-        .status(400)
-        .json({ error: "Mensagem obrigatória (mínimo 2 caracteres)." });
+      return res.status(400).json({
+        ok: false,
+        error: "Mensagem obrigatória (mínimo 2 caracteres).",
+        details: null,
+      });
     }
 
     const cleanMessage = String(message).trim();
 
-    let query = supabase
-      .from("profiles_auth")
-      .select(
-        "auth_id, name, username, whatsapp, role, billing_status, trial_status, trial_end_at",
-      )
-      .neq("role", "admin")
-      .not("whatsapp", "is", null);
+    const isMissingColumnError = (error) =>
+      error?.code === "42703" ||
+      String(error?.message || "")
+        .toLowerCase()
+        .includes("column") &&
+        String(error?.message || "").toLowerCase().includes("does not exist");
 
-    if (audience === "active") {
-      query = query.eq("billing_status", "active");
-    } else if (audience === "trial") {
-      query = query.eq("trial_status", "trial");
+    const buildQuery = (columns) => {
+      let query = supabase
+        .from("profiles_auth")
+        .select(columns)
+        .not("whatsapp", "is", null);
+
+      if (columns.includes("role")) {
+        query = query.neq("role", "admin");
+      }
+
+      if (audience === "active" && columns.includes("billing_status")) {
+        query = query.eq("billing_status", "active");
+      } else if (audience === "trial" && columns.includes("trial_status")) {
+        query = query.eq("trial_status", "trial");
+      }
+
+      return query;
+    };
+
+    const queryAttempts = [
+      "auth_id, whatsapp, role, billing_status, trial_status, trial_end_at",
+      "auth_id, whatsapp, role",
+      "auth_id, whatsapp",
+    ];
+
+    let data = null;
+    let lastError = null;
+
+    for (const columns of queryAttempts) {
+      const { data: rows, error } = await buildQuery(columns);
+      if (!error) {
+        data = rows || [];
+        lastError = null;
+        break;
+      }
+
+      lastError = error;
+      if (!isMissingColumnError(error)) {
+        break;
+      }
     }
 
-    const { data, error } = await query;
-    if (error) {
-      console.error("Erro ao listar usuários para broadcast:", error);
-      return res.status(400).json({ error: error.message });
+    if (lastError) {
+      console.error("Erro ao listar usuários para broadcast:", lastError);
+      return res.status(400).json({
+        ok: false,
+        error: lastError.message,
+        details: lastError,
+      });
     }
 
     const users = data || [];
 
     if (users.length === 0) {
-      return res.json({ ok: true, total: 0, sent: 0, failed: 0, failures: [] });
+      return res.json({
+        ok: true,
+        totalTargets: 0,
+        sent: 0,
+        failed: 0,
+        failures: [],
+      });
     }
 
     let sent = 0;
@@ -698,14 +744,18 @@ app.post("/admin/broadcast-whatsapp", async (req, res) => {
 
     return res.json({
       ok: true,
-      total: users.length,
+      totalTargets: users.length,
       sent,
       failed,
       failures,
     });
   } catch (err) {
     console.error("Erro no broadcast:", err);
-    return res.status(500).json({ error: "Erro interno no servidor" });
+    return res.status(500).json({
+      ok: false,
+      error: "Erro interno no servidor",
+      details: err?.message || String(err),
+    });
   }
 });
 
