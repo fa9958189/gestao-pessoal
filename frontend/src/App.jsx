@@ -1788,11 +1788,16 @@ function App() {
     }
 
     const today = new Date().toISOString().slice(0, 10);
+    const nowIso = new Date().toISOString();
     const targetId = user.id || user.auth_id;
     const payload = {};
 
     if (action === 'activate') {
+      payload.billing_status = 'active';
       payload.subscription_status = 'active';
+      payload.last_payment_at = nowIso;
+      payload.trial_status = 'expired';
+      payload.trial_end_at = nowIso;
     } else if (action === 'inactivate') {
       payload.subscription_status = 'inactive';
     } else if (action === 'markPaid') {
