@@ -131,6 +131,11 @@ const getTrialEnd = (user) => {
   return end;
 };
 
+const isTrialActive = (user) => {
+  const trialEnd = getTrialEnd(user);
+  return Boolean(trialEnd && Date.now() < trialEnd.getTime());
+};
+
 const getDaysLeft = (endDate) => {
   if (!endDate) return null;
   const diffMs = endDate.getTime() - Date.now();
@@ -166,6 +171,7 @@ const getCurrentCycleStart = (today = new Date()) => {
 
 const isUserPaidForCurrentCycle = (user, today = new Date()) => {
   if (!user) return false;
+  if (isTrialActive(user)) return true;
   const lastPayment = user.last_payment_at || user.last_paid_at || user.billing_last_paid_at;
   if (!lastPayment) return false;
   const parsed = new Date(lastPayment);
@@ -175,6 +181,7 @@ const isUserPaidForCurrentCycle = (user, today = new Date()) => {
 
 const computeEffectiveSubscriptionStatus = (user, today = new Date()) => {
   if (!user) return 'active';
+  if (isTrialActive(user)) return 'active';
 
   if (user.subscription_status === 'inactive') return 'inactive';
   if (!isUserPaidForCurrentCycle(user, today)) return 'pending';
@@ -1100,7 +1107,7 @@ function App() {
       try {
         const { data: profileRow } = await client
           .from('profiles_auth')
-          .select('id, auth_id, name, username, whatsapp, role, email, subscription_status, due_day, last_payment_at, last_paid_at')
+          .select('id, auth_id, name, username, whatsapp, role, email, subscription_status, due_day, last_payment_at, last_paid_at, trial_status, trial_start_at, trial_end_at')
           .eq('auth_id', session.user.id)
           .single();
 
