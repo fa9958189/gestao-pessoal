@@ -374,25 +374,9 @@ const authenticateRequest = async (req, res, { requireAdmin = false } = {}) => {
 };
 
 const fetchProfileWithBilling = async (userId) => {
-  const { data: profileData, error: profileError } = await supabase
-    .from("profiles")
-    .select(
-      "id, name, role, username, whatsapp, billing_status, billing_due_day, billing_next_due, billing_last_paid_at"
-    )
-    .eq("id", userId)
-    .maybeSingle();
-
-  if (profileError && profileError.code !== "PGRST116" && profileError.code !== "42P01") {
-    throw profileError;
-  }
-
-  if (profileData) return profileData;
-
   const { data: profileAuth, error: profileAuthError } = await supabase
     .from("profiles_auth")
-    .select(
-      "id, auth_id, name, role, username, whatsapp, billing_status, billing_due_day, billing_next_due, billing_last_paid_at, email"
-    )
+    .select("*")
     .or(`auth_id.eq.${userId},id.eq.${userId}`)
     .maybeSingle();
 
@@ -400,7 +384,19 @@ const fetchProfileWithBilling = async (userId) => {
     throw profileAuthError;
   }
 
-  return profileAuth || null;
+  if (profileAuth) return profileAuth;
+
+  const { data: profileData, error: profileError } = await supabase
+    .from("profiles")
+    .select("*")
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (profileError && profileError.code !== "PGRST116" && profileError.code !== "42P01") {
+    throw profileError;
+  }
+
+  return profileData || null;
 };
 
 app.get("/auth/profile", async (req, res) => {
@@ -414,11 +410,29 @@ app.get("/auth/profile", async (req, res) => {
       return res.status(404).json({ error: "Perfil não encontrado" });
     }
 
-    if (profile.billing_status === "inactive") {
+    const billingStatus = profile?.billing_status ?? null;
+    const subscriptionStatus = profile?.subscription_status ?? null;
+    const trialEnd = profile?.trial_end_at || profile?.trialEndAt;
+    const trialActive = Boolean(trialEnd) && Date.now() < new Date(trialEnd).getTime();
+
+    if (billingStatus === "inactive" && !trialActive) {
       return res.status(403).json({ error: "Conta inativa" });
     }
 
-    return res.json({ profile });
+    if ((billingStatus === null || billingStatus === "pending") && !trialActive) {
+      if (subscriptionStatus !== "active") {
+        return res.status(403).json({ error: "Conta inativa" });
+      }
+    }
+
+    const extraTrialFields = {};
+    if (profile?.trial_end_at !== undefined) extraTrialFields.trial_end_at = profile.trial_end_at;
+    if (profile?.trial_start_at !== undefined) {
+      extraTrialFields.trial_start_at = profile.trial_start_at;
+    }
+    if (profile?.trial_status !== undefined) extraTrialFields.trial_status = profile.trial_status;
+
+    return res.json({ profile, ...extraTrialFields });
   } catch (err) {
     console.error("Erro inesperado em GET /auth/profile:", err);
     return res.status(500).json({ error: "Erro interno no servidor" });
@@ -582,42 +596,67 @@ app.patch("/admin/users/:authId/billing", async (req, res) => {
       return res.status(400).json({ error: "authId é obrigatório" });
     }
 
-    const { billing_status, billing_last_paid_at, billing_next_due } = req.body || {};
+    const {
+      billing_status,
+      billing_last_paid_at,
+      billing_next_due,
+      trial_end_at,
+      trial_start_at,
+      trial_status,
+    } = req.body || {};
     const allowedStatus = ["active", "pending", "inactive"];
     const updates = {};
+    const authUpdates = {};
 
     if (billing_status !== undefined) {
       if (!allowedStatus.includes(billing_status)) {
         return res.status(400).json({ error: "billing_status inválido" });
       }
       updates.billing_status = billing_status;
+      authUpdates.billing_status = billing_status;
     }
 
     if (billing_last_paid_at !== undefined) {
       updates.billing_last_paid_at = billing_last_paid_at || null;
+      authUpdates.billing_last_paid_at = billing_last_paid_at || null;
     }
 
     if (billing_next_due !== undefined) {
       updates.billing_next_due = billing_next_due || null;
+      authUpdates.billing_next_due = billing_next_due || null;
     }
 
-    if (!Object.keys(updates).length) {
+    if (trial_end_at !== undefined) {
+      authUpdates.trial_end_at = trial_end_at || null;
+    }
+
+    if (trial_start_at !== undefined) {
+      authUpdates.trial_start_at = trial_start_at || null;
+    }
+
+    if (trial_status !== undefined) {
+      authUpdates.trial_status = trial_status || null;
+    }
+
+    if (!Object.keys(authUpdates).length) {
       return res.status(400).json({ error: "Nenhuma atualização enviada" });
     }
 
-    const { error: profileErr } = await supabase
-      .from("profiles")
-      .update(updates)
-      .eq("id", authId);
+    if (Object.keys(updates).length) {
+      const { error: profileErr } = await supabase
+        .from("profiles")
+        .update(updates)
+        .eq("id", authId);
 
-    if (profileErr && profileErr.code !== "PGRST116" && profileErr.code !== "42P01") {
-      console.error("Erro ao atualizar billing em profiles:", profileErr);
-      return res.status(400).json({ error: profileErr.message });
+      if (profileErr && profileErr.code !== "PGRST116" && profileErr.code !== "42P01") {
+        console.error("Erro ao atualizar billing em profiles:", profileErr);
+        return res.status(400).json({ error: profileErr.message });
+      }
     }
 
     const { error: authErr } = await supabase
       .from("profiles_auth")
-      .update(updates)
+      .update(authUpdates)
       .or(`auth_id.eq.${authId},id.eq.${authId}`);
 
     if (authErr && authErr.code !== "42P01") {
