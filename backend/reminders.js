@@ -420,14 +420,30 @@ let eventReminderIntervalId = null;
 export function startEventReminderWorker() {
   if (eventReminderIntervalId) return eventReminderIntervalId;
 
+  let isRunning = false;
+
   console.log("🟢 Worker de lembretes de agenda iniciado");
 
-  checkEventReminders().catch((err) =>
+  const runCheck = async () => {
+    if (isRunning) {
+      return;
+    }
+
+    isRunning = true;
+
+    try {
+      await checkEventReminders();
+    } finally {
+      isRunning = false;
+    }
+  };
+
+  runCheck().catch((err) =>
     console.error("❌ Erro inicial no worker de eventos:", err)
   );
 
   eventReminderIntervalId = setInterval(() => {
-    checkEventReminders().catch((err) =>
+    runCheck().catch((err) =>
       console.error("❌ Erro no ciclo do worker de eventos:", err)
     );
   }, REMINDER_INTERVAL_MINUTES * 60 * 1000);
@@ -919,14 +935,30 @@ export function startDailyRemindersWorker() {
     return dailyRemindersWorkerIntervalId;
   }
 
+  let isRunning = false;
+
   console.log("🟢 Worker de agenda diária iniciado");
 
-  checkDailyRemindersOnce().catch((err) =>
+  const runCheck = async () => {
+    if (isRunning) {
+      return;
+    }
+
+    isRunning = true;
+
+    try {
+      await checkDailyRemindersOnce();
+    } finally {
+      isRunning = false;
+    }
+  };
+
+  runCheck().catch((err) =>
     console.error("❌ Erro inicial no worker de agenda diária:", err)
   );
 
   dailyRemindersWorkerIntervalId = setInterval(() => {
-    checkDailyRemindersOnce().catch((err) =>
+    runCheck().catch((err) =>
       console.error("❌ Erro no ciclo da agenda diária:", err)
     );
   }, 30_000);
@@ -1254,15 +1286,31 @@ export function startWorkoutReminderWorker() {
     return workoutWorkerIntervalId;
   }
 
+  let isRunning = false;
+
   console.log("🟢 Worker de lembretes iniciado");
   logSupabaseInfo();
 
-  checkWorkoutRemindersOnce().catch((e) =>
+  const runCheck = async () => {
+    if (isRunning) {
+      return;
+    }
+
+    isRunning = true;
+
+    try {
+      await checkWorkoutRemindersOnce();
+    } finally {
+      isRunning = false;
+    }
+  };
+
+  runCheck().catch((e) =>
     console.error("❌ Erro no worker (boot):", e)
   );
 
   workoutWorkerIntervalId = setInterval(() => {
-    checkWorkoutRemindersOnce().catch((e) =>
+    runCheck().catch((e) =>
       console.error("❌ Erro no worker:", e)
     );
   }, 30_000);
