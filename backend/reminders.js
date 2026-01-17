@@ -67,6 +67,16 @@ const REMINDER_PROVIDER = "z-api";
 const REMINDER_INTERVAL_MINUTES =
   Number(process.env.REMINDER_INTERVAL_MINUTES) || 15;
 const ALERT_INTERVAL_MINUTES = Number(process.env.ALERT_INTERVAL_MINUTES) || 60;
+const WORKOUT_INTERVAL_SECONDS =
+  Number(process.env.WORKOUT_INTERVAL_SECONDS) || 30; // PERF: intervalo configurável
+const DAILY_INTERVAL_SECONDS =
+  Number(process.env.DAILY_INTERVAL_SECONDS) || 300; // PERF: intervalo configurável
+const DEBUG_WORKERS = process.env.DEBUG_WORKERS === "true";
+const debugLog = (...args) => {
+  if (DEBUG_WORKERS) {
+    console.log(...args);
+  }
+};
 
 function getNowInSaoPaulo() {
   return new Date(new Date().toLocaleString("en-US", { timeZone: TZ }));
@@ -259,8 +269,16 @@ export async function checkEventReminders() {
   try {
     const now = getNowInSaoPaulo();
     const todayStr = formatDateOnlyInSaoPaulo(now);
+    const hhmm = formatHHMM(now);
+    const minuteKey = `${todayStr}-${hhmm}`;
 
-    console.log(`🕒 Verificando eventos do dia ${todayStr}`);
+    if (lastEventMinuteKey === minuteKey) {
+      return;
+    }
+
+    lastEventMinuteKey = minuteKey; // PERF: processa 1x por minuto
+
+    debugLog(`🕒 Verificando eventos do dia ${todayStr}`);
 
     const twoDaysAhead = new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000);
     const twoDaysAheadStr = formatDateOnlyInSaoPaulo(twoDaysAhead);
@@ -336,7 +354,7 @@ export async function checkEventReminders() {
     for (const event of events) {
       if (!event.user_id || !event.start) continue;
 
-      console.log(`📌 Evento encontrado: ${event.title} às ${event.start}`);
+      debugLog(`📌 Evento encontrado: ${event.title} às ${event.start}`);
 
       const eventDate = toSaoPauloDate(event.date, event.start);
       if (!eventDate) continue;
@@ -352,7 +370,7 @@ export async function checkEventReminders() {
       try {
         const alreadySent = await hasEventReminderBeenSent(event.id);
         if (alreadySent) {
-          console.log("⏭️ Evento já notificado, ignorando");
+          debugLog("⏭️ Evento já notificado, ignorando");
           continue;
         }
 
@@ -416,6 +434,7 @@ export async function checkEventReminders() {
 }
 
 let eventReminderIntervalId = null;
+let lastEventMinuteKey = null; // PERF: evita duplicidade por minuto
 
 export function startEventReminderWorker() {
   if (eventReminderIntervalId) return eventReminderIntervalId;
@@ -867,6 +886,13 @@ export async function checkDailyRemindersOnce() {
   const now = getNowInSaoPaulo();
   const hhmm = formatHHMM(now);
   const todayStr = formatDateOnlyInSaoPaulo(now);
+  const minuteKey = `${todayStr}-${hhmm}`;
+
+  if (lastDailyRemindersMinuteKey === minuteKey) {
+    return;
+  }
+
+  lastDailyRemindersMinuteKey = minuteKey; // PERF: processa 1x por minuto
 
   let reminders = [];
 
@@ -929,6 +955,7 @@ export async function checkDailyRemindersOnce() {
 }
 
 let dailyRemindersWorkerIntervalId = null;
+let lastDailyRemindersMinuteKey = null; // PERF: evita duplicidade por minuto
 
 export function startDailyRemindersWorker() {
   if (dailyRemindersWorkerIntervalId) {
@@ -961,7 +988,7 @@ export function startDailyRemindersWorker() {
     runCheck().catch((err) =>
       console.error("❌ Erro no ciclo da agenda diária:", err)
     );
-  }, 30_000);
+  }, DAILY_INTERVAL_SECONDS * 1000);
 
   return dailyRemindersWorkerIntervalId;
 }
@@ -1006,13 +1033,21 @@ export async function checkDailyWorkoutScheduleRemindersOnce() {
     const now = getNowInSaoPaulo();
     const hours = now.getHours();
     const minutes = now.getMinutes();
+    const hhmm = formatHHMM(now);
+    const todayStr = formatDateOnlyInSaoPaulo(now);
+    const minuteKey = `${todayStr}-${hhmm}`;
 
     if (hours !== 5 || minutes > 1) {
       return;
     }
 
+    if (lastDailyWorkoutMinuteKey === minuteKey) {
+      return;
+    }
+
+    lastDailyWorkoutMinuteKey = minuteKey; // PERF: processa 1x por minuto
+
     const weekday = getWeekdaySP(now);
-    const todayStr = formatDateOnlyInSaoPaulo(now);
 
     const { data: schedules, error } = await supabase
       .from("workout_schedule")
@@ -1090,23 +1125,40 @@ export async function checkDailyWorkoutScheduleRemindersOnce() {
 }
 
 let dailyWorkoutScheduleIntervalId = null;
+let lastDailyWorkoutMinuteKey = null; // PERF: evita duplicidade por minuto
 
 export function startDailyWorkoutScheduleWorker() {
   if (dailyWorkoutScheduleIntervalId) {
     return dailyWorkoutScheduleIntervalId;
   }
 
+  let isRunning = false;
+
   console.log("🟢 Worker de treino diário iniciado");
 
-  checkDailyWorkoutScheduleRemindersOnce().catch((err) =>
+  const runCheck = async () => {
+    if (isRunning) {
+      return;
+    }
+
+    isRunning = true;
+
+    try {
+      await checkDailyWorkoutScheduleRemindersOnce();
+    } finally {
+      isRunning = false;
+    }
+  };
+
+  runCheck().catch((err) =>
     console.error("❌ Erro inicial no worker diário:", err)
   );
 
   dailyWorkoutScheduleIntervalId = setInterval(() => {
-    checkDailyWorkoutScheduleRemindersOnce().catch((err) =>
+    runCheck().catch((err) =>
       console.error("❌ Erro no ciclo do worker diário:", err)
     );
-  }, 30_000);
+  }, DAILY_INTERVAL_SECONDS * 1000);
 
   return dailyWorkoutScheduleIntervalId;
 }
@@ -1123,21 +1175,23 @@ function isSchemaCacheError(error) {
   );
 }
 
-async function loadRemindersFromSupabase(todayStr) {
+async function loadRemindersFromSupabase(todayStr, hhmm) {
   const { data, error } = await supabase
     .from(WORKOUT_SCHEDULE_TABLE)
     .select("id, user_id, start, title, notes")
-    .eq("date", todayStr);
+    .eq("date", todayStr)
+    .eq("start", hhmm); // PERF: filtra no banco por data/hora
 
   if (error) throw error;
   return data || [];
 }
 
-async function loadRemindersViaRest(todayStr) {
+async function loadRemindersViaRest(todayStr, hhmm) {
   const baseUrl = SUPABASE_URL?.replace(/\/$/, "");
   const url = `${baseUrl}/rest/v1/${WORKOUT_SCHEDULE_TABLE}` +
     `?select=id,user_id,start,title,notes` +
-    `&date=eq.${todayStr}`;
+    `&date=eq.${todayStr}` +
+    `&start=eq.${encodeURIComponent(hhmm)}`; // PERF: filtra no REST por data/hora
 
   const headers = {
     apikey: SUPABASE_SERVICE_ROLE_KEY,
@@ -1160,9 +1214,9 @@ async function loadRemindersViaRest(todayStr) {
   }
 }
 
-async function loadRemindersForNow(todayStr) {
+async function loadRemindersForNow(todayStr, hhmm) {
   try {
-    return await loadRemindersFromSupabase(todayStr);
+    return await loadRemindersFromSupabase(todayStr, hhmm);
   } catch (error) {
     console.error("❌ Erro Supabase ao buscar cronograma:", error);
 
@@ -1174,7 +1228,7 @@ async function loadRemindersForNow(todayStr) {
       "⚠️ Erro PGST205/schema cache detectado. Tentando fallback REST..."
     );
 
-    return await loadRemindersViaRest(todayStr);
+    return await loadRemindersViaRest(todayStr, hhmm);
   }
 }
 
@@ -1217,14 +1271,21 @@ export async function checkWorkoutRemindersOnce() {
   const now = getNowInSaoPaulo();
   const hhmm = formatHHMM(now);
   const todayStr = formatDateOnlyInSaoPaulo(now);
+  const minuteKey = `${todayStr}-${hhmm}`;
 
-  console.log(`⏱ Checando lembretes... data=${todayStr} hora=${hhmm}`);
+  if (lastWorkoutMinuteKey === minuteKey) {
+    return;
+  }
+
+  lastWorkoutMinuteKey = minuteKey; // PERF: processa 1x por minuto
+
+  debugLog(`⏱ Checando lembretes... data=${todayStr} hora=${hhmm}`);
 
   let reminders = [];
 
   try {
-    reminders = await loadRemindersForNow(todayStr);
-    console.log(`📋 Eventos encontrados hoje: ${reminders.length}`);
+    reminders = await loadRemindersForNow(todayStr, hhmm);
+    debugLog(`📋 Eventos encontrados hoje: ${reminders.length}`);
   } catch (error) {
     console.error("❌ Falha na busca da agenda de treino:", error);
     console.error(
@@ -1239,7 +1300,7 @@ export async function checkWorkoutRemindersOnce() {
 
     const key = makeKey(reminder.user_id, todayStr, hhmm);
     if (sentInMinute.has(key)) {
-      console.log("⏭️ Ignorando duplicado (anti-spam):", key);
+      debugLog("⏭️ Ignorando duplicado (anti-spam):", key);
       continue;
     }
 
@@ -1280,6 +1341,7 @@ export async function checkWorkoutRemindersOnce() {
 }
 
 let workoutWorkerIntervalId = null;
+let lastWorkoutMinuteKey = null; // PERF: evita duplicidade por minuto
 
 export function startWorkoutReminderWorker() {
   if (workoutWorkerIntervalId) {
@@ -1313,7 +1375,7 @@ export function startWorkoutReminderWorker() {
     runCheck().catch((e) =>
       console.error("❌ Erro no worker:", e)
     );
-  }, 30_000);
+  }, WORKOUT_INTERVAL_SECONDS * 1000);
 
   return workoutWorkerIntervalId;
 }

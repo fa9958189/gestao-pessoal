@@ -5,6 +5,8 @@ import { sendWhatsAppMessage } from "../reminders.js";
 const TZ = "America/Sao_Paulo";
 const CRON_EXPRESSION = "0 23 * * *";
 const ALERT_TYPE = "daily_goals_23h";
+const GOALS_INTERVAL_MINUTES =
+  Number(process.env.GOALS_INTERVAL_MINUTES) || 15; // PERF: intervalo configurável
 
 const DEFAULT_CALORIE_GOAL = 2000;
 const DEFAULT_PROTEIN_GOAL = 120;
@@ -327,13 +329,30 @@ const runDailyGoalsReminder = async () => {
 };
 
 export const startDailyGoalsReminder = () => {
+  let isRunning = false;
+  let lastRunAt = 0;
+
   cron.schedule(
     CRON_EXPRESSION,
     async () => {
+      const now = Date.now();
+      if (isRunning) {
+        return;
+      }
+
+      if (now - lastRunAt < GOALS_INTERVAL_MINUTES * 60 * 1000) {
+        return;
+      }
+
+      isRunning = true;
+      lastRunAt = now; // PERF: evita reentrância por intervalo mínimo
+
       try {
         await runDailyGoalsReminder();
       } catch (err) {
         console.error("❌ Erro no scheduler de metas diárias:", err.message || err);
+      } finally {
+        isRunning = false;
       }
     },
     { timezone: TZ }
