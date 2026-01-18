@@ -329,6 +329,37 @@ export const listWorkoutSessions = async (userId, { from, to }) => {
     .sort((a, b) => (a.date < b.date ? 1 : -1));
 };
 
+export const deleteWorkoutSession = async (id, userId) => {
+  if (!id || !userId) return false;
+
+  if (supabaseAvailable) {
+    try {
+      const { data, error } = await supabase
+        .from("workout_sessions")
+        .delete()
+        .eq("id", id)
+        .eq("user_id", userId)
+        .select("id");
+
+      if (error) throw error;
+      return Array.isArray(data) && data.length > 0;
+    } catch (err) {
+      console.warn("Supabase falhou ao excluir sessão, fallback JSON:", err);
+    }
+  }
+
+  const db = await readData();
+  const before = (db.sessions || []).length;
+
+  db.sessions = (db.sessions || []).filter(
+    (session) => !(session.id === id && session.userId === userId)
+  );
+
+  await writeData(db);
+
+  return (db.sessions || []).length !== before;
+};
+
 export const summarizeProgress = async (userId, period) => {
   const now = new Date();
   let fromDate;

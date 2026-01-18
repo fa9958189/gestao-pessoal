@@ -1265,6 +1265,37 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
     }
   };
 
+  const handleDeleteSession = async (sessionId) => {
+    if (!userId) {
+      notify('Perfil do usuário não carregado.', 'warning');
+      return;
+    }
+
+    const ok = window.confirm('Excluir esse registro do histórico? Isso não pode ser desfeito.');
+    if (!ok) return;
+
+    try {
+      setLoading(true);
+      const response = await fetch(
+        `${apiBaseUrl}/api/workouts/sessions/${sessionId}?userId=${userId}`,
+        { method: 'DELETE' }
+      );
+
+      if (!response.ok && response.status !== 204) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data?.error || 'Não foi possível excluir o registro.');
+      }
+
+      setSessions((prev) => prev.filter((session) => session.id !== sessionId));
+      notify('Registro excluído com sucesso.');
+    } catch (err) {
+      console.error('Erro ao excluir registro', err);
+      notify(err.message || 'Erro ao excluir registro.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleScheduleChange = (day, field, value) => {
     setSchedule((prev) =>
       prev.map((slot) => (slot.day === day ? { ...slot, [field]: value } : slot))
@@ -1654,11 +1685,27 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
                 {sessions.map((session) => (
                   <details key={session.id} className="table-row" open>
                     <summary style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 4 }}>
-                      <div className="row" style={{ justifyContent: 'space-between' }}>
+                      <div
+                        className="row"
+                        style={{ justifyContent: 'space-between', gap: 8, alignItems: 'center' }}
+                      >
                         <div style={{ fontWeight: 600 }}>{session.name}</div>
-                        <span className="muted" style={{ fontSize: 13 }}>
-                          {formatSessionDate(session.date || session.performed_at)}
-                        </span>
+                        <div className="row" style={{ gap: 10, alignItems: 'center' }}>
+                          <span className="muted" style={{ fontSize: 13 }}>
+                            {formatSessionDate(session.date || session.performed_at)}
+                          </span>
+                          <button
+                            type="button"
+                            className="ghost small btn-danger-outline"
+                            onClick={(event) => {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              handleDeleteSession(session.id);
+                            }}
+                          >
+                            Excluir
+                          </button>
+                        </div>
                       </div>
                       <div className="muted" style={{ fontSize: 13 }}>
                         {(session.muscleGroups || []).map((g) => muscleMap[g]?.label || g).join(', ')}
