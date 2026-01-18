@@ -19,6 +19,7 @@ import { startDailyGoalsReminder } from "./jobs/dailyGoalsReminder.js";
 import { analyzeFoodImage } from "./ai/foodScanner.js";
 import {
   createWorkoutSession,
+  deleteWorkoutSession,
   listWorkoutSessions,
   listWorkoutTemplates,
   saveWorkoutReminder,
@@ -1852,6 +1853,27 @@ app.get("/api/workouts/sessions", async (req, res) => {
   } catch (err) {
     console.error("Erro ao listar sessões", err);
     return res.status(500).json({ error: "Erro interno ao listar sessões" });
+  }
+});
+
+app.delete("/api/workouts/sessions/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = getUserIdFromRequest(req) || req.query.userId;
+
+    if (!id) return res.status(400).json({ error: "id é obrigatório" });
+    if (!userId) return res.status(400).json({ error: "userId é obrigatório" });
+
+    const ok = await deleteWorkoutSession(id, userId);
+
+    if (!ok) {
+      return res.status(404).json({ error: "Registro não encontrado" });
+    }
+
+    return res.status(204).send();
+  } catch (err) {
+    console.error("Erro ao excluir sessão", err);
+    return res.status(500).json({ error: "Erro interno ao excluir sessão" });
   }
 });
 
