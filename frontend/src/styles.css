@@ -331,6 +331,151 @@ th{ color:var(--muted); font-size:12px; font-weight:600; }
 .kpi small{ color:var(--muted); display:block; }
 .kpi strong{ font-size:22px; display:block; margin-top:4px; }
 
+/* Relatórios - Transações */
+.reports-header{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:16px;
+  margin-bottom:16px;
+}
+.reports-filters{
+  display:grid;
+  grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));
+  gap:12px;
+  align-items:end;
+  background:var(--card-2);
+  border:1px solid #20273b;
+  padding:12px;
+  border-radius:12px;
+  margin-bottom:16px;
+}
+.reports-filters-meta{
+  font-size:13px;
+}
+.kpi-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit, minmax(210px, 1fr));
+  gap:12px;
+  margin-bottom:16px;
+}
+.kpi-card{
+  background:linear-gradient(135deg, rgba(96,165,250,0.12), rgba(15,23,42,0.65));
+  border:1px solid rgba(148,163,184,0.2);
+  padding:14px;
+  border-radius:14px;
+  min-height:110px;
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+}
+.kpi-card small{ color:var(--muted); }
+.kpi-card strong{ font-size:22px; }
+.kpi-card span{ font-size:12px; }
+.trend-up{ color:#f97316; }
+.trend-down{ color:#4ade80; }
+
+.report-chart-card{ margin-bottom:18px; }
+.report-chart-header{
+  display:flex;
+  justify-content:space-between;
+  gap:12px;
+  flex-wrap:wrap;
+  margin-bottom:8px;
+}
+.report-chart-legend{
+  display:flex;
+  gap:12px;
+  flex-wrap:wrap;
+  align-items:center;
+}
+.legend-item{ font-size:12px; color:var(--muted); display:flex; align-items:center; gap:6px; }
+.legend-dot{
+  width:10px;
+  height:10px;
+  border-radius:50%;
+  display:inline-block;
+}
+.legend-dot.balance{ background:#60a5fa; }
+.legend-dot.income{ background:#4ade80; }
+.legend-dot.expense{ background:#f87171; }
+.report-chart svg{ width:100%; height:auto; display:block; }
+.report-chart-axis{
+  margin-top:8px;
+  display:flex;
+  justify-content:space-between;
+  font-size:12px;
+  color:var(--muted);
+}
+
+.category-bars{
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+}
+.category-bar-header{
+  display:flex;
+  justify-content:space-between;
+  gap:12px;
+  margin-bottom:6px;
+  font-size:13px;
+}
+.category-bar-track{
+  height:8px;
+  background:rgba(148,163,184,0.2);
+  border-radius:999px;
+  overflow:hidden;
+}
+.category-bar-fill{
+  height:100%;
+  background:linear-gradient(90deg, #f97316, #f87171);
+  border-radius:999px;
+}
+
+.report-modal-overlay{
+  position:fixed;
+  inset:0;
+  background:rgba(8,12,24,0.75);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:16px;
+  z-index:60;
+}
+.report-modal{
+  width:min(720px, 100%);
+  max-height:80vh;
+  overflow:auto;
+  background:var(--card);
+  border:1px solid #20273b;
+  border-radius:16px;
+  padding:16px;
+  box-shadow:0 20px 40px rgba(0,0,0,0.45);
+}
+.report-modal-header{
+  display:flex;
+  justify-content:space-between;
+  gap:12px;
+  flex-wrap:wrap;
+  margin-bottom:12px;
+}
+.report-modal-list{
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
+.report-modal-item{
+  display:flex;
+  justify-content:space-between;
+  gap:12px;
+  align-items:center;
+  padding:10px 12px;
+  background:var(--card-2);
+  border:1px solid #20273b;
+  border-radius:12px;
+}
+.report-modal-item span{ display:block; font-size:12px; }
+
 /* Gráficos */
 canvas{ background:transparent; }
 
@@ -380,6 +525,14 @@ canvas{ background:transparent; }
   }
   #tab-reports .row > .card{
     width:100%;
+  }
+  .reports-header{
+    flex-direction:column;
+    align-items:flex-start;
+  }
+  .report-modal-item{
+    align-items:flex-start;
+    flex-direction:column;
   }
 
   /* Ajuste da área de ações do admin no mobile */
