@@ -16,11 +16,30 @@ const formatNumber = (value, decimals = 0) => {
   });
 };
 
+const getProgressStatus = (value, goal) => {
+  if (!goal) {
+    return { percent: 0, color: '#4b5563', label: 'Sem meta' };
+  }
+  const percent = Math.round((value / goal) * 100);
+  if (percent >= 100) {
+    return { percent, color: '#50be78', label: 'Meta batida' };
+  }
+  if (percent >= 70) {
+    return { percent, color: '#f2c94c', label: 'Quase lá' };
+  }
+  return { percent, color: '#e74c3c', label: 'Abaixo da meta' };
+};
+
 function FoodDiaryReports({ userId, supabase, selectedDate, goals }) {
   const [loading, setLoading] = useState(true);
   const [entries, setEntries] = useState([]);
   const [weightHistory, setWeightHistory] = useState([]);
   const [error, setError] = useState(null);
+  const [animatedToday, setAnimatedToday] = useState({
+    calories: 0,
+    protein: 0,
+    water: 0,
+  });
 
   useEffect(() => {
     let isMounted = true;
@@ -111,6 +130,14 @@ function FoodDiaryReports({ userId, supabase, selectedDate, goals }) {
     });
   }, [daysRange, entries]);
 
+  const todayTotals = useMemo(() => {
+    return dailyTotals[dailyTotals.length - 1] || {
+      totalCalories: 0,
+      totalProtein: 0,
+      totalWater: 0,
+    };
+  }, [dailyTotals]);
+
   const last7DaysEntries = useMemo(() => {
     const validDates = new Set(daysRange);
     return (entries || []).filter((item) => {
@@ -122,27 +149,6 @@ function FoodDiaryReports({ userId, supabase, selectedDate, goals }) {
   const calorieGoal = Number(goals?.calories) || 0;
   const proteinGoal = Number(goals?.protein) || 0;
   const waterGoalLiters = Number(goals?.water) || 0;
-
-  const stats = useMemo(() => {
-    const totalCaloriesWeek = dailyTotals.reduce(
-      (sum, day) => sum + day.totalCalories,
-      0,
-    );
-    const totalProteinWeek = dailyTotals.reduce(
-      (sum, day) => sum + day.totalProtein,
-      0,
-    );
-    const totalWaterWeek = dailyTotals.reduce((sum, day) => sum + day.totalWater, 0);
-    const daysCount = Math.max(dailyTotals.length, 1);
-
-    return {
-      avgCalories: totalCaloriesWeek / daysCount,
-      avgProtein: totalProteinWeek / daysCount,
-      totalWaterWeek,
-      totalCaloriesWeek,
-      totalProteinWeek,
-    };
-  }, [dailyTotals]);
 
   const heatmapRange = useMemo(() => {
     const today = new Date(selectedDate || new Date());
@@ -196,7 +202,7 @@ function FoodDiaryReports({ userId, supabase, selectedDate, goals }) {
 
     return Object.entries(counts)
       .map(([food, info]) => ({ food, times: info.times, calories: info.calories }))
-      .sort((a, b) => b.calories - a.calories || b.times - a.times)
+      .sort((a, b) => b.times - a.times || b.calories - a.calories)
       .slice(0, 5);
   }, [last7DaysEntries]);
 
@@ -238,6 +244,35 @@ function FoodDiaryReports({ userId, supabase, selectedDate, goals }) {
     };
   }, [dailyTotals, calorieGoal, proteinGoal, waterGoalLiters]);
 
+  useEffect(() => {
+    const targets = {
+      calories: todayTotals.totalCalories,
+      protein: todayTotals.totalProtein,
+      water: todayTotals.totalWater / 1000,
+    };
+    let start = null;
+    let frame;
+    const duration = 900;
+
+    const animate = (timestamp) => {
+      if (!start) start = timestamp;
+      const progress = Math.min((timestamp - start) / duration, 1);
+      setAnimatedToday({
+        calories: targets.calories * progress,
+        protein: targets.protein * progress,
+        water: targets.water * progress,
+      });
+      if (progress < 1) {
+        frame = requestAnimationFrame(animate);
+      }
+    };
+
+    frame = requestAnimationFrame(animate);
+    return () => {
+      if (frame) cancelAnimationFrame(frame);
+    };
+  }, [todayTotals]);
+
   if (loading) {
     return <p>Carregando relatórios...</p>;
   }
@@ -250,9 +285,13 @@ function FoodDiaryReports({ userId, supabase, selectedDate, goals }) {
     ...dailyTotals.map((day) => day.totalCalories || 0),
     1,
   );
+  const maxProtein = Math.max(
+    ...dailyTotals.map((day) => day.totalProtein || 0),
+    1,
+  );
 
-  const maxRankingCalories = Math.max(
-    ...foodRanking.map((food) => food.calories || 0),
+  const maxRankingTimes = Math.max(
+    ...foodRanking.map((food) => food.times || 0),
     1,
   );
 
@@ -267,6 +306,34 @@ function FoodDiaryReports({ userId, supabase, selectedDate, goals }) {
     return acc;
   }, []);
 
+  const todayCaloriesStatus = getProgressStatus(todayTotals.totalCalories, calorieGoal);
+  const todayProteinStatus = getProgressStatus(todayTotals.totalProtein, proteinGoal);
+  const todayWaterStatus = getProgressStatus(todayTotals.totalWater / 1000, waterGoalLiters);
+
+  const consistency = dailyTotals.map((day) => ({
+    date: day.date,
+    hasEntry: day.totalCalories > 0 || day.totalProtein > 0 || day.totalWater > 0,
+  }));
+  const recordedDays = consistency.filter((day) => day.hasEntry).length;
+
+  const messageInfo = (() => {
+    if (proteinGoal && todayTotals.totalProtein < proteinGoal) {
+      const missing = Math.max(proteinGoal - todayTotals.totalProtein, 0);
+      return `Faltam ~${formatNumber(missing, 0)}g de proteína pra bater sua meta hoje 💪`;
+    }
+    if (calorieGoal && todayTotals.totalCalories < calorieGoal * 0.7) {
+      return 'Você está bem abaixo da meta. Que tal registrar sua próxima refeição?';
+    }
+    if (
+      calorieGoal &&
+      todayTotals.totalCalories >= calorieGoal &&
+      (!proteinGoal || todayTotals.totalProtein >= proteinGoal)
+    ) {
+      return 'Boa! Meta batida. Mantém a constância 👊';
+    }
+    return 'Continue registrando suas refeições para manter o ritmo 👊';
+  })();
+
   return (
     <div className="card" style={{ marginTop: 8 }}>
       <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
@@ -278,6 +345,7 @@ function FoodDiaryReports({ userId, supabase, selectedDate, goals }) {
 
       <div className="sep" style={{ margin: '12px 0 16px' }}></div>
 
+      <div style={{ fontWeight: 700, marginBottom: 10 }}>Resumo do dia</div>
       <div className="row" style={{ gap: 12, flexWrap: 'wrap' }}>
         <div
           style={{
@@ -289,15 +357,41 @@ function FoodDiaryReports({ userId, supabase, selectedDate, goals }) {
             minWidth: 220,
           }}
         >
-          <div className="muted" style={{ fontSize: 12 }}>Média de calorias (7 dias)</div>
-          <div style={{ fontSize: 20, fontWeight: 700 }}>
-            {formatNumber(stats.avgCalories, 0)} kcal
+          <div className="muted" style={{ fontSize: 12 }}>Calorias hoje</div>
+          <div style={{ fontSize: 24, fontWeight: 700 }}>
+            {formatNumber(animatedToday.calories, 0)} kcal
           </div>
           <div className="muted" style={{ fontSize: 12 }}>
             Meta diária: {calorieGoal ? `${formatNumber(calorieGoal, 0)} kcal` : '—'}
           </div>
-          <div style={{ fontSize: 12, marginTop: 4 }}>
-            Status: <strong>{getStatusFromGoal(stats.avgCalories, calorieGoal)}</strong>
+          <div style={{ fontSize: 12, marginTop: 8 }}>
+            <div className="row" style={{ justifyContent: 'space-between' }}>
+              <span>Status</span>
+              <strong style={{ color: todayCaloriesStatus.color }}>
+                {todayCaloriesStatus.label}
+              </strong>
+            </div>
+            <div
+              style={{
+                height: 8,
+                borderRadius: 10,
+                background: 'rgba(255,255,255,0.08)',
+                overflow: 'hidden',
+                marginTop: 6,
+              }}
+            >
+              <div
+                style={{
+                  width: `${Math.min(todayCaloriesStatus.percent, 100)}%`,
+                  height: '100%',
+                  background: todayCaloriesStatus.color,
+                  transition: 'width 0.6s ease',
+                }}
+              ></div>
+            </div>
+            <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>
+              {calorieGoal ? `${todayCaloriesStatus.percent}% da meta` : 'Meta não definida'}
+            </div>
           </div>
         </div>
 
@@ -311,15 +405,41 @@ function FoodDiaryReports({ userId, supabase, selectedDate, goals }) {
             minWidth: 220,
           }}
         >
-          <div className="muted" style={{ fontSize: 12 }}>Média de proteína (7 dias)</div>
-          <div style={{ fontSize: 20, fontWeight: 700 }}>
-            {formatNumber(stats.avgProtein, 0)} g
+          <div className="muted" style={{ fontSize: 12 }}>Proteína hoje</div>
+          <div style={{ fontSize: 24, fontWeight: 700 }}>
+            {formatNumber(animatedToday.protein, 0)} g
           </div>
           <div className="muted" style={{ fontSize: 12 }}>
             Meta diária: {proteinGoal ? `${formatNumber(proteinGoal, 0)} g` : '—'}
           </div>
-          <div style={{ fontSize: 12, marginTop: 4 }}>
-            Status: <strong>{getStatusFromGoal(stats.avgProtein, proteinGoal)}</strong>
+          <div style={{ fontSize: 12, marginTop: 8 }}>
+            <div className="row" style={{ justifyContent: 'space-between' }}>
+              <span>Status</span>
+              <strong style={{ color: todayProteinStatus.color }}>
+                {todayProteinStatus.label}
+              </strong>
+            </div>
+            <div
+              style={{
+                height: 8,
+                borderRadius: 10,
+                background: 'rgba(255,255,255,0.08)',
+                overflow: 'hidden',
+                marginTop: 6,
+              }}
+            >
+              <div
+                style={{
+                  width: `${Math.min(todayProteinStatus.percent, 100)}%`,
+                  height: '100%',
+                  background: todayProteinStatus.color,
+                  transition: 'width 0.6s ease',
+                }}
+              ></div>
+            </div>
+            <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>
+              {proteinGoal ? `${todayProteinStatus.percent}% da meta` : 'Meta não definida'}
+            </div>
           </div>
         </div>
 
@@ -333,48 +453,107 @@ function FoodDiaryReports({ userId, supabase, selectedDate, goals }) {
             minWidth: 220,
           }}
         >
-          <div className="muted" style={{ fontSize: 12 }}>Água consumida (7 dias)</div>
-          <div style={{ fontSize: 20, fontWeight: 700 }}>
-            {formatNumber(stats.totalWaterWeek / 1000, 1)} L
+          <div className="muted" style={{ fontSize: 12 }}>Água hoje</div>
+          <div style={{ fontSize: 24, fontWeight: 700 }}>
+            {formatNumber(animatedToday.water, 1)} L
           </div>
           <div className="muted" style={{ fontSize: 12 }}>
-            Meta para 7 dias:{' '}
-            {waterGoalLiters
-              ? `${formatNumber(waterGoalLiters * 7, 1)} L`
-              : '—'}
+            Meta diária: {waterGoalLiters ? `${formatNumber(waterGoalLiters, 1)} L` : '—'}
+          </div>
+          <div style={{ fontSize: 12, marginTop: 8 }}>
+            <div className="row" style={{ justifyContent: 'space-between' }}>
+              <span>Status</span>
+              <strong style={{ color: todayWaterStatus.color }}>
+                {todayWaterStatus.label}
+              </strong>
+            </div>
+            <div
+              style={{
+                height: 8,
+                borderRadius: 10,
+                background: 'rgba(255,255,255,0.08)',
+                overflow: 'hidden',
+                marginTop: 6,
+              }}
+            >
+              <div
+                style={{
+                  width: `${Math.min(todayWaterStatus.percent, 100)}%`,
+                  height: '100%',
+                  background: todayWaterStatus.color,
+                  transition: 'width 0.6s ease',
+                }}
+              ></div>
+            </div>
+            <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>
+              {waterGoalLiters ? `${todayWaterStatus.percent}% da meta` : 'Meta não definida'}
+            </div>
           </div>
         </div>
       </div>
 
       <div className="sep" style={{ margin: '16px 0 12px' }}></div>
 
-      <div style={{ marginBottom: 14 }}>
-        <div style={{ fontWeight: 600, marginBottom: 6 }}>Calorias por dia</div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {dailyTotals.map((day) => (
-            <div key={day.date}>
-              <div className="row" style={{ justifyContent: 'space-between', fontSize: 12 }}>
-                <span>{new Date(day.date).toLocaleDateString('pt-BR')}</span>
-                <span className="muted">{formatNumber(day.totalCalories, 0)} kcal</span>
-              </div>
-              <div
-                style={{
-                  height: 8,
-                  borderRadius: 10,
-                  background: 'rgba(255,255,255,0.08)',
-                  overflow: 'hidden',
-                }}
-              >
+      <div className="row" style={{ gap: 12, flexWrap: 'wrap', marginBottom: 14 }}>
+        <div style={{ flex: '1 1 280px', minWidth: 260 }}>
+          <div style={{ fontWeight: 600, marginBottom: 6 }}>Calorias por dia (7 dias)</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {dailyTotals.map((day) => (
+              <div key={day.date}>
+                <div className="row" style={{ justifyContent: 'space-between', fontSize: 12 }}>
+                  <span>{new Date(day.date).toLocaleDateString('pt-BR')}</span>
+                  <span className="muted">{formatNumber(day.totalCalories, 0)} kcal</span>
+                </div>
                 <div
                   style={{
-                    width: `${Math.min((day.totalCalories / maxCalories) * 100, 100)}%`,
-                    height: '100%',
-                    background: '#50be78',
+                    height: 8,
+                    borderRadius: 10,
+                    background: 'rgba(255,255,255,0.08)',
+                    overflow: 'hidden',
                   }}
-                ></div>
+                >
+                  <div
+                    style={{
+                      width: `${Math.min((day.totalCalories / maxCalories) * 100, 100)}%`,
+                      height: '100%',
+                      background: '#50be78',
+                      transition: 'width 0.6s ease',
+                    }}
+                  ></div>
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
+        </div>
+        <div style={{ flex: '1 1 280px', minWidth: 260 }}>
+          <div style={{ fontWeight: 600, marginBottom: 6 }}>Proteína por dia (7 dias)</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {dailyTotals.map((day) => (
+              <div key={`${day.date}-protein`}>
+                <div className="row" style={{ justifyContent: 'space-between', fontSize: 12 }}>
+                  <span>{new Date(day.date).toLocaleDateString('pt-BR')}</span>
+                  <span className="muted">{formatNumber(day.totalProtein, 0)} g</span>
+                </div>
+                <div
+                  style={{
+                    height: 8,
+                    borderRadius: 10,
+                    background: 'rgba(255,255,255,0.08)',
+                    overflow: 'hidden',
+                  }}
+                >
+                  <div
+                    style={{
+                      width: `${Math.min((day.totalProtein / maxProtein) * 100, 100)}%`,
+                      height: '100%',
+                      background: '#6ab0ff',
+                      transition: 'width 0.6s ease',
+                    }}
+                  ></div>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -389,27 +568,26 @@ function FoodDiaryReports({ userId, supabase, selectedDate, goals }) {
             minWidth: 260,
           }}
         >
-          <div style={{ fontWeight: 600, marginBottom: 6 }}>Aderência às metas (7 dias)</div>
-          {adherence.hasGoals ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <div className="row" style={{ justifyContent: 'space-between', fontSize: 13 }}>
-                <span className="muted">Dias com calorias dentro da meta</span>
-                <strong>{adherence.withinCalories} de {adherence.totalDays}</strong>
-              </div>
-              <div className="row" style={{ justifyContent: 'space-between', fontSize: 13 }}>
-                <span className="muted">Dias com proteína dentro da meta</span>
-                <strong>{adherence.withinProtein} de {adherence.totalDays}</strong>
-              </div>
-              <div className="row" style={{ justifyContent: 'space-between', fontSize: 13 }}>
-                <span className="muted">Dias com água dentro da meta</span>
-                <strong>{adherence.withinWater} de {adherence.totalDays}</strong>
-              </div>
-            </div>
-          ) : (
-            <div className="muted" style={{ fontSize: 13 }}>
-              Configure suas metas para acompanhar sua aderência.
-            </div>
-          )}
+          <div style={{ fontWeight: 600, marginBottom: 6 }}>Constância (7 dias)</div>
+          <div style={{ fontSize: 13, marginBottom: 8 }}>
+            <strong>{recordedDays}</strong>/{consistency.length} dias registrados
+          </div>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {consistency.map((day) => (
+              <div
+                key={`consistency-${day.date}`}
+                title={new Date(day.date).toLocaleDateString('pt-BR')}
+                style={{
+                  width: 18,
+                  height: 18,
+                  borderRadius: 9,
+                  background: day.hasEntry ? '#50be78' : 'rgba(255,255,255,0.08)',
+                  border: '1px solid rgba(255,255,255,0.12)',
+                  transition: 'transform 0.3s ease',
+                }}
+              ></div>
+            ))}
+          </div>
         </div>
 
         <div
@@ -423,20 +601,26 @@ function FoodDiaryReports({ userId, supabase, selectedDate, goals }) {
           }}
         >
           <div style={{ fontWeight: 600, marginBottom: 6 }}>Resumo da semana</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13 }}>
-            <div className="row" style={{ justifyContent: 'space-between' }}>
-              <span className="muted">Calorias médias (7 dias)</span>
-              <strong>{formatNumber(stats.avgCalories, 0)} kcal</strong>
+          {adherence.hasGoals ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13 }}>
+              <div className="row" style={{ justifyContent: 'space-between' }}>
+                <span className="muted">Dias com calorias dentro da meta</span>
+                <strong>{adherence.withinCalories} de {adherence.totalDays}</strong>
+              </div>
+              <div className="row" style={{ justifyContent: 'space-between' }}>
+                <span className="muted">Dias com proteína dentro da meta</span>
+                <strong>{adherence.withinProtein} de {adherence.totalDays}</strong>
+              </div>
+              <div className="row" style={{ justifyContent: 'space-between' }}>
+                <span className="muted">Dias com água dentro da meta</span>
+                <strong>{adherence.withinWater} de {adherence.totalDays}</strong>
+              </div>
             </div>
-            <div className="row" style={{ justifyContent: 'space-between' }}>
-              <span className="muted">Proteína média (7 dias)</span>
-              <strong>{formatNumber(stats.avgProtein, 0)} g</strong>
+          ) : (
+            <div className="muted" style={{ fontSize: 13 }}>
+              Configure suas metas para acompanhar sua aderência.
             </div>
-            <div className="row" style={{ justifyContent: 'space-between' }}>
-              <span className="muted">Água média (7 dias)</span>
-              <strong>{formatNumber(stats.totalWaterWeek / 7000, 1)} L</strong>
-            </div>
-          </div>
+          )}
         </div>
       </div>
 
@@ -465,12 +649,12 @@ function FoodDiaryReports({ userId, supabase, selectedDate, goals }) {
             {foodRanking.length > 0 ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {foodRanking.map((item) => {
-                  const barWidth = Math.min((item.calories / maxRankingCalories) * 100, 100);
+                  const barWidth = Math.min((item.times / maxRankingTimes) * 100, 100);
                   return (
                     <div key={item.food}>
                       <div className="row" style={{ justifyContent: 'space-between', fontSize: 13 }}>
                         <span>{item.food}</span>
-                        <span className="muted">{formatNumber(item.calories, 0)} kcal</span>
+                        <span className="muted">{item.times}x</span>
                       </div>
                       <div
                         style={{
@@ -493,7 +677,7 @@ function FoodDiaryReports({ userId, supabase, selectedDate, goals }) {
                             color: '#0c111c',
                           }}
                         >
-                          {item.times}x
+                          {formatNumber(item.calories, 0)} kcal
                         </div>
                       </div>
                     </div>
@@ -624,6 +808,20 @@ function FoodDiaryReports({ userId, supabase, selectedDate, goals }) {
             )}
           </div>
         </div>
+      </div>
+
+      <div className="sep" style={{ margin: '16px 0 12px' }}></div>
+
+      <div
+        style={{
+          background: 'rgba(80,190,120,0.08)',
+          border: '1px solid rgba(80,190,120,0.3)',
+          padding: 12,
+          borderRadius: 12,
+          fontSize: 14,
+        }}
+      >
+        {messageInfo}
       </div>
     </div>
   );
