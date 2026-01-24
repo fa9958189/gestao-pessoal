@@ -314,6 +314,162 @@ const writeCache = (userId, data) => {
   }
 };
 
+const AVATAR_CACHE_KEY = 'gp-avatar-state-v1';
+
+const readAvatarCache = (userId) => {
+  if (!userId) return null;
+  try {
+    const raw = window.localStorage.getItem(`${AVATAR_CACHE_KEY}:${userId}`);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed?.state || !parsed?.savedAt) return null;
+    return parsed;
+  } catch (error) {
+    return null;
+  }
+};
+
+const writeAvatarCache = (userId, state) => {
+  if (!userId || !state) return;
+  try {
+    window.localStorage.setItem(
+      `${AVATAR_CACHE_KEY}:${userId}`,
+      JSON.stringify({ state, savedAt: Date.now() }),
+    );
+  } catch (error) {
+    // noop
+  }
+};
+
+const getAvatarState = (score) => {
+  if (!Number.isFinite(score)) return 'em_progresso';
+  if (score < 40) return 'recuperacao';
+  if (score < 75) return 'em_progresso';
+  return 'em_forma';
+};
+
+const getNextAvatarState = (state) => {
+  if (state === 'recuperacao') return 'em_progresso';
+  if (state === 'em_progresso') return 'em_forma';
+  return 'em_forma';
+};
+
+const avatarMeta = {
+  recuperacao: {
+    label: 'Recuperação',
+    description: 'Pouca consistência. Ajuste alimentação e treinos pra subir rápido.',
+    body: '#fb7185',
+    accent: '#facc15',
+    mood: 'sad',
+  },
+  em_progresso: {
+    label: 'Em progresso',
+    description: 'Você está no caminho. Falta só constância e bater as metas.',
+    body: '#fbbf24',
+    accent: '#38bdf8',
+    mood: 'neutral',
+  },
+  em_forma: {
+    label: 'Em forma',
+    description: 'Top! Mantendo rotina e metas, seu resultado acelera.',
+    body: '#34d399',
+    accent: '#22c55e',
+    mood: 'happy',
+  },
+};
+
+const Avatar2D = ({ state = 'em_progresso', size = 160, className = '' }) => {
+  const meta = avatarMeta[state] || avatarMeta.em_progresso;
+  const headY = state === 'recuperacao' ? 36 : state === 'em_progresso' ? 30 : 26;
+  const torsoY = state === 'recuperacao' ? 72 : state === 'em_progresso' ? 64 : 58;
+  const torsoHeight = state === 'recuperacao' ? 56 : state === 'em_progresso' ? 62 : 68;
+  const torsoWidth = state === 'recuperacao' ? 44 : state === 'em_progresso' ? 50 : 56;
+  const armRaise = state === 'em_forma' ? 12 : state === 'em_progresso' ? 6 : 0;
+  const stance = state === 'recuperacao' ? 6 : state === 'em_progresso' ? 0 : -6;
+  const mouthPath = meta.mood === 'happy'
+    ? 'M68 44c5 6 19 6 24 0'
+    : meta.mood === 'sad'
+      ? 'M68 50c5 -6 19 -6 24 0'
+      : 'M70 46h20';
+
+  return (
+    <svg
+      width={size}
+      height={Math.round(size * 1.1)}
+      viewBox="0 0 160 176"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className={`gp-avatar-svg ${className}`.trim()}
+      role="img"
+      aria-label={`Avatar ${meta.label}`}
+    >
+      <rect x="24" y="10" width="112" height="156" rx="24" fill="#0f172a" opacity="0.5" />
+      <circle cx="80" cy={headY} r="20" fill="#f8fafc" stroke="#0f172a" strokeWidth="2" />
+      <circle cx="72" cy={headY - 4} r="3" fill="#0f172a" />
+      <circle cx="88" cy={headY - 4} r="3" fill="#0f172a" />
+      <path d={mouthPath} stroke="#0f172a" strokeWidth="2" strokeLinecap="round" />
+      <rect
+        x={80 - torsoWidth / 2}
+        y={torsoY}
+        width={torsoWidth}
+        height={torsoHeight}
+        rx="18"
+        fill={meta.body}
+        stroke="#0f172a"
+        strokeWidth="2"
+      />
+      <rect
+        x={80 - torsoWidth / 2 - 14}
+        y={torsoY + 10 - armRaise}
+        width="14"
+        height="44"
+        rx="8"
+        fill={meta.body}
+        stroke="#0f172a"
+        strokeWidth="2"
+      />
+      <rect
+        x={80 + torsoWidth / 2}
+        y={torsoY + 10 - armRaise}
+        width="14"
+        height="44"
+        rx="8"
+        fill={meta.body}
+        stroke="#0f172a"
+        strokeWidth="2"
+      />
+      <rect
+        x="56"
+        y={torsoY + torsoHeight - 4}
+        width="20"
+        height="40"
+        rx="10"
+        fill="#1e293b"
+        stroke="#0f172a"
+        strokeWidth="2"
+      />
+      <rect
+        x="84"
+        y={torsoY + torsoHeight - 4}
+        width="20"
+        height="40"
+        rx="10"
+        fill="#1e293b"
+        stroke="#0f172a"
+        strokeWidth="2"
+      />
+      <circle cx={80 + stance} cy={torsoY + torsoHeight + 12} r="6" fill={meta.accent} />
+      <path
+        d="M52 128c8 6 48 6 56 0"
+        stroke={meta.accent}
+        strokeWidth="3"
+        strokeLinecap="round"
+        opacity="0.6"
+      />
+    </svg>
+  );
+};
+
 function GeneralReport({ userId, supabase, goals }) {
   const [summary, setSummary] = useState(() => {
     const cached = readCache(userId);
@@ -321,6 +477,7 @@ function GeneralReport({ userId, supabase, goals }) {
   });
   const [lastUpdated, setLastUpdated] = useState(() => readCache(userId)?.savedAt || null);
   const [loading, setLoading] = useState(!summary);
+  const [avatarCache, setAvatarCache] = useState(() => readAvatarCache(userId));
 
   const baseDate = useMemo(() => new Date(), []);
 
@@ -436,6 +593,39 @@ function GeneralReport({ userId, supabase, goals }) {
 
   const data = summary || fallbackSummary;
   const updatedLabel = formatRelativeTime(lastUpdated);
+  const lifeScore = data?.scores?.lifeScore ?? 0;
+  const avatarState = getAvatarState(lifeScore);
+  const nextAvatarState = getNextAvatarState(avatarState);
+  const idealAvatarState = 'em_forma';
+  const cachedState = avatarCache?.state;
+  const displayAvatarState = avatarState || cachedState || 'em_progresso';
+
+  useEffect(() => {
+    if (avatarState && avatarState !== cachedState) {
+      writeAvatarCache(userId, avatarState);
+      setAvatarCache({ state: avatarState, savedAt: Date.now() });
+    }
+  }, [avatarState, cachedState, userId]);
+
+  const focusPoints = useMemo(() => {
+    const points = [];
+    if (data?.goals?.proteinGoal && data.averages.protein < data.goals.proteinGoal * 0.9) {
+      points.push('proteína');
+    }
+    if (data?.goals?.waterGoalMl && data.averages.water < data.goals.waterGoalMl * 0.9) {
+      points.push('água');
+    }
+    if (data?.workouts?.constancy !== undefined && data.workouts.constancy < 50) {
+      points.push('treino');
+    }
+    return points;
+  }, [data]);
+
+  const buildAvatarCopy = (state) => {
+    const base = avatarMeta[state]?.description || '';
+    if (!focusPoints.length || state === 'em_forma') return base;
+    return `${base} Foco: ${focusPoints.join(', ')}.`;
+  };
 
   return (
     <div className="general-report">
@@ -489,6 +679,53 @@ function GeneralReport({ userId, supabase, goals }) {
               <span className="general-report-chip">Alimentação: {data.statuses.calories}</span>
               <span className="general-report-chip">Treino: {data.workouts.constancy}% constância</span>
               <span className="general-report-chip">Financeiro: {data.finance.spentPercent}% gasto</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="gp-avatar-section">
+        <div className="gp-avatar-header">
+          <div>
+            <h5 className="title" style={{ margin: 0 }}>
+              Seu Avatar
+            </h5>
+            <span className="muted" style={{ fontSize: 12 }}>
+              Veja seu estado atual e como pode evoluir.
+            </span>
+          </div>
+          <div className="gp-avatar-score">
+            Score atual <strong>{lifeScore}</strong>
+          </div>
+        </div>
+        <div className="gp-avatar-content">
+          <div className="gp-avatar-current">
+            <Avatar2D state={displayAvatarState} size={180} />
+            <div className="gp-avatar-current-label">
+              {avatarMeta[displayAvatarState]?.label}
+            </div>
+            <p className="gp-avatar-current-text">
+              {buildAvatarCopy(displayAvatarState)}
+            </p>
+          </div>
+          <div className="gp-avatar-cards">
+            <div className="gp-avatar-card">
+              <div className="gp-avatar-card-title">Atual</div>
+              <Avatar2D state={displayAvatarState} size={96} className="gp-avatar-mini" />
+              <div className="gp-avatar-card-state">{avatarMeta[displayAvatarState]?.label}</div>
+              <p className="gp-avatar-card-text">{buildAvatarCopy(displayAvatarState)}</p>
+            </div>
+            <div className="gp-avatar-card">
+              <div className="gp-avatar-card-title">Próximo</div>
+              <Avatar2D state={nextAvatarState} size={96} className="gp-avatar-mini" />
+              <div className="gp-avatar-card-state">{avatarMeta[nextAvatarState]?.label}</div>
+              <p className="gp-avatar-card-text">{buildAvatarCopy(nextAvatarState)}</p>
+            </div>
+            <div className="gp-avatar-card">
+              <div className="gp-avatar-card-title">Ideal</div>
+              <Avatar2D state={idealAvatarState} size={96} className="gp-avatar-mini" />
+              <div className="gp-avatar-card-state">{avatarMeta[idealAvatarState]?.label}</div>
+              <p className="gp-avatar-card-text">{buildAvatarCopy(idealAvatarState)}</p>
             </div>
           </div>
         </div>
