@@ -29,6 +29,36 @@ const formatDateOnlyInSaoPaulo = (date = new Date()) => {
 
 const formatNumber = (value, decimals = 0) => Number(value || 0).toFixed(decimals);
 
+const clampPercent = (value) => Math.min(120, Math.max(0, value));
+
+const computeAvatarState = ({ pctCalories, pctProtein, pctWater }) => {
+  const average = (pctCalories + pctProtein + pctWater) / 3;
+
+  if (average >= 85) return "Em forma";
+  if (average >= 55) return "Em progresso";
+  return "Recuperação";
+};
+
+const computeAvatarTip = ({ pctCalories, pctProtein, pctWater }) => {
+  const worstMetric = [
+    { key: "water", pct: pctWater },
+    { key: "protein", pct: pctProtein },
+    { key: "calories", pct: pctCalories },
+  ].sort((a, b) => a.pct - b.pct)[0]?.key;
+
+  switch (worstMetric) {
+    case "water":
+      return "Bebe mais água.";
+    case "protein":
+      return "Capricha na proteína.";
+    case "calories":
+      if (pctCalories > 110) return "Reduz um pouco as calorias.";
+      return "Ajusta as calorias.";
+    default:
+      return "Segue firme nas metas.";
+  }
+};
+
 const fetchTableColumns = async (tableName) => {
   const { data, error } = await supabase
     .from("information_schema.columns")
@@ -171,7 +201,7 @@ const fetchActiveUsers = async () => {
     throw new Error(`Erro ao buscar usuários ativos: ${error.message}`);
   }
 
-  return (data || []).filter((user) => user.role !== "admin");
+  return data || [];
 };
 
 const fetchUserGoals = async (userId) => {
@@ -266,6 +296,16 @@ const buildDailyGoalsMessage = ({ totals, goals, missing }) => {
     goals.waterL,
     1
   )}L`;
+  const pctCalories = goals.calories
+    ? clampPercent((totals.calories / goals.calories) * 100)
+    : 0;
+  const pctProtein = goals.protein
+    ? clampPercent((totals.protein / goals.protein) * 100)
+    : 0;
+  const pctWater = goals.waterL ? clampPercent((totals.waterL / goals.waterL) * 100) : 0;
+  const avatarState = computeAvatarState({ pctCalories, pctProtein, pctWater });
+  const avatarTip = computeAvatarTip({ pctCalories, pctProtein, pctWater });
+  const avatarLines = [`👤 Seu Avatar hoje: ${avatarState}`, `💡 Dica: ${avatarTip}`];
 
   if (missing.calories === 0 && missing.protein === 0 && missing.waterL === 0) {
     return [
@@ -273,6 +313,7 @@ const buildDailyGoalsMessage = ({ totals, goals, missing }) => {
       `🔥 Calorias: ${caloriesText}`,
       `💪 Proteína: ${proteinText}`,
       `💧 Água: ${waterText}`,
+      ...avatarLines,
       "Continua assim!",
     ].join("\n");
   }
@@ -282,6 +323,7 @@ const buildDailyGoalsMessage = ({ totals, goals, missing }) => {
     `🔥 Calorias: ${caloriesText} (faltou ${formatNumber(missing.calories, 0)})`,
     `💪 Proteína: ${proteinText} (faltou ${formatNumber(missing.protein, 0)}g)`,
     `💧 Água: ${waterText} (faltou ${formatNumber(missing.waterL, 1)}L)`,
+    ...avatarLines,
     "Amanhã dá pra fechar 💪",
   ].join("\n");
 };
