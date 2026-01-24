@@ -1042,6 +1042,115 @@ canvas{ background:transparent; }
   font-size: 13px;
 }
 
+.gp-avatar-section {
+  padding: 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  background: rgba(15, 23, 42, 0.6);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.gp-avatar-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.gp-avatar-score {
+  font-size: 12px;
+  color: var(--muted);
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.16);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.gp-avatar-score strong {
+  color: #fff;
+  font-size: 14px;
+}
+
+.gp-avatar-content {
+  display: grid;
+  grid-template-columns: minmax(200px, 260px) minmax(0, 1fr);
+  gap: 16px;
+  align-items: stretch;
+}
+
+.gp-avatar-current {
+  padding: 14px;
+  border-radius: 14px;
+  background: rgba(15, 23, 42, 0.65);
+  border: 1px solid rgba(148, 163, 184, 0.15);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 8px;
+}
+
+.gp-avatar-current-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.gp-avatar-current-text {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.gp-avatar-cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(160px, 1fr));
+  gap: 12px;
+}
+
+.gp-avatar-card {
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  background: rgba(15, 23, 42, 0.65);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-align: center;
+}
+
+.gp-avatar-card-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+.gp-avatar-card-state {
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.gp-avatar-card-text {
+  margin: 0;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.gp-avatar-svg {
+  max-width: 100%;
+}
+
+.gp-avatar-mini {
+  max-width: 90px;
+}
+
 .general-report-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -1271,6 +1380,28 @@ canvas{ background:transparent; }
   .general-report-hero-header {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .gp-avatar-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .gp-avatar-content {
+    grid-template-columns: 1fr;
+  }
+
+  .gp-avatar-cards {
+    display: flex;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    gap: 12px;
+    scroll-snap-type: x mandatory;
+  }
+
+  .gp-avatar-card {
+    min-width: 180px;
+    scroll-snap-align: start;
   }
 
   .general-report-timeline-track {
