@@ -1605,10 +1605,9 @@ function FoodDiary({ userId, supabase, notify }) {
 
       {tab === 'relatorio-geral' && (
         <GeneralReport
-          body={body}
-          weightHistory={weightHistory}
           userId={userId}
           supabase={supabase}
+          goals={goals}
         />
       )}
 
