@@ -8,6 +8,11 @@ const currencyFormatter = new Intl.NumberFormat('pt-BR', {
   style: 'currency',
   currency: 'BRL'
 });
+const percentFormatter = new Intl.NumberFormat('pt-BR', {
+  style: 'percent',
+  minimumFractionDigits: 1,
+  maximumFractionDigits: 1
+});
 
 const defaultTxForm = {
   type: 'income',
@@ -103,6 +108,7 @@ const persistLocalSnapshot = (partial) => {
 };
 
 const formatCurrency = (value) => currencyFormatter.format(Number(value || 0));
+const formatPercent = (value) => percentFormatter.format(Number(value || 0));
 
 const formatDate = (value) => {
   if (!value) return '';
@@ -566,9 +572,220 @@ const useChart = (canvasId, config) => {
 };
 
 const Reports = ({ transactions }) => {
+  const today = useMemo(() => {
+    const current = new Date();
+    current.setHours(0, 0, 0, 0);
+    return current;
+  }, []);
+
+  const toISODate = (date) => date.toISOString().slice(0, 10);
+
+  const buildPresetRange = (preset) => {
+    const end = new Date(today);
+    let start = new Date(today);
+
+    switch (preset) {
+      case 'this-month':
+        start = new Date(today.getFullYear(), today.getMonth(), 1);
+        break;
+      case 'last-month':
+        start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+        end.setFullYear(today.getFullYear(), today.getMonth(), 0);
+        break;
+      case 'last-7':
+        start.setDate(start.getDate() - 6);
+        break;
+      case 'last-30':
+      default:
+        start.setDate(start.getDate() - 29);
+        break;
+    }
+
+    return { from: toISODate(start), to: toISODate(end) };
+  };
+
+  const [reportPreset, setReportPreset] = useState('last-30');
+  const [reportRange, setReportRange] = useState(() => buildPresetRange('last-30'));
+  const [selectedDay, setSelectedDay] = useState('');
+
+  useEffect(() => {
+    if (reportPreset === 'custom') return;
+    setReportRange(buildPresetRange(reportPreset));
+  }, [reportPreset, today]);
+
+  const normalizedRange = useMemo(() => {
+    if (!reportRange.from || !reportRange.to) return reportRange;
+    if (reportRange.from <= reportRange.to) return reportRange;
+    return { from: reportRange.to, to: reportRange.from };
+  }, [reportRange]);
+
+  const reportRangeStart = useMemo(() => {
+    const parsed = parseDateSafe(normalizedRange.from);
+    if (!parsed) return null;
+    parsed.setHours(0, 0, 0, 0);
+    return parsed;
+  }, [normalizedRange.from]);
+
+  const reportRangeEnd = useMemo(() => {
+    const parsed = parseDateSafe(normalizedRange.to);
+    if (!parsed) return null;
+    parsed.setHours(23, 59, 59, 999);
+    return parsed;
+  }, [normalizedRange.to]);
+
+  const reportTransactions = useMemo(() => {
+    if (!reportRangeStart || !reportRangeEnd) return transactions;
+    return transactions.filter((tx) => {
+      const parsed = parseDateSafe(tx.date);
+      if (!parsed) return false;
+      return parsed >= reportRangeStart && parsed <= reportRangeEnd;
+    });
+  }, [transactions, reportRangeStart, reportRangeEnd]);
+
+  const daysInRange = useMemo(() => {
+    if (!reportRangeStart || !reportRangeEnd) return [];
+    const days = [];
+    const cursor = new Date(reportRangeStart);
+    cursor.setHours(0, 0, 0, 0);
+    while (cursor <= reportRangeEnd) {
+      days.push(toISODate(cursor));
+      cursor.setDate(cursor.getDate() + 1);
+    }
+    return days;
+  }, [reportRangeStart, reportRangeEnd]);
+
+  const dailyMap = useMemo(() => {
+    const map = {};
+    reportTransactions.forEach((tx) => {
+      const key = (tx.date || '').slice(0, 10);
+      if (!key) return;
+      if (!map[key]) {
+        map[key] = { income: 0, expense: 0 };
+      }
+      map[key][tx.type] += Number(tx.amount || 0);
+    });
+    return map;
+  }, [reportTransactions]);
+
+  const dailySeries = useMemo(() => {
+    let acc = 0;
+    return daysInRange.map((date) => {
+      const dayData = dailyMap[date] || { income: 0, expense: 0 };
+      const net = dayData.income - dayData.expense;
+      acc += net;
+      return {
+        date,
+        income: dayData.income,
+        expense: dayData.expense,
+        net,
+        balance: acc,
+      };
+    });
+  }, [daysInRange, dailyMap]);
+
+  const reportTotals = useMemo(() => {
+    let income = 0;
+    let expense = 0;
+    reportTransactions.forEach((tx) => {
+      if (tx.type === 'income') income += Number(tx.amount || 0);
+      if (tx.type === 'expense') expense += Number(tx.amount || 0);
+    });
+    return { income, expense, balance: income - expense };
+  }, [reportTransactions]);
+
+  const averageDailyExpense = useMemo(() => {
+    if (!daysInRange.length) return 0;
+    return reportTotals.expense / daysInRange.length;
+  }, [reportTotals.expense, daysInRange.length]);
+
+  const maxDailyExpense = useMemo(() => {
+    if (!dailySeries.length) return null;
+    return dailySeries.reduce((max, day) => {
+      if (!max || day.expense > max.expense) {
+        return { date: day.date, expense: day.expense };
+      }
+      return max;
+    }, null);
+  }, [dailySeries]);
+
+  const previousPeriod = useMemo(() => {
+    if (!reportRangeStart || !daysInRange.length) return null;
+    const prevEnd = new Date(reportRangeStart);
+    prevEnd.setDate(prevEnd.getDate() - 1);
+    const prevStart = new Date(reportRangeStart);
+    prevStart.setDate(prevStart.getDate() - daysInRange.length);
+    prevStart.setHours(0, 0, 0, 0);
+    prevEnd.setHours(23, 59, 59, 999);
+    return { start: prevStart, end: prevEnd };
+  }, [reportRangeStart, daysInRange.length]);
+
+  const previousExpenseTotal = useMemo(() => {
+    if (!previousPeriod) return null;
+    return transactions.reduce((sum, tx) => {
+      if (tx.type !== 'expense') return sum;
+      const parsed = parseDateSafe(tx.date);
+      if (!parsed) return sum;
+      if (parsed >= previousPeriod.start && parsed <= previousPeriod.end) {
+        return sum + Number(tx.amount || 0);
+      }
+      return sum;
+    }, 0);
+  }, [transactions, previousPeriod]);
+
+  const expenseComparison = useMemo(() => {
+    if (previousExpenseTotal === null) return null;
+    if (previousExpenseTotal === 0) {
+      if (reportTotals.expense === 0) return null;
+      return { label: 'sem histórico', value: null };
+    }
+    const diff = (reportTotals.expense - previousExpenseTotal) / previousExpenseTotal;
+    return { label: formatPercent(diff), value: diff };
+  }, [previousExpenseTotal, reportTotals.expense]);
+
+  const categoryRanking = useMemo(() => {
+    const map = {};
+    reportTransactions.forEach((tx) => {
+      if (tx.type !== 'expense') return;
+      const cat = tx.category || 'Sem categoria';
+      const amount = Number(tx.amount || 0);
+      map[cat] = (map[cat] || 0) + amount;
+    });
+
+    return Object.entries(map)
+      .map(([category, total]) => ({ category, total }))
+      .sort((a, b) => b.total - a.total);
+  }, [reportTransactions]);
+
+  const topCategories = useMemo(() => categoryRanking.slice(0, 5), [categoryRanking]);
+
+  const heatmapDays = useMemo(() => {
+    if (!dailySeries.length) return [];
+    return dailySeries.slice(-30).map((day) => ({
+      date: day.date,
+      total: day.net,
+    }));
+  }, [dailySeries]);
+
+  const maxAbsDaily = useMemo(
+    () =>
+      heatmapDays.reduce(
+        (max, day) => Math.max(max, Math.abs(day.total)),
+        0
+      ) || 1,
+    [heatmapDays]
+  );
+
+  const heatmapWeeks = useMemo(() => {
+    const weeks = [];
+    for (let i = 0; i < heatmapDays.length; i += 7) {
+      weeks.push(heatmapDays.slice(i, i + 7));
+    }
+    return weeks;
+  }, [heatmapDays]);
+
   const monthlyData = useMemo(() => {
     const map = {};
-    transactions.forEach((tx) => {
+    reportTransactions.forEach((tx) => {
       const month = (tx.date || '').slice(0, 7); // YYYY-MM
       if (!month) return;
       if (!map[month]) map[month] = { income: 0, expense: 0 };
@@ -580,32 +797,32 @@ const Reports = ({ transactions }) => {
       income: entries.map(([, values]) => values.income),
       expense: entries.map(([, values]) => values.expense),
     };
-  }, [transactions]);
+  }, [reportTransactions]);
 
   const expenseByCat = useMemo(() => {
     const map = {};
-    transactions
+    reportTransactions
       .filter((tx) => tx.type === 'expense')
       .forEach((tx) => {
         const key = tx.category || 'Sem categoria';
         map[key] = (map[key] || 0) + Number(tx.amount || 0);
       });
     return map;
-  }, [transactions]);
+  }, [reportTransactions]);
 
   const incomeByCat = useMemo(() => {
     const map = {};
-    transactions
+    reportTransactions
       .filter((tx) => tx.type === 'income')
       .forEach((tx) => {
         const key = tx.category || 'Sem categoria';
         map[key] = (map[key] || 0) + Number(tx.amount || 0);
       });
     return map;
-  }, [transactions]);
+  }, [reportTransactions]);
 
   const balancePoints = useMemo(() => {
-    const sorted = [...transactions].sort(
+    const sorted = [...reportTransactions].sort(
       (a, b) => new Date(a.date) - new Date(b.date)
     );
     let acc = 0;
@@ -618,7 +835,7 @@ const Reports = ({ transactions }) => {
         balance: acc,
       };
     });
-  }, [transactions]);
+  }, [reportTransactions]);
 
   // ---------------- NOVO BLOCO: resumo mensal + comparação ----------------
   const [selectedMonth, setSelectedMonth] = useState('');
@@ -675,82 +892,6 @@ const Reports = ({ transactions }) => {
     });
   };
 
-  // --------- Novos dados avançados de relatório ---------
-  const categoryRanking = useMemo(() => {
-    const map = {};
-
-    transactions.forEach((tx) => {
-      if (tx.type !== 'expense') return;
-      const cat = tx.category || 'Sem categoria';
-      const amount = Number(tx.amount || 0);
-      map[cat] = (map[cat] || 0) + amount;
-    });
-
-    return Object.entries(map)
-      .map(([category, total]) => ({ category, total }))
-      .sort((a, b) => b.total - a.total);
-  }, [transactions]);
-
-  const last30Days = useMemo(() => {
-    if (!transactions.length) return [];
-
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const map = {};
-
-    transactions.forEach((tx) => {
-      if (!tx.date) return;
-      const d = new Date(tx.date);
-      if (Number.isNaN(d.getTime())) return;
-      d.setHours(0, 0, 0, 0);
-
-      const diffDays = Math.floor(
-        (today.getTime() - d.getTime()) / (1000 * 60 * 60 * 24)
-      );
-
-      if (diffDays < 0 || diffDays >= 30) return;
-
-      const key = d.toISOString().slice(0, 10); // YYYY-MM-DD
-      const value =
-        tx.type === 'income'
-          ? Number(tx.amount || 0)
-          : -Number(tx.amount || 0);
-
-      map[key] = (map[key] || 0) + value;
-    });
-
-    const result = [];
-    for (let i = 29; i >= 0; i--) {
-      const d = new Date(today);
-      d.setDate(today.getDate() - i);
-      const key = d.toISOString().slice(0, 10);
-      result.push({
-        date: key,
-        total: map[key] || 0,
-      });
-    }
-
-    return result;
-  }, [transactions]);
-
-  const maxAbsDaily = useMemo(
-    () =>
-      last30Days.reduce(
-        (max, day) => Math.max(max, Math.abs(day.total)),
-        0
-      ) || 1,
-    [last30Days]
-  );
-
-  const heatmapWeeks = useMemo(() => {
-    const weeks = [];
-    for (let i = 0; i < last30Days.length; i += 7) {
-      weeks.push(last30Days.slice(i, i + 7));
-    }
-    return weeks;
-  }, [last30Days]);
-  // ------------------------------------------------------
   // ------------------------------------------------------------------------
 
   // GRÁFICOS JÁ EXISTENTES (mantidos)
@@ -843,11 +984,278 @@ const Reports = ({ transactions }) => {
     },
   });
 
+  const selectedDayTransactions = useMemo(() => {
+    if (!selectedDay) return [];
+    return reportTransactions.filter(
+      (tx) => (tx.date || '').slice(0, 10) === selectedDay
+    );
+  }, [reportTransactions, selectedDay]);
+
+  const chartMetrics = useMemo(() => {
+    if (!dailySeries.length) return null;
+    const width = 640;
+    const height = 240;
+    const padding = { top: 24, right: 20, bottom: 28, left: 36 };
+    const maxBalance = Math.max(...dailySeries.map((day) => day.balance), 0);
+    const minBalance = Math.min(...dailySeries.map((day) => day.balance), 0);
+    const maxDaily = Math.max(
+      ...dailySeries.map((day) => Math.max(day.income, day.expense)),
+      0
+    );
+    const yMax = Math.max(maxBalance, maxDaily);
+    const yMin = Math.min(minBalance, 0);
+    const range = yMax - yMin || 1;
+    const xSpan = width - padding.left - padding.right;
+    const ySpan = height - padding.top - padding.bottom;
+    const toX = (index) =>
+      padding.left +
+      xSpan * (dailySeries.length === 1 ? 0 : index / (dailySeries.length - 1));
+    const toY = (value) =>
+      padding.top + ((yMax - value) / range) * ySpan;
+
+    const points = dailySeries.map((day, index) => ({
+      x: toX(index),
+      y: toY(day.balance),
+      incomeY: toY(day.income),
+      expenseY: toY(day.expense),
+      date: day.date,
+      balance: day.balance,
+      income: day.income,
+      expense: day.expense,
+    }));
+
+    const buildPath = (key) =>
+      points
+        .map((point, index) => `${index === 0 ? 'M' : 'L'}${point.x} ${point[key]}`)
+        .join(' ');
+
+    return {
+      width,
+      height,
+      padding,
+      points,
+      balancePath: buildPath('y'),
+      incomePath: buildPath('incomeY'),
+      expensePath: buildPath('expenseY'),
+      yZero: toY(0),
+      yMin,
+      yMax,
+    };
+  }, [dailySeries]);
+
+  const handleExportCsv = () => {
+    const header = [
+      'Data',
+      'Tipo',
+      'Descrição',
+      'Categoria',
+      'Valor'
+    ];
+
+    const escapeCsv = (value) =>
+      `"${String(value ?? '').replace(/"/g, '""')}"`;
+
+    const rows = reportTransactions.map((tx) => [
+      tx.date || '',
+      tx.type === 'income' ? 'Receita' : 'Despesa',
+      tx.description || '',
+      tx.category || '',
+      Number(tx.amount || 0).toFixed(2)
+    ]);
+
+    const csvContent = [header, ...rows]
+      .map((row) => row.map(escapeCsv).join(','))
+      .join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `transacoes_${normalizedRange.from || 'inicio'}_${normalizedRange.to || 'fim'}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div id="tab-reports">
-      <p className="muted">
-        Os gráficos respeitam os filtros aplicados acima. Clique em <b>Filtrar</b> para atualizar.
-      </p>
+      <div className="reports-header">
+        <div>
+          <h3 className="title">Relatórios do período</h3>
+          <p className="muted">
+            Selecione o período para recalcular KPIs, gráficos e categorias.
+          </p>
+        </div>
+        <button className="ghost" onClick={handleExportCsv}>
+          Exportar CSV
+        </button>
+      </div>
+
+      <div className="reports-filters">
+        <div>
+          <label>Período</label>
+          <select
+            value={reportPreset}
+            onChange={(e) => setReportPreset(e.target.value)}
+          >
+            <option value="this-month">Este mês</option>
+            <option value="last-month">Mês passado</option>
+            <option value="last-7">Últimos 7 dias</option>
+            <option value="last-30">Últimos 30 dias</option>
+            <option value="custom">Personalizado</option>
+          </select>
+        </div>
+        <div>
+          <label>De</label>
+          <input
+            type="date"
+            value={normalizedRange.from}
+            onChange={(e) =>
+              setReportRange((prev) => ({ ...prev, from: e.target.value }))
+            }
+            disabled={reportPreset !== 'custom'}
+          />
+        </div>
+        <div>
+          <label>Até</label>
+          <input
+            type="date"
+            value={normalizedRange.to}
+            onChange={(e) =>
+              setReportRange((prev) => ({ ...prev, to: e.target.value }))
+            }
+            disabled={reportPreset !== 'custom'}
+          />
+        </div>
+        <div className="reports-filters-meta muted">
+          {normalizedRange.from && normalizedRange.to
+            ? `${formatDate(normalizedRange.from)} • ${formatDate(
+                normalizedRange.to
+              )}`
+            : 'Selecione um período válido'}
+        </div>
+      </div>
+
+      <div className="kpi-grid">
+        <div className="kpi-card">
+          <small>Receitas do período</small>
+          <strong>{formatCurrency(reportTotals.income)}</strong>
+          <span className="muted">Total somado no intervalo</span>
+        </div>
+        <div className="kpi-card">
+          <small>Despesas do período</small>
+          <strong>{formatCurrency(reportTotals.expense)}</strong>
+          <span className="muted">Total somado no intervalo</span>
+        </div>
+        <div className="kpi-card">
+          <small>Saldo do período</small>
+          <strong>{formatCurrency(reportTotals.balance)}</strong>
+          <span className="muted">Receitas - despesas</span>
+        </div>
+        <div className="kpi-card">
+          <small>Média diária de despesas</small>
+          <strong>{formatCurrency(averageDailyExpense)}</strong>
+          <span className="muted">Considerando {daysInRange.length || 0} dias</span>
+        </div>
+        <div className="kpi-card">
+          <small>Maior despesa em um dia</small>
+          <strong>{formatCurrency(maxDailyExpense?.expense || 0)}</strong>
+          <span className="muted">
+            {maxDailyExpense?.date
+              ? `Em ${formatDate(maxDailyExpense.date)}`
+              : 'Sem despesas no período'}
+          </span>
+        </div>
+        <div className="kpi-card">
+          <small>Comparativo com período anterior</small>
+          <strong>
+            {expenseComparison?.label || 'Sem histórico'}
+          </strong>
+          <span
+            className={`muted ${
+              expenseComparison?.value !== null
+                ? expenseComparison?.value < 0
+                  ? 'trend-down'
+                  : 'trend-up'
+                : ''
+            }`}
+          >
+            {expenseComparison?.value !== null
+              ? `${expenseComparison?.value < 0 ? 'Redução' : 'Aumento'} nas despesas`
+              : 'Sem dados suficientes'}
+          </span>
+        </div>
+      </div>
+
+      <div className="card report-chart-card">
+        <div className="report-chart-header">
+          <div>
+            <h3 className="title">Saldo acumulado por dia</h3>
+            <p className="muted">
+              Clique em um ponto para ver as transações do dia.
+            </p>
+          </div>
+          <div className="report-chart-legend">
+            <span className="legend-item">
+              <i className="legend-dot balance"></i> Saldo acumulado
+            </span>
+            <span className="legend-item">
+              <i className="legend-dot income"></i> Receitas diárias
+            </span>
+            <span className="legend-item">
+              <i className="legend-dot expense"></i> Despesas diárias
+            </span>
+          </div>
+        </div>
+        {chartMetrics ? (
+          <div className="report-chart">
+            <svg viewBox={`0 0 ${chartMetrics.width} ${chartMetrics.height}`}>
+              <line
+                x1={chartMetrics.padding.left}
+                x2={chartMetrics.width - chartMetrics.padding.right}
+                y1={chartMetrics.yZero}
+                y2={chartMetrics.yZero}
+                stroke="rgba(255,255,255,0.12)"
+                strokeDasharray="4 6"
+              />
+              <path
+                d={chartMetrics.balancePath}
+                fill="none"
+                stroke="#60a5fa"
+                strokeWidth="2.5"
+              />
+              <path
+                d={chartMetrics.incomePath}
+                fill="none"
+                stroke="#4ade80"
+                strokeWidth="1.5"
+                strokeDasharray="6 6"
+              />
+              <path
+                d={chartMetrics.expensePath}
+                fill="none"
+                stroke="#f87171"
+                strokeWidth="1.5"
+                strokeDasharray="6 6"
+              />
+              {chartMetrics.points.map((point) => (
+                <g
+                  key={point.date}
+                  onClick={() => setSelectedDay(point.date)}
+                  style={{ cursor: 'pointer' }}
+                >
+                  <circle cx={point.x} cy={point.y} r="4" fill="#93c5fd" />
+                </g>
+              ))}
+            </svg>
+            <div className="report-chart-axis">
+              <span>{formatDate(daysInRange[0])}</span>
+              <span>{formatDate(daysInRange[daysInRange.length - 1])}</span>
+            </div>
+          </div>
+        ) : (
+          <p className="muted">Nenhum dado disponível para o período selecionado.</p>
+        )}
+      </div>
 
       {/* NOVO: resumo mensal + seletor de mês + comparação entre meses */}
       {monthStats && (
@@ -922,7 +1330,7 @@ const Reports = ({ transactions }) => {
         </div>
       </div>
 
-      {Boolean(categoryRanking.length || last30Days.length) && (
+      {Boolean(categoryRanking.length || heatmapDays.length) && (
         <>
           <h2 className="section-title" style={{ marginTop: 24 }}>
             Visão detalhada das finanças
@@ -931,30 +1339,42 @@ const Reports = ({ transactions }) => {
           <div className="row">
             <div className="card" style={{ flex: 1 }}>
               <h3 className="title">Ranking de categorias (por despesa)</h3>
-              {categoryRanking.length === 0 ? (
+              {topCategories.length === 0 ? (
                 <p className="muted">
                   Nenhuma despesa encontrada para o período selecionado.
                 </p>
               ) : (
-                <ol className="rank-list">
-                  {categoryRanking.slice(0, 5).map((item, index) => (
-                    <li key={item.category}>
-                      <span className="rank-index">{index + 1}.</span>
-                      <div className="rank-content">
-                        <strong>{item.category}</strong>
-                        <span className="muted">
-                          {formatCurrency(item.total)}
-                        </span>
+                <div className="category-bars">
+                  {topCategories.map((item, index) => {
+                    const percent = reportTotals.expense
+                      ? (item.total / reportTotals.expense) * 100
+                      : 0;
+                    return (
+                      <div key={item.category} className="category-bar">
+                        <div className="category-bar-header">
+                          <strong>
+                            {index + 1}. {item.category}
+                          </strong>
+                          <span className="muted">
+                            {formatCurrency(item.total)} • {percent.toFixed(1)}%
+                          </span>
+                        </div>
+                        <div className="category-bar-track">
+                          <div
+                            className="category-bar-fill"
+                            style={{ width: `${percent}%` }}
+                          ></div>
+                        </div>
                       </div>
-                    </li>
-                  ))}
-                </ol>
+                    );
+                  })}
+                </div>
               )}
             </div>
 
             <div className="card" style={{ flex: 1 }}>
-              <h3 className="title">Mapa de calor financeiro (30 dias)</h3>
-              {last30Days.length === 0 ? (
+              <h3 className="title">Mapa de calor financeiro (últimos 30 dias)</h3>
+              {heatmapDays.length === 0 ? (
                 <p className="muted">
                   Cadastre lançamentos para ver o mapa de calor.
                 </p>
@@ -1004,6 +1424,50 @@ const Reports = ({ transactions }) => {
             </div>
           </div>
         </>
+      )}
+
+      {selectedDay && (
+        <div
+          className="report-modal-overlay"
+          onClick={() => setSelectedDay('')}
+        >
+          <div
+            className="report-modal"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="report-modal-header">
+              <div>
+                <h3 className="title">Transações em {formatDate(selectedDay)}</h3>
+                <p className="muted">
+                  {selectedDayTransactions.length} lançamento(s) no dia.
+                </p>
+              </div>
+              <button className="ghost" onClick={() => setSelectedDay('')}>
+                Fechar
+              </button>
+            </div>
+            {selectedDayTransactions.length === 0 ? (
+              <p className="muted">Nenhuma transação encontrada para o dia.</p>
+            ) : (
+              <div className="report-modal-list">
+                {selectedDayTransactions.map((tx) => (
+                  <div key={tx.id} className="report-modal-item">
+                    <div>
+                      <strong>{tx.description || 'Sem descrição'}</strong>
+                      <span className="muted">
+                        {tx.category || 'Sem categoria'}
+                      </span>
+                    </div>
+                    <div className={`pill ${tx.type}`}>
+                      {tx.type === 'income' ? 'Receita' : 'Despesa'} •{' '}
+                      {formatCurrency(tx.amount)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );
