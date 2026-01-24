@@ -238,56 +238,6 @@ const buildSummary = ({ foodEntries, workoutSessions, transactions, goals, baseD
   };
 };
 
-const GeneralAvatar = ({ variant = 'normal' }) => {
-  const bodyWidth = variant === 'magro' ? 32 : variant === 'acima' ? 54 : 42;
-  const waistWidth = variant === 'magro' ? 24 : variant === 'acima' ? 48 : 34;
-  const bodyColor = variant === 'magro' ? '#22d3ee' : variant === 'acima' ? '#f59e0b' : '#60a5fa';
-  const outline = '#0f172a';
-
-  return (
-    <svg
-      width="140"
-      height="160"
-      viewBox="0 0 140 160"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      className="general-report-avatar-svg"
-      aria-hidden="true"
-    >
-      <rect x="26" y="6" width="88" height="148" rx="24" fill="#0b1220" stroke="#1f2937" />
-      <circle cx="70" cy="46" r="22" fill="#f8fafc" stroke={outline} strokeWidth="2" />
-      <rect
-        x={70 - bodyWidth / 2}
-        y="70"
-        width={bodyWidth}
-        height="52"
-        rx="16"
-        fill={bodyColor}
-        stroke={outline}
-        strokeWidth="2"
-      />
-      <rect
-        x={70 - waistWidth / 2}
-        y="120"
-        width={waistWidth}
-        height="28"
-        rx="12"
-        fill="#1e293b"
-        stroke={outline}
-        strokeWidth="2"
-      />
-      <circle cx="60" cy="42" r="3" fill={outline} />
-      <circle cx="80" cy="42" r="3" fill={outline} />
-      <path
-        d="M62 54c3 4 13 4 16 0"
-        stroke={outline}
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-};
-
 const readCache = (userId) => {
   if (!userId) return null;
   try {
@@ -627,6 +577,12 @@ function GeneralReport({ userId, supabase, goals }) {
     return `${base} Foco: ${focusPoints.join(', ')}.`;
   };
 
+  const heroAvatarLabel = {
+    recuperacao: 'Fase de recuperação',
+    em_progresso: 'Em progresso',
+    em_forma: 'Em forma',
+  };
+
   return (
     <div className="general-report">
       <div className="general-report-hero">
@@ -646,11 +602,9 @@ function GeneralReport({ userId, supabase, goals }) {
 
         <div className="general-report-hero-content">
           <div className="general-report-avatar">
-            <GeneralAvatar variant={data.avatarType} />
+            <Avatar2D state={displayAvatarState} size={200} />
             <div className="general-report-avatar-label">
-              {data.avatarType === 'magro' && 'Fase de recuperação'}
-              {data.avatarType === 'normal' && 'Equilíbrio em alta'}
-              {data.avatarType === 'acima' && 'Energia acima da média'}
+              {heroAvatarLabel[displayAvatarState]}
             </div>
           </div>
           <div className="general-report-hero-info">
