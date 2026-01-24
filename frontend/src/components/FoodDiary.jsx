@@ -7,7 +7,6 @@ import {
   updateMeal,
 } from '../foodDiaryApi';
 import FoodDiaryReports from './FoodDiaryReports';
-import GeneralReport from './GeneralReport';
 import HydrationCard from './HydrationCard';
 import { updateHydrationGoal } from '../hydrationApi';
 import { scanFood } from '../services/foodScannerApi';
@@ -1079,13 +1078,6 @@ function FoodDiary({ userId, supabase, notify }) {
         >
           Relatórios
         </button>
-        <button
-          type="button"
-          className={tab === 'relatorio-geral' ? 'primary' : 'ghost'}
-          onClick={() => setTab('relatorio-geral')}
-        >
-          Relatório Geral
-        </button>
       </div>
 
       {tab === 'diario' && (
@@ -1601,14 +1593,6 @@ function FoodDiary({ userId, supabase, notify }) {
             />
           )}
         </>
-      )}
-
-      {tab === 'relatorio-geral' && (
-        <GeneralReport
-          userId={userId}
-          supabase={supabase}
-          goals={goals}
-        />
       )}
 
       {tab === 'relatorios' && (

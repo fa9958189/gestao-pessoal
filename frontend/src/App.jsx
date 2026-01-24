@@ -1,8 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import WorkoutRoutine from './components/WorkoutRoutine.jsx';
 import FoodDiary from './components/FoodDiary.jsx';
+import GeneralReport from './components/GeneralReport.jsx';
 import DailyAgenda from './DailyAgenda';
 import './styles.css';
+import { loadGoals } from './services/foodDiaryProfile';
 
 const currencyFormatter = new Intl.NumberFormat('pt-BR', {
   style: 'currency',
@@ -53,6 +55,12 @@ const defaultTxFilters = {
   to: '',
   type: '',
   search: ''
+};
+
+const defaultGeneralReportGoals = {
+  calories: 2000,
+  protein: 120,
+  water: 2.5,
 };
 
 const defaultEventForm = {
@@ -1546,6 +1554,7 @@ function App() {
   const [eventFilters, setEventFilters] = useState(defaultEventFilters);
   const [activeTab, setActiveTab] = useState('form');
   const [activeView, setActiveView] = useState('transactions');
+  const [generalReportGoals, setGeneralReportGoals] = useState(defaultGeneralReportGoals);
   const workoutApiBase = normalizeBaseUrl(
     window.APP_CONFIG?.apiBaseUrl ||
     import.meta.env.VITE_API_BASE_URL ||
@@ -1735,6 +1744,36 @@ function App() {
     setTransactions(normalizedLocalTx);
     setEvents((snapshot.events || []).filter(belongsToUser));
   }, [session]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadGeneralReportGoals = async () => {
+      if (!client || !session?.user?.id) return;
+
+      try {
+        const profileGoals = await loadGoals({ supabase: client, userId: session.user.id });
+        if (!isMounted) return;
+
+        setGeneralReportGoals({
+          calories: Number(profileGoals?.calorie_goal ?? defaultGeneralReportGoals.calories),
+          protein: Number(profileGoals?.protein_goal ?? defaultGeneralReportGoals.protein),
+          water: Number(profileGoals?.water_goal_l ?? defaultGeneralReportGoals.water),
+        });
+      } catch (error) {
+        console.warn('Falha ao carregar metas do relatório geral', error);
+        if (isMounted) {
+          setGeneralReportGoals(defaultGeneralReportGoals);
+        }
+      }
+    };
+
+    loadGeneralReportGoals();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [client, session?.user?.id]);
 
   useEffect(() => {
     if (!isAdmin && (activeView === 'users' || activeView === 'affiliates')) {
@@ -2665,6 +2704,12 @@ function App() {
         >
           Diário alimentar
         </button>
+        <button
+          className={activeView === 'generalReport' ? 'tab active' : 'tab'}
+          onClick={() => setActiveView('generalReport')}
+        >
+          Relatório Geral
+        </button>
       </div>
 
       {activeView === 'transactions' && (
@@ -3078,6 +3123,18 @@ function App() {
               supabase={client}
               notify={pushToast}
               userId={session?.user?.id}
+            />
+          </section>
+        </div>
+      )}
+
+      {activeView === 'generalReport' && (
+        <div className="container single-card">
+          <section className="card">
+            <GeneralReport
+              userId={session?.user?.id}
+              supabase={client}
+              goals={generalReportGoals}
             />
           </section>
         </div>
