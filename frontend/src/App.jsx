@@ -290,7 +290,6 @@ const LoginScreen = ({ form, onChange, onSubmit, loading, error, configError }) 
         <div className="logo-dot"></div>
         <div>
           <h1>Gestão Pessoal</h1>
-          <p className="muted" style={{ margin: 0 }}>Acesse com sua conta Supabase</p>
         </div>
       </div>
       {configError && <div className="login-error">{configError}</div>}
