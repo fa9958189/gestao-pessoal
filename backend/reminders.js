@@ -826,11 +826,10 @@ function formatHHMM(now) {
   return `${hours}:${minutes}`;
 }
 
-async function fetchDailyRemindersByTime(hhmm) {
+async function fetchDailyRemindersByTime() {
   const { data, error } = await supabase
     .from("daily_reminders")
     .select("id, user_id, title, reminder_time, notes, is_active")
-    .eq("reminder_time", hhmm)
     .eq("is_active", true);
 
   if (error) {
@@ -838,6 +837,30 @@ async function fetchDailyRemindersByTime(hhmm) {
   }
 
   return data || [];
+}
+
+function parseTimeToMinutes(timeValue) {
+  const normalized = String(timeValue || "").trim();
+  if (!normalized) {
+    return null;
+  }
+
+  const [hoursRaw, minutesRaw] = normalized.split(":");
+  const hours = Number(hoursRaw);
+  const minutes = Number(minutesRaw);
+
+  if (
+    !Number.isInteger(hours) ||
+    !Number.isInteger(minutes) ||
+    hours < 0 ||
+    hours > 23 ||
+    minutes < 0 ||
+    minutes > 59
+  ) {
+    return null;
+  }
+
+  return hours * 60 + minutes;
 }
 
 async function hasDailyReminderBeenSent(reminder, dateStr) {
@@ -885,6 +908,7 @@ async function logDailyReminderSent(reminderId, userId, dateStr, status, message
 export async function checkDailyRemindersOnce() {
   const now = getNowInSaoPaulo();
   const hhmm = formatHHMM(now);
+  const nowInMinutes = parseTimeToMinutes(hhmm);
   const todayStr = formatDateOnlyInSaoPaulo(now);
   const minuteKey = `${todayStr}-${hhmm}`;
 
@@ -897,7 +921,7 @@ export async function checkDailyRemindersOnce() {
   let reminders = [];
 
   try {
-    reminders = await fetchDailyRemindersByTime(hhmm);
+    reminders = await fetchDailyRemindersByTime();
   } catch (err) {
     console.error("❌ Erro ao carregar agenda diária:", err);
     return;
@@ -905,6 +929,11 @@ export async function checkDailyRemindersOnce() {
 
   for (const reminder of reminders) {
     try {
+      const reminderInMinutes = parseTimeToMinutes(reminder.reminder_time);
+      if (reminderInMinutes === null || reminderInMinutes !== nowInMinutes) {
+        continue;
+      }
+
       if (!reminder.user_id) {
         console.error("Daily reminder missing user_id", reminder);
         continue;
