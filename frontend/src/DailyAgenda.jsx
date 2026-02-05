@@ -9,7 +9,7 @@ const defaultForm = {
 
 const emptyReminders = [];
 
-function DailyAgenda({ apiBaseUrl, notify, userId }) {
+function DailyAgenda({ apiBaseUrl, notify, userId, refreshToken }) {
   const [form, setForm] = useState(defaultForm);
   const [reminders, setReminders] = useState(emptyReminders);
   const [editingId, setEditingId] = useState(null);
@@ -53,7 +53,7 @@ function DailyAgenda({ apiBaseUrl, notify, userId }) {
   useEffect(() => {
     fetchReminders();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [baseUrl, userId]);
+  }, [baseUrl, userId, refreshToken]);
 
   const handleSubmit = async () => {
     if (!userId) {

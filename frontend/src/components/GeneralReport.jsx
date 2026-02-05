@@ -420,7 +420,7 @@ const Avatar2D = ({ state = 'em_progresso', size = 160, className = '' }) => {
   );
 };
 
-function GeneralReport({ userId, supabase, goals }) {
+function GeneralReport({ userId, supabase, goals, refreshToken }) {
   const [summary, setSummary] = useState(() => {
     const cached = readCache(userId);
     return cached?.data || null;
@@ -527,7 +527,7 @@ function GeneralReport({ userId, supabase, goals }) {
     return () => {
       isMounted = false;
     };
-  }, [goals, supabase, userId]);
+  }, [goals, supabase, userId, refreshToken]);
 
   const fallbackSummary = useMemo(
     () =>

@@ -240,16 +240,18 @@ const useSupabaseClient = () => {
   return { client, configError };
 };
 
-const useAuth = () => {
+const useAuth = (client) => {
   const [session, setSession] = useState(null);
   const [profile, setProfile] = useState(null);
   const [loadingSession, setLoadingSession] = useState(true);
+  const [localLoaded, setLocalLoaded] = useState(false);
+  const [supabaseChecked, setSupabaseChecked] = useState(false);
 
   useEffect(() => {
     try {
       const raw = window.localStorage.getItem('gp-session');
       if (!raw) {
-        setLoadingSession(false);
+        setLocalLoaded(true);
         return;
       }
 
@@ -265,9 +267,113 @@ const useAuth = () => {
     } catch (err) {
       console.warn('Erro ao carregar sessão local', err);
     } finally {
-      setLoadingSession(false);
+      setLocalLoaded(true);
     }
   }, []);
+
+  useEffect(() => {
+    if (!client) {
+      setSupabaseChecked(true);
+      return;
+    }
+
+    let isMounted = true;
+
+    const buildSessionFromSupabase = async (supabaseSession) => {
+      if (!supabaseSession?.user) return null;
+
+      let profileRow = null;
+      try {
+        const { data } = await client
+          .from('profiles_auth')
+          .select('id, name, role, email')
+          .eq('auth_id', supabaseSession.user.id)
+          .single();
+        profileRow = data || null;
+      } catch (err) {
+        console.warn('Erro ao restaurar perfil do Supabase', err);
+      }
+
+      return {
+        user: {
+          id: supabaseSession.user.id,
+          profile_id: profileRow?.id,
+          name:
+            profileRow?.name ||
+            supabaseSession.user.user_metadata?.name ||
+            supabaseSession.user.email ||
+            'Usuário',
+          role: profileRow?.role || 'user',
+          email: profileRow?.email || supabaseSession.user.email,
+        },
+      };
+    };
+
+    const syncSupabaseSession = async () => {
+      try {
+        const { data } = await client.auth.getSession();
+        const supabaseSession = data?.session;
+        if (!supabaseSession?.user) {
+          setSupabaseChecked(true);
+          return;
+        }
+
+        const nextSession = await buildSessionFromSupabase(supabaseSession);
+        if (!nextSession || !isMounted) return;
+
+        setSession(nextSession);
+        setProfile({
+          id: nextSession.user.profile_id || nextSession.user.id,
+          name: nextSession.user.name,
+          role: nextSession.user.role,
+        });
+        window.localStorage.setItem('gp-session', JSON.stringify(nextSession));
+      } catch (err) {
+        console.warn('Erro ao restaurar sessão do Supabase', err);
+      } finally {
+        if (isMounted) {
+          setSupabaseChecked(true);
+        }
+      }
+    };
+
+    syncSupabaseSession();
+
+    const { data: authListener } = client.auth.onAuthStateChange(
+      async (_event, supabaseSession) => {
+        if (!isMounted) return;
+
+        if (!supabaseSession?.user) {
+          setSession(null);
+          setProfile(null);
+          window.localStorage.removeItem('gp-session');
+          return;
+        }
+
+        const nextSession = await buildSessionFromSupabase(supabaseSession);
+        if (!nextSession || !isMounted) return;
+
+        setSession(nextSession);
+        setProfile({
+          id: nextSession.user.profile_id || nextSession.user.id,
+          name: nextSession.user.name,
+          role: nextSession.user.role,
+        });
+        window.localStorage.setItem('gp-session', JSON.stringify(nextSession));
+      }
+    );
+
+    return () => {
+      isMounted = false;
+      authListener?.subscription?.unsubscribe();
+    };
+  }, [client]);
+
+  useEffect(() => {
+    if (localLoaded && supabaseChecked) {
+      setLoadingSession(false);
+    }
+  }, [localLoaded, supabaseChecked]);
 
   return { session, profile, loadingSession, setSession, setProfile };
 };
@@ -1563,6 +1669,9 @@ function App() {
 
   const [toast, setToast] = useState(null);
   const [loadingData, setLoadingData] = useState(false);
+  const [refreshToken, setRefreshToken] = useState(0);
+  const refreshInFlightRef = useRef(false);
+  const lastRefreshRef = useRef(0);
 
   const pushToast = (message, variant = 'info') => {
     setToast({ message, variant });
@@ -1695,6 +1804,56 @@ function App() {
       setLoadingData(false);
     }
   };
+
+  const loadRemoteDataRef = useRef(loadRemoteData);
+
+  useEffect(() => {
+    loadRemoteDataRef.current = loadRemoteData;
+  }, [loadRemoteData]);
+
+  const runAutoRefresh = async (source = 'interval') => {
+    if (!session?.user?.id) return;
+    const now = Date.now();
+    if (refreshInFlightRef.current) return;
+    if (now - lastRefreshRef.current < 5000) return;
+
+    refreshInFlightRef.current = true;
+    lastRefreshRef.current = now;
+
+    try {
+      await loadRemoteDataRef.current?.();
+    } finally {
+      refreshInFlightRef.current = false;
+      setRefreshToken((value) => value + 1);
+    }
+  };
+
+  useEffect(() => {
+    if (!session?.user?.id) return;
+
+    const intervalId = window.setInterval(() => {
+      runAutoRefresh('interval');
+    }, 60000);
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        runAutoRefresh('visibility');
+      }
+    };
+
+    const handleFocus = () => {
+      runAutoRefresh('focus');
+    };
+
+    document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      window.clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [session?.user?.id]);
 
 
 
@@ -2821,7 +2980,12 @@ function App() {
 
           {activeTab === 'reports' && <Reports transactions={filteredTransactions} />}
           {activeTab === 'daily' && (
-            <DailyAgenda apiBaseUrl={workoutApiBase} notify={pushToast} userId={session?.user?.id} />
+            <DailyAgenda
+              apiBaseUrl={workoutApiBase}
+              notify={pushToast}
+              userId={session?.user?.id}
+              refreshToken={refreshToken}
+            />
           )}
         </section>
         {activeTab === 'form' && renderAgenda()}
@@ -3122,6 +3286,7 @@ function App() {
               supabase={client}
               notify={pushToast}
               userId={session?.user?.id}
+              refreshToken={refreshToken}
             />
           </section>
         </div>
@@ -3134,6 +3299,7 @@ function App() {
               userId={session?.user?.id}
               supabase={client}
               goals={generalReportGoals}
+              refreshToken={refreshToken}
             />
           </section>
         </div>
