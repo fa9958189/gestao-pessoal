@@ -68,7 +68,7 @@ const getLocalDateString = () => {
   return new Date(now.getTime() - offsetMs).toISOString().slice(0, 10);
 };
 
-function FoodDiary({ userId, supabase, notify }) {
+function FoodDiary({ userId, supabase, notify, refreshToken }) {
   const [entriesByDate, setEntriesByDate] = useState({});
   const [goals, setGoals] = useState(defaultGoals);
   const [body, setBody] = useState(defaultBody);
@@ -175,7 +175,7 @@ function FoodDiary({ userId, supabase, notify }) {
     return () => {
       isMounted = false;
     };
-  }, [userId, selectedDate, supabase]);
+  }, [userId, selectedDate, supabase, refreshToken]);
 
   useEffect(() => {
     if (error) {
@@ -270,7 +270,7 @@ function FoodDiary({ userId, supabase, notify }) {
     return () => {
       isMounted = false;
     };
-  }, [userId]);
+  }, [userId, supabase, refreshToken]);
 
   const persistDailyGoals = async (nextGoals) => {
     const waterGoal = Number(nextGoals.water || 0);
