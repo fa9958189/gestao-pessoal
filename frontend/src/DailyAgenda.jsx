@@ -101,16 +101,20 @@ function DailyAgenda({ apiBaseUrl, notify, userId, refreshToken, getAccessToken 
         body: JSON.stringify(payload),
       });
 
+      const contentType = response.headers.get('content-type') || '';
+      const responseBody = contentType.includes('application/json')
+        ? await response.json()
+        : await response.text();
+
       if (!response.ok) {
-        const errorBody = await response.text();
-        console.error('save daily reminder failed', response.status, errorBody);
+        console.error('save daily reminder failed', response.status, responseBody);
         throw new Error('Erro ao salvar lembrete.');
       }
 
       notify?.(editingId ? 'Lembrete atualizado.' : 'Lembrete criado.', 'success');
       setForm(defaultForm);
       setEditingId(null);
-      fetchReminders();
+      await fetchReminders();
     } catch (err) {
       console.warn('Erro ao salvar lembrete diário', err);
       notify?.('Não foi possível salvar o lembrete.', 'danger');
