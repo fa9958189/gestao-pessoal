@@ -3,8 +3,7 @@
   "type": "module",
   "main": "server.js",
   "scripts": {
-    "reminders": "node reminders.js",
-    "reminder-worker": "node workers/reminderWorker.js"
+    "reminders": "node reminders.js"
   },
   "dependencies": {
     "express": "^4.19.2",
