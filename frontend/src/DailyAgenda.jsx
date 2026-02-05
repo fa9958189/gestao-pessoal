@@ -9,7 +9,7 @@ const defaultForm = {
 
 const emptyReminders = [];
 
-function DailyAgenda({ apiBaseUrl, notify, userId, refreshToken }) {
+function DailyAgenda({ apiBaseUrl, notify, userId, refreshToken, getAccessToken }) {
   const [form, setForm] = useState(defaultForm);
   const [reminders, setReminders] = useState(emptyReminders);
   const [editingId, setEditingId] = useState(null);
@@ -17,6 +17,18 @@ function DailyAgenda({ apiBaseUrl, notify, userId, refreshToken }) {
   const [saving, setSaving] = useState(false);
 
   const baseUrl = useMemo(() => apiBaseUrl?.replace(/\/$/, '') || '', [apiBaseUrl]);
+
+  const buildAuthHeaders = async () => {
+    if (!getAccessToken) return {};
+
+    try {
+      const accessToken = await getAccessToken();
+      return accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
+    } catch (err) {
+      console.warn('Erro ao obter token para agenda diária', err);
+      return {};
+    }
+  };
 
   const fetchReminders = async () => {
     if (!userId) {
@@ -57,6 +69,7 @@ function DailyAgenda({ apiBaseUrl, notify, userId, refreshToken }) {
 
   const handleSubmit = async () => {
     if (!userId) {
+      console.error('Agenda diária: userId ausente ao salvar lembrete.');
       notify?.('Usuário não identificado. Faça login novamente.', 'danger');
       return;
     }
@@ -81,9 +94,10 @@ function DailyAgenda({ apiBaseUrl, notify, userId, refreshToken }) {
         : `${baseUrl}/api/daily-reminders`;
       const method = editingId ? 'PUT' : 'POST';
 
+      const authHeaders = await buildAuthHeaders();
       const response = await fetch(url, {
         method,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
         body: JSON.stringify(payload),
       });
 

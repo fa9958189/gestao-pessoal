@@ -2985,6 +2985,7 @@ function App() {
               notify={pushToast}
               userId={session?.user?.id}
               refreshToken={refreshToken}
+              getAccessToken={getAccessToken}
             />
           )}
         </section>
