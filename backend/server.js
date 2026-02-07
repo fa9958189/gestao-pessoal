@@ -13,6 +13,7 @@ import {
   startEventReminderWorker,
   startDailyRemindersWorker,
   startDailyWorkoutScheduleWorker,
+  startMorningAgendaScheduler,
   startWorkoutReminderWorker,
 } from "./reminders.js";
 import { startDailyGoalsReminder } from "./jobs/dailyGoalsReminder.js";
@@ -55,6 +56,7 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 startEventReminderWorker();
 startDailyWorkoutScheduleWorker();
 startDailyRemindersWorker();
+startMorningAgendaScheduler();
 startDailyGoalsReminder();
 
 app.get("/debug/zapi-test", async (req, res) => {

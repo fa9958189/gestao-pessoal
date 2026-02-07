@@ -1,4 +1,5 @@
 import "dotenv/config";
+import cron from "node-cron";
 import { createClient } from "@supabase/supabase-js";
 import { runWhatsAppAlerts } from "./alerts.js";
 
@@ -62,6 +63,7 @@ const WHATSAPP_API_URL =
     : null);
 
 const TZ = "America/Sao_Paulo";
+const MORNING_AGENDA_CRON = "0 7 * * *";
 
 const REMINDER_PROVIDER = "z-api";
 const REMINDER_INTERVAL_MINUTES =
@@ -506,6 +508,55 @@ export async function fetchUpcomingEvents() {
   return data || [];
 }
 
+async function fetchActiveEventsForDate(dateStr) {
+  const { data, error } = await supabase
+    .from("events")
+    .select("id, user_id, title, date, start, notes, is_active")
+    .eq("date", dateStr)
+    .eq("is_active", true);
+
+  if (error) {
+    throw new Error(`Erro ao buscar eventos ativos do dia: ${error.message}`);
+  }
+
+  return data || [];
+}
+
+function buildMorningAgendaMessage(events) {
+  const sortedEvents = [...events].sort((a, b) =>
+    String(a.start || "").localeCompare(String(b.start || ""))
+  );
+
+  const lines = ["📅 Agenda do dia", ""];
+
+  for (const event of sortedEvents) {
+    lines.push(`• ${event.title || "Evento"}`);
+    lines.push(`  ⏰ Início: ${event.start || "-"}`);
+
+    const notes = String(event.notes || "").trim();
+    if (notes) {
+      lines.push(`  📝 Observações: ${notes}`);
+    }
+
+    lines.push("");
+  }
+
+  while (lines.length && !lines[lines.length - 1]) {
+    lines.pop();
+  }
+
+  return lines.join("\n");
+}
+
+function groupEventsByUser(events) {
+  return events.reduce((acc, event) => {
+    if (!event.user_id) return acc;
+    if (!acc.has(event.user_id)) acc.set(event.user_id, []);
+    acc.get(event.user_id).push(event);
+    return acc;
+  }, new Map());
+}
+
 /**
  * Busca o WhatsApp do usuário na tabela profiles.
  * Aqui usamos o userId que vem do campo user_id da tabela events.
@@ -539,6 +590,85 @@ export async function fetchUserWhatsapp(userId) {
  */
 export async function sendWhatsappMessage({ to, message }) {
   return sendWhatsAppMessage({ phone: to, message });
+}
+
+let morningAgendaSchedulerTask = null;
+
+export function startMorningAgendaScheduler() {
+  if (morningAgendaSchedulerTask) {
+    return morningAgendaSchedulerTask;
+  }
+
+  let isRunning = false;
+
+  morningAgendaSchedulerTask = cron.schedule(
+    MORNING_AGENDA_CRON,
+    async () => {
+      if (isRunning) {
+        return;
+      }
+
+      isRunning = true;
+
+      try {
+        console.log("Scheduler de agenda matinal iniciado (07:00)");
+
+        const now = getNowInSaoPaulo();
+        const todayStr = formatDateOnlyInSaoPaulo(now);
+        const events = await fetchActiveEventsForDate(todayStr);
+
+        console.log(`Eventos do dia encontrados: ${events.length}`);
+
+        if (!events.length) {
+          console.log("Nenhum evento encontrado para hoje");
+          return;
+        }
+
+        const grouped = groupEventsByUser(events);
+
+        for (const [userId, userEvents] of grouped.entries()) {
+          const whatsapp = await fetchUserWhatsapp(userId);
+          const phone = normalizePhone(whatsapp);
+
+          if (!phone) {
+            console.warn(
+              "⚠️ WhatsApp não encontrado ou inválido para usuário:",
+              userId
+            );
+            continue;
+          }
+
+          console.log("Enviando WhatsApp (agenda do dia)");
+          const message = buildMorningAgendaMessage(userEvents);
+          const sendResult = await sendWhatsAppMessage({ phone, message });
+
+          if (!sendResult?.ok) {
+            console.error(
+              "❌ Falha ao enviar agenda do dia:",
+              sendResult?.status
+            );
+            continue;
+          }
+
+          console.log("Mensagem enviada com sucesso");
+        }
+      } catch (err) {
+        console.error(
+          "❌ Erro no scheduler de agenda matinal:",
+          err.message || err
+        );
+      } finally {
+        isRunning = false;
+      }
+    },
+    { timezone: TZ }
+  );
+
+  console.log(
+    `⏰ Scheduler de agenda matinal ativo (${MORNING_AGENDA_CRON} - ${TZ}).`
+  );
+
+  return morningAgendaSchedulerTask;
 }
 
 const buildReminderMessage = (event, type) => {
