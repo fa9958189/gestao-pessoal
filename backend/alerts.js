@@ -236,7 +236,8 @@ async function fetchDailyAlertCount(supabase, userId, start, end) {
     .lte("created_at", end.toISOString());
 
   if (error) {
-    throw new Error(`Erro ao contar alertas do dia: ${error.message}`);
+    console.error("❌ Erro ao contar alertas do dia:", error.message);
+    return 0;
   }
 
   return count || 0;
