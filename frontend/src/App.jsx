@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import WorkoutRoutine from './components/WorkoutRoutine.jsx';
 import FoodDiary from './components/FoodDiary.jsx';
 import GeneralReport from './components/GeneralReport.jsx';
-import DailyAgenda from './DailyAgenda';
 import './styles.css';
 import { loadGoals } from './services/foodDiaryProfile';
 
@@ -2871,7 +2870,7 @@ function App() {
       </div>
 
       {activeView === 'transactions' && (
-        <div className={activeTab === 'reports' || activeTab === 'daily' ? 'container single-card' : 'container'}>
+        <div className={activeTab === 'reports' ? 'container single-card' : 'container'}>
           <section className="card dashboard-card">
           <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
             <h2 className="title">Transações</h2>
@@ -2881,9 +2880,6 @@ function App() {
               </button>
               <button className={activeTab === 'reports' ? 'tab active' : 'tab'} onClick={() => setActiveTab('reports')}>
                 Relatórios
-              </button>
-              <button className={activeTab === 'daily' ? 'tab active' : 'tab'} onClick={() => setActiveTab('daily')}>
-                Agenda Diária
               </button>
             </div>
           </div>
@@ -2979,15 +2975,6 @@ function App() {
           )}
 
           {activeTab === 'reports' && <Reports transactions={filteredTransactions} />}
-          {activeTab === 'daily' && (
-            <DailyAgenda
-              apiBaseUrl={workoutApiBase}
-              notify={pushToast}
-              userId={session?.user?.id}
-              refreshToken={refreshToken}
-              getAccessToken={getAccessToken}
-            />
-          )}
         </section>
         {activeTab === 'form' && renderAgenda()}
 
