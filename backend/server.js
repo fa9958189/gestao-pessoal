@@ -11,7 +11,6 @@ import foodsRouter from "./routes/foods.js";
 import {
   sendWhatsAppMessage,
   startEventReminderWorker,
-  startDailyRemindersWorker,
   startDailyWorkoutScheduleWorker,
   startMorningAgendaScheduler,
   startWorkoutReminderWorker,
@@ -55,7 +54,6 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 // Inicia o job de lembretes (agenda)
 startEventReminderWorker();
 startDailyWorkoutScheduleWorker();
-startDailyRemindersWorker();
 startMorningAgendaScheduler();
 startDailyGoalsReminder();
 
