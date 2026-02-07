@@ -522,6 +522,29 @@ async function fetchActiveEventsForDate(dateStr) {
   return data || [];
 }
 
+async function deleteEventsByIds(eventIds) {
+  if (!eventIds?.length) return;
+
+  const uniqueIds = [...new Set(eventIds)];
+  const { data, error } = await supabase
+    .from("events")
+    .delete()
+    .in("id", uniqueIds)
+    .select("id");
+
+  if (error) {
+    console.error("❌ Erro ao remover eventos após disparo:", error);
+    return;
+  }
+
+  (data || uniqueIds).forEach((event) => {
+    const eventId = typeof event === "object" ? event.id : event;
+    if (eventId) {
+      console.log(`🗑️ Evento ${eventId} removido após disparo`);
+    }
+  });
+}
+
 function buildMorningAgendaMessage(events) {
   const sortedEvents = [...events].sort((a, b) =>
     String(a.start || "").localeCompare(String(b.start || ""))
@@ -651,6 +674,7 @@ export function startMorningAgendaScheduler() {
           }
 
           console.log("Mensagem enviada com sucesso");
+          await deleteEventsByIds(userEvents.map((event) => event.id));
         }
       } catch (err) {
         console.error(
