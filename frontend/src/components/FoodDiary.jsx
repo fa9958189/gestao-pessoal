@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import FoodPicker from '../FoodPicker';
 import {
   deleteMeal,
@@ -68,7 +68,7 @@ const getLocalDateString = () => {
   return new Date(now.getTime() - offsetMs).toISOString().slice(0, 10);
 };
 
-function FoodDiary({ userId, supabase, notify, refreshToken }) {
+const FoodDiary = React.forwardRef(({ userId, supabase, notify, refreshToken }, ref) => {
   const [entriesByDate, setEntriesByDate] = useState({});
   const [goals, setGoals] = useState(defaultGoals);
   const [body, setBody] = useState(defaultBody);
@@ -105,6 +105,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
   const [scanPreview, setScanPreview] = useState(null);
   const [scanDescription, setScanDescription] = useState('');
   const [isScanModalOpen, setIsScanModalOpen] = useState(false);
+  const newMealRef = useRef(null);
   const inputCameraRef = useRef(null);
   const inputGalleryRef = useRef(null);
   const goalAutosaveTimeoutRef = useRef(null);
@@ -113,6 +114,19 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
   const initialBodyRef = useRef(defaultBody);
   const profileAutosaveTimeoutRef = useRef(null);
   const hasEditedProfileRef = useRef(false);
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      focusNewMeal: () => {
+        setTab('diario');
+        setTimeout(() => {
+          newMealRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 50);
+      },
+    }),
+    []
+  );
 
   const isMobile = () => /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
@@ -1103,6 +1117,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
                 onSubmit={handleAddEntry}
                 className="food-diary-form"
                 autoComplete="off"
+                ref={newMealRef}
               >
             <div className="row" style={{ gap: 8, marginBottom: 8 }}>
               <div className="field" style={{ flex: 1 }}>
@@ -1605,6 +1620,6 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
       )}
     </div>
   );
-}
+});
 
 export default FoodDiary;

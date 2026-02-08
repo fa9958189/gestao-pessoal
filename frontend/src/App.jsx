@@ -3,6 +3,7 @@ import WorkoutRoutine from './components/WorkoutRoutine.jsx';
 import FoodDiary from './components/FoodDiary.jsx';
 import GeneralReport from './components/GeneralReport.jsx';
 import AgendaView from './components/AgendaView.jsx';
+import MobileActionButtons from './components/MobileActionButtons.jsx';
 import './styles.css';
 import { loadGoals } from './services/foodDiaryProfile';
 
@@ -85,6 +86,14 @@ const defaultUserForm = {
   role: 'user',
   affiliateCode: '',
   applyTrial: false
+};
+
+const defaultAffiliateForm = {
+  code: '',
+  name: '',
+  whatsapp: '',
+  email: '',
+  pix_key: '',
 };
 
 const normalizeBaseUrl = (value) => {
@@ -1702,13 +1711,7 @@ function App() {
   const [editingUserId, setEditingUserId] = useState(null);
   const [editingUserOriginal, setEditingUserOriginal] = useState(null);
   const [affiliates, setAffiliates] = useState([]);
-  const [affiliateForm, setAffiliateForm] = useState({
-    code: '',
-    name: '',
-    whatsapp: '',
-    email: '',
-    pix_key: '',
-  });
+  const [affiliateForm, setAffiliateForm] = useState(defaultAffiliateForm);
   const [affiliatesLoading, setAffiliatesLoading] = useState(false);
   const [affiliatePayoutLoadingId, setAffiliatePayoutLoadingId] = useState(null);
   const [affiliateUsers, setAffiliateUsers] = useState([]);
@@ -1751,6 +1754,10 @@ function App() {
   const [generalReportGoals, setGeneralReportGoals] = useState(defaultGeneralReportGoals);
   const transactionFormRef = useRef(null);
   const agendaRef = useRef(null);
+  const adminUsersRef = useRef(null);
+  const adminAffiliatesRef = useRef(null);
+  const workoutRef = useRef(null);
+  const foodDiaryRef = useRef(null);
   const workoutApiBase = normalizeBaseUrl(
     window.APP_CONFIG?.apiBaseUrl ||
     import.meta.env.VITE_API_BASE_URL ||
@@ -2326,9 +2333,32 @@ function App() {
   };
 
   const handleFabEvent = () => {
-    setActiveView('transactions');
-    setActiveTab('form');
+    setActiveView('agenda');
     setTimeout(() => scrollToRef(agendaRef), 50);
+  };
+
+  const handleNewUser = () => {
+    setActiveView('users');
+    setEditingUserId(null);
+    setEditingUserOriginal(null);
+    setUserForm(defaultUserForm);
+    setTimeout(() => scrollToRef(adminUsersRef), 50);
+  };
+
+  const handleNewAffiliate = () => {
+    setActiveView('affiliates');
+    setAffiliateForm(defaultAffiliateForm);
+    setTimeout(() => scrollToRef(adminAffiliatesRef), 50);
+  };
+
+  const handleNewWorkout = () => {
+    setActiveView('workout');
+    setTimeout(() => workoutRef.current?.focusNewTemplate?.(), 50);
+  };
+
+  const handleNewMeal = () => {
+    setActiveView('foodDiary');
+    setTimeout(() => foodDiaryRef.current?.focusNewMeal?.(), 50);
   };
 
   const handleSaveUser = async () => {
@@ -2720,13 +2750,7 @@ function App() {
       }
 
       pushToast('Afiliado criado.', 'success');
-      setAffiliateForm({
-        code: '',
-        name: '',
-        whatsapp: '',
-        email: '',
-        pix_key: '',
-      });
+      setAffiliateForm(defaultAffiliateForm);
       loadAffiliates();
     } catch (err) {
       console.warn('Erro ao salvar afiliado', err);
@@ -2848,6 +2872,28 @@ function App() {
       setAffiliatePayoutLoadingId(null);
     }
   };
+
+  const mobileActionButtons = (() => {
+    if (activeView === 'transactions') {
+      return [{ label: 'Nova Transação', onClick: handleFabTransaction }];
+    }
+    if (activeView === 'agenda') {
+      return [{ label: 'Novo Evento', onClick: handleFabEvent }];
+    }
+    if (activeView === 'users' && isAdmin) {
+      return [{ label: 'Novo Usuário', onClick: handleNewUser }];
+    }
+    if (activeView === 'affiliates' && isAdmin) {
+      return [{ label: 'Novo Afiliado', onClick: handleNewAffiliate }];
+    }
+    if (activeView === 'workout') {
+      return [{ label: 'Novo Treino', onClick: handleNewWorkout }];
+    }
+    if (activeView === 'foodDiary') {
+      return [{ label: 'Nova Refeição', onClick: handleNewMeal }];
+    }
+    return [];
+  })();
 
   if (!session) {
     return (
@@ -3018,7 +3064,7 @@ function App() {
 
       {activeView === 'users' && isAdmin && (
         <div className="container single-card admin-users-container standard-layout">
-          <section className="card admin-card" id="adminUsersSection">
+          <section className="card admin-card" id="adminUsersSection" ref={adminUsersRef}>
             <h2 className="title">Cadastro de Usuários</h2>
             <p className="muted">Somente administradores podem acessar esta área.</p>
 
@@ -3175,7 +3221,7 @@ function App() {
 
       {activeView === 'affiliates' && isAdmin && (
         <div className="container single-card standard-layout">
-          <section className="card admin-card" id="adminAffiliatesSection">
+          <section className="card admin-card" id="adminAffiliatesSection" ref={adminAffiliatesRef}>
             <h2 className="title">Afiliados</h2>
             <p className="muted">Gerencie parceiros e visualize seus clientes.</p>
 
@@ -3224,15 +3270,7 @@ function App() {
                 <button className="primary" onClick={handleSaveAffiliate}>Criar afiliado</button>
                 <button
                   className="ghost"
-                  onClick={() =>
-                    setAffiliateForm({
-                      code: '',
-                      name: '',
-                      whatsapp: '',
-                      email: '',
-                      pix_key: '',
-                    })
-                  }
+                  onClick={() => setAffiliateForm(defaultAffiliateForm)}
                 >
                   Limpar
                 </button>
@@ -3357,7 +3395,7 @@ function App() {
       {activeView === 'workout' && (
         <div className="container single-card standard-layout">
           <section className="card">
-            <WorkoutRoutine apiBaseUrl={workoutApiBase} pushToast={pushToast} />
+            <WorkoutRoutine ref={workoutRef} apiBaseUrl={workoutApiBase} pushToast={pushToast} />
           </section>
         </div>
       )}
@@ -3366,6 +3404,7 @@ function App() {
         <div className="container single-card standard-layout">
           <section className="card">
             <FoodDiary
+              ref={foodDiaryRef}
               apiBaseUrl={workoutApiBase}
               supabase={client}
               notify={pushToast}
@@ -3389,14 +3428,7 @@ function App() {
         </div>
       )}
 
-      <div className="fab-stack" aria-label="Ações rápidas">
-        <button className="fab-button" onClick={handleFabTransaction}>
-          Nova Transação
-        </button>
-        <button className="fab-button" onClick={handleFabEvent}>
-          Novo Evento
-        </button>
-      </div>
+      <MobileActionButtons buttons={mobileActionButtons} />
 
       {selectedAffiliate && (
         <div
