@@ -2262,6 +2262,6 @@ const WorkoutRoutine = React.forwardRef(({ apiBaseUrl = import.meta.env.VITE_API
       />
     </div>
   );
-};
+});
 
 export default WorkoutRoutine;
