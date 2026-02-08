@@ -4,6 +4,7 @@ import FoodDiary from './components/FoodDiary.jsx';
 import GeneralReport from './components/GeneralReport.jsx';
 import AgendaView from './components/AgendaView.jsx';
 import MobileActionButtons from './components/MobileActionButtons.jsx';
+import TransactionWizard from './components/TransactionWizard.jsx';
 import './styles.css';
 import { loadGoals } from './services/foodDiaryProfile';
 
@@ -1715,6 +1716,8 @@ function App() {
   const [events, setEvents] = useState(() => getLocalSnapshot().events);
   const [users, setUsers] = useState([]);
   const [txForm, setTxForm] = useState(defaultTxForm);
+  const [txWizardOpen, setTxWizardOpen] = useState(false);
+  const [txWizardMode, setTxWizardMode] = useState('create');
   const [eventForm, setEventForm] = useState(defaultEventForm);
   const [userForm, setUserForm] = useState(defaultUserForm);
   const [broadcastOpen, setBroadcastOpen] = useState(false);
@@ -2272,6 +2275,11 @@ function App() {
                           }
                         };
 
+                        const handleWizardSaveTransaction = async () => {
+                          await handleSaveTransaction();
+                          closeTransactionWizard();
+                        };
+
 
 
   const handleDeleteTransaction = async (tx) => {
@@ -2340,10 +2348,26 @@ function App() {
     ref.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
+  const openTransactionWizard = ({ mode, data } = {}) => {
+    const wizardMode = mode === 'edit' ? 'edit' : 'create';
+    setTxWizardMode(wizardMode);
+    setTxForm(wizardMode === 'edit' && data ? data : defaultTxForm);
+    setTxWizardOpen(true);
+  };
+
+  const closeTransactionWizard = () => {
+    setTxWizardOpen(false);
+    setTxWizardMode('create');
+    setTxForm(defaultTxForm);
+  };
+
   const handleFabTransaction = () => {
     setActiveView('transactions');
     setActiveTab('form');
-    setTimeout(() => scrollToRef(transactionFormRef), 50);
+    setTimeout(() => {
+      scrollToRef(transactionFormRef);
+      openTransactionWizard({ mode: 'create' });
+    }, 50);
   };
 
   const handleFabEvent = () => {
@@ -2962,49 +2986,29 @@ function App() {
 
           {activeTab === 'form' && (
             <div id="tab-form" ref={transactionFormRef}>
-              <div className="row">
-                <div style={{ flex: 1 }}>
-                  <label>Tipo</label>
-                  <select value={txForm.type} onChange={(e) => setTxForm({ ...txForm, type: e.target.value })}>
-                    <option value="income">Receita</option>
-                    <option value="expense">Despesa</option>
-                  </select>
+              <div className="row transaction-wizard-trigger">
+                <div>
+                  <p className="muted">Use o passo a passo para criar ou editar uma transação sem perder nenhum detalhe.</p>
                 </div>
-                <div style={{ flex: 1 }}>
-                  <label>Valor (use ponto para decimais)</label>
-                  <input type="number" step="0.01" value={txForm.amount} onChange={(e) => setTxForm({ ...txForm, amount: e.target.value })} />
-                </div>
-                <div style={{ flex: 1 }}>
-                  <label>Data</label>
-                  <input type="date" value={txForm.date} onChange={(e) => setTxForm({ ...txForm, date: e.target.value })} />
+                <div>
+                  <button className="primary" onClick={() => openTransactionWizard({ mode: 'create' })}>
+                    Nova Transação
+                  </button>
                 </div>
               </div>
-              <div className="row">
-                <div style={{ flex: 2 }}>
-                  <label>Descrição</label>
-                  <input value={txForm.description} onChange={(e) => setTxForm({ ...txForm, description: e.target.value })} placeholder="Ex.: Venda no Pix" />
-                </div>
-                <div style={{ flex: 1 }}>
-                  <label>Categoria</label>
-                  <select value={txForm.category} onChange={(e) => setTxForm({ ...txForm, category: e.target.value })}>
-                    {hasLegacyCategory && (
-                      <option value={txForm.category}>Categoria atual: {txForm.category}</option>
-                    )}
-                    <option value="">Selecione</option>
-                    {txCategories.map((category) => (
-                      <option key={category} value={category}>
-                        {category}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-              <div className="row" style={{ justifyContent: 'flex-end', marginTop: 8 }}>
-                <button className="primary" onClick={handleSaveTransaction}>
-                  {txForm.id ? 'Atualizar' : 'Adicionar'}
-                </button>
-                <button className="ghost" onClick={() => setTxForm(defaultTxForm)}>Limpar</button>
-              </div>
+
+              <TransactionWizard
+                isOpen={txWizardOpen}
+                mode={txWizardMode}
+                initialData={txWizardMode === 'edit' ? txForm : null}
+                formData={txForm}
+                onChange={setTxForm}
+                onClose={closeTransactionWizard}
+                onSave={handleWizardSaveTransaction}
+                onReset={() => setTxForm(defaultTxForm)}
+                categories={txCategories}
+                hasLegacyCategory={hasLegacyCategory}
+              />
 
               <div className="sep"></div>
 
@@ -3044,7 +3048,7 @@ function App() {
 
               <TransactionsTable
                 items={filteredTransactions}
-                onEdit={(tx) => setTxForm(tx)}
+                onEdit={(tx) => openTransactionWizard({ mode: 'edit', data: tx })}
                 onDelete={handleDeleteTransaction}
               />
             </div>

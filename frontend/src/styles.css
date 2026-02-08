@@ -573,6 +573,120 @@ th{ color:var(--muted); font-size:12px; font-weight:600; }
 }
 .report-modal-item span{ display:block; font-size:12px; }
 
+.transaction-wizard-overlay{
+  position:fixed;
+  inset:0;
+  background:rgba(8,12,24,0.75);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:16px;
+  z-index:70;
+}
+.transaction-wizard{
+  width:min(720px, 100%);
+  max-height:90vh;
+  overflow:auto;
+  background:var(--card);
+  border:1px solid #20273b;
+  border-radius:18px;
+  padding:20px;
+  display:flex;
+  flex-direction:column;
+  gap:16px;
+  box-shadow:0 24px 48px rgba(0,0,0,0.45);
+}
+.transaction-wizard-header{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:12px;
+  flex-wrap:wrap;
+}
+.transaction-wizard-steps{
+  display:grid;
+  grid-template-columns:repeat(3, minmax(0, 1fr));
+  gap:10px;
+}
+.transaction-wizard-step{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  padding:10px 12px;
+  border-radius:12px;
+  border:1px solid #20273b;
+  background:var(--card-2);
+  font-size:13px;
+  color:var(--muted);
+}
+.transaction-wizard-step span{
+  width:26px;
+  height:26px;
+  border-radius:999px;
+  display:grid;
+  place-items:center;
+  background:rgba(148,163,184,0.15);
+  font-weight:600;
+  color:var(--text);
+}
+.transaction-wizard-step.active{
+  border-color:var(--accent);
+  color:var(--text);
+  box-shadow:0 0 0 1px rgba(100,116,139,0.2);
+}
+.transaction-wizard-step.active span{
+  background:var(--accent);
+  color:var(--accent-ink);
+}
+.transaction-wizard-body{
+  display:flex;
+  flex-direction:column;
+  gap:14px;
+}
+.transaction-wizard-panel{
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+}
+.transaction-wizard-options{
+  display:grid;
+  grid-template-columns:repeat(2, minmax(0, 1fr));
+  gap:12px;
+}
+.wizard-option{
+  border:1px solid #20273b;
+  background:var(--card-2);
+  border-radius:14px;
+  padding:16px;
+  font-weight:600;
+  cursor:pointer;
+}
+.wizard-option.active{
+  background:var(--accent);
+  color:var(--accent-ink);
+  border-color:transparent;
+}
+.transaction-wizard-grid{
+  display:grid;
+  grid-template-columns:repeat(2, minmax(0, 1fr));
+  gap:12px;
+}
+.transaction-wizard-actions{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:12px;
+}
+.transaction-wizard-actions-right{
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+}
+.transaction-wizard-trigger{
+  align-items:center;
+  justify-content:space-between;
+}
+
 /* Gráficos */
 canvas{ background:transparent; }
 
@@ -654,6 +768,38 @@ canvas{ background:transparent; }
   .report-modal-item{
     align-items:flex-start;
     flex-direction:column;
+  }
+
+  .transaction-wizard-overlay{
+    padding:0;
+  }
+  .transaction-wizard{
+    width:100%;
+    height:100%;
+    max-height:none;
+    border-radius:0;
+    padding:18px;
+  }
+  .transaction-wizard-steps{
+    grid-template-columns:1fr;
+  }
+  .transaction-wizard-options{
+    grid-template-columns:1fr;
+  }
+  .transaction-wizard-grid{
+    grid-template-columns:1fr;
+  }
+  .transaction-wizard-actions{
+    flex-direction:column-reverse;
+    align-items:stretch;
+  }
+  .transaction-wizard-actions-right{
+    flex-direction:column;
+  }
+  .transaction-wizard-actions button,
+  .transaction-wizard-header button{
+    width:100%;
+    padding:14px 16px;
   }
 
   /* Ajuste da área de ações do admin no mobile */
