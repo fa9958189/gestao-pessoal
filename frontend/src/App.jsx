@@ -53,12 +53,30 @@ const CATEGORIES = {
   ]
 };
 
-const defaultTxFilters = {
-  from: '',
-  to: '',
+const formatDateInput = (value) => {
+  if (!value) return '';
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const getCurrentMonthRange = (today = new Date()) => {
+  const start = new Date(today.getFullYear(), today.getMonth(), 1);
+  const end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+  return {
+    from: formatDateInput(start),
+    to: formatDateInput(end)
+  };
+};
+
+const buildDefaultTxFilters = () => ({
+  ...getCurrentMonthRange(),
   type: '',
   search: ''
-};
+});
 
 const defaultGeneralReportGoals = {
   calories: 2000,
@@ -1762,7 +1780,7 @@ function App() {
   const txCategories = txForm.type === 'income' ? CATEGORIES.income : CATEGORIES.expenses;
   const hasLegacyCategory = txForm.category && !txCategories.includes(txForm.category);
 
-  const [txFilters, setTxFilters] = useState(defaultTxFilters);
+  const [txFilters, setTxFilters] = useState(buildDefaultTxFilters);
   const [eventFilters, setEventFilters] = useState(defaultEventFilters);
   const [activeTab, setActiveTab] = useState('form');
   const [activeView, setActiveView] = useState('transactions');
