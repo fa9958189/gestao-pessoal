@@ -1739,6 +1739,15 @@ function App() {
   const [eventFilters, setEventFilters] = useState(defaultEventFilters);
   const [activeTab, setActiveTab] = useState('form');
   const [activeView, setActiveView] = useState('transactions');
+  const viewTabs = [
+    { key: 'transactions', label: 'Transações', emoji: '💰' },
+    { key: 'agenda', label: 'Agenda', emoji: '📅' },
+    { key: 'users', label: 'Cadastro de Usuários', emoji: '👥', adminOnly: true },
+    { key: 'affiliates', label: 'Afiliados', emoji: '🤝', adminOnly: true },
+    { key: 'workout', label: 'Rotina de Treino', emoji: '🏋️‍♂️' },
+    { key: 'foodDiary', label: 'Diário alimentar', emoji: '🍽️' },
+    { key: 'generalReport', label: 'Relatório Geral', emoji: '📊' },
+  ];
   const [generalReportGoals, setGeneralReportGoals] = useState(defaultGeneralReportGoals);
   const transactionFormRef = useRef(null);
   const agendaRef = useRef(null);
@@ -2861,53 +2870,20 @@ function App() {
       <Toast toast={toast} onClose={() => setToast(null)} />
       <DashboardHeader apiUrl={window.APP_CONFIG?.supabaseUrl} profile={profile} onLogout={handleLogout} />
       <div className="page-nav tabs">
-        <button
-          className={activeView === 'transactions' ? 'tab active' : 'tab'}
-          onClick={() => setActiveView('transactions')}
-        >
-          Transações
-        </button>
-        <button
-          className={activeView === 'agenda' ? 'tab active' : 'tab'}
-          onClick={() => setActiveView('agenda')}
-        >
-          Agenda
-        </button>
-        {isAdmin && (
-          <>
+        {viewTabs
+          .filter((tab) => !tab.adminOnly || isAdmin)
+          .map((tab) => (
             <button
-              className={activeView === 'users' ? 'tab active' : 'tab'}
-              onClick={() => setActiveView('users')}
+              key={tab.key}
+              className={activeView === tab.key ? 'tab active' : 'tab'}
+              onClick={() => setActiveView(tab.key)}
             >
-              Cadastro de Usuários
+              <span className="tab-emoji" aria-hidden="true">
+                {tab.emoji}
+              </span>
+              <span className="tab-label">{tab.label}</span>
             </button>
-            <button
-              className={activeView === 'affiliates' ? 'tab active' : 'tab'}
-              onClick={() => setActiveView('affiliates')}
-            >
-              Afiliados
-            </button>
-          </>
-        )}
-        <button
-          className={activeView === 'workout' ? 'tab active' : 'tab'}
-          onClick={() => setActiveView('workout')}
-        >
-          Rotina de Treino
-        </button>
-
-        <button
-          className={activeView === 'foodDiary' ? 'tab active' : 'tab'}
-          onClick={() => setActiveView('foodDiary')}
-        >
-          Diário alimentar
-        </button>
-        <button
-          className={activeView === 'generalReport' ? 'tab active' : 'tab'}
-          onClick={() => setActiveView('generalReport')}
-        >
-          Relatório Geral
-        </button>
+          ))}
       </div>
 
       {activeView === 'transactions' && (
