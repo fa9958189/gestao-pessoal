@@ -2261,13 +2261,12 @@ function App() {
 
                           setTransactions(newList);
                           persistLocalSnapshot({ transactions: newList });
-                          setTxForm(defaultTxForm);
 
                           // Se não tiver client ou sessão, para por aqui (modo offline)
                           if (!client || !session?.user?.id) {
                             console.warn('Sem client ou sessão – salvando só localmente.');
                             pushToast('Transação salva localmente. Configure o Supabase para sincronizar.', 'warning');
-                            return;
+                            return true;
                           }
 
                           try {
@@ -2294,15 +2293,20 @@ function App() {
 
                             // Recarrega dados remotos para garantir que estado = banco
                             await loadRemoteData();
+                            return true;
                           } catch (err) {
                             console.warn('Falha ao sincronizar transação com Supabase, usando apenas local.', err);
                             pushToast('Transação salva localmente. Configure o Supabase para sincronizar.', 'warning');
+                            return true;
                           }
                         };
 
                         const handleWizardSaveTransaction = async () => {
-                          await handleSaveTransaction();
-                          closeTransactionWizard();
+                          const saved = await handleSaveTransaction();
+                          if (saved) {
+                            closeTransactionWizard();
+                            setActiveTab('form');
+                          }
                         };
 
 
@@ -2330,7 +2334,6 @@ function App() {
       : [payload, ...events];
     setEvents(newList);
     persistLocalSnapshot({ events: newList });
-    setEventForm(defaultEventForm);
     try {
       if (client && session) {
         const { error } = await client.from('events').upsert({
@@ -2346,9 +2349,11 @@ function App() {
       }
       pushToast('Evento salvo!', 'success');
       loadRemoteData();
+      return true;
     } catch (err) {
       console.warn('Falha ao sincronizar evento', err);
       pushToast('Evento salvo localmente. Configure o Supabase para sincronizar.', 'warning');
+      return true;
     }
   };
 
@@ -2400,8 +2405,10 @@ function App() {
   };
 
   const handleWizardSaveEvent = async () => {
-    await handleSaveEvent();
-    closeEventWizard();
+    const saved = await handleSaveEvent();
+    if (saved) {
+      closeEventWizard();
+    }
   };
 
   const openUserWizard = ({ mode, data } = {}) => {
@@ -2436,8 +2443,10 @@ function App() {
   };
 
   const handleWizardSaveUser = async () => {
-    await handleSaveUser();
-    setUserWizardOpen(false);
+    const saved = await handleSaveUser();
+    if (saved) {
+      closeUserWizard();
+    }
   };
 
   const openAffiliateWizard = () => {
@@ -2453,8 +2462,10 @@ function App() {
   };
 
   const handleWizardSaveAffiliate = async () => {
-    await handleSaveAffiliate();
-    setAffiliateWizardOpen(false);
+    const saved = await handleSaveAffiliate();
+    if (saved) {
+      closeAffiliateWizard();
+    }
   };
 
   const handleFabTransaction = () => {
@@ -2503,7 +2514,7 @@ function App() {
   const handleSaveUser = async () => {
     if (!client || profile?.role !== 'admin') {
       pushToast('Somente administradores podem gerenciar usuários.', 'warning');
-      return;
+      return false;
     }
     try {
       const hasPassword = typeof userForm.password === 'string' && userForm.password.trim().length >= 4;
@@ -2514,12 +2525,12 @@ function App() {
 
         if (!accessToken) {
           pushToast('Sessão expirada. Faça login novamente.', 'warning');
-          return;
+          return false;
         }
 
         if (!workoutApiBase || !/^https?:\/\//i.test(workoutApiBase)) {
           pushToast('Backend não configurado. Não é possível alterar e-mail/senha sem o backend.', 'warning');
-          return;
+          return false;
         }
 
         const bodyPayload = {
@@ -2545,7 +2556,7 @@ function App() {
         const body = await response.json().catch(() => ({}));
         if (response.status === 403) {
           handleApiForbidden();
-          return;
+          return false;
         }
         if (!response.ok) {
           throw new Error(body.error || 'Erro ao atualizar usuário/senha.');
@@ -2556,7 +2567,7 @@ function App() {
             'API do backend não configurada. Verifique a variável do seu .env existente (ex.: VITE_API_BASE_URL) e faça rebuild/deploy do front.',
             'danger'
           );
-          return;
+          return false;
         }
 
         // Criar usuário via backend
@@ -2585,7 +2596,7 @@ function App() {
         const body = await response.json();
         if (response.status === 403) {
           handleApiForbidden();
-          return;
+          return false;
         }
         if (!response.ok) {
           throw new Error(body.error || 'Erro ao criar usuário.');
@@ -2596,9 +2607,11 @@ function App() {
       setEditingUserId(null);
       setEditingUserOriginal(null);
       loadRemoteData();
+      return true;
     } catch (err) {
       console.warn('Erro ao salvar usuário', err);
       pushToast(`Não foi possível salvar o usuário: ${err?.message || 'erro desconhecido'}`, 'danger');
+      return false;
     }
   };
 
@@ -2839,24 +2852,24 @@ function App() {
   const handleSaveAffiliate = async () => {
     if (!client || profile?.role !== 'admin') {
       pushToast('Somente administradores podem criar afiliados.', 'warning');
-      return;
+      return false;
     }
 
     if (!workoutApiBase || !/^https?:\/\//i.test(workoutApiBase)) {
       pushToast('Backend não configurado para afiliados.', 'warning');
-      return;
+      return false;
     }
 
     if (!affiliateForm.code.trim() || !affiliateForm.name.trim()) {
       pushToast('Informe código e nome do afiliado.', 'warning');
-      return;
+      return false;
     }
 
     try {
       const accessToken = await getAccessToken();
       if (!accessToken) {
         pushToast('Sessão expirada. Faça login novamente.', 'warning');
-        return;
+        return false;
       }
 
       const payload = {
@@ -2881,7 +2894,7 @@ function App() {
 
       if (response.status === 403) {
         handleApiForbidden();
-        return;
+        return false;
       }
 
       if (!response.ok) {
@@ -2891,9 +2904,11 @@ function App() {
       pushToast('Afiliado criado.', 'success');
       setAffiliateForm(defaultAffiliateForm);
       loadAffiliates();
+      return true;
     } catch (err) {
       console.warn('Erro ao salvar afiliado', err);
       pushToast(err?.message || 'Erro ao salvar afiliado.', 'danger');
+      return false;
     }
   };
 

@@ -153,7 +153,8 @@ const FoodDiary = React.forwardRef(({ userId, supabase, notify, refreshToken }, 
   const handleWizardSaveEntry = async () => {
     const saved = await handleAddEntry({ preventDefault: () => {} });
     if (saved) {
-      setMealWizardOpen(false);
+      closeMealWizard();
+      setTab('diario');
     }
   };
 
