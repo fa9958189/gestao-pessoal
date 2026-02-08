@@ -1634,75 +1634,76 @@ const WorkoutRoutine = React.forwardRef(({ apiBaseUrl = import.meta.env.VITE_API
                 </button>
               </div>
 
-              <GenericWizard
-                isOpen={workoutWizardOpen}
-                mode={workoutWizardMode}
-                title={workoutWizardMode === 'edit' ? 'Editar treino' : 'Novo treino'}
-                subtitle="Cadastre seu treino em etapas."
-                steps={[
-                  { id: 1, label: 'Nome do treino' },
-                  { id: 2, label: 'Grupos musculares' },
-                  { id: 3, label: 'Horários / lembretes' },
-                ]}
-                validateStep={(step) => {
-                  if (step === 1 && !workoutForm.name.trim()) {
-                    return { valid: false, message: 'Informe o nome do treino para continuar.' };
-                  }
-                  if (step === 2 && !workoutForm.muscleGroups.length) {
-                    return { valid: false, message: 'Selecione um grupo muscular para continuar.' };
-                  }
-                  return { valid: true, message: '' };
-                }}
-                onClose={closeWorkoutWizard}
-                onSave={handleWizardSaveRoutine}
-                onReset={() => {
-                  setWorkoutForm(defaultWorkoutForm);
-                  setCreateReminder(false);
-                  setSessionReminder(false);
-                  setWizardScheduleDays([]);
-                  setWizardScheduleTime('');
-                  setWizardScheduleReminder(false);
-                }}
-                saveLabel={workoutWizardMode === 'edit' ? 'Atualizar' : 'Salvar'}
-              >
-                {(step) => (
-                  <>
-                    {step === 1 && (
-                      <div className="transaction-wizard-panel">
-                        <label>Nome do treino</label>
-                        <input
-                          value={workoutForm.name}
-                          onChange={(e) => setWorkoutForm({ ...workoutForm, name: e.target.value })}
-                          placeholder="Ex.: Treino A – Peito e Tríceps"
-                        />
-                      </div>
-                    )}
-
-                    {step === 2 && (
-                      <div className="transaction-wizard-panel">
-                        <div className="muted" style={{ marginBottom: 6, fontSize: 13 }}>Grupos musculares</div>
-                        <div className="muscle-grid">
-                          {WIZARD_MUSCLE_GROUPS.map((group) => {
-                            const active = workoutForm.muscleGroups.includes(group.value);
-                            return (
-                              <button
-                                key={group.value}
-                                type="button"
-                                className={active ? 'muscle-card active' : 'muscle-card'}
-                                onClick={() => toggleMuscleGroup(group.value)}
-                              >
-                                <div className="muscle-image-wrapper">
-                                  {group.image && (
-                                    <img src={group.image} alt={group.label} className="muscle-image" />
-                                  )}
-                                </div>
-                                <span className="muscle-label">{group.label}</span>
-                              </button>
-                            );
-                          })}
+              {workoutWizardOpen && (
+                <GenericWizard
+                  isOpen={workoutWizardOpen}
+                  mode={workoutWizardMode}
+                  title={workoutWizardMode === 'edit' ? 'Editar treino' : 'Novo treino'}
+                  subtitle="Cadastre seu treino em etapas."
+                  steps={[
+                    { id: 1, label: 'Nome do treino' },
+                    { id: 2, label: 'Grupos musculares' },
+                    { id: 3, label: 'Horários / lembretes' },
+                  ]}
+                  validateStep={(step) => {
+                    if (step === 1 && !workoutForm.name.trim()) {
+                      return { valid: false, message: 'Informe o nome do treino para continuar.' };
+                    }
+                    if (step === 2 && !workoutForm.muscleGroups.length) {
+                      return { valid: false, message: 'Selecione um grupo muscular para continuar.' };
+                    }
+                    return { valid: true, message: '' };
+                  }}
+                  onClose={closeWorkoutWizard}
+                  onSave={handleWizardSaveRoutine}
+                  onReset={() => {
+                    setWorkoutForm(defaultWorkoutForm);
+                    setCreateReminder(false);
+                    setSessionReminder(false);
+                    setWizardScheduleDays([]);
+                    setWizardScheduleTime('');
+                    setWizardScheduleReminder(false);
+                  }}
+                  saveLabel={workoutWizardMode === 'edit' ? 'Atualizar' : 'Salvar'}
+                >
+                  {(step) => (
+                    <>
+                      {step === 1 && (
+                        <div className="transaction-wizard-panel">
+                          <label>Nome do treino</label>
+                          <input
+                            value={workoutForm.name}
+                            onChange={(e) => setWorkoutForm({ ...workoutForm, name: e.target.value })}
+                            placeholder="Ex.: Treino A – Peito e Tríceps"
+                          />
                         </div>
-                      </div>
-                    )}
+                      )}
+
+                      {step === 2 && (
+                        <div className="transaction-wizard-panel">
+                          <div className="muted" style={{ marginBottom: 6, fontSize: 13 }}>Grupos musculares</div>
+                          <div className="muscle-grid">
+                            {WIZARD_MUSCLE_GROUPS.map((group) => {
+                              const active = workoutForm.muscleGroups.includes(group.value);
+                              return (
+                                <button
+                                  key={group.value}
+                                  type="button"
+                                  className={active ? 'muscle-card active' : 'muscle-card'}
+                                  onClick={() => toggleMuscleGroup(group.value)}
+                                >
+                                  <div className="muscle-image-wrapper">
+                                    {group.image && (
+                                      <img src={group.image} alt={group.label} className="muscle-image" />
+                                    )}
+                                  </div>
+                                  <span className="muscle-label">{group.label}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
 
                     {step === 3 && (
                       <div className="transaction-wizard-panel">
@@ -1779,8 +1780,9 @@ const WorkoutRoutine = React.forwardRef(({ apiBaseUrl = import.meta.env.VITE_API
                       </div>
                     )}
                   </>
-                )}
-              </GenericWizard>
+                  )}
+                </GenericWizard>
+              )}
             </div>
 
             {/* TREINOS CADASTRADOS */}
@@ -2420,19 +2422,21 @@ const WorkoutRoutine = React.forwardRef(({ apiBaseUrl = import.meta.env.VITE_API
       )}
 
       {/* Modal continua funcionando normalmente, fora dos cards */}
-      <ViewWorkoutModal
-        open={isViewModalOpen}
-        workout={viewWorkout}
-        onClose={handleCloseViewWorkout}
-        onCompleteToday={handleCompleteFromModal}
-        muscleMap={muscleMap}
-        sportsMap={sportsMap}
-        restDuration={restDuration}
-        restCountdown={restCountdown}
-        restFinished={restFinished}
-        onChangeDuration={setRestDuration}
-        onStart={startRestTimer}
-      />
+      {isViewModalOpen && (
+        <ViewWorkoutModal
+          open={isViewModalOpen}
+          workout={viewWorkout}
+          onClose={handleCloseViewWorkout}
+          onCompleteToday={handleCompleteFromModal}
+          muscleMap={muscleMap}
+          sportsMap={sportsMap}
+          restDuration={restDuration}
+          restCountdown={restCountdown}
+          restFinished={restFinished}
+          onChangeDuration={setRestDuration}
+          onStart={startRestTimer}
+        />
+      )}
     </div>
   );
 });
