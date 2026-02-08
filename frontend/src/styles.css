@@ -314,6 +314,14 @@ button.ghost{ background:transparent; border:1px solid #38425b; }
   background:#111627; color:var(--text);
 }
 .tab.active{ background:#1b2140; border-color:#4e5c86; }
+.tab-emoji{
+  display:inline-block;
+  margin-right:6px;
+  font-size:0.95em;
+  line-height:1;
+  vertical-align:middle;
+}
+.tab-label{ vertical-align:middle; }
 
 /* Tabelas */
 table{ width:100%; border-collapse:collapse; }
