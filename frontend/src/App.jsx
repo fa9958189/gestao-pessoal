@@ -2984,7 +2984,7 @@ function App() {
 
   if (!session) {
     return (
-      <>
+      <div className="app-shell">
         <Toast toast={toast} onClose={() => setToast(null)} />
         <LoginScreen
           form={loginForm}
@@ -2994,12 +2994,12 @@ function App() {
           error={loginError}
           configError={configError}
         />
-      </>
+      </div>
     );
   }
 
   return (
-    <>
+    <div className="app-shell">
       <Toast toast={toast} onClose={() => setToast(null)} />
       <DashboardHeader apiUrl={window.APP_CONFIG?.supabaseUrl} profile={profile} onLogout={handleLogout} />
       <div className="page-nav tabs">
@@ -3629,7 +3629,7 @@ function App() {
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 }
 

@@ -33,6 +33,13 @@ body{
 a{ color:var(--link); text-decoration:none; }
 a:hover{ text-decoration:underline; }
 
+.app-shell{
+  display:block;
+  opacity:1;
+  height:auto;
+  overflow:visible;
+}
+
 /* Layout */
 header{
   padding:16px 20px;
@@ -719,22 +726,22 @@ canvas{ background:transparent; }
 
 /* ===== Responsivo: Cadastro de Usuários (mobile) ===== */
 
-/* A tabela precisa rolar DENTRO do container no mobile */
-.users-table-container{
-  overflow-x: auto;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-}
-
-/* Garante que o card single não fique “apertado” ou empurrado */
-.container.single-card{
-  width: 100%;
-  margin-left: auto;
-  margin-right: auto;
-}
-
 /* Ajustes gerais mobile */
 @media (max-width: 768px){
+  /* A tabela precisa rolar DENTRO do container no mobile */
+  .users-table-container{
+    overflow-x: auto;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Garante que o card single não fique “apertado” ou empurrado */
+  .container.single-card{
+    width: 100%;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
   .container.single-card{
     padding: 0 12px;
   }
