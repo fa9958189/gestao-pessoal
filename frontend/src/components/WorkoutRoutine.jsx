@@ -1202,7 +1202,7 @@ const WorkoutRoutine = React.forwardRef(({ apiBaseUrl = import.meta.env.VITE_API
   const handleWizardSaveRoutine = async () => {
     const saved = await handleSaveRoutine();
     if (saved) {
-      setWorkoutWizardOpen(false);
+      closeWorkoutWizard();
     }
   };
 
