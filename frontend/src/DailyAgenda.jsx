@@ -294,6 +294,47 @@ function DailyAgenda({ apiBaseUrl, notify, userId, refreshToken, getAccessToken 
               ))}
             </tbody>
           </table>
+          <div className="mobile-card-list" aria-live="polite">
+            {reminders.length === 0 && (
+              <div className="mobile-card">
+                <p className="muted">{loading ? 'Carregando lembretes...' : 'Nenhum lembrete cadastrado.'}</p>
+              </div>
+            )}
+            {reminders.map((reminder) => (
+              <div key={reminder.id} className="mobile-card">
+                <div className="mobile-card-header">
+                  <div>
+                    <h4 className="mobile-card-title">{reminder.title}</h4>
+                    <p className="muted">{reminder.notes || '-'}</p>
+                  </div>
+                  <span className={`badge ${reminder.active ? 'badge-active' : 'badge-inactive'}`}>
+                    {reminder.active ? 'Ativo' : 'Inativo'}
+                  </span>
+                </div>
+                <div className="mobile-card-meta">
+                  <div>
+                    <span className="label">Data</span>
+                    <span>{reminder.reminder_time || '-'}</span>
+                  </div>
+                  <div>
+                    <span className="label">Valor</span>
+                    <span>-</span>
+                  </div>
+                </div>
+                <div className="mobile-card-actions">
+                  <button className="icon-button" onClick={() => handleEdit(reminder)} title="Editar">
+                    ✏️
+                  </button>
+                  <button className="icon-button" onClick={() => handleDelete(reminder)} title="Excluir">
+                    🗑️
+                  </button>
+                  <button className="icon-button" onClick={() => handleToggle(reminder)} title="Ativar/Desativar">
+                    {reminder.active ? '⏸️' : '▶️'}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
     </div>

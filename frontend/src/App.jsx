@@ -509,6 +509,47 @@ const TransactionsTable = ({ items, onEdit, onDelete }) => (
         ))}
       </tbody>
     </table>
+    <div className="mobile-card-list" aria-live="polite">
+      {items.length === 0 && (
+        <div className="mobile-card">
+          <p className="muted">Nenhuma transação encontrada para este filtro.</p>
+        </div>
+      )}
+      {items.map((tx) => (
+        <div key={tx.id} className="mobile-card">
+          <div className="mobile-card-header">
+            <div>
+              <h4 className="mobile-card-title">{tx.description || 'Transação'}</h4>
+              <div className="mobile-card-inline">
+                <span className={`badge badge-${tx.type}`}>
+                  {tx.type === 'income' ? 'Receita' : 'Despesa'}
+                </span>
+                <span className="muted">{tx.category || '-'}</span>
+              </div>
+            </div>
+            <strong>{formatCurrency(tx.amount)}</strong>
+          </div>
+          <div className="mobile-card-meta">
+            <div>
+              <span className="label">Valor</span>
+              <span>{formatCurrency(tx.amount)}</span>
+            </div>
+            <div>
+              <span className="label">Data</span>
+              <span>{formatDate(tx.date)}</span>
+            </div>
+          </div>
+          <div className="mobile-card-actions">
+            <button className="icon-button" onClick={() => onEdit(tx)} title="Editar">
+              ✏️
+            </button>
+            <button className="icon-button" onClick={() => onDelete(tx)} title="Excluir">
+              🗑️
+            </button>
+          </div>
+        </div>
+      ))}
+    </div>
   </div>
 );
 
@@ -552,6 +593,41 @@ const EventsTable = ({ items, onEdit, onDelete }) => (
         ))}
       </tbody>
     </table>
+    <div className="mobile-card-list" aria-live="polite">
+      {items.length === 0 && (
+        <div className="mobile-card">
+          <p className="muted">Nenhum evento encontrado para este filtro.</p>
+        </div>
+      )}
+      {items.map((ev) => (
+        <div key={ev.id} className="mobile-card">
+          <div className="mobile-card-header">
+            <div>
+              <h4 className="mobile-card-title">{ev.title || 'Evento'}</h4>
+              <p className="muted">{ev.notes || '-'}</p>
+            </div>
+          </div>
+          <div className="mobile-card-meta">
+            <div>
+              <span className="label">Data</span>
+              <span>{formatDate(ev.date)}</span>
+            </div>
+            <div>
+              <span className="label">Horário</span>
+              <span>{formatTimeRange(ev.start, ev.end)}</span>
+            </div>
+          </div>
+          <div className="mobile-card-actions">
+            <button className="icon-button" onClick={() => onEdit(ev)} title="Editar">
+              ✏️
+            </button>
+            <button className="icon-button" onClick={() => onDelete(ev)} title="Excluir">
+              🗑️
+            </button>
+          </div>
+        </div>
+      ))}
+    </div>
   </div>
 );
 
@@ -665,6 +741,88 @@ const UsersTable = ({ items, onEdit, onDelete, onBillingAction }) => (
           </tbody>
         </table>
       </div>
+    </div>
+    <div className="mobile-card-list" aria-live="polite">
+      {items.length === 0 && (
+        <div className="mobile-card">
+          <p className="muted">Nenhum usuário cadastrado além de você.</p>
+        </div>
+      )}
+      {items.map((user) => {
+        const status = user.derived_status || user.subscription_status || 'active';
+        const labelMap = { active: 'ATIVO', pending: 'PENDENTE', inactive: 'INATIVO' };
+        const paid = user.payment_status === 'paid';
+        const trialEnd = getTrialEnd(user);
+        const daysLeft = getDaysLeft(trialEnd);
+        return (
+          <div key={user.id} className="mobile-card">
+            <div className="mobile-card-header">
+              <div>
+                <h4 className="mobile-card-title">{user.username}</h4>
+                <p className="muted">{user.name || '-'}</p>
+              </div>
+              <span className="badge">{user.role}</span>
+            </div>
+            <div className="mobile-card-meta">
+              <div>
+                <span className="label">Status</span>
+                <span className={`badge badge-${status}`}>{labelMap[status] || status.toUpperCase()}</span>
+              </div>
+              <div>
+                <span className="label">Pagamento</span>
+                <span className={`badge ${paid ? 'badge-paid' : 'badge-payment-pending'}`}>
+                  {paid ? 'PAGO' : 'PENDENTE'}
+                </span>
+              </div>
+              <div>
+                <span className="label">Vencimento</span>
+                <span>dia {user.due_day || BILLING_DUE_DAY}</span>
+              </div>
+              <div>
+                <span className="label">Último pagamento</span>
+                <span>{formatDate(user.last_payment_at || user.last_paid_at)}</span>
+              </div>
+              <div>
+                <span className="label">Criado em</span>
+                <span>{formatDate(user.created_at)}</span>
+              </div>
+              <div>
+                <span className="label">Teste</span>
+                <span>{formatTrialLabel(daysLeft)}</span>
+              </div>
+            </div>
+            <div className="mobile-card-actions">
+              <button className="icon-button" onClick={() => onEdit(user)} title="Editar">
+                ✏️
+              </button>
+              <button className="icon-button" onClick={() => onDelete(user)} title="Excluir">
+                🗑️
+              </button>
+              <button
+                className="icon-button"
+                onClick={() => onBillingAction(user, 'activate')}
+                title="Ativar"
+              >
+                Ativar
+              </button>
+              <button
+                className="icon-button"
+                onClick={() => onBillingAction(user, 'inactivate')}
+                title="Inativar"
+              >
+                Inativar
+              </button>
+              <button
+                className="icon-button"
+                onClick={() => onBillingAction(user, 'markPaid')}
+                title="Marcar pago"
+              >
+                Marcar pago
+              </button>
+            </div>
+          </div>
+        );
+      })}
     </div>
   </div>
 );
@@ -1659,6 +1817,8 @@ function App() {
   const [activeTab, setActiveTab] = useState('form');
   const [activeView, setActiveView] = useState('transactions');
   const [generalReportGoals, setGeneralReportGoals] = useState(defaultGeneralReportGoals);
+  const transactionFormRef = useRef(null);
+  const agendaRef = useRef(null);
   const workoutApiBase = normalizeBaseUrl(
     window.APP_CONFIG?.apiBaseUrl ||
     import.meta.env.VITE_API_BASE_URL ||
@@ -2222,6 +2382,23 @@ function App() {
     }
   };
 
+  const scrollToRef = (ref) => {
+    if (!ref?.current) return;
+    ref.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  const handleFabTransaction = () => {
+    setActiveView('transactions');
+    setActiveTab('form');
+    setTimeout(() => scrollToRef(transactionFormRef), 50);
+  };
+
+  const handleFabEvent = () => {
+    setActiveView('transactions');
+    setActiveTab('form');
+    setTimeout(() => scrollToRef(agendaRef), 50);
+  };
+
   const handleSaveUser = async () => {
     if (!client || profile?.role !== 'admin') {
       pushToast('Somente administradores podem gerenciar usuários.', 'warning');
@@ -2741,7 +2918,7 @@ function App() {
   };
 
   const renderAgenda = () => (
-    <aside className="card">
+    <aside className="card" ref={agendaRef}>
       <h2 className="title">Agenda</h2>
 
       <div className="grid grid-2" style={{ marginBottom: 8 }}>
@@ -2885,7 +3062,7 @@ function App() {
           </div>
 
           {activeTab === 'form' && (
-            <div id="tab-form">
+            <div id="tab-form" ref={transactionFormRef}>
               <div className="row">
                 <div style={{ flex: 1 }}>
                   <label>Tipo</label>
@@ -3249,6 +3426,67 @@ function App() {
                   ))}
                 </tbody>
               </table>
+              <div className="mobile-card-list" aria-live="polite">
+                {(affiliates || []).length === 0 && !affiliatesLoading && (
+                  <div className="mobile-card">
+                    <p className="muted">Nenhum afiliado cadastrado.</p>
+                  </div>
+                )}
+                {(affiliates || []).map((item) => (
+                  <div key={item.id} className="mobile-card">
+                    <div className="mobile-card-header">
+                      <div>
+                        <h4 className="mobile-card-title">{item.name}</h4>
+                        <p className="muted">Código: {item.code}</p>
+                      </div>
+                      <span className="badge">{item.is_active ? 'Ativo' : 'Inativo'}</span>
+                    </div>
+                    <div className="mobile-card-meta">
+                      <div>
+                        <span className="label">Clientes ativos</span>
+                        <span>{item.active_clients_count ?? item.active_users ?? 0}</span>
+                      </div>
+                      <div>
+                        <span className="label">Clientes inativos</span>
+                        <span>{item.inactive_clients_count ?? item.inactive_users ?? 0}</span>
+                      </div>
+                      <div>
+                        <span className="label">Pagamento</span>
+                        <span className={`badge ${item.payout_status === 'PAGO' ? 'badge-paid' : 'badge-payment-pending'}`}>
+                          {item.payout_status === 'PAGO' ? 'PAGO' : 'PENDENTE'}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="label">Ref.</span>
+                        <span>{item.payout_ref || item.current_payout_label || '-'}</span>
+                      </div>
+                      <div>
+                        <span className="label">Comissão mês</span>
+                        <span>{formatCurrency((item.commission_month_cents || 0) / 100)}</span>
+                      </div>
+                      <div>
+                        <span className="label">Data</span>
+                        <span>{item.current_payout_period ? formatDate(item.current_payout_period) : '-'}</span>
+                      </div>
+                    </div>
+                    <div className="mobile-card-actions">
+                      <button className="ghost" onClick={() => handleViewAffiliateUsers(item)}>Ver clientes</button>
+                      <button
+                        className="ghost"
+                        onClick={() => handleMarkAffiliatePaid(item)}
+                        disabled={affiliatePayoutLoadingId === item.id}
+                      >
+                        {affiliatePayoutLoadingId === item.id ? 'Marcando...' : 'Marcar pago (mês atual)'}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                {affiliatesLoading && (
+                  <div className="mobile-card">
+                    <p className="muted">Carregando afiliados...</p>
+                  </div>
+                )}
+              </div>
               {affiliatesLoading && <p className="muted">Carregando afiliados...</p>}
               {!affiliatesLoading && !(affiliates || []).length && (
                 <p className="muted">Nenhum afiliado cadastrado.</p>
@@ -3292,6 +3530,15 @@ function App() {
           </section>
         </div>
       )}
+
+      <div className="fab-stack" aria-label="Ações rápidas">
+        <button className="fab-button" onClick={handleFabTransaction}>
+          Nova Transação
+        </button>
+        <button className="fab-button" onClick={handleFabEvent}>
+          Novo Evento
+        </button>
+      </div>
 
       {selectedAffiliate && (
         <div
@@ -3346,6 +3593,31 @@ function App() {
                     ))}
                   </tbody>
                 </table>
+              )}
+              {!affiliateUsersLoading && affiliateUsersList.length > 0 && (
+                <div className="mobile-card-list" aria-live="polite">
+                  {affiliateUsersComputed.map((user) => (
+                    <div key={user.id || user.auth_id} className="mobile-card">
+                      <div className="mobile-card-header">
+                        <div>
+                          <h4 className="mobile-card-title">{user.name || '-'}</h4>
+                          <p className="muted">{user.email || '-'}</p>
+                        </div>
+                        <span className="badge">{user.status === 'inactive' ? 'INATIVO' : 'ATIVO'}</span>
+                      </div>
+                      <div className="mobile-card-meta">
+                        <div>
+                          <span className="label">Valor</span>
+                          <span>{formatCurrency((user.is_active ? FIXED_COMMISSION_CENTS : 0) / 100)}</span>
+                        </div>
+                        <div>
+                          <span className="label">Data</span>
+                          <span>-</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
             {!affiliateUsersLoading && affiliateUsersList.length > 0 && (
