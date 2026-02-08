@@ -97,6 +97,25 @@ const MUSCLE_GROUPS = muscleGroups.slice(0, 10).map(({ id, name, image }) => ({
   image
 }));
 
+const WIZARD_MUSCLE_GROUPS = [
+  { id: 'peito', label: 'Peito' },
+  { id: 'costas', label: 'Costas' },
+  { id: 'ombros', label: 'Ombro' },
+  { id: 'biceps', label: 'Bíceps' },
+  { id: 'triceps', label: 'Tríceps' },
+  { id: 'pernas', label: 'Pernas' },
+  { id: 'abdomen', label: 'Abdômen' },
+  { id: 'gluteos', label: 'Glúteos' },
+  { id: 'panturrilha', label: 'Panturrilha' },
+].map(({ id, label }) => {
+  const found = muscleGroups.find((group) => group.id === id);
+  return {
+    value: id,
+    label,
+    image: found?.image,
+  };
+});
+
 const SPORTS = muscleGroups.slice(10).map(({ id, name, image }) => ({
   value: id,
   label: name,
@@ -687,6 +706,9 @@ const WorkoutRoutine = React.forwardRef(({ apiBaseUrl = import.meta.env.VITE_API
   const [progress, setProgress] = useState({ totalSessions: 0, byMuscleGroup: {} });
   const [createReminder, setCreateReminder] = useState(false);
   const [sessionReminder, setSessionReminder] = useState(false);
+  const [wizardScheduleDays, setWizardScheduleDays] = useState([]);
+  const [wizardScheduleTime, setWizardScheduleTime] = useState('');
+  const [wizardScheduleReminder, setWizardScheduleReminder] = useState(false);
 
   const muscleMap = useMemo(
     () =>
@@ -1188,6 +1210,9 @@ const WorkoutRoutine = React.forwardRef(({ apiBaseUrl = import.meta.env.VITE_API
       setCreateReminder(false);
       setSessionReminder(false);
     }
+    setWizardScheduleDays([]);
+    setWizardScheduleTime('');
+    setWizardScheduleReminder(false);
     setWorkoutWizardOpen(true);
   };
 
@@ -1197,11 +1222,30 @@ const WorkoutRoutine = React.forwardRef(({ apiBaseUrl = import.meta.env.VITE_API
     setWorkoutForm(defaultWorkoutForm);
     setCreateReminder(false);
     setSessionReminder(false);
+    setWizardScheduleDays([]);
+    setWizardScheduleTime('');
+    setWizardScheduleReminder(false);
   };
 
   const handleWizardSaveRoutine = async () => {
     const saved = await handleSaveRoutine();
     if (saved) {
+      if (wizardScheduleDays.length) {
+        const routineId = saved?.id || workoutForm.id;
+        if (routineId) {
+          setSchedule((prev) =>
+            prev.map((slot) => {
+              if (!wizardScheduleDays.includes(slot.day)) return slot;
+              return {
+                ...slot,
+                workout_id: routineId,
+                time: wizardScheduleTime,
+                reminder: wizardScheduleReminder,
+              };
+            })
+          );
+        }
+      }
       closeWorkoutWizard();
     }
   };
@@ -1268,7 +1312,7 @@ const WorkoutRoutine = React.forwardRef(({ apiBaseUrl = import.meta.env.VITE_API
       }
 
       notify('Treino salvo com sucesso!', 'success');
-      return true;
+      return saved;
     } catch (err) {
       console.warn('Erro ao salvar treino', err);
       notify(err.message || 'Não foi possível salvar o treino.', 'danger');
@@ -1615,6 +1659,9 @@ const WorkoutRoutine = React.forwardRef(({ apiBaseUrl = import.meta.env.VITE_API
                   setWorkoutForm(defaultWorkoutForm);
                   setCreateReminder(false);
                   setSessionReminder(false);
+                  setWizardScheduleDays([]);
+                  setWizardScheduleTime('');
+                  setWizardScheduleReminder(false);
                 }}
                 saveLabel={workoutWizardMode === 'edit' ? 'Atualizar' : 'Salvar'}
               >
@@ -1635,7 +1682,7 @@ const WorkoutRoutine = React.forwardRef(({ apiBaseUrl = import.meta.env.VITE_API
                       <div className="transaction-wizard-panel">
                         <div className="muted" style={{ marginBottom: 6, fontSize: 13 }}>Grupos musculares</div>
                         <div className="muscle-grid">
-                          {MUSCLE_GROUPS.map((group) => {
+                          {WIZARD_MUSCLE_GROUPS.map((group) => {
                             const active = workoutForm.muscleGroups.includes(group.value);
                             return (
                               <button
@@ -1645,31 +1692,11 @@ const WorkoutRoutine = React.forwardRef(({ apiBaseUrl = import.meta.env.VITE_API
                                 onClick={() => toggleMuscleGroup(group.value)}
                               >
                                 <div className="muscle-image-wrapper">
-                                  <img src={group.image} alt={group.label} className="muscle-image" />
+                                  {group.image && (
+                                    <img src={group.image} alt={group.label} className="muscle-image" />
+                                  )}
                                 </div>
                                 <span className="muscle-label">{group.label}</span>
-                              </button>
-                            );
-                          })}
-                        </div>
-
-                        <div className="muted" style={{ margin: '14px 0 6px', fontSize: 13 }}>
-                          Esportes / atividades
-                        </div>
-                        <div className="muscle-grid">
-                          {SPORTS.map((sport) => {
-                            const active = workoutForm.sportsActivities.includes(sport.value);
-                            return (
-                              <button
-                                key={sport.value}
-                                type="button"
-                                className={active ? 'muscle-card active' : 'muscle-card'}
-                                onClick={() => toggleSport(sport.value)}
-                              >
-                                <div className="muscle-image-wrapper">
-                                  <img src={sport.image} alt={sport.label} className="muscle-image" />
-                                </div>
-                                <span className="muscle-label">{sport.label}</span>
                               </button>
                             );
                           })}
@@ -1679,6 +1706,56 @@ const WorkoutRoutine = React.forwardRef(({ apiBaseUrl = import.meta.env.VITE_API
 
                     {step === 3 && (
                       <div className="transaction-wizard-panel">
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                          <div>
+                            <div className="muted" style={{ marginBottom: 6, fontSize: 13 }}>
+                              Dias da semana
+                            </div>
+                            <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+                              {WEEK_DAYS.map((day) => {
+                                const isActive = wizardScheduleDays.includes(day);
+                                return (
+                                  <button
+                                    key={day}
+                                    type="button"
+                                    className={isActive ? 'primary' : 'ghost'}
+                                    onClick={() => {
+                                      setWizardScheduleDays((prev) =>
+                                        prev.includes(day)
+                                          ? prev.filter((item) => item !== day)
+                                          : [...prev, day]
+                                      );
+                                    }}
+                                    style={{ padding: '6px 12px', borderRadius: 999 }}
+                                  >
+                                    {day.slice(0, 3)}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+
+                          <div>
+                            <div className="muted" style={{ marginBottom: 6, fontSize: 13 }}>
+                              Horário
+                            </div>
+                            <input
+                              type="time"
+                              value={wizardScheduleTime}
+                              onChange={(e) => setWizardScheduleTime(e.target.value)}
+                            />
+                          </div>
+                        </div>
+                        <div className="checkbox-row">
+                          <label className="checkbox-label">
+                            <input
+                              type="checkbox"
+                              checked={wizardScheduleReminder}
+                              onChange={(e) => setWizardScheduleReminder(e.target.checked)}
+                            />
+                            <span>Lembrete para o treino</span>
+                          </label>
+                        </div>
                         <div className="checkbox-row">
                           <label className="checkbox-label">
                             <input
@@ -1698,9 +1775,6 @@ const WorkoutRoutine = React.forwardRef(({ apiBaseUrl = import.meta.env.VITE_API
                             />
                             <span>Ativar lembrete ao concluir treino do dia</span>
                           </label>
-                        </div>
-                        <div className="muted" style={{ fontSize: 12 }}>
-                          Defina os horários detalhados na seção de semana de treino.
                         </div>
                       </div>
                     )}
