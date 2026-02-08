@@ -1,4 +1,5 @@
 import React, { useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
+import GenericWizard from './GenericWizard.jsx';
 import FoodPicker from '../FoodPicker';
 import {
   deleteMeal,
@@ -68,6 +69,15 @@ const getLocalDateString = () => {
   return new Date(now.getTime() - offsetMs).toISOString().slice(0, 10);
 };
 
+const defaultMealForm = {
+  mealType: 'Almoço',
+  food: '',
+  calories: '',
+  protein: '',
+  time: '',
+  notes: ''
+};
+
 const FoodDiary = React.forwardRef(({ userId, supabase, notify, refreshToken }, ref) => {
   const [entriesByDate, setEntriesByDate] = useState({});
   const [goals, setGoals] = useState(defaultGoals);
@@ -89,15 +99,9 @@ const FoodDiary = React.forwardRef(({ userId, supabase, notify, refreshToken }, 
   );
   const [tab, setTab] = useState('diario');
 
-  const [form, setForm] = useState({
-    mealType: 'Almoço',
-    food: '',
-    calories: '',
-    protein: '',
-    time: '',
-    notes: ''
-  });
-
+  const [form, setForm] = useState(defaultMealForm);
+  const [mealWizardOpen, setMealWizardOpen] = useState(false);
+  const [mealWizardMode, setMealWizardMode] = useState('create');
   const [editingId, setEditingId] = useState(null);
 
   const [isFoodPickerOpen, setIsFoodPickerOpen] = useState(false);
@@ -115,6 +119,39 @@ const FoodDiary = React.forwardRef(({ userId, supabase, notify, refreshToken }, 
   const profileAutosaveTimeoutRef = useRef(null);
   const hasEditedProfileRef = useRef(false);
 
+  const openMealWizard = ({ mode = 'create', entry } = {}) => {
+    const wizardMode = mode === 'edit' ? 'edit' : 'create';
+    setMealWizardMode(wizardMode);
+    if (wizardMode === 'edit' && entry) {
+      setEditingId(entry.id);
+      setForm({
+        mealType: entry.mealType || 'Almoço',
+        food: entry.food || '',
+        calories: entry.calories != null ? String(entry.calories) : '',
+        protein: entry.protein != null ? String(entry.protein) : '',
+        time: entry.time || '',
+        notes: entry.notes || ''
+      });
+    } else {
+      setEditingId(null);
+      setForm(defaultMealForm);
+      setScanPreview(null);
+      setScanDescription('');
+    }
+    setMealWizardOpen(true);
+  };
+
+  const closeMealWizard = () => {
+    setMealWizardOpen(false);
+  };
+
+  const handleWizardSaveEntry = async () => {
+    const saved = await handleAddEntry({ preventDefault: () => {} });
+    if (saved) {
+      setMealWizardOpen(false);
+    }
+  };
+
   useImperativeHandle(
     ref,
     () => ({
@@ -122,6 +159,7 @@ const FoodDiary = React.forwardRef(({ userId, supabase, notify, refreshToken }, 
         setTab('diario');
         setTimeout(() => {
           newMealRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          openMealWizard({ mode: 'create' });
         }, 50);
       },
     }),
@@ -658,12 +696,12 @@ const FoodDiary = React.forwardRef(({ userId, supabase, notify, refreshToken }, 
   const handleAddEntry = async (event) => {
     event.preventDefault();
     if (!form.food && !form.calories) {
-      return;
+      return false;
     }
 
     if (!userId) {
       setError('Usuário não identificado para salvar a refeição.');
-      return;
+      return false;
     }
 
     const isEditing = Boolean(editingId);
@@ -703,14 +741,7 @@ const FoodDiary = React.forwardRef(({ userId, supabase, notify, refreshToken }, 
         });
       }
 
-      setForm({
-        mealType: 'Almoço',
-        food: '',
-        calories: '',
-        protein: '',
-        time: '',
-        notes: ''
-      });
+      setForm(defaultMealForm);
       setEditingId(null);
       setError(null);
       if (typeof notify === 'function') {
@@ -721,27 +752,21 @@ const FoodDiary = React.forwardRef(({ userId, supabase, notify, refreshToken }, 
           'success'
         );
       }
+      return true;
     } catch (err) {
       console.error('Falha ao salvar refeição', err);
       setError('Não foi possível salvar a refeição.');
       if (typeof notify === 'function') {
         notify('Não foi possível salvar a refeição.', 'error');
       }
+      return false;
     } finally {
       setSavingEntry(false);
     }
   };
 
   const handleEditEntry = (entry) => {
-    setEditingId(entry.id);
-    setForm({
-      mealType: entry.mealType || 'Almoço',
-      food: entry.food || '',
-      calories: entry.calories != null ? String(entry.calories) : '',
-      protein: entry.protein != null ? String(entry.protein) : '',
-      time: entry.time || '',
-      notes: entry.notes || ''
-    });
+    openMealWizard({ mode: 'edit', entry });
   };
 
   const handleDeleteEntry = async (entryId) => {
@@ -1112,229 +1137,284 @@ const FoodDiary = React.forwardRef(({ userId, supabase, notify, refreshToken }, 
 
           <div className="food-diary-grid">
             {/* LADO ESQUERDO – Formulário + lista do dia */}
-            <div className="food-diary-left">
-              <form
-                onSubmit={handleAddEntry}
-                className="food-diary-form"
-                autoComplete="off"
-                ref={newMealRef}
-              >
-            <div className="row" style={{ gap: 8, marginBottom: 8 }}>
-              <div className="field" style={{ flex: 1 }}>
-                <label>Data</label>
-                <input
-                  type="date"
-                  value={selectedDate}
-                  onChange={(e) => setSelectedDate(e.target.value)}
-                />
-              </div>
-              <div className="field" style={{ flex: 1 }}>
-                <label>Refeição</label>
-                <select
-                  value={form.mealType}
-                  onChange={(e) => handleChangeForm('mealType', e.target.value)}
-                >
-                  <option>Café da manhã</option>
-                  <option>Almoço</option>
-                  <option>Jantar</option>
-                  <option>Lanche</option>
-                  <option>Pós-treino</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="field">
-              <label>Alimento</label>
-              <div className="row" style={{ gap: 8 }}>
-                <input
-                  type="text"
-                  placeholder="Ex.: Arroz, frango grelhado, iogurte..."
-                  value={form.food}
-                  onChange={(e) => handleChangeForm('food', e.target.value)}
-                  style={{ flex: 1 }}
-                />
-                <button
-                  type="button"
-                  className="ghost small"
-                  onClick={handleSelectImageForScan}
-                  disabled={isScanningFood}
-                >
-                  📷 Escanear comida
-                </button>
-                <button
-                  type="button"
-                  className="ghost small"
-                  onClick={() => setIsFoodPickerOpen(true)}
-                  disabled={isScanningFood}
-                >
-                  Buscar alimento
-                </button>
-              </div>
-            </div>
-
-            <div className="field">
-              <input
-                type="text"
-                value={scanDescription}
-                onChange={(e) => setScanDescription(e.target.value)}
-              />
-            </div>
-
-            {Array.isArray(scanPreview) && scanPreview.length > 0 && (
-              <div className="food-scan-preview" style={{ marginTop: 8 }}>
-                <div
-                  className="row"
-                  style={{ justifyContent: 'space-between', alignItems: 'center' }}
-                >
-                  <strong style={{ fontSize: 13 }}>Alimentos identificados na foto</strong>
-                  <button
-                    type="button"
-                    className="ghost small"
-                    onClick={() => setScanPreview(null)}
-                  >
-                    Limpar
-                  </button>
+            <div className="food-diary-left" ref={newMealRef}>
+              <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                <div>
+                  <div className="muted" style={{ fontSize: 12 }}>Data selecionada</div>
+                  <strong>{new Date(`${selectedDate}T00:00:00`).toLocaleDateString('pt-BR')}</strong>
                 </div>
-
-                <ul style={{ listStyle: 'none', padding: 0, margin: '6px 0 0 0' }}>
-                  {scanPreview.map((item, index) => (
-                    <li key={index} style={{ marginBottom: 6 }}>
-                      <div
-                        style={{
-                          fontSize: 13,
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 8,
-                          flexWrap: 'wrap',
-                        }}
-                      >
-                        <span>
-                          {item.nome}
-                          {item.quantidade ? ` – ${item.quantidade}` : ''}
-                        </span>
-                        <label
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 4,
-                          }}
-                        >
-                          <input
-                            type="number"
-                            min="1"
-                            max="2000"
-                            step="1"
-                            value={item.grams}
-                            onChange={(e) =>
-                              handleScannedGramsChange(index, e.target.value)
-                            }
-                            style={{ width: 72 }}
-                          />
-                          <span>g</span>
-                        </label>
-                      </div>
-                      <div className="muted" style={{ fontSize: 12 }}>
-                        {Math.round(
-                          scaleByGrams(
-                            item.baseCalories ?? item.calorias,
-                            item.grams,
-                            item.baseGrams,
-                          ),
-                        )}{' '}
-                        kcal •{' '}
-                        {Number(
-                          scaleByGrams(
-                            item.baseProtein ?? item.proteina,
-                            item.grams,
-                            item.baseGrams,
-                          ).toFixed(1),
-                        )}{' '}
-                        g proteína
-                      </div>
-                      <button
-                        type="button"
-                        className="ghost small"
-                        style={{ marginTop: 4 }}
-                        onClick={() => handleApplyScannedItem(item)}
-                      >
-                        Usar este alimento
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-
                 <button
                   type="button"
-                  className="primary small"
-                  style={{ marginTop: 8 }}
-                  onClick={handleApplyAllScannedItems}
+                  className="primary"
+                  onClick={() => openMealWizard({ mode: 'create' })}
                 >
-                  Somar tudo e preencher a refeição
+                  Adicionar refeição
                 </button>
               </div>
-            )}
 
-            <div className="row" style={{ gap: 8 }}>
-              <div className="field" style={{ flex: 1 }}>
-                <label>Calorias (kcal)</label>
-                <input
-                  type="number"
-                  step="1"
-                  min="0"
-                  value={form.calories}
-                  onChange={(e) => handleChangeForm('calories', e.target.value)}
-                  placeholder="Ex.: 250"
-                />
-              </div>
-            </div>
+              <GenericWizard
+                isOpen={mealWizardOpen}
+                mode={mealWizardMode}
+                title={mealWizardMode === 'edit' ? 'Editar refeição' : 'Nova refeição'}
+                subtitle="Registre sua refeição em etapas."
+                steps={[
+                  { id: 1, label: 'Tipo' },
+                  { id: 2, label: 'Alimentos' },
+                  { id: 3, label: 'Confirmação' },
+                ]}
+                onClose={closeMealWizard}
+                onSave={handleWizardSaveEntry}
+                onReset={() => {
+                  setForm(defaultMealForm);
+                  setEditingId(null);
+                  setScanPreview(null);
+                  setScanDescription('');
+                }}
+                saveLabel={mealWizardMode === 'edit' ? 'Atualizar' : 'Salvar'}
+              >
+                {(step) => (
+                  <>
+                    {step === 1 && (
+                      <div className="transaction-wizard-panel">
+                        <div className="transaction-wizard-grid">
+                          <div>
+                            <label>Data</label>
+                            <input
+                              type="date"
+                              value={selectedDate}
+                              onChange={(e) => setSelectedDate(e.target.value)}
+                            />
+                          </div>
+                          <div>
+                            <label>Refeição</label>
+                            <select
+                              value={form.mealType}
+                              onChange={(e) => handleChangeForm('mealType', e.target.value)}
+                            >
+                              <option>Café da manhã</option>
+                              <option>Almoço</option>
+                              <option>Jantar</option>
+                              <option>Lanche</option>
+                              <option>Pós-treino</option>
+                            </select>
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
-            <div className="row" style={{ gap: 8 }}>
-              <div className="field" style={{ flex: 1 }}>
-                <label>Proteína (g) – opcional</label>
-                <input
-                  type="number"
-                  step="1"
-                  min="0"
-                  value={form.protein}
-                  onChange={(e) => handleChangeForm('protein', e.target.value)}
-                  placeholder="Ex.: 25"
-                />
-              </div>
-            </div>
+                    {step === 2 && (
+                      <div className="transaction-wizard-panel">
+                        <div className="field">
+                          <label>Alimento</label>
+                          <div className="row" style={{ gap: 8 }}>
+                            <input
+                              type="text"
+                              placeholder="Ex.: Arroz, frango grelhado, iogurte..."
+                              value={form.food}
+                              onChange={(e) => handleChangeForm('food', e.target.value)}
+                              style={{ flex: 1 }}
+                            />
+                            <button
+                              type="button"
+                              className="ghost small"
+                              onClick={handleSelectImageForScan}
+                              disabled={isScanningFood}
+                            >
+                              📷 Escanear comida
+                            </button>
+                            <button
+                              type="button"
+                              className="ghost small"
+                              onClick={() => setIsFoodPickerOpen(true)}
+                              disabled={isScanningFood}
+                            >
+                              Buscar alimento
+                            </button>
+                          </div>
+                        </div>
 
-            <div className="row" style={{ gap: 8 }}>
-              <div className="field" style={{ flex: 1 }}>
-                <label>Horário</label>
-                <input
-                  type="time"
-                  value={form.time}
-                  onChange={(e) => handleChangeForm('time', e.target.value)}
-                />
-              </div>
-            </div>
+                        <div className="field">
+                          <input
+                            type="text"
+                            value={scanDescription}
+                            onChange={(e) => setScanDescription(e.target.value)}
+                          />
+                        </div>
 
-            <div className="field">
-              <label>Observações</label>
-              <textarea
-                rows="2"
-                placeholder="Ex.: refeição pré-treino, comi com pressa, etc."
-                value={form.notes}
-                onChange={(e) => handleChangeForm('notes', e.target.value)}
-              ></textarea>
-            </div>
+                        {Array.isArray(scanPreview) && scanPreview.length > 0 && (
+                          <div className="food-scan-preview" style={{ marginTop: 8 }}>
+                            <div
+                              className="row"
+                              style={{ justifyContent: 'space-between', alignItems: 'center' }}
+                            >
+                              <strong style={{ fontSize: 13 }}>Alimentos identificados na foto</strong>
+                              <button
+                                type="button"
+                                className="ghost small"
+                                onClick={() => setScanPreview(null)}
+                              >
+                                Limpar
+                              </button>
+                            </div>
 
-            <div
-              className="row"
-              style={{
-                justifyContent: 'flex-end',
-                marginTop: 8
-              }}
-            >
-              <button type="submit" className="primary">
-                Adicionar refeição
-              </button>
-            </div>
-          </form>
+                            <ul style={{ listStyle: 'none', padding: 0, margin: '6px 0 0 0' }}>
+                              {scanPreview.map((item, index) => (
+                                <li key={index} style={{ marginBottom: 6 }}>
+                                  <div
+                                    style={{
+                                      fontSize: 13,
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: 8,
+                                      flexWrap: 'wrap',
+                                    }}
+                                  >
+                                    <span>
+                                      {item.nome}
+                                      {item.quantidade ? ` – ${item.quantidade}` : ''}
+                                    </span>
+                                    <label
+                                      style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 4,
+                                      }}
+                                    >
+                                      <input
+                                        type="number"
+                                        min="1"
+                                        max="2000"
+                                        step="1"
+                                        value={item.grams}
+                                        onChange={(e) =>
+                                          handleScannedGramsChange(index, e.target.value)
+                                        }
+                                        style={{ width: 72 }}
+                                      />
+                                      <span>g</span>
+                                    </label>
+                                  </div>
+                                  <div className="muted" style={{ fontSize: 12 }}>
+                                    {Math.round(
+                                      scaleByGrams(
+                                        item.baseCalories ?? item.calorias,
+                                        item.grams,
+                                        item.baseGrams,
+                                      ),
+                                    )}{' '}
+                                    kcal •{' '}
+                                    {Number(
+                                      scaleByGrams(
+                                        item.baseProtein ?? item.proteina,
+                                        item.grams,
+                                        item.baseGrams,
+                                      ).toFixed(1),
+                                    )}{' '}
+                                    g proteína
+                                  </div>
+                                  <button
+                                    type="button"
+                                    className="ghost small"
+                                    style={{ marginTop: 4 }}
+                                    onClick={() => handleApplyScannedItem(item)}
+                                  >
+                                    Usar este alimento
+                                  </button>
+                                </li>
+                              ))}
+                            </ul>
+
+                            <button
+                              type="button"
+                              className="primary small"
+                              style={{ marginTop: 8 }}
+                              onClick={handleApplyAllScannedItems}
+                            >
+                              Somar tudo e preencher a refeição
+                            </button>
+                          </div>
+                        )}
+
+                        <div className="row" style={{ gap: 8 }}>
+                          <div className="field" style={{ flex: 1 }}>
+                            <label>Calorias (kcal)</label>
+                            <input
+                              type="number"
+                              step="1"
+                              min="0"
+                              value={form.calories}
+                              onChange={(e) => handleChangeForm('calories', e.target.value)}
+                              placeholder="Ex.: 250"
+                            />
+                          </div>
+                          <div className="field" style={{ flex: 1 }}>
+                            <label>Proteína (g) – opcional</label>
+                            <input
+                              type="number"
+                              step="1"
+                              min="0"
+                              value={form.protein}
+                              onChange={(e) => handleChangeForm('protein', e.target.value)}
+                              placeholder="Ex.: 25"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="row" style={{ gap: 8 }}>
+                          <div className="field" style={{ flex: 1 }}>
+                            <label>Horário</label>
+                            <input
+                              type="time"
+                              value={form.time}
+                              onChange={(e) => handleChangeForm('time', e.target.value)}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {step === 3 && (
+                      <div className="transaction-wizard-panel">
+                        <label>Observações</label>
+                        <textarea
+                          rows="2"
+                          placeholder="Ex.: refeição pré-treino, comi com pressa, etc."
+                          value={form.notes}
+                          onChange={(e) => handleChangeForm('notes', e.target.value)}
+                        ></textarea>
+
+                        <div className="sep" style={{ margin: '12px 0' }}></div>
+                        <div className="transaction-wizard-grid">
+                          <div>
+                            <label>Refeição</label>
+                            <strong>{form.mealType}</strong>
+                          </div>
+                          <div>
+                            <label>Data</label>
+                            <strong>{new Date(`${selectedDate}T00:00:00`).toLocaleDateString('pt-BR')}</strong>
+                          </div>
+                          <div>
+                            <label>Alimento</label>
+                            <strong>{form.food || '—'}</strong>
+                          </div>
+                          <div>
+                            <label>Calorias</label>
+                            <strong>{form.calories || '0'} kcal</strong>
+                          </div>
+                          <div>
+                            <label>Proteína</label>
+                            <strong>{form.protein || '0'} g</strong>
+                          </div>
+                          <div>
+                            <label>Horário</label>
+                            <strong>{form.time || '—'}</strong>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+              </GenericWizard>
 
           <div className="food-diary-entries">
             {dayEntries.length === 0 && (

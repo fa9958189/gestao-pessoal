@@ -5,6 +5,7 @@ import GeneralReport from './components/GeneralReport.jsx';
 import AgendaView from './components/AgendaView.jsx';
 import MobileActionButtons from './components/MobileActionButtons.jsx';
 import TransactionWizard from './components/TransactionWizard.jsx';
+import GenericWizard from './components/GenericWizard.jsx';
 import './styles.css';
 import { loadGoals } from './services/foodDiaryProfile';
 
@@ -1719,7 +1720,11 @@ function App() {
   const [txWizardOpen, setTxWizardOpen] = useState(false);
   const [txWizardMode, setTxWizardMode] = useState('create');
   const [eventForm, setEventForm] = useState(defaultEventForm);
+  const [eventWizardOpen, setEventWizardOpen] = useState(false);
+  const [eventWizardMode, setEventWizardMode] = useState('create');
   const [userForm, setUserForm] = useState(defaultUserForm);
+  const [userWizardOpen, setUserWizardOpen] = useState(false);
+  const [userWizardMode, setUserWizardMode] = useState('create');
   const [broadcastOpen, setBroadcastOpen] = useState(false);
   const [broadcastMessage, setBroadcastMessage] = useState('');
   const [broadcastAudience, setBroadcastAudience] = useState('active');
@@ -1729,6 +1734,8 @@ function App() {
   const [editingUserOriginal, setEditingUserOriginal] = useState(null);
   const [affiliates, setAffiliates] = useState([]);
   const [affiliateForm, setAffiliateForm] = useState(defaultAffiliateForm);
+  const [affiliateWizardOpen, setAffiliateWizardOpen] = useState(false);
+  const [affiliateWizardMode, setAffiliateWizardMode] = useState('create');
   const [affiliatesLoading, setAffiliatesLoading] = useState(false);
   const [affiliatePayoutLoadingId, setAffiliatePayoutLoadingId] = useState(null);
   const [affiliateUsers, setAffiliateUsers] = useState([]);
@@ -2361,6 +2368,71 @@ function App() {
     setTxForm(defaultTxForm);
   };
 
+  const openEventWizard = ({ mode, data } = {}) => {
+    const wizardMode = mode === 'edit' ? 'edit' : 'create';
+    setEventWizardMode(wizardMode);
+    setEventForm(wizardMode === 'edit' && data ? data : defaultEventForm);
+    setEventWizardOpen(true);
+  };
+
+  const closeEventWizard = () => {
+    setEventWizardOpen(false);
+    setEventWizardMode('create');
+    setEventForm(defaultEventForm);
+  };
+
+  const handleWizardSaveEvent = async () => {
+    await handleSaveEvent();
+    closeEventWizard();
+  };
+
+  const openUserWizard = ({ mode, data } = {}) => {
+    const wizardMode = mode === 'edit' ? 'edit' : 'create';
+    setUserWizardMode(wizardMode);
+    if (wizardMode === 'edit' && data) {
+      setEditingUserId(data.auth_id || data.id);
+      setEditingUserOriginal(data);
+      setUserForm({
+        name: data.name,
+        username: data.username,
+        whatsapp: data.whatsapp,
+        role: data.role,
+        password: '',
+        affiliateCode: data.affiliate_code || '',
+        applyTrial: false
+      });
+    } else {
+      setEditingUserId(null);
+      setEditingUserOriginal(null);
+      setUserForm(defaultUserForm);
+    }
+    setUserWizardOpen(true);
+  };
+
+  const closeUserWizard = () => {
+    setUserWizardOpen(false);
+  };
+
+  const handleWizardSaveUser = async () => {
+    await handleSaveUser();
+    setUserWizardOpen(false);
+  };
+
+  const openAffiliateWizard = () => {
+    setAffiliateWizardMode('create');
+    setAffiliateForm(defaultAffiliateForm);
+    setAffiliateWizardOpen(true);
+  };
+
+  const closeAffiliateWizard = () => {
+    setAffiliateWizardOpen(false);
+  };
+
+  const handleWizardSaveAffiliate = async () => {
+    await handleSaveAffiliate();
+    setAffiliateWizardOpen(false);
+  };
+
   const handleFabTransaction = () => {
     setActiveView('transactions');
     setActiveTab('form');
@@ -2372,21 +2444,26 @@ function App() {
 
   const handleFabEvent = () => {
     setActiveView('agenda');
-    setTimeout(() => scrollToRef(agendaRef), 50);
+    setTimeout(() => {
+      scrollToRef(agendaRef);
+      openEventWizard({ mode: 'create' });
+    }, 50);
   };
 
   const handleNewUser = () => {
     setActiveView('users');
-    setEditingUserId(null);
-    setEditingUserOriginal(null);
-    setUserForm(defaultUserForm);
-    setTimeout(() => scrollToRef(adminUsersRef), 50);
+    setTimeout(() => {
+      scrollToRef(adminUsersRef);
+      openUserWizard({ mode: 'create' });
+    }, 50);
   };
 
   const handleNewAffiliate = () => {
     setActiveView('affiliates');
-    setAffiliateForm(defaultAffiliateForm);
-    setTimeout(() => scrollToRef(adminAffiliatesRef), 50);
+    setTimeout(() => {
+      scrollToRef(adminAffiliatesRef);
+      openAffiliateWizard();
+    }, 50);
   };
 
   const handleNewWorkout = () => {
@@ -3071,10 +3148,15 @@ function App() {
             loadRemoteData={loadRemoteData}
             loadingData={loadingData}
             filteredEvents={filteredEvents}
-            handleSaveEvent={handleSaveEvent}
             handleDeleteEvent={handleDeleteEvent}
             formatDate={formatDate}
             formatTimeRange={formatTimeRange}
+            eventWizardOpen={eventWizardOpen}
+            eventWizardMode={eventWizardMode}
+            onOpenEventWizard={openEventWizard}
+            onCloseEventWizard={closeEventWizard}
+            onSaveEventWizard={handleWizardSaveEvent}
+            onResetEventWizard={() => setEventForm(defaultEventForm)}
           />
         </div>
       )}
@@ -3151,84 +3233,155 @@ function App() {
               )}
             </div>
 
-            <div className="grid grid-2 admin-user-form">
-              <div>
-                <label>Nome</label>
-                <input value={userForm.name} onChange={(e) => setUserForm({ ...userForm, name: e.target.value })} placeholder="Nome completo (opcional)" />
-              </div>
-              <div>
-                <label>Usuário</label>
-                <input value={userForm.username} onChange={(e) => setUserForm({ ...userForm, username: e.target.value })} placeholder="ex.: joaosilva" />
-              </div>
-              <div>
-                <label>Senha inicial</label>
-                <input type="password" value={userForm.password} onChange={(e) => setUserForm({ ...userForm, password: e.target.value })} placeholder="Mínimo de 4 caracteres" />
-              </div>
-              <div>
-                <label>WhatsApp</label>
-                <input value={userForm.whatsapp} onChange={(e) => setUserForm({ ...userForm, whatsapp: e.target.value })} placeholder="+5511999999999" />
-              </div>
-              {!editingUserId && (
-                <div>
-                  <label>Criado em</label>
-                  <input
-                    type="date"
-                    value={today}
-                    readOnly
-                    disabled
-                  />
-                </div>
-              )}
-              <div>
-                <label>Perfil</label>
-                <select value={userForm.role} onChange={(e) => setUserForm({ ...userForm, role: e.target.value })}>
-                  <option value="user">Usuário</option>
-                  <option value="admin">Admin</option>
-                </select>
-              </div>
-              <div>
-                <label>Código do afiliado (opcional)</label>
-                <input
-                  value={userForm.affiliateCode}
-                  onChange={(e) => setUserForm({ ...userForm, affiliateCode: e.target.value })}
-                  placeholder="ex: AFI-001"
-                />
-              </div>
-              {!editingUserId && (
-                <div className="checkbox-row">
-                  <label className="checkbox-label">
-                    <input
-                      type="checkbox"
-                      checked={userForm.applyTrial}
-                      onChange={(e) => setUserForm({ ...userForm, applyTrial: e.target.checked })}
-                    />
-                    <span>Aplicar 7 dias grátis</span>
-                  </label>
-                </div>
-              )}
-              <div className="admin-user-actions">
-                <button className="primary" onClick={handleSaveUser}>
-                  {editingUserId ? 'Salvar alterações' : 'Adicionar usuário'}
-                </button>
-                <button className="ghost" onClick={() => { setUserForm(defaultUserForm); setEditingUserId(null); setEditingUserOriginal(null); }}>Limpar</button>
-              </div>
+            <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center', marginTop: 12 }}>
+              <p className="muted" style={{ margin: 0 }}>Use o fluxo guiado para criar ou editar usuários.</p>
+              <button className="primary" onClick={() => openUserWizard({ mode: 'create' })}>
+                Novo usuário
+              </button>
             </div>
+
+            <GenericWizard
+              isOpen={userWizardOpen}
+              mode={userWizardMode}
+              title={userWizardMode === 'edit' ? 'Editar usuário' : 'Novo usuário'}
+              subtitle="Preencha os dados do usuário em etapas."
+              steps={[
+                { id: 1, label: 'Dados principais' },
+                { id: 2, label: 'Contato / acesso' },
+                { id: 3, label: 'Confirmação' },
+              ]}
+              onClose={closeUserWizard}
+              onSave={handleWizardSaveUser}
+              onReset={() => {
+                setUserForm(defaultUserForm);
+                setEditingUserId(null);
+                setEditingUserOriginal(null);
+              }}
+              saveLabel={userWizardMode === 'edit' ? 'Atualizar' : 'Salvar'}
+            >
+              {(step) => (
+                <>
+                  {step === 1 && (
+                    <div className="transaction-wizard-panel">
+                      <div className="transaction-wizard-grid">
+                        <div>
+                          <label>Nome</label>
+                          <input
+                            value={userForm.name}
+                            onChange={(e) => setUserForm({ ...userForm, name: e.target.value })}
+                            placeholder="Nome completo (opcional)"
+                          />
+                        </div>
+                        <div>
+                          <label>Usuário</label>
+                          <input
+                            value={userForm.username}
+                            onChange={(e) => setUserForm({ ...userForm, username: e.target.value })}
+                            placeholder="ex.: joaosilva"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label>Perfil</label>
+                        <select
+                          value={userForm.role}
+                          onChange={(e) => setUserForm({ ...userForm, role: e.target.value })}
+                        >
+                          <option value="user">Usuário</option>
+                          <option value="admin">Admin</option>
+                        </select>
+                      </div>
+                    </div>
+                  )}
+                  {step === 2 && (
+                    <div className="transaction-wizard-panel">
+                      <div className="transaction-wizard-grid">
+                        <div>
+                          <label>Senha inicial</label>
+                          <input
+                            type="password"
+                            value={userForm.password}
+                            onChange={(e) => setUserForm({ ...userForm, password: e.target.value })}
+                            placeholder="Mínimo de 4 caracteres"
+                          />
+                        </div>
+                        <div>
+                          <label>WhatsApp</label>
+                          <input
+                            value={userForm.whatsapp}
+                            onChange={(e) => setUserForm({ ...userForm, whatsapp: e.target.value })}
+                            placeholder="+5511999999999"
+                          />
+                        </div>
+                        <div>
+                          <label>Código do afiliado (opcional)</label>
+                          <input
+                            value={userForm.affiliateCode}
+                            onChange={(e) => setUserForm({ ...userForm, affiliateCode: e.target.value })}
+                            placeholder="ex: AFI-001"
+                          />
+                        </div>
+                        {!editingUserId && (
+                          <div>
+                            <label>Criado em</label>
+                            <input type="date" value={today} readOnly disabled />
+                          </div>
+                        )}
+                      </div>
+                      {!editingUserId && (
+                        <div className="checkbox-row">
+                          <label className="checkbox-label">
+                            <input
+                              type="checkbox"
+                              checked={userForm.applyTrial}
+                              onChange={(e) => setUserForm({ ...userForm, applyTrial: e.target.checked })}
+                            />
+                            <span>Aplicar 7 dias grátis</span>
+                          </label>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {step === 3 && (
+                    <div className="transaction-wizard-panel">
+                      <p className="muted">Confira os dados antes de salvar.</p>
+                      <div className="transaction-wizard-grid">
+                        <div>
+                          <label>Nome</label>
+                          <strong>{userForm.name || '—'}</strong>
+                        </div>
+                        <div>
+                          <label>Usuário</label>
+                          <strong>{userForm.username || '—'}</strong>
+                        </div>
+                        <div>
+                          <label>WhatsApp</label>
+                          <strong>{userForm.whatsapp || '—'}</strong>
+                        </div>
+                        <div>
+                          <label>Perfil</label>
+                          <strong>{userForm.role === 'admin' ? 'Admin' : 'Usuário'}</strong>
+                        </div>
+                        <div>
+                          <label>Afiliado</label>
+                          <strong>{userForm.affiliateCode || '—'}</strong>
+                        </div>
+                        {!editingUserId && (
+                          <div>
+                            <label>Trial grátis</label>
+                            <strong>{userForm.applyTrial ? 'Sim' : 'Não'}</strong>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </GenericWizard>
 
             <UsersTable
               items={users.map((user) => ({ ...user, _editing: (user.auth_id || user.id) === editingUserId }))}
-              onEdit={(user) => {
-                setEditingUserId(user.auth_id || user.id);
-                setEditingUserOriginal(user);
-                setUserForm({
-                  name: user.name,
-                  username: user.username,
-                  whatsapp: user.whatsapp,
-                  role: user.role,
-                  password: '',
-                  affiliateCode: user.affiliate_code || '',
-                  applyTrial: false
-                });
-              }}
+              onEdit={(user) => openUserWizard({ mode: 'edit', data: user })}
               onDelete={handleDeleteUser}
               onBillingAction={handleBillingAction}
             />
@@ -3238,61 +3391,116 @@ function App() {
 
       {activeView === 'affiliates' && isAdmin && (
         <div className="container single-card standard-layout">
-          <section className="card admin-card" id="adminAffiliatesSection" ref={adminAffiliatesRef}>
+            <section className="card admin-card" id="adminAffiliatesSection" ref={adminAffiliatesRef}>
             <h2 className="title">Afiliados</h2>
             <p className="muted">Gerencie parceiros e visualize seus clientes.</p>
 
-            <div className="grid grid-2 admin-user-form">
-              <div>
-                <label>Código</label>
-                <input
-                  value={affiliateForm.code}
-                  onChange={(e) => setAffiliateForm({ ...affiliateForm, code: e.target.value })}
-                  placeholder="AFI-001"
-                />
-              </div>
-              <div>
-                <label>Nome</label>
-                <input
-                  value={affiliateForm.name}
-                  onChange={(e) => setAffiliateForm({ ...affiliateForm, name: e.target.value })}
-                  placeholder="Nome do afiliado"
-                />
-              </div>
-              <div>
-                <label>WhatsApp</label>
-                <input
-                  value={affiliateForm.whatsapp}
-                  onChange={(e) => setAffiliateForm({ ...affiliateForm, whatsapp: e.target.value })}
-                  placeholder="+5511999999999"
-                />
-              </div>
-              <div>
-                <label>E-mail</label>
-                <input
-                  value={affiliateForm.email}
-                  onChange={(e) => setAffiliateForm({ ...affiliateForm, email: e.target.value })}
-                  placeholder="contato@exemplo.com"
-                />
-              </div>
-              <div>
-                <label>Chave PIX</label>
-                <input
-                  value={affiliateForm.pix_key}
-                  onChange={(e) => setAffiliateForm({ ...affiliateForm, pix_key: e.target.value })}
-                  placeholder="CPF, e-mail ou aleatória"
-                />
-              </div>
-              <div className="admin-user-actions">
-                <button className="primary" onClick={handleSaveAffiliate}>Criar afiliado</button>
-                <button
-                  className="ghost"
-                  onClick={() => setAffiliateForm(defaultAffiliateForm)}
-                >
-                  Limpar
-                </button>
-              </div>
+            <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center', marginTop: 12 }}>
+              <p className="muted" style={{ margin: 0 }}>Cadastre novos afiliados em etapas.</p>
+              <button className="primary" onClick={openAffiliateWizard}>
+                Novo afiliado
+              </button>
             </div>
+
+            <GenericWizard
+              isOpen={affiliateWizardOpen}
+              mode={affiliateWizardMode}
+              title="Novo afiliado"
+              subtitle="Complete os dados do afiliado passo a passo."
+              steps={[
+                { id: 1, label: 'Dados do afiliado' },
+                { id: 2, label: 'Configurações' },
+                { id: 3, label: 'Confirmação' },
+              ]}
+              onClose={closeAffiliateWizard}
+              onSave={handleWizardSaveAffiliate}
+              onReset={() => setAffiliateForm(defaultAffiliateForm)}
+              saveLabel="Salvar"
+            >
+              {(step) => (
+                <>
+                  {step === 1 && (
+                    <div className="transaction-wizard-panel">
+                      <div className="transaction-wizard-grid">
+                        <div>
+                          <label>Código</label>
+                          <input
+                            value={affiliateForm.code}
+                            onChange={(e) => setAffiliateForm({ ...affiliateForm, code: e.target.value })}
+                            placeholder="AFI-001"
+                          />
+                        </div>
+                        <div>
+                          <label>Nome</label>
+                          <input
+                            value={affiliateForm.name}
+                            onChange={(e) => setAffiliateForm({ ...affiliateForm, name: e.target.value })}
+                            placeholder="Nome do afiliado"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  {step === 2 && (
+                    <div className="transaction-wizard-panel">
+                      <div className="transaction-wizard-grid">
+                        <div>
+                          <label>WhatsApp</label>
+                          <input
+                            value={affiliateForm.whatsapp}
+                            onChange={(e) => setAffiliateForm({ ...affiliateForm, whatsapp: e.target.value })}
+                            placeholder="+5511999999999"
+                          />
+                        </div>
+                        <div>
+                          <label>E-mail</label>
+                          <input
+                            value={affiliateForm.email}
+                            onChange={(e) => setAffiliateForm({ ...affiliateForm, email: e.target.value })}
+                            placeholder="contato@exemplo.com"
+                          />
+                        </div>
+                        <div>
+                          <label>Chave PIX</label>
+                          <input
+                            value={affiliateForm.pix_key}
+                            onChange={(e) => setAffiliateForm({ ...affiliateForm, pix_key: e.target.value })}
+                            placeholder="CPF, e-mail ou aleatória"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  {step === 3 && (
+                    <div className="transaction-wizard-panel">
+                      <p className="muted">Revise os dados antes de salvar.</p>
+                      <div className="transaction-wizard-grid">
+                        <div>
+                          <label>Código</label>
+                          <strong>{affiliateForm.code || '—'}</strong>
+                        </div>
+                        <div>
+                          <label>Nome</label>
+                          <strong>{affiliateForm.name || '—'}</strong>
+                        </div>
+                        <div>
+                          <label>WhatsApp</label>
+                          <strong>{affiliateForm.whatsapp || '—'}</strong>
+                        </div>
+                        <div>
+                          <label>E-mail</label>
+                          <strong>{affiliateForm.email || '—'}</strong>
+                        </div>
+                        <div>
+                          <label>Chave PIX</label>
+                          <strong>{affiliateForm.pix_key || '—'}</strong>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </GenericWizard>
 
             <div className="users-table-container" style={{ marginTop: 12 }}>
               <table>
