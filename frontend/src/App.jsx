@@ -398,6 +398,13 @@ const Toast = ({ toast, onClose }) => {
   );
 };
 
+const LoginLayout = ({ toast, onToastClose, children }) => (
+  <div className="login-layout">
+    <Toast toast={toast} onClose={onToastClose} />
+    {children}
+  </div>
+);
+
 const LoginScreen = ({ form, onChange, onSubmit, loading, error, configError }) => (
   <div className="login-screen">
     <div className="login-card">
@@ -1681,6 +1688,13 @@ function App() {
 
   const isAdmin = profile?.role === 'admin';
 
+  useEffect(() => {
+    document.body.classList.toggle('login-page', !session);
+    return () => {
+      document.body.classList.remove('login-page');
+    };
+  }, [session]);
+
   const affiliateRef = useMemo(() => {
     try {
       const params = new URLSearchParams(window.location.search);
@@ -2897,8 +2911,7 @@ function App() {
 
   if (!session) {
     return (
-      <div className="app-shell">
-        <Toast toast={toast} onClose={() => setToast(null)} />
+      <LoginLayout toast={toast} onToastClose={() => setToast(null)}>
         <LoginScreen
           form={loginForm}
           onChange={setLoginForm}
@@ -2907,7 +2920,7 @@ function App() {
           error={loginError}
           configError={configError}
         />
-      </div>
+      </LoginLayout>
     );
   }
 

@@ -31,6 +31,10 @@ body{
   -moz-osx-font-smoothing:grayscale;
 }
 
+body.login-page{
+  overflow:auto;
+}
+
 a{ color:var(--link); text-decoration:none; }
 a:hover{ text-decoration:underline; }
 
@@ -39,6 +43,12 @@ a:hover{ text-decoration:underline; }
   opacity:1;
   height:auto;
   overflow:visible;
+}
+
+.login-layout{
+  min-height:100vh;
+  display:flex;
+  flex-direction:column;
 }
 
 /* Layout */
