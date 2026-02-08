@@ -579,6 +579,10 @@ canvas{ background:transparent; }
     align-items:flex-start;
   }
 
+  .app-shell{
+    padding-bottom: calc(120px + env(safe-area-inset-bottom, 0px));
+  }
+
   /* no mobile o nome/descrição do usuário alinham à esquerda */
   .user-info{ align-items:flex-start; }
 
@@ -699,7 +703,7 @@ canvas{ background:transparent; }
   .fab-stack{
     position:fixed;
     right:16px;
-    bottom:16px;
+    bottom: calc(16px + env(safe-area-inset-bottom, 0px));
     display:flex;
     flex-direction:column;
     gap:12px;

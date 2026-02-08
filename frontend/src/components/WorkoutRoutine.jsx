@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import PeitoImg from '../assets/muscles/Peito.png';
 import CostasImg from '../assets/muscles/Costas.png';
 import OmbrosImg from '../assets/muscles/Ombros.png';
@@ -656,7 +656,8 @@ const ViewWorkoutModal = ({
   );
 };
 
-const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushToast }) => {
+const WorkoutRoutine = React.forwardRef(({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushToast }, ref) => {
+  const newTemplateRef = useRef(null);
   const [activeTab, setActiveTab] = useState('config');
   const [workoutForm, setWorkoutForm] = useState({
     id: null,
@@ -1483,6 +1484,19 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
     bestWeekdayCount,
   } = progressStats;
 
+  useImperativeHandle(
+    ref,
+    () => ({
+      focusNewTemplate: () => {
+        setActiveTab('config');
+        setTimeout(() => {
+          newTemplateRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 50);
+      },
+    }),
+    []
+  );
+
   return (
     <div className="workout-card">
       {/* COLUNA ESQUERDA – Rotina de Treino (aba + config + histórico + progresso) */}
@@ -1521,7 +1535,7 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
         {activeTab === 'config' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
             {/* NOVO TREINO */}
-            <div>
+            <div ref={newTemplateRef}>
               <h4 className="title" style={{ marginBottom: 12 }}>Novo Template de Treino</h4>
               <label>Nome do treino</label>
               <input
