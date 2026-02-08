@@ -1193,6 +1193,10 @@ const WorkoutRoutine = React.forwardRef(({ apiBaseUrl = import.meta.env.VITE_API
 
   const closeWorkoutWizard = () => {
     setWorkoutWizardOpen(false);
+    setWorkoutWizardMode('create');
+    setWorkoutForm(defaultWorkoutForm);
+    setCreateReminder(false);
+    setSessionReminder(false);
   };
 
   const handleWizardSaveRoutine = async () => {
@@ -1596,6 +1600,15 @@ const WorkoutRoutine = React.forwardRef(({ apiBaseUrl = import.meta.env.VITE_API
                   { id: 2, label: 'Grupos musculares' },
                   { id: 3, label: 'Horários / lembretes' },
                 ]}
+                validateStep={(step) => {
+                  if (step === 1 && !workoutForm.name.trim()) {
+                    return { valid: false, message: 'Informe o nome do treino para continuar.' };
+                  }
+                  if (step === 2 && !workoutForm.muscleGroups.length) {
+                    return { valid: false, message: 'Selecione um grupo muscular para continuar.' };
+                  }
+                  return { valid: true, message: '' };
+                }}
                 onClose={closeWorkoutWizard}
                 onSave={handleWizardSaveRoutine}
                 onReset={() => {

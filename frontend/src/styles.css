@@ -333,6 +333,19 @@ button:active{ transform:translateY(1px); }
 button.primary{ background:var(--accent); color:var(--accent-ink); border:none; }
 button.danger{ background:var(--danger); color:#fff; border:none; }
 button.ghost{ background:transparent; border:1px solid #38425b; }
+button:disabled{
+  cursor:not-allowed;
+  filter:none;
+  opacity:0.6;
+  background:#1b2133;
+  border-color:#2a3247;
+  color:var(--muted);
+  transform:none;
+}
+button.primary:disabled{
+  background:#1b2133;
+  color:var(--muted);
+}
 
 /* Tabs */
 .tabs{ display:flex; gap:8px; }
@@ -676,6 +689,14 @@ th{ color:var(--muted); font-size:12px; font-weight:600; }
   justify-content:space-between;
   align-items:center;
   gap:12px;
+}
+.transaction-wizard-actions-error{
+  flex:1;
+  text-align:center;
+}
+.wizard-error{
+  color:#fca5a5;
+  font-size:12px;
 }
 .transaction-wizard-actions-right{
   display:flex;

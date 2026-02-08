@@ -103,7 +103,7 @@ const defaultUserForm = {
   username: '',
   password: '',
   whatsapp: '',
-  role: 'user',
+  role: '',
   affiliateCode: '',
   applyTrial: false
 };
@@ -2429,6 +2429,10 @@ function App() {
 
   const closeUserWizard = () => {
     setUserWizardOpen(false);
+    setUserWizardMode('create');
+    setUserForm(defaultUserForm);
+    setEditingUserId(null);
+    setEditingUserOriginal(null);
   };
 
   const handleWizardSaveUser = async () => {
@@ -2444,6 +2448,8 @@ function App() {
 
   const closeAffiliateWizard = () => {
     setAffiliateWizardOpen(false);
+    setAffiliateWizardMode('create');
+    setAffiliateForm(defaultAffiliateForm);
   };
 
   const handleWizardSaveAffiliate = async () => {
@@ -3268,6 +3274,27 @@ function App() {
                 { id: 2, label: 'Contato / acesso' },
                 { id: 3, label: 'Confirmação' },
               ]}
+              validateStep={(step) => {
+                if (step === 1) {
+                  if (!userForm.username.trim()) {
+                    return { valid: false, message: 'Informe o usuário para continuar.' };
+                  }
+                  if (!userForm.role) {
+                    return { valid: false, message: 'Selecione o perfil para continuar.' };
+                  }
+                }
+                if (step === 2 && !editingUserId) {
+                  if (!userForm.password || userForm.password.trim().length < 4) {
+                    return { valid: false, message: 'Informe uma senha com pelo menos 4 caracteres.' };
+                  }
+                }
+                if (step === 2 && editingUserId && userForm.password) {
+                  if (userForm.password.trim().length < 4) {
+                    return { valid: false, message: 'A senha precisa ter pelo menos 4 caracteres.' };
+                  }
+                }
+                return { valid: true, message: '' };
+              }}
               onClose={closeUserWizard}
               onSave={handleWizardSaveUser}
               onReset={() => {
@@ -3305,6 +3332,7 @@ function App() {
                           value={userForm.role}
                           onChange={(e) => setUserForm({ ...userForm, role: e.target.value })}
                         >
+                          <option value="">Selecione</option>
                           <option value="user">Usuário</option>
                           <option value="admin">Admin</option>
                         </select>
@@ -3430,6 +3458,23 @@ function App() {
                 { id: 2, label: 'Configurações' },
                 { id: 3, label: 'Confirmação' },
               ]}
+              validateStep={(step) => {
+                if (step === 1) {
+                  if (!affiliateForm.code.trim()) {
+                    return { valid: false, message: 'Informe o código do afiliado para continuar.' };
+                  }
+                  if (!affiliateForm.name.trim()) {
+                    return { valid: false, message: 'Informe o nome do afiliado para continuar.' };
+                  }
+                }
+                if (step === 2) {
+                  const hasContact = Boolean(affiliateForm.whatsapp.trim() || affiliateForm.email.trim());
+                  if (!hasContact) {
+                    return { valid: false, message: 'Informe o WhatsApp ou e-mail para continuar.' };
+                  }
+                }
+                return { valid: true, message: '' };
+              }}
               onClose={closeAffiliateWizard}
               onSave={handleWizardSaveAffiliate}
               onReset={() => setAffiliateForm(defaultAffiliateForm)}
