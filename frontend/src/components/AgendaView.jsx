@@ -93,7 +93,7 @@ const AgendaView = ({
   formatDate,
   formatTimeRange,
 }) => (
-  <aside className="card" ref={agendaRef}>
+  <section className="card dashboard-card" ref={agendaRef}>
     <h2 className="title">Agenda</h2>
 
     <div className="grid grid-2" style={{ marginBottom: 8 }}>
@@ -156,7 +156,7 @@ const AgendaView = ({
       formatDate={formatDate}
       formatTimeRange={formatTimeRange}
     />
-  </aside>
+  </section>
 );
 
 export default AgendaView;
