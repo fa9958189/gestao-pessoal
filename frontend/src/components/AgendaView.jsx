@@ -123,6 +123,20 @@ const AgendaView = ({
           : 'Preencha as informações do evento passo a passo.'
       }
       steps={wizardSteps}
+      validateStep={(step) => {
+        if (step === 1 && !eventForm.title.trim()) {
+          return { valid: false, message: 'Informe o título do evento para continuar.' };
+        }
+        if (step === 2) {
+          if (!eventForm.date) {
+            return { valid: false, message: 'Informe a data do evento para continuar.' };
+          }
+          if (!eventForm.start || !eventForm.end) {
+            return { valid: false, message: 'Informe o horário de início e fim para continuar.' };
+          }
+        }
+        return { valid: true, message: '' };
+      }}
       onClose={onCloseEventWizard}
       onSave={onSaveEventWizard}
       onReset={onResetEventWizard}

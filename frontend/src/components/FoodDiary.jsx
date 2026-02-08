@@ -70,7 +70,7 @@ const getLocalDateString = () => {
 };
 
 const defaultMealForm = {
-  mealType: 'Almoço',
+  mealType: '',
   food: '',
   calories: '',
   protein: '',
@@ -125,7 +125,7 @@ const FoodDiary = React.forwardRef(({ userId, supabase, notify, refreshToken }, 
     if (wizardMode === 'edit' && entry) {
       setEditingId(entry.id);
       setForm({
-        mealType: entry.mealType || 'Almoço',
+        mealType: entry.mealType || '',
         food: entry.food || '',
         calories: entry.calories != null ? String(entry.calories) : '',
         protein: entry.protein != null ? String(entry.protein) : '',
@@ -143,6 +143,11 @@ const FoodDiary = React.forwardRef(({ userId, supabase, notify, refreshToken }, 
 
   const closeMealWizard = () => {
     setMealWizardOpen(false);
+    setMealWizardMode('create');
+    setEditingId(null);
+    setForm(defaultMealForm);
+    setScanPreview(null);
+    setScanDescription('');
   };
 
   const handleWizardSaveEntry = async () => {
@@ -1162,6 +1167,20 @@ const FoodDiary = React.forwardRef(({ userId, supabase, notify, refreshToken }, 
                   { id: 2, label: 'Alimentos' },
                   { id: 3, label: 'Confirmação' },
                 ]}
+                validateStep={(step) => {
+                  if (step === 1 && !form.mealType) {
+                    return { valid: false, message: 'Selecione o tipo de refeição para continuar.' };
+                  }
+                  if (step === 2) {
+                    if (!form.food.trim()) {
+                      return { valid: false, message: 'Informe o alimento para continuar.' };
+                    }
+                    if (!(Number(form.calories) > 0)) {
+                      return { valid: false, message: 'Informe as calorias para continuar.' };
+                    }
+                  }
+                  return { valid: true, message: '' };
+                }}
                 onClose={closeMealWizard}
                 onSave={handleWizardSaveEntry}
                 onReset={() => {
@@ -1191,6 +1210,7 @@ const FoodDiary = React.forwardRef(({ userId, supabase, notify, refreshToken }, 
                               value={form.mealType}
                               onChange={(e) => handleChangeForm('mealType', e.target.value)}
                             >
+                              <option value="">Selecione</option>
                               <option>Café da manhã</option>
                               <option>Almoço</option>
                               <option>Jantar</option>
@@ -1387,7 +1407,7 @@ const FoodDiary = React.forwardRef(({ userId, supabase, notify, refreshToken }, 
                         <div className="transaction-wizard-grid">
                           <div>
                             <label>Refeição</label>
-                            <strong>{form.mealType}</strong>
+                            <strong>{form.mealType || '—'}</strong>
                           </div>
                           <div>
                             <label>Data</label>

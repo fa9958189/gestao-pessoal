@@ -6,6 +6,7 @@ const GenericWizard = ({
   title,
   subtitle,
   steps,
+  validateStep,
   onClose,
   onSave,
   onReset,
@@ -13,10 +14,12 @@ const GenericWizard = ({
   children,
 }) => {
   const [step, setStep] = useState(1);
+  const [nextError, setNextError] = useState('');
 
   useEffect(() => {
     if (isOpen) {
       setStep(1);
+      setNextError('');
     }
   }, [isOpen, mode]);
 
@@ -27,9 +30,40 @@ const GenericWizard = ({
 
   if (!isOpen) return null;
 
-  const handleNext = () => setStep((prev) => Math.min(prev + 1, steps.length));
+  const stepValidation = useMemo(() => {
+    if (!validateStep) {
+      return { valid: true, message: '' };
+    }
+    const validationResult = validateStep(step);
+    if (typeof validationResult === 'string') {
+      return { valid: false, message: validationResult };
+    }
+    if (validationResult && typeof validationResult === 'object') {
+      return {
+        valid: Boolean(validationResult.valid),
+        message: validationResult.message || ''
+      };
+    }
+    return { valid: Boolean(validationResult), message: '' };
+  }, [step, validateStep]);
+
+  useEffect(() => {
+    if (stepValidation.valid) {
+      setNextError('');
+    }
+  }, [step, stepValidation.valid]);
+
+  const handleNext = () => {
+    if (!stepValidation.valid) {
+      setNextError(stepValidation.message || 'Preencha o campo obrigatório para continuar.');
+      return;
+    }
+    setNextError('');
+    setStep((prev) => Math.min(prev + 1, steps.length));
+  };
   const handleBack = () => setStep((prev) => Math.max(prev - 1, 1));
   const resolvedSaveLabel = saveLabel || (mode === 'edit' ? 'Atualizar' : 'Salvar');
+  const isNextDisabled = step < steps.length && !stepValidation.valid;
 
   return (
     <div className="transaction-wizard-overlay" role="dialog" aria-modal="true">
@@ -66,11 +100,28 @@ const GenericWizard = ({
               </button>
             )}
           </div>
+          <div className="transaction-wizard-actions-error">
+            {nextError && <span className="wizard-error">{nextError}</span>}
+          </div>
           <div className="transaction-wizard-actions-right">
             {step < steps.length && (
-              <button className="primary" onClick={handleNext}>
-                Próximo
-              </button>
+              <div
+                role="presentation"
+                onClick={() => {
+                  if (isNextDisabled) {
+                    setNextError(stepValidation.message || 'Preencha o campo obrigatório para continuar.');
+                  }
+                }}
+              >
+                <button
+                  className="primary"
+                  onClick={handleNext}
+                  disabled={isNextDisabled}
+                  style={isNextDisabled ? { pointerEvents: 'none' } : undefined}
+                >
+                  Próximo
+                </button>
+              </div>
             )}
             {step === steps.length && (
               <>
