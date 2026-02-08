@@ -38,6 +38,7 @@ const TransactionWizard = ({
 
   const handleNext = () => setStep((prev) => Math.min(prev + 1, steps.length));
   const handleBack = () => setStep((prev) => Math.max(prev - 1, 1));
+  const isNextDisabled = step === 1 && !formData.type;
 
   return (
     <div className="transaction-wizard-overlay" role="dialog" aria-modal="true">
@@ -67,7 +68,7 @@ const TransactionWizard = ({
         <div className="transaction-wizard-body">
           {step === 1 && (
             <div className="transaction-wizard-panel">
-              <label>Tipo de transação</label>
+              <label>O que você deseja registrar agora? Selecione se é uma receita ou uma despesa.</label>
               <div className="transaction-wizard-options">
                 <button
                   type="button"
@@ -151,7 +152,7 @@ const TransactionWizard = ({
           </div>
           <div className="transaction-wizard-actions-right">
             {step < steps.length && (
-              <button className="primary" onClick={handleNext}>
+              <button className="primary" onClick={handleNext} disabled={isNextDisabled}>
                 Próximo
               </button>
             )}

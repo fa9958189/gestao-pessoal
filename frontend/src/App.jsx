@@ -20,7 +20,7 @@ const percentFormatter = new Intl.NumberFormat('pt-BR', {
 });
 
 const defaultTxForm = {
-  type: 'income',
+  type: '',
   amount: '',
   date: '',
   description: '',
