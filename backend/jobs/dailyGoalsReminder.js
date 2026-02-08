@@ -12,11 +12,6 @@ const DEFAULT_CALORIE_GOAL = 2000;
 const DEFAULT_PROTEIN_GOAL = 120;
 const DEFAULT_WATER_GOAL_L = 2.5;
 
-const LOG_TABLE_PREFERRED = "registros_de_alertas_do_whatsapp";
-const LOG_TABLE_FALLBACK = "daily_goals_notifications";
-
-let logTableConfig = null;
-
 const formatDateOnlyInSaoPaulo = (date = new Date()) => {
   const formatter = new Intl.DateTimeFormat("en-CA", {
     timeZone: TZ,
@@ -56,136 +51,6 @@ const computeAvatarTip = ({ pctCalories, pctProtein, pctWater }) => {
       return "Ajusta as calorias.";
     default:
       return "Segue firme nas metas.";
-  }
-};
-
-const fetchTableColumns = async (tableName) => {
-  const { data, error } = await supabase
-    .from("information_schema.columns")
-    .select("column_name")
-    .eq("table_schema", "public")
-    .eq("table_name", tableName);
-
-  if (error) {
-    console.warn("⚠️ Erro ao buscar colunas da tabela:", tableName, error.message);
-    return [];
-  }
-
-  return (data || []).map((row) => row.column_name);
-};
-
-const pickColumn = (columns, options) =>
-  options.find((candidate) => columns.includes(candidate)) || null;
-
-const resolveLogTableFallback = (columns) => {
-  const columnSet = new Set(columns);
-  return {
-    tableName: LOG_TABLE_FALLBACK,
-    columns: columnSet,
-    userColumn: pickColumn(columns, ["user_id", "auth_id"]) || "user_id",
-    dateColumn: pickColumn(columns, ["entry_date", "day_date", "date"]) || "entry_date",
-    typeColumn: pickColumn(columns, ["alert_type", "tipo", "type"]) || "alert_type",
-    statusColumn: pickColumn(columns, ["status"]),
-    messageColumn: pickColumn(columns, ["message", "mensagem", "texto", "body"]),
-    sentAtColumn: pickColumn(columns, ["sent_at", "created_at"]),
-  };
-};
-
-const resolveLogTable = async () => {
-  const preferredColumns = await fetchTableColumns(LOG_TABLE_PREFERRED);
-  const columns = preferredColumns.length
-    ? preferredColumns
-    : await fetchTableColumns(LOG_TABLE_FALLBACK);
-
-  const tableName = preferredColumns.length ? LOG_TABLE_PREFERRED : LOG_TABLE_FALLBACK;
-
-  const columnSet = new Set(columns);
-  const userColumn = pickColumn(columns, ["user_id", "auth_id"]);
-  const dateColumn = pickColumn(columns, [
-    "entry_date",
-    "day_date",
-    "data",
-    "data_hoje",
-    "date",
-    "sent_date",
-  ]);
-  const typeColumn = pickColumn(columns, ["alert_type", "tipo", "type"]);
-  const statusColumn = pickColumn(columns, ["status"]);
-  const messageColumn = pickColumn(columns, ["message", "mensagem", "texto", "body"]);
-  const sentAtColumn = pickColumn(columns, ["sent_at", "created_at"]);
-
-  if (!userColumn || !dateColumn || !typeColumn) {
-    if (tableName === LOG_TABLE_PREFERRED) {
-      const fallbackColumns = await fetchTableColumns(LOG_TABLE_FALLBACK);
-      return resolveLogTableFallback(fallbackColumns);
-    }
-    console.warn(
-      "⚠️ Tabela de logs sem colunas suficientes para idempotência:",
-      tableName
-    );
-  }
-
-  return {
-    tableName,
-    columns: columnSet,
-    userColumn,
-    dateColumn,
-    typeColumn,
-    statusColumn,
-    messageColumn,
-    sentAtColumn,
-  };
-};
-
-const getLogTableConfig = async () => {
-  if (!logTableConfig) {
-    logTableConfig = await resolveLogTable();
-  }
-  return logTableConfig;
-};
-
-const buildLogPayload = (config, { userId, dateStr, message, status }) => {
-  const payload = {};
-
-  if (config.userColumn) payload[config.userColumn] = userId;
-  if (config.dateColumn) payload[config.dateColumn] = dateStr;
-  if (config.typeColumn) payload[config.typeColumn] = ALERT_TYPE;
-  if (config.statusColumn) payload[config.statusColumn] = status;
-  if (config.messageColumn) payload[config.messageColumn] = message;
-  if (config.sentAtColumn) payload[config.sentAtColumn] = new Date().toISOString();
-
-  return payload;
-};
-
-const hasNotificationBeenSent = async (config, userId, dateStr) => {
-  if (!config?.tableName || !config.userColumn || !config.dateColumn || !config.typeColumn) {
-    return false;
-  }
-
-  const { data, error } = await supabase
-    .from(config.tableName)
-    .select("id")
-    .eq(config.userColumn, userId)
-    .eq(config.dateColumn, dateStr)
-    .eq(config.typeColumn, ALERT_TYPE)
-    .maybeSingle();
-
-  if (error) {
-    console.error("❌ Erro ao verificar log diário:", error.message);
-    return false;
-  }
-
-  return Boolean(data);
-};
-
-const logNotification = async (config, payload) => {
-  if (!config?.tableName) {
-    return;
-  }
-
-  const { error } = await supabase.from(config.tableName).insert(payload);
-  if (error) {
-    console.error("❌ Erro ao registrar log diário:", error.message);
   }
 };
 
@@ -330,7 +195,6 @@ const buildDailyGoalsMessage = ({ totals, goals, missing }) => {
 
 const runDailyGoalsReminder = async () => {
   const todayStr = formatDateOnlyInSaoPaulo();
-  const config = await getLogTableConfig();
   const users = await fetchActiveUsers();
 
   for (const user of users) {
@@ -338,9 +202,6 @@ const runDailyGoalsReminder = async () => {
     if (!userId || !user.whatsapp) continue;
 
     try {
-      const alreadySent = await hasNotificationBeenSent(config, userId, todayStr);
-      if (alreadySent) continue;
-
       const [goals, totals] = await Promise.all([
         fetchUserGoals(userId),
         fetchDailyTotals(userId, todayStr),
@@ -355,15 +216,6 @@ const runDailyGoalsReminder = async () => {
       const message = buildDailyGoalsMessage({ totals, goals, missing });
 
       await sendWhatsAppMessage({ phone: user.whatsapp, message });
-
-      const payload = buildLogPayload(config, {
-        userId,
-        dateStr: todayStr,
-        message,
-        status: "success",
-      });
-
-      await logNotification(config, payload);
     } catch (err) {
       console.error("❌ Erro ao enviar metas diárias:", err.message || err);
     }
