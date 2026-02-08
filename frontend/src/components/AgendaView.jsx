@@ -113,90 +113,92 @@ const AgendaView = ({
       </button>
     </div>
 
-    <GenericWizard
-      isOpen={eventWizardOpen}
-      mode={eventWizardMode}
-      title={eventWizardMode === 'edit' ? 'Editar evento' : 'Novo evento'}
-      subtitle={
-        eventWizardMode === 'edit' && eventForm.title
-          ? `Editando: ${eventForm.title}`
-          : 'Preencha as informações do evento passo a passo.'
-      }
-      steps={wizardSteps}
-      validateStep={(step) => {
-        if (step === 1 && !eventForm.title.trim()) {
-          return { valid: false, message: 'Informe o título do evento para continuar.' };
+    {eventWizardOpen && (
+      <GenericWizard
+        isOpen={eventWizardOpen}
+        mode={eventWizardMode}
+        title={eventWizardMode === 'edit' ? 'Editar evento' : 'Novo evento'}
+        subtitle={
+          eventWizardMode === 'edit' && eventForm.title
+            ? `Editando: ${eventForm.title}`
+            : 'Preencha as informações do evento passo a passo.'
         }
-        if (step === 2) {
-          if (!eventForm.date) {
-            return { valid: false, message: 'Informe a data do evento para continuar.' };
+        steps={wizardSteps}
+        validateStep={(step) => {
+          if (step === 1 && !eventForm.title.trim()) {
+            return { valid: false, message: 'Informe o título do evento para continuar.' };
           }
-          if (!eventForm.start || !eventForm.end) {
-            return { valid: false, message: 'Informe o horário de início e fim para continuar.' };
+          if (step === 2) {
+            if (!eventForm.date) {
+              return { valid: false, message: 'Informe a data do evento para continuar.' };
+            }
+            if (!eventForm.start || !eventForm.end) {
+              return { valid: false, message: 'Informe o horário de início e fim para continuar.' };
+            }
           }
-        }
-        return { valid: true, message: '' };
-      }}
-      onClose={onCloseEventWizard}
-      onSave={onSaveEventWizard}
-      onReset={onResetEventWizard}
-      saveLabel={eventWizardMode === 'edit' ? 'Atualizar' : 'Salvar'}
-    >
-      {(step) => (
-        <>
-          {step === 1 && (
-            <div className="transaction-wizard-panel">
-              <label>Título do evento</label>
-              <input
-                value={eventForm.title}
-                onChange={(e) => setEventForm({ ...eventForm, title: e.target.value })}
-                placeholder="Reunião, Médico, etc."
-              />
-            </div>
-          )}
-          {step === 2 && (
-            <div className="transaction-wizard-panel">
-              <div className="transaction-wizard-grid">
-                <div>
-                  <label>Data</label>
-                  <input
-                    type="date"
-                    value={eventForm.date}
-                    onChange={(e) => setEventForm({ ...eventForm, date: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <label>Início</label>
-                  <input
-                    type="time"
-                    value={eventForm.start}
-                    onChange={(e) => setEventForm({ ...eventForm, start: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <label>Fim</label>
-                  <input
-                    type="time"
-                    value={eventForm.end}
-                    onChange={(e) => setEventForm({ ...eventForm, end: e.target.value })}
-                  />
+          return { valid: true, message: '' };
+        }}
+        onClose={onCloseEventWizard}
+        onSave={onSaveEventWizard}
+        onReset={onResetEventWizard}
+        saveLabel={eventWizardMode === 'edit' ? 'Atualizar' : 'Salvar'}
+      >
+        {(step) => (
+          <>
+            {step === 1 && (
+              <div className="transaction-wizard-panel">
+                <label>Título do evento</label>
+                <input
+                  value={eventForm.title}
+                  onChange={(e) => setEventForm({ ...eventForm, title: e.target.value })}
+                  placeholder="Reunião, Médico, etc."
+                />
+              </div>
+            )}
+            {step === 2 && (
+              <div className="transaction-wizard-panel">
+                <div className="transaction-wizard-grid">
+                  <div>
+                    <label>Data</label>
+                    <input
+                      type="date"
+                      value={eventForm.date}
+                      onChange={(e) => setEventForm({ ...eventForm, date: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <label>Início</label>
+                    <input
+                      type="time"
+                      value={eventForm.start}
+                      onChange={(e) => setEventForm({ ...eventForm, start: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <label>Fim</label>
+                    <input
+                      type="time"
+                      value={eventForm.end}
+                      onChange={(e) => setEventForm({ ...eventForm, end: e.target.value })}
+                    />
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
-          {step === 3 && (
-            <div className="transaction-wizard-panel">
-              <label>Observações</label>
-              <textarea
-                value={eventForm.notes}
-                onChange={(e) => setEventForm({ ...eventForm, notes: e.target.value })}
-                placeholder="Observações do evento..."
-              ></textarea>
-            </div>
-          )}
-        </>
-      )}
-    </GenericWizard>
+            )}
+            {step === 3 && (
+              <div className="transaction-wizard-panel">
+                <label>Observações</label>
+                <textarea
+                  value={eventForm.notes}
+                  onChange={(e) => setEventForm({ ...eventForm, notes: e.target.value })}
+                  placeholder="Observações do evento..."
+                ></textarea>
+              </div>
+            )}
+          </>
+        )}
+      </GenericWizard>
+    )}
 
     <div className="sep"></div>
 

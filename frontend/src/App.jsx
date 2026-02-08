@@ -2080,6 +2080,39 @@ function App() {
   }, [isAdmin, activeView]);
 
   useEffect(() => {
+    setTxWizardOpen(false);
+    setTxWizardMode('create');
+    setTxForm(defaultTxForm);
+    setActiveTab('form');
+
+    setEventWizardOpen(false);
+    setEventWizardMode('create');
+    setEventForm(defaultEventForm);
+
+    setUserWizardOpen(false);
+    setUserWizardMode('create');
+    setUserForm(defaultUserForm);
+    setEditingUserId(null);
+    setEditingUserOriginal(null);
+
+    setAffiliateWizardOpen(false);
+    setAffiliateWizardMode('create');
+    setAffiliateForm(defaultAffiliateForm);
+
+    setSelectedAffiliate(null);
+    setAffiliateUsers([]);
+    setAffiliateUsersCommissionCents(0);
+  }, [activeView]);
+
+  useEffect(() => {
+    if (activeTab !== 'form') {
+      setTxWizardOpen(false);
+      setTxWizardMode('create');
+      setTxForm(defaultTxForm);
+    }
+  }, [activeTab]);
+
+  useEffect(() => {
     if (activeView === 'affiliates' && isAdmin) {
       loadAffiliates();
     }
@@ -3113,18 +3146,20 @@ function App() {
                 </div>
               </div>
 
-              <TransactionWizard
-                isOpen={txWizardOpen}
-                mode={txWizardMode}
-                initialData={txWizardMode === 'edit' ? txForm : null}
-                formData={txForm}
-                onChange={setTxForm}
-                onClose={closeTransactionWizard}
-                onSave={handleWizardSaveTransaction}
-                onReset={() => setTxForm(defaultTxForm)}
-                categories={txCategories}
-                hasLegacyCategory={hasLegacyCategory}
-              />
+              {txWizardOpen && (
+                <TransactionWizard
+                  isOpen={txWizardOpen}
+                  mode={txWizardMode}
+                  initialData={txWizardMode === 'edit' ? txForm : null}
+                  formData={txForm}
+                  onChange={setTxForm}
+                  onClose={closeTransactionWizard}
+                  onSave={handleWizardSaveTransaction}
+                  onReset={() => setTxForm(defaultTxForm)}
+                  categories={txCategories}
+                  hasLegacyCategory={hasLegacyCategory}
+                />
+              )}
 
               <div className="sep"></div>
 
@@ -3279,166 +3314,168 @@ function App() {
               </button>
             </div>
 
-            <GenericWizard
-              isOpen={userWizardOpen}
-              mode={userWizardMode}
-              title={userWizardMode === 'edit' ? 'Editar usuário' : 'Novo usuário'}
-              subtitle="Preencha os dados do usuário em etapas."
-              steps={[
-                { id: 1, label: 'Dados principais' },
-                { id: 2, label: 'Contato / acesso' },
-                { id: 3, label: 'Confirmação' },
-              ]}
-              validateStep={(step) => {
-                if (step === 1) {
-                  if (!userForm.username.trim()) {
-                    return { valid: false, message: 'Informe o usuário para continuar.' };
+            {userWizardOpen && (
+              <GenericWizard
+                isOpen={userWizardOpen}
+                mode={userWizardMode}
+                title={userWizardMode === 'edit' ? 'Editar usuário' : 'Novo usuário'}
+                subtitle="Preencha os dados do usuário em etapas."
+                steps={[
+                  { id: 1, label: 'Dados principais' },
+                  { id: 2, label: 'Contato / acesso' },
+                  { id: 3, label: 'Confirmação' },
+                ]}
+                validateStep={(step) => {
+                  if (step === 1) {
+                    if (!userForm.username.trim()) {
+                      return { valid: false, message: 'Informe o usuário para continuar.' };
+                    }
+                    if (!userForm.role) {
+                      return { valid: false, message: 'Selecione o perfil para continuar.' };
+                    }
                   }
-                  if (!userForm.role) {
-                    return { valid: false, message: 'Selecione o perfil para continuar.' };
+                  if (step === 2 && !editingUserId) {
+                    if (!userForm.password || userForm.password.trim().length < 4) {
+                      return { valid: false, message: 'Informe uma senha com pelo menos 4 caracteres.' };
+                    }
                   }
-                }
-                if (step === 2 && !editingUserId) {
-                  if (!userForm.password || userForm.password.trim().length < 4) {
-                    return { valid: false, message: 'Informe uma senha com pelo menos 4 caracteres.' };
+                  if (step === 2 && editingUserId && userForm.password) {
+                    if (userForm.password.trim().length < 4) {
+                      return { valid: false, message: 'A senha precisa ter pelo menos 4 caracteres.' };
+                    }
                   }
-                }
-                if (step === 2 && editingUserId && userForm.password) {
-                  if (userForm.password.trim().length < 4) {
-                    return { valid: false, message: 'A senha precisa ter pelo menos 4 caracteres.' };
-                  }
-                }
-                return { valid: true, message: '' };
-              }}
-              onClose={closeUserWizard}
-              onSave={handleWizardSaveUser}
-              onReset={() => {
-                setUserForm(defaultUserForm);
-                setEditingUserId(null);
-                setEditingUserOriginal(null);
-              }}
-              saveLabel={userWizardMode === 'edit' ? 'Atualizar' : 'Salvar'}
-            >
-              {(step) => (
-                <>
-                  {step === 1 && (
-                    <div className="transaction-wizard-panel">
-                      <div className="transaction-wizard-grid">
-                        <div>
-                          <label>Nome</label>
-                          <input
-                            value={userForm.name}
-                            onChange={(e) => setUserForm({ ...userForm, name: e.target.value })}
-                            placeholder="Nome completo (opcional)"
-                          />
-                        </div>
-                        <div>
-                          <label>Usuário</label>
-                          <input
-                            value={userForm.username}
-                            onChange={(e) => setUserForm({ ...userForm, username: e.target.value })}
-                            placeholder="ex.: joaosilva"
-                          />
-                        </div>
-                      </div>
-                      <div>
-                        <label>Perfil</label>
-                        <select
-                          value={userForm.role}
-                          onChange={(e) => setUserForm({ ...userForm, role: e.target.value })}
-                        >
-                          <option value="">Selecione</option>
-                          <option value="user">Usuário</option>
-                          <option value="admin">Admin</option>
-                        </select>
-                      </div>
-                    </div>
-                  )}
-                  {step === 2 && (
-                    <div className="transaction-wizard-panel">
-                      <div className="transaction-wizard-grid">
-                        <div>
-                          <label>Senha inicial</label>
-                          <input
-                            type="password"
-                            value={userForm.password}
-                            onChange={(e) => setUserForm({ ...userForm, password: e.target.value })}
-                            placeholder="Mínimo de 4 caracteres"
-                          />
-                        </div>
-                        <div>
-                          <label>WhatsApp</label>
-                          <input
-                            value={userForm.whatsapp}
-                            onChange={(e) => setUserForm({ ...userForm, whatsapp: e.target.value })}
-                            placeholder="+5511999999999"
-                          />
-                        </div>
-                        <div>
-                          <label>Código do afiliado (opcional)</label>
-                          <input
-                            value={userForm.affiliateCode}
-                            onChange={(e) => setUserForm({ ...userForm, affiliateCode: e.target.value })}
-                            placeholder="ex: AFI-001"
-                          />
-                        </div>
-                        {!editingUserId && (
+                  return { valid: true, message: '' };
+                }}
+                onClose={closeUserWizard}
+                onSave={handleWizardSaveUser}
+                onReset={() => {
+                  setUserForm(defaultUserForm);
+                  setEditingUserId(null);
+                  setEditingUserOriginal(null);
+                }}
+                saveLabel={userWizardMode === 'edit' ? 'Atualizar' : 'Salvar'}
+              >
+                {(step) => (
+                  <>
+                    {step === 1 && (
+                      <div className="transaction-wizard-panel">
+                        <div className="transaction-wizard-grid">
                           <div>
-                            <label>Criado em</label>
-                            <input type="date" value={today} readOnly disabled />
-                          </div>
-                        )}
-                      </div>
-                      {!editingUserId && (
-                        <div className="checkbox-row">
-                          <label className="checkbox-label">
+                            <label>Nome</label>
                             <input
-                              type="checkbox"
-                              checked={userForm.applyTrial}
-                              onChange={(e) => setUserForm({ ...userForm, applyTrial: e.target.checked })}
+                              value={userForm.name}
+                              onChange={(e) => setUserForm({ ...userForm, name: e.target.value })}
+                              placeholder="Nome completo (opcional)"
                             />
-                            <span>Aplicar 7 dias grátis</span>
-                          </label>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  {step === 3 && (
-                    <div className="transaction-wizard-panel">
-                      <p className="muted">Confira os dados antes de salvar.</p>
-                      <div className="transaction-wizard-grid">
-                        <div>
-                          <label>Nome</label>
-                          <strong>{userForm.name || '—'}</strong>
-                        </div>
-                        <div>
-                          <label>Usuário</label>
-                          <strong>{userForm.username || '—'}</strong>
-                        </div>
-                        <div>
-                          <label>WhatsApp</label>
-                          <strong>{userForm.whatsapp || '—'}</strong>
+                          </div>
+                          <div>
+                            <label>Usuário</label>
+                            <input
+                              value={userForm.username}
+                              onChange={(e) => setUserForm({ ...userForm, username: e.target.value })}
+                              placeholder="ex.: joaosilva"
+                            />
+                          </div>
                         </div>
                         <div>
                           <label>Perfil</label>
-                          <strong>{userForm.role === 'admin' ? 'Admin' : 'Usuário'}</strong>
+                          <select
+                            value={userForm.role}
+                            onChange={(e) => setUserForm({ ...userForm, role: e.target.value })}
+                          >
+                            <option value="">Selecione</option>
+                            <option value="user">Usuário</option>
+                            <option value="admin">Admin</option>
+                          </select>
                         </div>
-                        <div>
-                          <label>Afiliado</label>
-                          <strong>{userForm.affiliateCode || '—'}</strong>
+                      </div>
+                    )}
+                    {step === 2 && (
+                      <div className="transaction-wizard-panel">
+                        <div className="transaction-wizard-grid">
+                          <div>
+                            <label>Senha inicial</label>
+                            <input
+                              type="password"
+                              value={userForm.password}
+                              onChange={(e) => setUserForm({ ...userForm, password: e.target.value })}
+                              placeholder="Mínimo de 4 caracteres"
+                            />
+                          </div>
+                          <div>
+                            <label>WhatsApp</label>
+                            <input
+                              value={userForm.whatsapp}
+                              onChange={(e) => setUserForm({ ...userForm, whatsapp: e.target.value })}
+                              placeholder="+5511999999999"
+                            />
+                          </div>
+                          <div>
+                            <label>Código do afiliado (opcional)</label>
+                            <input
+                              value={userForm.affiliateCode}
+                              onChange={(e) => setUserForm({ ...userForm, affiliateCode: e.target.value })}
+                              placeholder="ex: AFI-001"
+                            />
+                          </div>
+                          {!editingUserId && (
+                            <div>
+                              <label>Criado em</label>
+                              <input type="date" value={today} readOnly disabled />
+                            </div>
+                          )}
                         </div>
                         {!editingUserId && (
-                          <div>
-                            <label>Trial grátis</label>
-                            <strong>{userForm.applyTrial ? 'Sim' : 'Não'}</strong>
+                          <div className="checkbox-row">
+                            <label className="checkbox-label">
+                              <input
+                                type="checkbox"
+                                checked={userForm.applyTrial}
+                                onChange={(e) => setUserForm({ ...userForm, applyTrial: e.target.checked })}
+                              />
+                              <span>Aplicar 7 dias grátis</span>
+                            </label>
                           </div>
                         )}
                       </div>
-                    </div>
-                  )}
-                </>
-              )}
-            </GenericWizard>
+                    )}
+                    {step === 3 && (
+                      <div className="transaction-wizard-panel">
+                        <p className="muted">Confira os dados antes de salvar.</p>
+                        <div className="transaction-wizard-grid">
+                          <div>
+                            <label>Nome</label>
+                            <strong>{userForm.name || '—'}</strong>
+                          </div>
+                          <div>
+                            <label>Usuário</label>
+                            <strong>{userForm.username || '—'}</strong>
+                          </div>
+                          <div>
+                            <label>WhatsApp</label>
+                            <strong>{userForm.whatsapp || '—'}</strong>
+                          </div>
+                          <div>
+                            <label>Perfil</label>
+                            <strong>{userForm.role === 'admin' ? 'Admin' : 'Usuário'}</strong>
+                          </div>
+                          <div>
+                            <label>Afiliado</label>
+                            <strong>{userForm.affiliateCode || '—'}</strong>
+                          </div>
+                          {!editingUserId && (
+                            <div>
+                              <label>Trial grátis</label>
+                              <strong>{userForm.applyTrial ? 'Sim' : 'Não'}</strong>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+              </GenericWizard>
+            )}
 
             <UsersTable
               items={users.map((user) => ({ ...user, _editing: (user.auth_id || user.id) === editingUserId }))}
@@ -3463,122 +3500,124 @@ function App() {
               </button>
             </div>
 
-            <GenericWizard
-              isOpen={affiliateWizardOpen}
-              mode={affiliateWizardMode}
-              title="Novo afiliado"
-              subtitle="Complete os dados do afiliado passo a passo."
-              steps={[
-                { id: 1, label: 'Dados do afiliado' },
-                { id: 2, label: 'Configurações' },
-                { id: 3, label: 'Confirmação' },
-              ]}
-              validateStep={(step) => {
-                if (step === 1) {
-                  if (!affiliateForm.code.trim()) {
-                    return { valid: false, message: 'Informe o código do afiliado para continuar.' };
+            {affiliateWizardOpen && (
+              <GenericWizard
+                isOpen={affiliateWizardOpen}
+                mode={affiliateWizardMode}
+                title="Novo afiliado"
+                subtitle="Complete os dados do afiliado passo a passo."
+                steps={[
+                  { id: 1, label: 'Dados do afiliado' },
+                  { id: 2, label: 'Configurações' },
+                  { id: 3, label: 'Confirmação' },
+                ]}
+                validateStep={(step) => {
+                  if (step === 1) {
+                    if (!affiliateForm.code.trim()) {
+                      return { valid: false, message: 'Informe o código do afiliado para continuar.' };
+                    }
+                    if (!affiliateForm.name.trim()) {
+                      return { valid: false, message: 'Informe o nome do afiliado para continuar.' };
+                    }
                   }
-                  if (!affiliateForm.name.trim()) {
-                    return { valid: false, message: 'Informe o nome do afiliado para continuar.' };
+                  if (step === 2) {
+                    const hasContact = Boolean(affiliateForm.whatsapp.trim() || affiliateForm.email.trim());
+                    if (!hasContact) {
+                      return { valid: false, message: 'Informe o WhatsApp ou e-mail para continuar.' };
+                    }
                   }
-                }
-                if (step === 2) {
-                  const hasContact = Boolean(affiliateForm.whatsapp.trim() || affiliateForm.email.trim());
-                  if (!hasContact) {
-                    return { valid: false, message: 'Informe o WhatsApp ou e-mail para continuar.' };
-                  }
-                }
-                return { valid: true, message: '' };
-              }}
-              onClose={closeAffiliateWizard}
-              onSave={handleWizardSaveAffiliate}
-              onReset={() => setAffiliateForm(defaultAffiliateForm)}
-              saveLabel="Salvar"
-            >
-              {(step) => (
-                <>
-                  {step === 1 && (
-                    <div className="transaction-wizard-panel">
-                      <div className="transaction-wizard-grid">
-                        <div>
-                          <label>Código</label>
-                          <input
-                            value={affiliateForm.code}
-                            onChange={(e) => setAffiliateForm({ ...affiliateForm, code: e.target.value })}
-                            placeholder="AFI-001"
-                          />
-                        </div>
-                        <div>
-                          <label>Nome</label>
-                          <input
-                            value={affiliateForm.name}
-                            onChange={(e) => setAffiliateForm({ ...affiliateForm, name: e.target.value })}
-                            placeholder="Nome do afiliado"
-                          />
+                  return { valid: true, message: '' };
+                }}
+                onClose={closeAffiliateWizard}
+                onSave={handleWizardSaveAffiliate}
+                onReset={() => setAffiliateForm(defaultAffiliateForm)}
+                saveLabel="Salvar"
+              >
+                {(step) => (
+                  <>
+                    {step === 1 && (
+                      <div className="transaction-wizard-panel">
+                        <div className="transaction-wizard-grid">
+                          <div>
+                            <label>Código</label>
+                            <input
+                              value={affiliateForm.code}
+                              onChange={(e) => setAffiliateForm({ ...affiliateForm, code: e.target.value })}
+                              placeholder="AFI-001"
+                            />
+                          </div>
+                          <div>
+                            <label>Nome</label>
+                            <input
+                              value={affiliateForm.name}
+                              onChange={(e) => setAffiliateForm({ ...affiliateForm, name: e.target.value })}
+                              placeholder="Nome do afiliado"
+                            />
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  )}
-                  {step === 2 && (
-                    <div className="transaction-wizard-panel">
-                      <div className="transaction-wizard-grid">
-                        <div>
-                          <label>WhatsApp</label>
-                          <input
-                            value={affiliateForm.whatsapp}
-                            onChange={(e) => setAffiliateForm({ ...affiliateForm, whatsapp: e.target.value })}
-                            placeholder="+5511999999999"
-                          />
-                        </div>
-                        <div>
-                          <label>E-mail</label>
-                          <input
-                            value={affiliateForm.email}
-                            onChange={(e) => setAffiliateForm({ ...affiliateForm, email: e.target.value })}
-                            placeholder="contato@exemplo.com"
-                          />
-                        </div>
-                        <div>
-                          <label>Chave PIX</label>
-                          <input
-                            value={affiliateForm.pix_key}
-                            onChange={(e) => setAffiliateForm({ ...affiliateForm, pix_key: e.target.value })}
-                            placeholder="CPF, e-mail ou aleatória"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                  {step === 3 && (
-                    <div className="transaction-wizard-panel">
-                      <p className="muted">Revise os dados antes de salvar.</p>
-                      <div className="transaction-wizard-grid">
-                        <div>
-                          <label>Código</label>
-                          <strong>{affiliateForm.code || '—'}</strong>
-                        </div>
-                        <div>
-                          <label>Nome</label>
-                          <strong>{affiliateForm.name || '—'}</strong>
-                        </div>
-                        <div>
-                          <label>WhatsApp</label>
-                          <strong>{affiliateForm.whatsapp || '—'}</strong>
-                        </div>
-                        <div>
-                          <label>E-mail</label>
-                          <strong>{affiliateForm.email || '—'}</strong>
-                        </div>
-                        <div>
-                          <label>Chave PIX</label>
-                          <strong>{affiliateForm.pix_key || '—'}</strong>
+                    )}
+                    {step === 2 && (
+                      <div className="transaction-wizard-panel">
+                        <div className="transaction-wizard-grid">
+                          <div>
+                            <label>WhatsApp</label>
+                            <input
+                              value={affiliateForm.whatsapp}
+                              onChange={(e) => setAffiliateForm({ ...affiliateForm, whatsapp: e.target.value })}
+                              placeholder="+5511999999999"
+                            />
+                          </div>
+                          <div>
+                            <label>E-mail</label>
+                            <input
+                              value={affiliateForm.email}
+                              onChange={(e) => setAffiliateForm({ ...affiliateForm, email: e.target.value })}
+                              placeholder="contato@exemplo.com"
+                            />
+                          </div>
+                          <div>
+                            <label>Chave PIX</label>
+                            <input
+                              value={affiliateForm.pix_key}
+                              onChange={(e) => setAffiliateForm({ ...affiliateForm, pix_key: e.target.value })}
+                              placeholder="CPF, e-mail ou aleatória"
+                            />
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  )}
-                </>
-              )}
-            </GenericWizard>
+                    )}
+                    {step === 3 && (
+                      <div className="transaction-wizard-panel">
+                        <p className="muted">Revise os dados antes de salvar.</p>
+                        <div className="transaction-wizard-grid">
+                          <div>
+                            <label>Código</label>
+                            <strong>{affiliateForm.code || '—'}</strong>
+                          </div>
+                          <div>
+                            <label>Nome</label>
+                            <strong>{affiliateForm.name || '—'}</strong>
+                          </div>
+                          <div>
+                            <label>WhatsApp</label>
+                            <strong>{affiliateForm.whatsapp || '—'}</strong>
+                          </div>
+                          <div>
+                            <label>E-mail</label>
+                            <strong>{affiliateForm.email || '—'}</strong>
+                          </div>
+                          <div>
+                            <label>Chave PIX</label>
+                            <strong>{affiliateForm.pix_key || '—'}</strong>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+              </GenericWizard>
+            )}
 
             <div className="users-table-container" style={{ marginTop: 12 }}>
               <table>

@@ -1158,70 +1158,71 @@ const FoodDiary = React.forwardRef(({ userId, supabase, notify, refreshToken }, 
                 </button>
               </div>
 
-              <GenericWizard
-                isOpen={mealWizardOpen}
-                mode={mealWizardMode}
-                title={mealWizardMode === 'edit' ? 'Editar refeição' : 'Nova refeição'}
-                subtitle="Registre sua refeição em etapas."
-                steps={[
-                  { id: 1, label: 'Tipo' },
-                  { id: 2, label: 'Alimentos' },
-                  { id: 3, label: 'Confirmação' },
-                ]}
-                validateStep={(step) => {
-                  if (step === 1 && !form.mealType) {
-                    return { valid: false, message: 'Selecione o tipo de refeição para continuar.' };
-                  }
-                  if (step === 2) {
-                    if (!form.food.trim()) {
-                      return { valid: false, message: 'Informe o alimento para continuar.' };
+              {mealWizardOpen && (
+                <GenericWizard
+                  isOpen={mealWizardOpen}
+                  mode={mealWizardMode}
+                  title={mealWizardMode === 'edit' ? 'Editar refeição' : 'Nova refeição'}
+                  subtitle="Registre sua refeição em etapas."
+                  steps={[
+                    { id: 1, label: 'Tipo' },
+                    { id: 2, label: 'Alimentos' },
+                    { id: 3, label: 'Confirmação' },
+                  ]}
+                  validateStep={(step) => {
+                    if (step === 1 && !form.mealType) {
+                      return { valid: false, message: 'Selecione o tipo de refeição para continuar.' };
                     }
-                    if (!(Number(form.calories) > 0)) {
-                      return { valid: false, message: 'Informe as calorias para continuar.' };
+                    if (step === 2) {
+                      if (!form.food.trim()) {
+                        return { valid: false, message: 'Informe o alimento para continuar.' };
+                      }
+                      if (!(Number(form.calories) > 0)) {
+                        return { valid: false, message: 'Informe as calorias para continuar.' };
+                      }
                     }
-                  }
-                  return { valid: true, message: '' };
-                }}
-                onClose={closeMealWizard}
-                onSave={handleWizardSaveEntry}
-                onReset={() => {
-                  setForm(defaultMealForm);
-                  setEditingId(null);
-                  setScanPreview(null);
-                  setScanDescription('');
-                }}
-                saveLabel={mealWizardMode === 'edit' ? 'Atualizar' : 'Salvar'}
-              >
-                {(step) => (
-                  <>
-                    {step === 1 && (
-                      <div className="transaction-wizard-panel">
-                        <div className="transaction-wizard-grid">
-                          <div>
-                            <label>Data</label>
-                            <input
-                              type="date"
-                              value={selectedDate}
-                              onChange={(e) => setSelectedDate(e.target.value)}
-                            />
-                          </div>
-                          <div>
-                            <label>Refeição</label>
-                            <select
-                              value={form.mealType}
-                              onChange={(e) => handleChangeForm('mealType', e.target.value)}
-                            >
-                              <option value="">Selecione</option>
-                              <option>Café da manhã</option>
-                              <option>Almoço</option>
-                              <option>Jantar</option>
-                              <option>Lanche</option>
-                              <option>Pós-treino</option>
-                            </select>
+                    return { valid: true, message: '' };
+                  }}
+                  onClose={closeMealWizard}
+                  onSave={handleWizardSaveEntry}
+                  onReset={() => {
+                    setForm(defaultMealForm);
+                    setEditingId(null);
+                    setScanPreview(null);
+                    setScanDescription('');
+                  }}
+                  saveLabel={mealWizardMode === 'edit' ? 'Atualizar' : 'Salvar'}
+                >
+                  {(step) => (
+                    <>
+                      {step === 1 && (
+                        <div className="transaction-wizard-panel">
+                          <div className="transaction-wizard-grid">
+                            <div>
+                              <label>Data</label>
+                              <input
+                                type="date"
+                                value={selectedDate}
+                                onChange={(e) => setSelectedDate(e.target.value)}
+                              />
+                            </div>
+                            <div>
+                              <label>Refeição</label>
+                              <select
+                                value={form.mealType}
+                                onChange={(e) => handleChangeForm('mealType', e.target.value)}
+                              >
+                                <option value="">Selecione</option>
+                                <option>Café da manhã</option>
+                                <option>Almoço</option>
+                                <option>Jantar</option>
+                                <option>Lanche</option>
+                                <option>Pós-treino</option>
+                              </select>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    )}
+                      )}
 
                     {step === 2 && (
                       <div className="transaction-wizard-panel">
@@ -1435,7 +1436,8 @@ const FoodDiary = React.forwardRef(({ userId, supabase, notify, refreshToken }, 
                     )}
                   </>
                 )}
-              </GenericWizard>
+                </GenericWizard>
+              )}
 
           <div className="food-diary-entries">
             {dayEntries.length === 0 && (
