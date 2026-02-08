@@ -16,6 +16,7 @@
   --ink-danger:#1b0a0a;
   --link:#89b4ff;
   --grid:#1f2434;
+  --layout-max-width:1240px;
 }
 
 /* Resetzinho básico */
@@ -123,7 +124,7 @@ h2.title, h3.title{ margin:0 0 10px; font-weight:600; }
 }
 
 .container{
-  max-width:1200px;
+  max-width:var(--layout-max-width);
   margin:20px auto;
   padding:0 16px;
   display:grid;
@@ -143,7 +144,7 @@ h2.title, h3.title{ margin:0 0 10px; font-weight:600; }
 
 .container.single-card{
   width:100%;
-  max-width:1100px;
+  max-width:var(--layout-max-width);
   margin:0 auto;
   padding:0 16px;
   box-sizing:border-box;
@@ -160,12 +161,29 @@ h2.title, h3.title{ margin:0 0 10px; font-weight:600; }
   width:100%;
 }
 
+.standard-layout{
+  width:100%;
+}
+
+@media (min-width:1024px){
+  .standard-layout{
+    max-width:var(--layout-max-width);
+    margin-left:auto;
+    margin-right:auto;
+  }
+}
+
 @media (min-width:1100px){
   .container{
     grid-template-columns:1.2fr .8fr;
     grid-template-areas:
       "main sidebar"
       "admin sidebar";
+  }
+
+  .container.standard-layout{
+    grid-template-columns:1fr;
+    grid-template-areas:"main";
   }
 }
 
@@ -197,7 +215,7 @@ h2.title, h3.title{ margin:0 0 10px; font-weight:600; }
   flex:1 1 160px;
 }
 .admin-users-container{
-  max-width:1200px;
+  max-width:var(--layout-max-width);
   margin-left:auto;
   margin-right:auto;
 }
@@ -857,7 +875,7 @@ canvas{ background:transparent; }
 
 .workout-card {
   margin-top: 16px;
-  max-width: 1120px;
+  max-width: var(--layout-max-width);
   width: 100%;
   margin-left: auto;
   margin-right: auto;

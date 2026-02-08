@@ -2887,7 +2887,7 @@ function App() {
       </div>
 
       {activeView === 'transactions' && (
-        <div className={activeTab === 'reports' ? 'container single-card' : 'container'}>
+        <div className={activeTab === 'reports' ? 'container single-card standard-layout' : 'container standard-layout'}>
           <section className="card dashboard-card">
           <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
             <h2 className="title">Transações</h2>
@@ -2997,7 +2997,7 @@ function App() {
       )}
 
       {activeView === 'agenda' && (
-        <div className="container single-card">
+        <div className="container single-card standard-layout">
           <AgendaView
             agendaRef={agendaRef}
             eventForm={eventForm}
@@ -3017,7 +3017,7 @@ function App() {
       )}
 
       {activeView === 'users' && isAdmin && (
-        <div className="container single-card admin-users-container">
+        <div className="container single-card admin-users-container standard-layout">
           <section className="card admin-card" id="adminUsersSection">
             <h2 className="title">Cadastro de Usuários</h2>
             <p className="muted">Somente administradores podem acessar esta área.</p>
@@ -3174,7 +3174,7 @@ function App() {
       )}
 
       {activeView === 'affiliates' && isAdmin && (
-        <div className="container single-card">
+        <div className="container single-card standard-layout">
           <section className="card admin-card" id="adminAffiliatesSection">
             <h2 className="title">Afiliados</h2>
             <p className="muted">Gerencie parceiros e visualize seus clientes.</p>
@@ -3355,7 +3355,7 @@ function App() {
       )}
 
       {activeView === 'workout' && (
-        <div className="container single-card">
+        <div className="container single-card standard-layout">
           <section className="card">
             <WorkoutRoutine apiBaseUrl={workoutApiBase} pushToast={pushToast} />
           </section>
@@ -3363,7 +3363,7 @@ function App() {
       )}
 
       {activeView === 'foodDiary' && (
-        <div className="container single-card">
+        <div className="container single-card standard-layout">
           <section className="card">
             <FoodDiary
               apiBaseUrl={workoutApiBase}
@@ -3377,7 +3377,7 @@ function App() {
       )}
 
       {activeView === 'generalReport' && (
-        <div className="container single-card">
+        <div className="container single-card standard-layout">
           <section className="card">
             <GeneralReport
               userId={session?.user?.id}
