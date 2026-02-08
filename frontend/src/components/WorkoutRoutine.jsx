@@ -64,6 +64,7 @@ import WeightLineChart from './charts/WeightLineChart.jsx';
 import MuscleDonut from './charts/MuscleDonut.jsx';
 import TrainingHeatmap from './charts/TrainingHeatmap.jsx';
 import MiniStats from './charts/MiniStats.jsx';
+import GenericWizard from './GenericWizard.jsx';
 
 const muscleGroups = [
   { id: 'peito', name: 'Peito', image: PeitoImg },
@@ -101,6 +102,14 @@ const SPORTS = muscleGroups.slice(10).map(({ id, name, image }) => ({
   label: name,
   image
 }));
+
+const defaultWorkoutForm = {
+  id: null,
+  name: '',
+  muscleGroups: [],
+  sportsActivities: [],
+  exercises: [],
+};
 
 const MUSCLE_INFO = {
   peito: {
@@ -659,13 +668,9 @@ const ViewWorkoutModal = ({
 const WorkoutRoutine = React.forwardRef(({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushToast }, ref) => {
   const newTemplateRef = useRef(null);
   const [activeTab, setActiveTab] = useState('config');
-  const [workoutForm, setWorkoutForm] = useState({
-    id: null,
-    name: '',
-    muscleGroups: [],
-    sportsActivities: [],
-    exercises: [],
-  });
+  const [workoutForm, setWorkoutForm] = useState(defaultWorkoutForm);
+  const [workoutWizardOpen, setWorkoutWizardOpen] = useState(false);
+  const [workoutWizardMode, setWorkoutWizardMode] = useState('create');
   const [routines, setRoutines] = useState([]);
   const [schedule, setSchedule] = useState(defaultSchedule);
   const [loading, setLoading] = useState(false);
@@ -1162,14 +1167,49 @@ const WorkoutRoutine = React.forwardRef(({ apiBaseUrl = import.meta.env.VITE_API
     setViewWorkout(null);
   };
 
+  const openWorkoutWizard = ({ mode = 'create', template } = {}) => {
+    const wizardMode = mode === 'edit' ? 'edit' : 'create';
+    setWorkoutWizardMode(wizardMode);
+    if (wizardMode === 'edit' && template) {
+      const sportsActivities = syncSportsFromTemplate(
+        template.sportsActivities,
+        template.sports
+      );
+      setWorkoutForm({
+        ...template,
+        muscleGroups: Array.isArray(template.muscleGroups)
+          ? template.muscleGroups
+          : template.muscle_groups || [],
+        sportsActivities,
+        sports: sportsActivities,
+      });
+    } else {
+      setWorkoutForm(defaultWorkoutForm);
+      setCreateReminder(false);
+      setSessionReminder(false);
+    }
+    setWorkoutWizardOpen(true);
+  };
+
+  const closeWorkoutWizard = () => {
+    setWorkoutWizardOpen(false);
+  };
+
+  const handleWizardSaveRoutine = async () => {
+    const saved = await handleSaveRoutine();
+    if (saved) {
+      setWorkoutWizardOpen(false);
+    }
+  };
+
   const handleSaveRoutine = async () => {
     if (!workoutForm.name.trim()) {
       notify('Informe o nome do treino.', 'warning');
-      return;
+      return false;
     }
     if (!workoutForm.muscleGroups.length) {
       notify('Selecione pelo menos um grupo muscular.', 'warning');
-      return;
+      return false;
     }
 
     const payload = {
@@ -1202,7 +1242,7 @@ const WorkoutRoutine = React.forwardRef(({ apiBaseUrl = import.meta.env.VITE_API
         throw new Error(saved?.error || 'Não foi possível salvar o treino.');
       }
 
-      setWorkoutForm({ id: null, name: '', muscleGroups: [], sportsActivities: [], exercises: [] });
+      setWorkoutForm(defaultWorkoutForm);
 
       setRoutines((prev) => {
         if (workoutForm.id) {
@@ -1224,9 +1264,11 @@ const WorkoutRoutine = React.forwardRef(({ apiBaseUrl = import.meta.env.VITE_API
       }
 
       notify('Treino salvo com sucesso!', 'success');
+      return true;
     } catch (err) {
       console.warn('Erro ao salvar treino', err);
       notify(err.message || 'Não foi possível salvar o treino.', 'danger');
+      return false;
     } finally {
       setLoading(false);
     }
@@ -1491,6 +1533,7 @@ const WorkoutRoutine = React.forwardRef(({ apiBaseUrl = import.meta.env.VITE_API
         setActiveTab('config');
         setTimeout(() => {
           newTemplateRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          openWorkoutWizard({ mode: 'create' });
         }, 50);
       },
     }),
@@ -1536,64 +1579,121 @@ const WorkoutRoutine = React.forwardRef(({ apiBaseUrl = import.meta.env.VITE_API
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
             {/* NOVO TREINO */}
             <div ref={newTemplateRef}>
-              <h4 className="title" style={{ marginBottom: 12 }}>Novo Template de Treino</h4>
-              <label>Nome do treino</label>
-              <input
-                value={workoutForm.name}
-                onChange={(e) => setWorkoutForm({ ...workoutForm, name: e.target.value })}
-                placeholder="Ex.: Treino A – Peito e Tríceps"
-              />
+              <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                <h4 className="title" style={{ marginBottom: 0 }}>Novo Template de Treino</h4>
+                <button className="primary" onClick={() => openWorkoutWizard({ mode: 'create' })}>
+                  Novo treino
+                </button>
+              </div>
 
-              <div className="sep" style={{ margin: '12px 0 6px' }}></div>
-              <div className="muted" style={{ marginBottom: 6, fontSize: 13 }}>Grupos musculares</div>
-              <div className="muscle-grid">
-                {MUSCLE_GROUPS.map((group) => {
-                  const active = workoutForm.muscleGroups.includes(group.value);
-                  return (
-                    <button
-                      key={group.value}
-                      type="button"
-                      className={active ? 'muscle-card active' : 'muscle-card'}
-                      onClick={() => toggleMuscleGroup(group.value)}
-                    >
-                      <div className="muscle-image-wrapper">
-                        <img src={group.image} alt={group.label} className="muscle-image" />
+              <GenericWizard
+                isOpen={workoutWizardOpen}
+                mode={workoutWizardMode}
+                title={workoutWizardMode === 'edit' ? 'Editar treino' : 'Novo treino'}
+                subtitle="Cadastre seu treino em etapas."
+                steps={[
+                  { id: 1, label: 'Nome do treino' },
+                  { id: 2, label: 'Grupos musculares' },
+                  { id: 3, label: 'Horários / lembretes' },
+                ]}
+                onClose={closeWorkoutWizard}
+                onSave={handleWizardSaveRoutine}
+                onReset={() => {
+                  setWorkoutForm(defaultWorkoutForm);
+                  setCreateReminder(false);
+                  setSessionReminder(false);
+                }}
+                saveLabel={workoutWizardMode === 'edit' ? 'Atualizar' : 'Salvar'}
+              >
+                {(step) => (
+                  <>
+                    {step === 1 && (
+                      <div className="transaction-wizard-panel">
+                        <label>Nome do treino</label>
+                        <input
+                          value={workoutForm.name}
+                          onChange={(e) => setWorkoutForm({ ...workoutForm, name: e.target.value })}
+                          placeholder="Ex.: Treino A – Peito e Tríceps"
+                        />
                       </div>
-                      <span className="muscle-label">{group.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
+                    )}
 
-              <div className="muted" style={{ margin: '14px 0 6px', fontSize: 13 }}>
-                Esportes / atividades
-              </div>
-              <div className="muscle-grid">
-                {SPORTS.map((sport) => {
-                  const active = workoutForm.sportsActivities.includes(sport.value);
-                  return (
-                    <button
-                      key={sport.value}
-                      type="button"
-                      className={active ? 'muscle-card active' : 'muscle-card'}
-                      onClick={() => toggleSport(sport.value)}
-                    >
-                      <div className="muscle-image-wrapper">
-                        <img src={sport.image} alt={sport.label} className="muscle-image" />
+                    {step === 2 && (
+                      <div className="transaction-wizard-panel">
+                        <div className="muted" style={{ marginBottom: 6, fontSize: 13 }}>Grupos musculares</div>
+                        <div className="muscle-grid">
+                          {MUSCLE_GROUPS.map((group) => {
+                            const active = workoutForm.muscleGroups.includes(group.value);
+                            return (
+                              <button
+                                key={group.value}
+                                type="button"
+                                className={active ? 'muscle-card active' : 'muscle-card'}
+                                onClick={() => toggleMuscleGroup(group.value)}
+                              >
+                                <div className="muscle-image-wrapper">
+                                  <img src={group.image} alt={group.label} className="muscle-image" />
+                                </div>
+                                <span className="muscle-label">{group.label}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+
+                        <div className="muted" style={{ margin: '14px 0 6px', fontSize: 13 }}>
+                          Esportes / atividades
+                        </div>
+                        <div className="muscle-grid">
+                          {SPORTS.map((sport) => {
+                            const active = workoutForm.sportsActivities.includes(sport.value);
+                            return (
+                              <button
+                                key={sport.value}
+                                type="button"
+                                className={active ? 'muscle-card active' : 'muscle-card'}
+                                onClick={() => toggleSport(sport.value)}
+                              >
+                                <div className="muscle-image-wrapper">
+                                  <img src={sport.image} alt={sport.label} className="muscle-image" />
+                                </div>
+                                <span className="muscle-label">{sport.label}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
                       </div>
-                      <span className="muscle-label">{sport.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
+                    )}
 
-              <div className="row" style={{ justifyContent: 'space-between', marginTop: 12 }}>
-                <div className="row" style={{ gap: 8 }}>
-                  <button className="primary" onClick={handleSaveRoutine} disabled={loading}>
-                    {loading ? 'Salvando...' : workoutForm.id ? 'Cadastrar treino' : 'Salvar template'}
-                  </button>
-                </div>
-              </div>
+                    {step === 3 && (
+                      <div className="transaction-wizard-panel">
+                        <div className="checkbox-row">
+                          <label className="checkbox-label">
+                            <input
+                              type="checkbox"
+                              checked={createReminder}
+                              onChange={(e) => setCreateReminder(e.target.checked)}
+                            />
+                            <span>Criar lembrete ao salvar o treino</span>
+                          </label>
+                        </div>
+                        <div className="checkbox-row">
+                          <label className="checkbox-label">
+                            <input
+                              type="checkbox"
+                              checked={sessionReminder}
+                              onChange={(e) => setSessionReminder(e.target.checked)}
+                            />
+                            <span>Ativar lembrete ao concluir treino do dia</span>
+                          </label>
+                        </div>
+                        <div className="muted" style={{ fontSize: 12 }}>
+                          Defina os horários detalhados na seção de semana de treino.
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+              </GenericWizard>
             </div>
 
             {/* TREINOS CADASTRADOS */}
@@ -1624,21 +1724,7 @@ const WorkoutRoutine = React.forwardRef(({ apiBaseUrl = import.meta.env.VITE_API
                         <button
                           type="button"
                           className="ghost"
-                          onClick={() => {
-                            const sportsActivities = syncSportsFromTemplate(
-                              template.sportsActivities,
-                              template.sports
-                            );
-
-                            setWorkoutForm({
-                              ...template,
-                              muscleGroups: Array.isArray(template.muscleGroups)
-                                ? template.muscleGroups
-                                : template.muscle_groups || [],
-                              sportsActivities,
-                              sports: sportsActivities,
-                            });
-                          }}
+                          onClick={() => openWorkoutWizard({ mode: 'edit', template })}
                         >
                           Editar
                         </button>
