@@ -13,6 +13,7 @@ import {
   startMorningAgendaScheduler,
 } from "./reminders.js";
 import { startDailyGoalsReminder } from "./jobs/dailyGoalsReminder.js";
+import { startDailyRemindersScheduler } from "./jobs/dailyRemindersScheduler.js";
 import { analyzeFoodImage } from "./ai/foodScanner.js";
 import {
   createWorkoutSession,
@@ -50,6 +51,7 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // Inicia o job de lembretes (agenda)
 startMorningAgendaScheduler();
+startDailyRemindersScheduler();
 startDailyGoalsReminder();
 
 app.get("/debug/zapi-test", async (req, res) => {
