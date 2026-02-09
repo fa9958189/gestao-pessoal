@@ -450,7 +450,7 @@ const LoginScreen = ({ form, onChange, onSubmit, loading, error, configError }) 
         value={form.password}
         onChange={(e) => onChange({ ...form, password: e.target.value })}
       />
-      <button className="primary full" onClick={onSubmit} disabled={loading || !form.email || !form.password}>
+      <button className="primary full" onClick={onSubmit} disabled={loading}>
         {loading ? 'Entrando...' : 'Entrar'}
       </button>
       {import.meta.env.DEV && (
@@ -2167,10 +2167,14 @@ function App() {
 
 
                 const handleLogin = async () => {
-                  if (!client) return;
-
                   setLoginLoading(true);
                   setLoginError('');
+
+                  if (!client) {
+                    setLoginError('Não foi possível iniciar o cliente do Supabase.');
+                    setLoginLoading(false);
+                    return;
+                  }
 
                   try {
                     // 1) Login real no Supabase Auth
@@ -2190,17 +2194,27 @@ function App() {
                     const accessToken = signInData?.session?.access_token;
 
                     // 2) Buscar o registro correspondente em profiles_auth pelo auth_id
-                    const { data: authProfile, error: authProfileError } = await client
-                      .from('profiles_auth')
-                      .select('id, name, role, auth_id, email')
-                      .eq('auth_id', authUser.id)
-                      .single();
+                    let authProfile = null;
+                    try {
+                      const { data: authProfileData, error: authProfileError } = await client
+                        .from('profiles_auth')
+                        .select('id, name, role, auth_id, email')
+                        .eq('auth_id', authUser.id)
+                        .single();
 
-                    console.log('authProfile:', authProfile);
-                    console.log('authProfileError:', authProfileError);
+                      console.log('authProfile:', authProfileData);
+                      console.log('authProfileError:', authProfileError);
 
-                    if (authProfileError || !authProfile) {
-                      throw new Error('Perfil de autenticação não encontrado em profiles_auth.');
+                      if (authProfileError || !authProfileData) {
+                        throw new Error('Perfil de autenticação não encontrado em profiles_auth.');
+                      }
+
+                      authProfile = authProfileData;
+                    } catch (profileErr) {
+                      console.error('Erro ao carregar perfil de autenticação', profileErr);
+                      setLoginError(profileErr.message || 'Erro ao carregar perfil de autenticação.');
+                      setLoginLoading(false);
+                      return;
                     }
 
                     if (
@@ -2240,11 +2254,11 @@ function App() {
                     );
 
                     pushToast('Login realizado com sucesso!', 'success');
-                    window.location.reload();
+                    setLoginLoading(false);
+                    window.location.assign('/dashboard');
                   } catch (err) {
                     console.error('Erro no login', err);
                     setLoginError(err.message || 'Erro ao fazer login.');
-                  } finally {
                     setLoginLoading(false);
                   }
                 };
