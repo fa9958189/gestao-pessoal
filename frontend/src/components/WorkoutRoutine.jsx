@@ -1247,6 +1247,7 @@ const WorkoutRoutine = React.forwardRef(({ apiBaseUrl = import.meta.env.VITE_API
         }
       }
       closeWorkoutWizard();
+      setActiveTab('config');
     }
   };
 
