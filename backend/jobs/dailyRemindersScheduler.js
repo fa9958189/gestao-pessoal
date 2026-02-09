@@ -56,36 +56,37 @@ const fetchActiveDailyReminders = async () => {
   return data || [];
 };
 
-const fetchReminderLogsForDate = async (reminderIds, entryDate) => {
-  if (!reminderIds.length) return [];
-
+const reserveReminderLog = async ({ userId, reminderId, entryDate }) => {
   const { data, error } = await supabase
     .from("daily_reminder_logs")
-    .select("user_id, reminder_id")
-    .eq("entry_date", entryDate)
-    .in("reminder_id", reminderIds);
-
-  if (error) {
-    throw new Error(`Erro ao buscar logs de lembretes diários: ${error.message}`);
-  }
-
-  return data || [];
-};
-
-const saveReminderLog = async ({ userId, reminderId, entryDate }) => {
-  const { error } = await supabase
-    .from("daily_reminder_logs")
-    .upsert(
+    .insert(
       {
         user_id: userId,
         reminder_id: reminderId,
         entry_date: entryDate,
       },
       { onConflict: "user_id,reminder_id,entry_date", ignoreDuplicates: true }
-    );
+    )
+    .select("id");
 
   if (error) {
-    console.error("❌ Erro ao salvar log de lembrete diário:", error.message);
+    console.error("❌ Erro ao registrar log do lembrete diário:", error.message);
+    return { inserted: false };
+  }
+
+  return { inserted: Array.isArray(data) && data.length > 0 };
+};
+
+const removeReminderLog = async ({ userId, reminderId, entryDate }) => {
+  const { error } = await supabase
+    .from("daily_reminder_logs")
+    .delete()
+    .eq("user_id", userId)
+    .eq("reminder_id", reminderId)
+    .eq("entry_date", entryDate);
+
+  if (error) {
+    console.error("❌ Erro ao remover log de lembrete diário:", error.message);
   }
 };
 
@@ -101,24 +102,28 @@ const runDailyReminders = async () => {
 
   if (!dueReminders.length) return;
 
-  const reminderIds = dueReminders.map((reminder) => reminder.id).filter(Boolean);
-  const loggedToday = await fetchReminderLogsForDate(reminderIds, todayStr);
-  const loggedSet = new Set(
-    loggedToday.map((row) => `${row.user_id}:${row.reminder_id}`)
-  );
-
   for (const reminder of dueReminders) {
     const userId = reminder.user_id;
     const reminderId = reminder.id;
 
     if (!userId || !reminderId) continue;
 
-    const logKey = `${userId}:${reminderId}`;
-    if (loggedSet.has(logKey)) continue;
+    const reservation = await reserveReminderLog({
+      userId,
+      reminderId,
+      entryDate: todayStr,
+    });
+
+    if (!reservation.inserted) {
+      continue;
+    }
 
     try {
       const whatsapp = await fetchUserWhatsapp(userId);
-      if (!whatsapp) continue;
+      if (!whatsapp) {
+        await removeReminderLog({ userId, reminderId, entryDate: todayStr });
+        continue;
+      }
 
       const message = buildDailyReminderMessage(reminder);
       const sendResult = await sendWhatsAppMessage({
@@ -131,12 +136,12 @@ const runDailyReminders = async () => {
           "❌ Falha ao enviar lembrete diário:",
           sendResult?.status
         );
+        await removeReminderLog({ userId, reminderId, entryDate: todayStr });
         continue;
       }
-
-      await saveReminderLog({ userId, reminderId, entryDate: todayStr });
     } catch (err) {
       console.error("❌ Erro ao enviar lembrete diário:", err.message || err);
+      await removeReminderLog({ userId, reminderId, entryDate: todayStr });
     }
   }
 };
