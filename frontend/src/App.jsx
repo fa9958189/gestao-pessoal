@@ -6,6 +6,14 @@ import AgendaView from './components/AgendaView.jsx';
 import MobileActionButtons from './components/MobileActionButtons.jsx';
 import TransactionWizard from './components/TransactionWizard.jsx';
 import GenericWizard from './components/GenericWizard.jsx';
+import {
+  ROOT_PATH,
+  getPathForView,
+  getViewForPath,
+  isAdminOnlyView,
+  isProtectedPath,
+  normalizeAppPath,
+} from './routes/appRoutes.js';
 import './styles.css';
 import { loadGoals } from './services/foodDiaryProfile';
 
@@ -1718,11 +1726,25 @@ function App() {
     };
   }, [session]);
 
+  const [currentPath, setCurrentPath] = useState(() => window.location.pathname || ROOT_PATH);
+
+  const replacePath = (path) => {
+    if (window.location.pathname !== path) {
+      window.history.replaceState({}, '', path);
+    }
+    setCurrentPath(path);
+  };
+
   useEffect(() => {
-    if (!user) return;
-    if (window.location.pathname === '/dashboard') return;
-    window.history.replaceState({}, '', '/dashboard');
-  }, [user]);
+    const syncPath = () => {
+      setCurrentPath(window.location.pathname || ROOT_PATH);
+    };
+
+    window.addEventListener('popstate', syncPath);
+    return () => {
+      window.removeEventListener('popstate', syncPath);
+    };
+  }, []);
 
   const affiliateRef = useMemo(() => {
     try {
@@ -2089,6 +2111,52 @@ function App() {
   }, [isAdmin, activeView]);
 
   useEffect(() => {
+    const normalizedPath = normalizeAppPath(currentPath);
+
+    if (normalizedPath === '*') {
+      replacePath(ROOT_PATH);
+      return;
+    }
+
+    if (loadingSession) return;
+
+    if (!session) {
+      if (isProtectedPath(normalizedPath)) {
+        replacePath(ROOT_PATH);
+      }
+      return;
+    }
+
+    if (normalizedPath === ROOT_PATH) {
+      const defaultPath = getPathForView('transactions');
+      replacePath(defaultPath);
+      return;
+    }
+
+    const routeView = getViewForPath(normalizedPath);
+
+    if (!routeView || (isAdminOnlyView(routeView) && !isAdmin)) {
+      const fallbackPath = getPathForView('transactions');
+      setActiveView('transactions');
+      replacePath(fallbackPath);
+      return;
+    }
+
+    if (routeView !== activeView) {
+      setActiveView(routeView);
+    }
+  }, [activeView, currentPath, isAdmin, loadingSession, session]);
+
+  useEffect(() => {
+    if (!session || loadingSession) return;
+
+    const expectedPath = getPathForView(activeView);
+    if (currentPath !== expectedPath) {
+      replacePath(expectedPath);
+    }
+  }, [activeView, currentPath, loadingSession, session]);
+
+  useEffect(() => {
     setTxWizardOpen(false);
     setTxWizardMode('create');
     setTxForm(defaultTxForm);
@@ -2278,7 +2346,8 @@ function App() {
                     });
 
                     pushToast('Login realizado com sucesso!', 'success');
-                    window.history.replaceState({}, '', '/dashboard');
+                    setActiveView('transactions');
+                    replacePath(getPathForView('transactions'));
                   } catch (err) {
                     console.error('Erro no login', err);
                     setLoginError(err.message || 'Erro ao fazer login.');
@@ -2299,7 +2368,7 @@ function App() {
     setSession(null);
     setProfile(null);
     setProfileDetails(null);
-    window.location.reload();
+    replacePath(ROOT_PATH);
   }
 
   const handleApiForbidden = () => {
@@ -3120,6 +3189,18 @@ function App() {
     return [];
   })();
 
+  if (loadingSession) {
+    return (
+      <LoginLayout toast={toast} onToastClose={() => setToast(null)}>
+        <div className="login-screen">
+          <div className="login-card">
+            <p className="muted">Validando sessão...</p>
+          </div>
+        </div>
+      </LoginLayout>
+    );
+  }
+
   if (!session) {
     return (
       <LoginLayout toast={toast} onToastClose={() => setToast(null)}>
@@ -3127,7 +3208,7 @@ function App() {
           form={loginForm}
           onChange={setLoginForm}
           onSubmit={handleLogin}
-          loading={loginLoading || loadingSession}
+          loading={loginLoading}
           error={loginError}
           configError={configError}
         />
