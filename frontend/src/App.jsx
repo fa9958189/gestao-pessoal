@@ -376,6 +376,7 @@ const useAuth = (client) => {
           setSession(null);
           setProfile(null);
           window.localStorage.removeItem('gp-session');
+          setSupabaseChecked(true);
           return;
         }
 
@@ -389,6 +390,7 @@ const useAuth = (client) => {
           role: nextSession.user.role,
         });
         window.localStorage.setItem('gp-session', JSON.stringify(nextSession));
+        setSupabaseChecked(true);
       }
     );
 
@@ -1705,6 +1707,7 @@ const Reports = ({ transactions }) => {
 function App() {
   const { client, configError } = useSupabaseClient();
   const { session, profile, loadingSession, setSession, setProfile } = useAuth(client);
+  const user = session?.user || null;
 
   const isAdmin = profile?.role === 'admin';
 
@@ -1714,6 +1717,12 @@ function App() {
       document.body.classList.remove('login-page');
     };
   }, [session]);
+
+  useEffect(() => {
+    if (!user) return;
+    if (window.location.pathname === '/dashboard') return;
+    window.history.replaceState({}, '', '/dashboard');
+  }, [user]);
 
   const affiliateRef = useMemo(() => {
     try {
@@ -2253,12 +2262,27 @@ function App() {
                       }),
                     );
 
+                    setSession({
+                      user: {
+                        id: authUser.id,
+                        profile_id: authProfile.id,
+                        name: authProfile.name,
+                        role: authProfile.role,
+                        email: loginForm.email,
+                      },
+                    });
+                    setProfile({
+                      id: authProfile.id || authUser.id,
+                      name: authProfile.name,
+                      role: authProfile.role,
+                    });
+
                     pushToast('Login realizado com sucesso!', 'success');
-                    setLoginLoading(false);
-                    window.location.assign('/dashboard');
+                    window.history.replaceState({}, '', '/dashboard');
                   } catch (err) {
                     console.error('Erro no login', err);
                     setLoginError(err.message || 'Erro ao fazer login.');
+                  } finally {
                     setLoginLoading(false);
                   }
                 };
