@@ -24,8 +24,12 @@ export const isProtectedPath = (path) => PROTECTED_PATHS.includes(path);
 export const isAdminOnlyView = (view) => view === 'users' || view === 'affiliates';
 
 export const normalizeAppPath = (path) => {
-  if (path === ROOT_PATH || isProtectedPath(path)) {
-    return path;
+  const rawPath = String(path || '').replace(/^#/, '');
+  const normalizedPath = rawPath.startsWith('/') ? rawPath : (rawPath ? `/${rawPath}` : ROOT_PATH);
+  const cleanPath = normalizedPath.split('?')[0];
+
+  if (cleanPath === ROOT_PATH || isProtectedPath(cleanPath)) {
+    return cleanPath;
   }
 
   return '*';
