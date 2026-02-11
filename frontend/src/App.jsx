@@ -247,6 +247,12 @@ const getCurrentPeriodMonth = (today = new Date()) => {
 
 const randomId = () => crypto.randomUUID ? crypto.randomUUID() : String(Date.now());
 
+const getHashPath = () => {
+  const raw = (window.location.hash || '').replace(/^#/, '');
+  const path = raw.startsWith('/') ? raw : (raw ? `/${raw}` : '/');
+  return path.split('?')[0];
+};
+
 const useSupabaseClient = () => {
   const [client, setClient] = useState(null);
   const [configError, setConfigError] = useState('');
@@ -1726,23 +1732,23 @@ function App() {
     };
   }, [session]);
 
-  const [currentPath, setCurrentPath] = useState(() => window.location.pathname || ROOT_PATH);
+  const [currentPath, setCurrentPath] = useState(() => getHashPath());
 
   const replacePath = (path) => {
-    if (window.location.pathname !== path) {
-      window.history.replaceState({}, '', path);
+    if (getHashPath() !== path) {
+      window.location.hash = path;
     }
     setCurrentPath(path);
   };
 
   useEffect(() => {
     const syncPath = () => {
-      setCurrentPath(window.location.pathname || ROOT_PATH);
+      setCurrentPath(getHashPath());
     };
 
-    window.addEventListener('popstate', syncPath);
+    window.addEventListener('hashchange', syncPath);
     return () => {
-      window.removeEventListener('popstate', syncPath);
+      window.removeEventListener('hashchange', syncPath);
     };
   }, []);
 
@@ -2347,7 +2353,7 @@ function App() {
 
                     pushToast('Login realizado com sucesso!', 'success');
                     setActiveView('transactions');
-                    replacePath(getPathForView('transactions'));
+                    replacePath('/dashboard');
                   } catch (err) {
                     console.error('Erro no login', err);
                     setLoginError(err.message || 'Erro ao fazer login.');
