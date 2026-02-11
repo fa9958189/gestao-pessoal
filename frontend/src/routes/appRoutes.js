@@ -26,7 +26,10 @@ export const isAdminOnlyView = (view) => view === 'users' || view === 'affiliate
 export const normalizeAppPath = (path) => {
   const rawPath = String(path || '').replace(/^#/, '');
   const normalizedPath = rawPath.startsWith('/') ? rawPath : (rawPath ? `/${rawPath}` : ROOT_PATH);
-  const cleanPath = normalizedPath.split('?')[0];
+  const noQuery = normalizedPath.split('?')[0];
+
+  // remove trailing slash (exceto "/")
+  const cleanPath = (noQuery.length > 1) ? noQuery.replace(/\/+$/, '') : noQuery;
 
   if (cleanPath === ROOT_PATH || isProtectedPath(cleanPath)) {
     return cleanPath;
