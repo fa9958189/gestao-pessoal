@@ -132,9 +132,9 @@ const AgendaView = ({
             if (!eventForm.date) {
               return { valid: false, message: 'Informe a data do evento para continuar.' };
             }
-            if (!eventForm.start || !eventForm.end) {
-              return { valid: false, message: 'Informe o horário de início e fim para continuar.' };
-            }
+          }
+          if (step === 3 && !eventForm.notes.trim()) {
+            return { valid: false, message: 'Informe as observações do evento para continuar.' };
           }
           return { valid: true, message: '' };
         }}

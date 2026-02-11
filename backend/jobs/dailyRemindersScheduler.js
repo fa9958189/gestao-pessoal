@@ -43,6 +43,15 @@ const buildDailyReminderMessage = (reminder) => {
   return title || notes || "Lembrete diário";
 };
 
+const buildDateBasedReminderMessage = (event) => {
+  const title = String(event.title || "").trim();
+  const notes = String(event.notes || "").trim();
+  if (title && notes) {
+    return `${title}\n${notes}`;
+  }
+  return title || notes || "Lembrete da agenda";
+};
+
 const fetchActiveDailyReminders = async () => {
   const { data, error } = await supabase
     .from("daily_reminders")
@@ -87,6 +96,69 @@ const removeReminderLog = async ({ userId, reminderId, entryDate }) => {
 
   if (error) {
     console.error("❌ Erro ao remover log de lembrete diário:", error.message);
+  }
+};
+
+const fetchEventsForToday = async (todayStr) => {
+  const primaryQuery = await supabase
+    .from("events")
+    .select("id, user_id, title, notes, data_evento, is_active")
+    .eq("data_evento", todayStr)
+    .eq("is_active", true);
+
+  if (!primaryQuery.error) {
+    return primaryQuery.data || [];
+  }
+
+  const fallbackQuery = await supabase
+    .from("events")
+    .select("id, user_id, title, notes, date, is_active")
+    .eq("date", todayStr)
+    .eq("is_active", true);
+
+  if (fallbackQuery.error) {
+    throw new Error(
+      `Erro ao buscar eventos por data na agenda: ${fallbackQuery.error.message}`
+    );
+  }
+
+  return fallbackQuery.data || [];
+};
+
+const alreadySentDateBasedReminderToday = async ({ userId, eventId, todayStr }) => {
+  const query = await supabase
+    .from("registros_de_alertas_do_whatsapp")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("event_id", eventId)
+    .eq("entry_date", todayStr)
+    .limit(1);
+
+  if (query.error) {
+    console.error(
+      "❌ Erro ao verificar envio duplicado de lembrete por data:",
+      query.error.message
+    );
+    return false;
+  }
+
+  return Array.isArray(query.data) && query.data.length > 0;
+};
+
+const registerDateBasedReminderLog = async ({ userId, eventId, todayStr, message }) => {
+  const { error } = await supabase.from("registros_de_alertas_do_whatsapp").insert({
+    user_id: userId,
+    event_id: eventId,
+    entry_date: todayStr,
+    message,
+    channel: "whatsapp",
+  });
+
+  if (error) {
+    console.error(
+      "❌ Erro ao registrar envio em registros_de_alertas_do_whatsapp:",
+      error.message
+    );
   }
 };
 
@@ -146,6 +218,63 @@ const runDailyReminders = async () => {
   }
 };
 
+export const processDateBasedReminders = async () => {
+  const now = new Date();
+  const todayStr = formatDateOnlyInSaoPaulo(now);
+  const events = await fetchEventsForToday(todayStr);
+
+  if (!events.length) return;
+
+  for (const event of events) {
+    const userId = event.user_id;
+    const eventId = event.id;
+    if (!userId || !eventId) continue;
+
+    const alreadySent = await alreadySentDateBasedReminderToday({
+      userId,
+      eventId,
+      todayStr,
+    });
+
+    if (alreadySent) {
+      continue;
+    }
+
+    try {
+      const whatsapp = await fetchUserWhatsapp(userId);
+      if (!whatsapp) {
+        continue;
+      }
+
+      const message = buildDateBasedReminderMessage(event);
+      const sendResult = await sendWhatsAppMessage({
+        phone: whatsapp,
+        message,
+      });
+
+      if (!sendResult?.ok) {
+        console.error(
+          "❌ Falha ao enviar lembrete por data da agenda:",
+          sendResult?.status
+        );
+        continue;
+      }
+
+      await registerDateBasedReminderLog({
+        userId,
+        eventId,
+        todayStr,
+        message,
+      });
+    } catch (err) {
+      console.error(
+        "❌ Erro ao enviar lembrete por data da agenda:",
+        err.message || err
+      );
+    }
+  }
+};
+
 let dailyReminderTask = null;
 
 export const startDailyRemindersScheduler = () => {
@@ -165,10 +294,10 @@ export const startDailyRemindersScheduler = () => {
       isRunning = true;
 
       try {
-        await runDailyReminders();
+        await processDateBasedReminders();
       } catch (err) {
         console.error(
-          "❌ Erro no scheduler de lembretes diários:",
+          "❌ Erro no scheduler de lembretes por data:",
           err.message || err
         );
       } finally {
@@ -179,7 +308,7 @@ export const startDailyRemindersScheduler = () => {
   );
 
   console.log(
-    `⏰ Scheduler de lembretes diários ativo (${CRON_EXPRESSION} - ${TZ}).`
+    `⏰ Scheduler de lembretes por data ativo (${CRON_EXPRESSION} - ${TZ}).`
   );
 
   return dailyReminderTask;
