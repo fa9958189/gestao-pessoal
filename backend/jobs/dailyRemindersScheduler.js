@@ -18,7 +18,16 @@ const formatDateOnlyInSaoPaulo = (date = new Date()) => {
 const buildDateBasedReminderMessage = (event) => {
   const title = String(event.title || "").trim();
   const notes = String(event.notes || "").trim();
-  return `Lembrete da agenda de hoje:\n${title}\n${notes}`;
+
+  let message =
+    "Olá, bom dia! Na sua agenda diária hoje você tem um compromisso:\n\n" +
+    `📌 Título: ${title || "Sem título"}`;
+
+  if (notes) {
+    message += `\n\n📝 Detalhes:\n${notes}`;
+  }
+
+  return message;
 };
 
 const fetchEventsForToday = async (todayISOString) => {
