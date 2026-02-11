@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import WorkoutRoutine from './components/WorkoutRoutine.jsx';
 import FoodDiary from './components/FoodDiary.jsx';
 import GeneralReport from './components/GeneralReport.jsx';
@@ -247,11 +247,11 @@ const getCurrentPeriodMonth = (today = new Date()) => {
 
 const randomId = () => crypto.randomUUID ? crypto.randomUUID() : String(Date.now());
 
-const getHashPath = () => {
-  const raw = (window.location.hash || '').replace(/^#/, '');
-  const path = raw.startsWith('/') ? raw : (raw ? `/${raw}` : '/');
-  return path.split('?')[0];
-};
+function getCurrentPath() {
+  const raw = window.location.hash.replace(/^#/, '');
+  if (!raw) return '/';
+  return raw.startsWith('/') ? raw : '/' + raw;
+}
 
 const useSupabaseClient = () => {
   const [client, setClient] = useState(null);
@@ -1732,23 +1732,19 @@ function App() {
     };
   }, [session]);
 
-  const [currentPath, setCurrentPath] = useState(() => getHashPath());
+  const [currentPath, setCurrentPath] = useState(getCurrentPath());
 
-  const replacePath = (path) => {
-    if (getHashPath() !== path) {
+  const navigate = useCallback((path) => {
+    if (window.location.hash !== '#' + path) {
       window.location.hash = path;
     }
-    setCurrentPath(path);
-  };
+  }, []);
 
   useEffect(() => {
-    const syncPath = () => {
-      setCurrentPath(getHashPath());
-    };
-
-    window.addEventListener('hashchange', syncPath);
+    const handler = () => setCurrentPath(getCurrentPath());
+    window.addEventListener('hashchange', handler);
     return () => {
-      window.removeEventListener('hashchange', syncPath);
+      window.removeEventListener('hashchange', handler);
     };
   }, []);
 
@@ -2112,15 +2108,15 @@ function App() {
 
   useEffect(() => {
     if (!isAdmin && (activeView === 'users' || activeView === 'affiliates')) {
-      setActiveView('transactions');
+      navigate(getPathForView('transactions'));
     }
-  }, [isAdmin, activeView]);
+  }, [activeView, isAdmin, navigate]);
 
   useEffect(() => {
     const normalizedPath = normalizeAppPath(currentPath);
 
     if (normalizedPath === '*') {
-      replacePath(ROOT_PATH);
+      navigate(ROOT_PATH);
       return;
     }
 
@@ -2128,14 +2124,14 @@ function App() {
 
     if (!session) {
       if (isProtectedPath(normalizedPath)) {
-        replacePath(ROOT_PATH);
+        navigate(ROOT_PATH);
       }
       return;
     }
 
     if (normalizedPath === ROOT_PATH) {
       const defaultPath = getPathForView('transactions');
-      replacePath(defaultPath);
+      navigate(defaultPath);
       return;
     }
 
@@ -2144,23 +2140,23 @@ function App() {
     if (!routeView || (isAdminOnlyView(routeView) && !isAdmin)) {
       const fallbackPath = getPathForView('transactions');
       setActiveView('transactions');
-      replacePath(fallbackPath);
+      navigate(fallbackPath);
       return;
     }
 
     if (routeView !== activeView) {
       setActiveView(routeView);
     }
-  }, [activeView, currentPath, isAdmin, loadingSession, session]);
+  }, [activeView, currentPath, isAdmin, loadingSession, navigate, session]);
 
   useEffect(() => {
     if (!session || loadingSession) return;
 
     const expectedPath = getPathForView(activeView);
     if (currentPath !== expectedPath) {
-      replacePath(expectedPath);
+      navigate(expectedPath);
     }
-  }, [activeView, currentPath, loadingSession, session]);
+  }, [activeView, currentPath, loadingSession, navigate, session]);
 
   useEffect(() => {
     setTxWizardOpen(false);
@@ -2352,8 +2348,7 @@ function App() {
                     });
 
                     pushToast('Login realizado com sucesso!', 'success');
-                    setActiveView('transactions');
-                    replacePath('/dashboard');
+                    navigate('/dashboard');
                   } catch (err) {
                     console.error('Erro no login', err);
                     setLoginError(err.message || 'Erro ao fazer login.');
@@ -2374,7 +2369,7 @@ function App() {
     setSession(null);
     setProfile(null);
     setProfileDetails(null);
-    replacePath(ROOT_PATH);
+    navigate(ROOT_PATH);
   }
 
   const handleApiForbidden = () => {
@@ -2615,7 +2610,7 @@ function App() {
   };
 
   const handleFabTransaction = () => {
-    setActiveView('transactions');
+    navigate(getPathForView('transactions'));
     setActiveTab('form');
     setTimeout(() => {
       scrollToRef(transactionFormRef);
@@ -2624,7 +2619,7 @@ function App() {
   };
 
   const handleFabEvent = () => {
-    setActiveView('agenda');
+    navigate(getPathForView('agenda'));
     setTimeout(() => {
       scrollToRef(agendaRef);
       openEventWizard({ mode: 'create' });
@@ -2632,7 +2627,7 @@ function App() {
   };
 
   const handleNewUser = () => {
-    setActiveView('users');
+    navigate(getPathForView('users'));
     setTimeout(() => {
       scrollToRef(adminUsersRef);
       openUserWizard({ mode: 'create' });
@@ -2640,7 +2635,7 @@ function App() {
   };
 
   const handleNewAffiliate = () => {
-    setActiveView('affiliates');
+    navigate(getPathForView('affiliates'));
     setTimeout(() => {
       scrollToRef(adminAffiliatesRef);
       openAffiliateWizard();
@@ -2648,12 +2643,12 @@ function App() {
   };
 
   const handleNewWorkout = () => {
-    setActiveView('workout');
+    navigate(getPathForView('workout'));
     setTimeout(() => workoutRef.current?.focusNewTemplate?.(), 50);
   };
 
   const handleNewMeal = () => {
-    setActiveView('foodDiary');
+    navigate(getPathForView('foodDiary'));
     setTimeout(() => foodDiaryRef.current?.focusNewMeal?.(), 50);
   };
 
@@ -3233,7 +3228,7 @@ function App() {
             <button
               key={tab.key}
               className={activeView === tab.key ? 'tab active' : 'tab'}
-              onClick={() => setActiveView(tab.key)}
+              onClick={() => navigate(getPathForView(tab.key))}
             >
               <span className="tab-emoji" aria-hidden="true">
                 {tab.emoji}
