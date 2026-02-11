@@ -249,8 +249,9 @@ const randomId = () => crypto.randomUUID ? crypto.randomUUID() : String(Date.now
 
 function getCurrentPath() {
   const raw = window.location.hash.replace(/^#/, '');
-  if (!raw) return '/';
-  return raw.startsWith('/') ? raw : '/' + raw;
+  const path = !raw ? '/' : (raw.startsWith('/') ? raw : '/' + raw);
+  const noQuery = path.split('?')[0];
+  return (noQuery.length > 1) ? noQuery.replace(/\/+$/, '') : noQuery;
 }
 
 const useSupabaseClient = () => {
@@ -2148,15 +2149,6 @@ function App() {
       setActiveView(routeView);
     }
   }, [activeView, currentPath, isAdmin, loadingSession, navigate, session]);
-
-  useEffect(() => {
-    if (!session || loadingSession) return;
-
-    const expectedPath = getPathForView(activeView);
-    if (currentPath !== expectedPath) {
-      navigate(expectedPath);
-    }
-  }, [activeView, currentPath, loadingSession, navigate, session]);
 
   useEffect(() => {
     setTxWizardOpen(false);
