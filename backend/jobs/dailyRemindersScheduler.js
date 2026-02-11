@@ -3,7 +3,7 @@ import { supabase } from "../supabase.js";
 import { fetchUserWhatsapp, sendWhatsAppMessage } from "../reminders.js";
 
 const TZ = "America/Sao_Paulo";
-const CRON_EXPRESSION = "* * * * *";
+const CRON_EXPRESSION = "30 6 * * *";
 
 const formatDateOnlyInSaoPaulo = (date = new Date()) => {
   const formatter = new Intl.DateTimeFormat("en-CA", {
@@ -165,7 +165,7 @@ export const startDailyRemindersScheduler = () => {
   );
 
   console.log(
-    `⏰ Scheduler de lembretes por data ativo (${CRON_EXPRESSION} - ${TZ}).`
+    `⏰ Scheduler de lembretes por data ativo (todos os dias às 06:30 - ${TZ}).`
   );
 
   return dailyReminderTask;
