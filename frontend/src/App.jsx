@@ -2461,7 +2461,23 @@ function App() {
   };
 
   const handleSaveEvent = async () => {
-    const payload = { ...eventForm, id: eventForm.id || randomId(), user_id: session?.user?.id };
+    const normalizedTitle = String(eventForm.title || '').trim();
+    const normalizedNotes = String(eventForm.notes || '').trim();
+
+    if (!normalizedTitle || !eventForm.date || !normalizedNotes) {
+      pushToast('Título, data e observações são obrigatórios para salvar o evento.', 'warning');
+      return false;
+    }
+
+    const payload = {
+      ...eventForm,
+      id: eventForm.id || randomId(),
+      user_id: session?.user?.id,
+      title: normalizedTitle,
+      notes: normalizedNotes,
+      start: eventForm.start || null,
+      end: eventForm.end || null,
+    };
     const newList = eventForm.id
       ? events.map((ev) => (ev.id === eventForm.id ? payload : ev))
       : [payload, ...events];
