@@ -1859,8 +1859,8 @@ canvas{ background:transparent; }
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 20;
   padding: 16px;
+  z-index: 9999; /* garantir que fique acima de qualquer modal */
 }
 
 .food-picker-card {
@@ -1870,6 +1870,8 @@ canvas{ background:transparent; }
   display: flex;
   flex-direction: column;
   gap: 12px;
+  position: relative;
+  z-index: 10000;
 }
 
 .food-picker-header {
