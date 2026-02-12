@@ -100,7 +100,7 @@ export const saveMeal = async (
   console.log('PAYLOAD REFEIÇÃO:', payload);
 
   const { data, error } = await supabase
-    .from('food_daily_entries')
+    .from('food_diary_entries')
     .insert(payload)
     .select()
     .single();
