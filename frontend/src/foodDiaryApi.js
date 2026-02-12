@@ -38,6 +38,23 @@ const normalizeMealFromDb = (item) => ({
   createdAt: item.created_at,
 });
 
+const normalizeTimeToHHmm = (value) => {
+  if (!value) return null;
+  const input = String(value).trim();
+  if (!input) return null;
+
+  const match = input.match(/^(\d{1,2})(?::?(\d{1,2}))?$/);
+  if (!match) return null;
+
+  const hours = Number(match[1]);
+  const minutes = Number(match[2] ?? 0);
+
+  if (!Number.isInteger(hours) || !Number.isInteger(minutes)) return null;
+  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return null;
+
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+};
+
 export const saveMeal = async (
   {
     userId,
@@ -56,30 +73,40 @@ export const saveMeal = async (
   const supabase = getSupabaseClient(supabaseClient);
   const { data: sessionData } = await supabase.auth.getSession();
   const user = sessionData?.session?.user;
+  const resolvedUserId = user?.id || userId;
+  if (!resolvedUserId) {
+    throw new Error('Usuário não autenticado para salvar refeição.');
+  }
   const selectedFoods = Array.isArray(food) ? food : [];
+  const formattedTime = normalizeTimeToHHmm(time);
+
+  const payload = {
+    user_id: resolvedUserId,
+    entry_date: entryDate,
+    entry_time: formattedTime,
+    meal_type: mealType || null,
+    food: selectedFoods.length
+      ? selectedFoods.map((f) => f.name).join(', ')
+      : food || null,
+    quantity: selectedFoods.length
+      ? selectedFoods.map((f) => `${f.qty}g`).join(', ')
+      : quantity || null,
+    calories: calories ? Number(calories) : null,
+    protein: protein ? Number(protein) : null,
+    water_ml: waterMl ? Number(waterMl) : null,
+    notes: notes || null,
+  };
+
+  console.log('PAYLOAD REFEIÇÃO:', payload);
 
   const { data, error } = await supabase
-    .from('food_diary_entries')
-    .insert([{
-      user_id: user?.id || userId,
-      entry_date: entryDate,
-      entry_time: time,
-      meal_type: mealType,
-      food: selectedFoods.length
-        ? selectedFoods.map((f) => f.name).join(', ')
-        : String(food || ''),
-      quantity: selectedFoods.length
-        ? selectedFoods.map((f) => `${f.qty}g`).join(', ')
-        : String(quantity || ''),
-      calories: Math.round(calories || 0),
-      protein: Math.round(protein || 0),
-      notes: notes || null,
-    }])
+    .from('food_daily_entries')
+    .insert(payload)
     .select()
     .single();
 
   if (error) {
-    console.error(error);
+    console.error('Erro ao salvar refeição:', error);
   }
   if (error) throw error;
   return normalizeMealFromDb(data);
