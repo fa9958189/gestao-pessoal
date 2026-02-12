@@ -1778,6 +1778,49 @@ const waterStatePayload = (summary) => ({
   last_entry_id: summary?.lastEntryId ?? null,
 });
 
+function normalizeTime(t) {
+  if (!t) return null;
+  if (typeof t === "string" && t.length === 5) return t + ":00";
+  return t;
+}
+
+app.post("/api/food-diary/entries", async (req, res) => {
+  try {
+    const authData = await authenticateRequest(req, res, { requireAdmin: false });
+    if (!authData) return;
+
+    req.user = { id: authData.userId };
+    const body = req.body || {};
+
+    const payload = {
+      user_id: req.user.id,
+      entry_date: body.date,
+      entry_time: normalizeTime(body.time),
+      meal_type: body.type,
+      food: body.food,
+      calories: Number(body.calories || 0),
+      protein: Number(body.protein || 0),
+      notes: body.notes || null,
+    };
+
+    const { data, error } = await supabase
+      .from("food_diary_entries")
+      .insert(payload)
+      .select("*")
+      .single();
+
+    if (error) {
+      console.error("Erro ao criar food_diary_entry", error);
+      return res.status(500).json({ error: error.message || "Erro ao salvar entrada" });
+    }
+
+    return res.status(201).json(data);
+  } catch (err) {
+    console.error("Erro ao criar entrada no diário alimentar", err);
+    return res.status(500).json({ error: "Erro interno ao salvar entrada" });
+  }
+});
+
 const handleHydrationState = async (req, res) => {
   try {
     const authData = await authenticateRequest(req, res, { requireAdmin: false });
