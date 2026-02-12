@@ -54,25 +54,33 @@ export const saveMeal = async (
   supabaseClient,
 ) => {
   const supabase = getSupabaseClient(supabaseClient);
-  const payload = {
-    user_id: userId,
-    entry_date: entryDate,
-    entry_time: time || null,
-    meal_type: mealType,
-    food,
-    quantity,
-    calories: calories || 0,
-    protein: protein || 0,
-    water_ml: waterMl || 0,
-    notes: notes || null,
-  };
+  const { data: sessionData } = await supabase.auth.getSession();
+  const user = sessionData?.session?.user;
+  const selectedFoods = Array.isArray(food) ? food : [];
 
   const { data, error } = await supabase
     .from('food_diary_entries')
-    .insert([payload])
+    .insert([{
+      user_id: user?.id || userId,
+      entry_date: entryDate,
+      entry_time: time,
+      meal_type: mealType,
+      food: selectedFoods.length
+        ? selectedFoods.map((f) => f.name).join(', ')
+        : String(food || ''),
+      quantity: selectedFoods.length
+        ? selectedFoods.map((f) => `${f.qty}g`).join(', ')
+        : String(quantity || ''),
+      calories: Math.round(calories || 0),
+      protein: Math.round(protein || 0),
+      notes: notes || null,
+    }])
     .select()
     .single();
 
+  if (error) {
+    console.error(error);
+  }
   if (error) throw error;
   return normalizeMealFromDb(data);
 };
