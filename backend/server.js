@@ -1792,8 +1792,25 @@ app.post("/api/food-diary/entries", async (req, res) => {
     req.user = { id: authData.userId };
     const body = req.body || {};
 
+    // buscar o profile.id correto antes de inserir
+    const { data: profileRow, error: profileError } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("id", authData.userId) // usa o authData.userId para encontrar o profile
+      .maybeSingle();
+
+    if (profileError) {
+      console.error("Erro ao buscar profile:", profileError);
+      return res.status(500).json({ error: "Erro interno ao buscar perfil" });
+    }
+
+    if (!profileRow) {
+      return res.status(400).json({ error: "Perfil do usuário não encontrado" });
+    }
+
+    // monta o payload com profileRow.id
     const payload = {
-      user_id: req.user.id,
+      user_id: profileRow.id,
       entry_date: body.date,
       entry_time: normalizeTime(body.time),
       meal_type: body.type,
@@ -1803,18 +1820,16 @@ app.post("/api/food-diary/entries", async (req, res) => {
       notes: body.notes || null,
     };
 
-    const { data, error } = await supabase
+    const { data: insertedEntry, error: insertError } = await supabase
       .from("food_diary_entries")
-      .insert(payload)
-      .select("*")
-      .single();
+      .insert(payload);
 
-    if (error) {
-      console.error("Erro ao criar food_diary_entry", error);
-      return res.status(500).json({ error: error.message || "Erro ao salvar entrada" });
+    if (insertError) {
+      console.error("Erro ao salvar entrada alimentar:", insertError);
+      return res.status(500).json({ error: "Não foi possível salvar refeição" });
     }
 
-    return res.status(201).json(data);
+    return res.status(201).json({ data: insertedEntry });
   } catch (err) {
     console.error("Erro ao criar entrada no diário alimentar", err);
     return res.status(500).json({ error: "Erro interno ao salvar entrada" });
