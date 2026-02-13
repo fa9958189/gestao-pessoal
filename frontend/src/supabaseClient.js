@@ -8,6 +8,8 @@ export const supabase = window.supabase.createClient(supabaseUrl, supabaseAnonKe
   auth: {
     detectSessionInUrl: true,
     persistSession: true,
+    autoRefreshToken: true,
+    storage: window.localStorage,
     storageKey: 'gp-react-session',
     schema: authSchema || 'public',
   },
