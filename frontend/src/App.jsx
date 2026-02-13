@@ -355,7 +355,19 @@ const useAuth = (client) => {
 
     const syncSupabaseSession = async () => {
       try {
-        const { data } = await client.auth.getSession();
+        const timeout = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Session timeout')), 8000)
+        );
+
+        const sessionPromise = client.auth.getSession();
+
+        const { data } = await Promise.race([
+          sessionPromise,
+          timeout
+        ]);
+
+        if (!isMounted) return;
+
         const supabaseSession = data?.session;
         if (!supabaseSession?.user) {
           setSupabaseChecked(true);
@@ -373,7 +385,11 @@ const useAuth = (client) => {
         });
         window.localStorage.setItem('gp-session', JSON.stringify(nextSession));
       } catch (err) {
-        console.warn('Erro ao restaurar sessão do Supabase', err);
+        console.error('Erro ao restaurar sessão:', err?.message || err);
+        await client.auth.signOut();
+        setSession(null);
+        setProfile(null);
+        window.localStorage.removeItem('gp-session');
       } finally {
         if (isMounted) {
           setSupabaseChecked(true);
