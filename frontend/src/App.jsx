@@ -2571,7 +2571,7 @@ function App() {
 
   const handleWizardSaveEvent = async () => {
     const saved = await handleSaveEvent();
-    if (saved) {
+    if (saved !== false) {
       closeEventWizard();
     }
   };
