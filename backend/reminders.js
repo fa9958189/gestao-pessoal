@@ -70,6 +70,22 @@ async function fetchActiveEventsForDate(dateStr) {
   return data || [];
 }
 
+async function fetchActiveWorkoutsForWeekday(weekday) {
+  const { data, error } = await supabase
+    .from("workout_schedule")
+    .select(
+      "id, user_id, weekday, is_active, workout_routines(name, muscle_groups)"
+    )
+    .eq("weekday", weekday)
+    .eq("is_active", true);
+
+  if (error) {
+    throw new Error(`Erro ao buscar treino ativo do dia: ${error.message}`);
+  }
+
+  return data || [];
+}
+
 async function deleteEventsByIds(eventIds) {
   if (!eventIds?.length) return;
 
@@ -119,6 +135,49 @@ function buildMorningAgendaMessage(events) {
   return lines.join("\n");
 }
 
+function buildMorningAgendaAndWorkoutMessage(events = [], workout = null) {
+  const sortedEvents = [...events].sort((a, b) =>
+    String(a.start || "").localeCompare(String(b.start || ""))
+  );
+
+  let workoutText = "";
+
+  const workoutRoutine = Array.isArray(workout?.workout_routines)
+    ? workout.workout_routines[0]
+    : workout?.workout_routines;
+
+  if (workoutRoutine?.name) {
+    const workoutName = workoutRoutine.name;
+    const muscleGroups = String(workoutRoutine.muscle_groups || "").trim();
+
+    workoutText = `💪 Treino de hoje:\n${workoutName}${
+      muscleGroups ? `\n${muscleGroups}` : ""
+    }`;
+  }
+
+  let message = "📅 Bom dia — Gestão Pessoal\n";
+
+  if (sortedEvents.length > 0) {
+    message += "\n🗓 Eventos de hoje:\n";
+
+    for (const ev of sortedEvents) {
+      message += `• ${ev.title || "Evento"} ${ev.start || ""}\n`;
+    }
+  }
+
+  if (workoutText) {
+    message += `\n${workoutText}\n`;
+  }
+
+  if (sortedEvents.length === 0 && !workoutText) {
+    return "";
+  }
+
+  message += "\nBora manter a constância.";
+
+  return message;
+}
+
 function groupEventsByUser(events) {
   return events.reduce((acc, event) => {
     if (!event.user_id) return acc;
@@ -126,6 +185,20 @@ function groupEventsByUser(events) {
     acc.get(event.user_id).push(event);
     return acc;
   }, new Map());
+}
+
+function groupWorkoutsByUser(workouts) {
+  return workouts.reduce((acc, workout) => {
+    if (!workout.user_id) return acc;
+    if (!acc.has(workout.user_id)) acc.set(workout.user_id, []);
+    acc.get(workout.user_id).push(workout);
+    return acc;
+  }, new Map());
+}
+
+function getWorkoutWeekdayInSaoPaulo(date) {
+  const jsDay = date.getDay();
+  return jsDay === 0 ? 7 : jsDay;
 }
 
 /**
@@ -186,18 +259,31 @@ export function startMorningAgendaScheduler() {
 
         const now = getNowInSaoPaulo();
         const todayStr = formatDateOnlyInSaoPaulo(now);
-        const events = await fetchActiveEventsForDate(todayStr);
+        const workoutWeekday = getWorkoutWeekdayInSaoPaulo(now);
+
+        const [events, workouts] = await Promise.all([
+          fetchActiveEventsForDate(todayStr),
+          fetchActiveWorkoutsForWeekday(workoutWeekday),
+        ]);
 
         console.log(`Eventos do dia encontrados: ${events.length}`);
+        console.log(`Treinos do dia encontrados: ${workouts.length}`);
 
-        if (!events.length) {
-          console.log("Nenhum evento encontrado para hoje");
+        if (!events.length && !workouts.length) {
+          console.log("Nenhum evento ou treino encontrado para hoje");
           return;
         }
 
-        const grouped = groupEventsByUser(events);
+        const groupedEvents = groupEventsByUser(events);
+        const groupedWorkouts = groupWorkoutsByUser(workouts);
+        const usersToNotify = new Set([
+          ...groupedEvents.keys(),
+          ...groupedWorkouts.keys(),
+        ]);
 
-        for (const [userId, userEvents] of grouped.entries()) {
+        for (const userId of usersToNotify) {
+          const userEvents = groupedEvents.get(userId) || [];
+          const userWorkout = (groupedWorkouts.get(userId) || [])[0] || null;
           const whatsapp = await fetchUserWhatsapp(userId);
           const phone = normalizePhone(whatsapp);
 
@@ -209,8 +295,16 @@ export function startMorningAgendaScheduler() {
             continue;
           }
 
-          console.log("Enviando WhatsApp (agenda do dia)");
-          const message = buildMorningAgendaMessage(userEvents);
+          const message = buildMorningAgendaAndWorkoutMessage(
+            userEvents,
+            userWorkout
+          );
+
+          if (!message) {
+            continue;
+          }
+
+          console.log("Enviando WhatsApp (agenda + treino do dia)");
           const sendResult = await sendWhatsAppMessage({ phone, message });
 
           if (!sendResult?.ok) {
@@ -222,7 +316,10 @@ export function startMorningAgendaScheduler() {
           }
 
           console.log("Mensagem enviada com sucesso");
-          await deleteEventsByIds(userEvents.map((event) => event.id));
+
+          if (userEvents.length) {
+            await deleteEventsByIds(userEvents.map((event) => event.id));
+          }
         }
       } catch (err) {
         console.error(
