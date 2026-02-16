@@ -353,28 +353,26 @@ const useAuth = (client) => {
       };
     };
 
-    const syncSupabaseSession = async () => {
+    const restoreSession = async () => {
       try {
         const timeout = new Promise((_, reject) =>
           setTimeout(() => reject(new Error('Session timeout')), 8000)
         );
-
         const sessionPromise = client.auth.getSession();
-
-        const { data } = await Promise.race([
-          sessionPromise,
-          timeout
-        ]);
+        const { data, error } = await Promise.race([sessionPromise, timeout]);
 
         if (!isMounted) return;
 
-        const supabaseSession = data?.session;
-        if (!supabaseSession?.user) {
-          setSupabaseChecked(true);
+        if (error || !data?.session) {
+          console.warn('Sessão inválida ou expirou, limpando sessão:', error?.message);
+          await client.auth.signOut();
+          setSession(null);
+          setProfile(null);
+          window.localStorage.removeItem('gp-session');
           return;
         }
 
-        const nextSession = await buildSessionFromSupabase(supabaseSession);
+        const nextSession = await buildSessionFromSupabase(data.session);
         if (!nextSession || !isMounted) return;
 
         setSession(nextSession);
@@ -385,8 +383,9 @@ const useAuth = (client) => {
         });
         window.localStorage.setItem('gp-session', JSON.stringify(nextSession));
       } catch (err) {
-        console.error('Erro ao restaurar sessão:', err?.message || err);
+        console.error('Erro ao restaurar sessão, forçando logout:', err);
         await client.auth.signOut();
+        if (!isMounted) return;
         setSession(null);
         setProfile(null);
         window.localStorage.removeItem('gp-session');
@@ -397,7 +396,8 @@ const useAuth = (client) => {
       }
     };
 
-    syncSupabaseSession();
+    setSupabaseChecked(false);
+    restoreSession();
 
     const { data: authListener } = client.auth.onAuthStateChange(
       async (_event, supabaseSession) => {
