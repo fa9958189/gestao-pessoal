@@ -1,4 +1,5 @@
 import express from "express";
+import { supabase } from "../supabase.js";
 
 const router = express.Router();
 
@@ -10,6 +11,33 @@ router.get("/search", async (req, res) => {
   }
 
   try {
+    const { data: tacoFoods, error: tacoError } = await supabase
+      .from("taco_foods")
+      .select("name, kcal, protein_g, fat_g")
+      .ilike("name", `%${query}%`)
+      .limit(20);
+
+    if (tacoError) {
+      throw new Error(`Falha ao buscar tabela taco_foods: ${tacoError.message}`);
+    }
+
+    const mappedTacoFoods = Array.isArray(tacoFoods)
+      ? tacoFoods
+          .map((food) => ({
+            name: food?.name || "Alimento",
+            calories: Number(food?.kcal) || 0,
+            protein: Number(food?.protein_g) || 0,
+            fat: Number(food?.fat_g) || 0,
+            source: "taco",
+            portion: "100 g",
+          }))
+          .filter((food) => Number.isFinite(food.calories))
+      : [];
+
+    if (mappedTacoFoods.length > 0) {
+      return res.json(mappedTacoFoods);
+    }
+
     const url = new URL("https://world.openfoodfacts.org/cgi/search.pl");
     url.search = new URLSearchParams({
       search_terms: query,
@@ -19,7 +47,18 @@ router.get("/search", async (req, res) => {
       page_size: "20",
     });
 
-    const response = await fetch(url);
+    const externalController = new AbortController();
+    const externalTimeoutId = setTimeout(() => {
+      externalController.abort();
+    }, 1200);
+
+    let response;
+
+    try {
+      response = await fetch(url, { signal: externalController.signal });
+    } finally {
+      clearTimeout(externalTimeoutId);
+    }
 
     if (!response.ok) {
       throw new Error(`Falha ao buscar alimentos: ${response.status}`);
