@@ -2228,3 +2228,17 @@ canvas{ background:transparent; }
   overflow-y: auto;
   padding-right: 4px;
 }
+
+.agenda-calendar-dots {
+  display: flex;
+  justify-content: center;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.agenda-calendar-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  display: inline-block;
+}
