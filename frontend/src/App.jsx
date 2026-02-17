@@ -14,6 +14,7 @@ import {
   isProtectedPath,
   normalizeAppPath,
 } from './routes/appRoutes.js';
+import { useInactivityLogout } from './hooks/useInactivityLogout.js';
 import './styles.css';
 import { loadGoals } from './services/foodDiaryProfile';
 
@@ -1739,6 +1740,8 @@ function App() {
   const { client, configError } = useSupabaseClient();
   const { session, profile, loadingSession, setSession, setProfile } = useAuth(client);
   const user = session?.user || null;
+
+  useInactivityLogout(Boolean(session));
 
   const isAdmin = profile?.role === 'admin';
 
