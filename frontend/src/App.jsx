@@ -98,7 +98,8 @@ const defaultEventForm = {
   date: '',
   start: '',
   end: '',
-  notes: ''
+  notes: '',
+  status: 'active'
 };
 
 const defaultEventFilters = {
@@ -1950,6 +1951,7 @@ function App() {
         .from('events')
         .select('*')
         .eq('user_id', session.user.id)
+        .eq('status', 'active')
         .order('date', { ascending: false });
 
       if (evError) throw evError;
@@ -2229,6 +2231,7 @@ function App() {
   const filteredEvents = useMemo(() => {
     return events.filter((ev) => {
       if (session && ev.user_id && ev.user_id !== session.user.id) return false;
+      if ((ev.status || 'active') !== 'active') return false;
       if (eventFilters.from && ev.date < eventFilters.from) return false;
       if (eventFilters.to && ev.date > eventFilters.to) return false;
       if (eventFilters.search) {
@@ -2496,6 +2499,7 @@ function App() {
       notes: normalizedNotes,
       start: eventForm.start || null,
       end: eventForm.end || null,
+      status: eventForm.status || 'active',
     };
     const newList = eventForm.id
       ? events.map((ev) => (ev.id === eventForm.id ? payload : ev))
@@ -2511,7 +2515,8 @@ function App() {
           start: payload.start,
           end: payload.end,
           notes: payload.notes,
-          user_id: session.user.id
+          user_id: session.user.id,
+          status: payload.status
         });
         if (error) throw error;
       }
@@ -3378,6 +3383,8 @@ function App() {
             onCloseEventWizard={closeEventWizard}
             onSaveEventWizard={handleWizardSaveEvent}
             onResetEventWizard={() => setEventForm(defaultEventForm)}
+            supabase={client}
+            userId={session?.user?.id}
           />
         </div>
       )}

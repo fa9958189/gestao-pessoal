@@ -1,5 +1,6 @@
 import React from 'react';
 import GenericWizard from './GenericWizard.jsx';
+import AgendaCalendar from './AgendaCalendar.jsx';
 
 const EventsTable = ({ items, onEdit, onDelete, formatDate, formatTimeRange }) => (
   <div className="events-table-container">
@@ -104,6 +105,8 @@ const AgendaView = ({
   onCloseEventWizard,
   onSaveEventWizard,
   onResetEventWizard,
+  supabase,
+  userId,
 }) => (
   <section className="card dashboard-card" ref={agendaRef}>
     <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
@@ -112,6 +115,9 @@ const AgendaView = ({
         Novo evento
       </button>
     </div>
+
+
+    <AgendaCalendar supabase={supabase} userId={userId} />
 
     {eventWizardOpen && (
       <GenericWizard

@@ -59,9 +59,9 @@ function normalizePhone(phone) {
 async function fetchActiveEventsForDate(dateStr) {
   const { data, error } = await supabase
     .from("events")
-    .select("id, user_id, title, date, start, notes, is_active")
+    .select("id, user_id, title, date, start, notes, status")
     .eq("date", dateStr)
-    .eq("is_active", true);
+    .eq("status", "active");
 
   if (error) {
     throw new Error(`Erro ao buscar eventos ativos do dia: ${error.message}`);
@@ -86,27 +86,37 @@ async function fetchActiveWorkoutsForWeekday(weekday) {
   return data || [];
 }
 
-async function deleteEventsByIds(eventIds) {
-  if (!eventIds?.length) return;
+async function markEventsAsCompleted(events = []) {
+  for (const event of events) {
+    const { error } = await supabase
+      .from("events")
+      .update({ status: "completed" })
+      .eq("id", event.id);
 
-  const uniqueIds = [...new Set(eventIds)];
-  const { data, error } = await supabase
+    if (error) {
+      console.error(
+        `❌ Erro ao atualizar evento ${event.id} para completed:`,
+        error
+      );
+      continue;
+    }
+
+    console.log(`✅ Evento ${event.id} atualizado para completed`);
+  }
+}
+
+async function archivePastCompletedEvents() {
+  const today = new Date().toISOString().slice(0, 10);
+
+  const { error } = await supabase
     .from("events")
-    .delete()
-    .in("id", uniqueIds)
-    .select("id");
+    .update({ status: "archived" })
+    .lt("date", today)
+    .eq("status", "completed");
 
   if (error) {
-    console.error("❌ Erro ao remover eventos após disparo:", error);
-    return;
+    console.error("❌ Erro ao arquivar eventos completed do passado:", error);
   }
-
-  (data || uniqueIds).forEach((event) => {
-    const eventId = typeof event === "object" ? event.id : event;
-    if (eventId) {
-      console.log(`🗑️ Evento ${eventId} removido após disparo`);
-    }
-  });
 }
 
 function buildMorningAgendaMessage(events) {
@@ -256,6 +266,7 @@ export function startMorningAgendaScheduler() {
 
       try {
         console.log("Scheduler de agenda matinal iniciado (07:00)");
+        await archivePastCompletedEvents();
 
         const now = getNowInSaoPaulo();
         const todayStr = formatDateOnlyInSaoPaulo(now);
@@ -318,7 +329,7 @@ export function startMorningAgendaScheduler() {
           console.log("Mensagem enviada com sucesso");
 
           if (userEvents.length) {
-            await deleteEventsByIds(userEvents.map((event) => event.id));
+            await markEventsAsCompleted(userEvents);
           }
         }
       } catch (err) {
