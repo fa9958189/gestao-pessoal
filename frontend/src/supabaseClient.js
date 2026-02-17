@@ -1,16 +1,14 @@
-const { supabaseUrl, supabaseAnonKey, authSchema } = window.APP_CONFIG || {};
+import { createClient } from '@supabase/supabase-js'
 
-if (!window.supabase || !supabaseUrl || !supabaseAnonKey) {
-  throw new Error('Supabase não configurado corretamente.');
-}
-
-export const supabase = window.supabase.createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    detectSessionInUrl: true,
-    persistSession: true,
-    autoRefreshToken: true,
-    storage: window.localStorage,
-    storageKey: 'gp-react-session',
-    schema: authSchema || 'public',
-  },
-});
+export const supabase = createClient(
+  import.meta.env.VITE_SUPABASE_URL,
+  import.meta.env.VITE_SUPABASE_ANON_KEY,
+  {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+      storage: window.localStorage
+    }
+  }
+)
