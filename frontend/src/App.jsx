@@ -1879,6 +1879,10 @@ function App() {
     setLoadingData(true);
 
     try {
+      let syncFailures = 0;
+      let normalizedTx = transactions || [];
+      let eventData = events || [];
+
       try {
         const { data: profileRow } = await client
           .from('profiles_auth')
@@ -1931,30 +1935,41 @@ function App() {
         );
       }
 
-      const { data: txData, error: txError } = await txQuery;
-      if (txError) throw txError;
+      try {
+        const { data: txData, error: txError } = await txQuery;
+        if (txError) throw txError;
 
-      const normalizedTx = (txData || []).map((row) => ({
-        id: row.id,
-        user_id: row.user_id,
-        userId: row.user_id,
-        type: row.type,
-        amount: row.amount,
-        description: row.description,
-        category: row.category,
-        date: row.date,
-        createdAt: row.created_at,
-      }));
+        normalizedTx = (txData || []).map((row) => ({
+          id: row.id,
+          user_id: row.user_id,
+          userId: row.user_id,
+          type: row.type,
+          amount: row.amount,
+          description: row.description,
+          category: row.category,
+          date: row.date,
+          createdAt: row.created_at,
+        }));
+      } catch (err) {
+        syncFailures += 1;
+        console.warn('Falha ao sincronizar transações com Supabase.', err);
+      }
 
       // 2) Eventos (agenda) do usuário logado
-      const { data: eventData, error: evError } = await client
-        .from('events')
-        .select('*')
-        .eq('user_id', session.user.id)
-        .eq('status', 'active')
-        .order('date', { ascending: false });
+      try {
+        const { data, error: evError } = await client
+          .from('events')
+          .select('*')
+          .eq('user_id', session.user.id)
+          .eq('status', 'active')
+          .order('date', { ascending: false });
 
-      if (evError) throw evError;
+        if (evError) throw evError;
+        eventData = data || [];
+      } catch (err) {
+        syncFailures += 1;
+        console.warn('Falha ao sincronizar eventos com Supabase.', err);
+      }
 
       // 3) Lista de usuários (só se for admin)
       let userData = [];
@@ -1991,10 +2006,19 @@ function App() {
         events: eventData || [],
       });
 
+      const hasSyncedData = (normalizedTx?.length || 0) > 0 || (eventData?.length || 0) > 0;
+      const hasLocalData = (transactions?.length || 0) > 0 || (events?.length || 0) > 0;
+      if (syncFailures >= 2 && !hasSyncedData && !hasLocalData) {
+        pushToast('Não foi possível sincronizar com o Supabase. Usando dados locais.', 'warning');
+      }
+
       console.log('Dados carregados do Supabase com sucesso.');
     } catch (err) {
       console.warn('Falha ao sincronizar com Supabase, usando cache local.', err);
-      pushToast('Não foi possível sincronizar com o Supabase. Usando dados locais.', 'warning');
+      const hasLocalData = (transactions?.length || 0) > 0 || (events?.length || 0) > 0;
+      if (!hasLocalData) {
+        pushToast('Não foi possível sincronizar com o Supabase. Usando dados locais.', 'warning');
+      }
     } finally {
       setLoadingData(false);
     }
