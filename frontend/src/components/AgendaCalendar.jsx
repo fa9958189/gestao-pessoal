@@ -19,7 +19,7 @@ const getMonthRange = (baseDate) => {
   };
 };
 
-const AgendaCalendar = ({ supabase, userId }) => {
+const AgendaCalendar = ({ supabase, userId, selectedDate, onSelectDate, events = [] }) => {
   const [activeStartDate, setActiveStartDate] = useState(new Date());
   const [eventsByDate, setEventsByDate] = useState({});
 
@@ -60,6 +60,10 @@ const AgendaCalendar = ({ supabase, userId }) => {
     loadMonthEvents();
   }, [activeStartDate, supabase, userId]);
 
+  const eventDatesSet = useMemo(() => {
+    return new Set(events.map((eventItem) => eventItem.date));
+  }, [events]);
+
   const tileContent = ({ date, view }) => {
     if (view !== 'month') return null;
 
@@ -82,23 +86,44 @@ const AgendaCalendar = ({ supabase, userId }) => {
     );
   };
 
+  const tileClassName = ({ date, view }) => {
+    if (view !== 'month') return undefined;
+
+    const dayDateString = date.toISOString().slice(0, 10);
+    const hasEvent = eventDatesSet.has(dayDateString);
+
+    return [
+      'calendar-day',
+      hasEvent ? 'has-event' : '',
+      selectedDate === dayDateString ? 'selected' : '',
+    ]
+      .filter(Boolean)
+      .join(' ');
+  };
+
   const monthLabel = useMemo(
     () => activeStartDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }),
     [activeStartDate]
   );
 
   return (
-    <div style={{ marginTop: 12 }}>
+    <div className="calendar-root" style={{ marginTop: 12 }}>
       <p className="muted" style={{ marginBottom: 8, textTransform: 'capitalize' }}>
         {monthLabel}
       </p>
       <Calendar
-        value={new Date()}
+        value={selectedDate ? new Date(`${selectedDate}T00:00:00`) : new Date()}
         activeStartDate={activeStartDate}
         onActiveStartDateChange={({ activeStartDate: nextDate }) => {
           if (nextDate) setActiveStartDate(nextDate);
         }}
+        onClickDay={(date) => {
+          const dayDateString = date.toISOString().slice(0, 10);
+          onSelectDate?.((current) => (current === dayDateString ? null : dayDateString));
+        }}
+        tileClassName={tileClassName}
         tileContent={tileContent}
+        className="agenda-calendar"
       />
     </div>
   );
