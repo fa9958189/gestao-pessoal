@@ -91,10 +91,6 @@ const AgendaView = ({
   eventForm,
   setEventForm,
   defaultEventForm,
-  eventFilters,
-  setEventFilters,
-  loadRemoteData,
-  loadingData,
   filteredEvents,
   handleDeleteEvent,
   formatDate,
@@ -141,6 +137,9 @@ const AgendaView = ({
               onSelectDate={setSelectedDate}
               events={futureEvents}
             />
+            <button onClick={() => setSelectedDate(null)} style={{ marginTop: 8 }}>
+              Mostrar todos os próximos
+            </button>
           </div>
 
           <div>
@@ -252,28 +251,6 @@ const AgendaView = ({
           )}
         </GenericWizard>
       )}
-
-      <div className="sep"></div>
-
-      <div className="row">
-        <div style={{ flex: 1 }}>
-          <label>De</label>
-          <input type="date" value={eventFilters.from} onChange={(e) => setEventFilters({ ...eventFilters, from: e.target.value })} />
-        </div>
-        <div style={{ flex: 1 }}>
-          <label>Até</label>
-          <input type="date" value={eventFilters.to} onChange={(e) => setEventFilters({ ...eventFilters, to: e.target.value })} />
-        </div>
-        <div style={{ flex: 1 }}>
-          <label>Busca</label>
-          <input value={eventFilters.search} onChange={(e) => setEventFilters({ ...eventFilters, search: e.target.value })} placeholder="título/notas" />
-        </div>
-        <div style={{ alignSelf: 'flex-end' }}>
-          <button onClick={loadRemoteData} disabled={loadingData}>
-            {loadingData ? 'Sincronizando...' : 'Filtrar'}
-          </button>
-        </div>
-      </div>
 
       <div className="sep"></div>
     </section>

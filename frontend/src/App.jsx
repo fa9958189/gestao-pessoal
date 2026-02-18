@@ -102,12 +102,6 @@ const defaultEventForm = {
   status: 'active'
 };
 
-const defaultEventFilters = {
-  from: '',
-  to: '',
-  search: ''
-};
-
 const defaultUserForm = {
   name: '',
   username: '',
@@ -1835,7 +1829,6 @@ function App() {
   const hasLegacyCategory = txForm.category && !txCategories.includes(txForm.category);
 
   const [txFilters, setTxFilters] = useState(buildDefaultTxFilters);
-  const [eventFilters, setEventFilters] = useState(defaultEventFilters);
   const [activeTab, setActiveTab] = useState('form');
   const [activeView, setActiveView] = useState('transactions');
   const viewTabs = [
@@ -2256,17 +2249,9 @@ function App() {
     return events.filter((ev) => {
       if (session && ev.user_id && ev.user_id !== session.user.id) return false;
       if ((ev.status || 'active') !== 'active') return false;
-      if (eventFilters.from && ev.date < eventFilters.from) return false;
-      if (eventFilters.to && ev.date > eventFilters.to) return false;
-      if (eventFilters.search) {
-        const q = eventFilters.search.toLowerCase();
-        return (
-          ev.title?.toLowerCase().includes(q) || ev.notes?.toLowerCase().includes(q)
-        );
-      }
       return true;
     });
-  }, [events, eventFilters]);
+  }, [events, session]);
 
   const kpis = useMemo(() => {
     const income = filteredTransactions
@@ -3393,10 +3378,6 @@ function App() {
             eventForm={eventForm}
             setEventForm={setEventForm}
             defaultEventForm={defaultEventForm}
-            eventFilters={eventFilters}
-            setEventFilters={setEventFilters}
-            loadRemoteData={loadRemoteData}
-            loadingData={loadingData}
             filteredEvents={filteredEvents}
             handleDeleteEvent={handleDeleteEvent}
             formatDate={formatDate}
