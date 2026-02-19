@@ -56,18 +56,19 @@ function normalizePhone(phone) {
 /**
  * Busca eventos de hoje e de amanhã.
  */
-async function fetchActiveEventsForDate(dateStr) {
-  const { data, error } = await supabase
+async function fetchActiveEventsForDate() {
+  const today = new Date().toISOString().slice(0, 10);
+
+  const { data: eventosDoDia, error } = await supabase
     .from("events")
-    .select("id, user_id, title, date, start, notes, status")
-    .eq("date", dateStr)
-    .eq("status", "active");
+    .select("*")
+    .eq("date", today);
 
   if (error) {
-    throw new Error(`Erro ao buscar eventos ativos do dia: ${error.message}`);
+    throw new Error(`Erro ao buscar eventos do dia: ${error.message}`);
   }
 
-  return data || [];
+  return eventosDoDia || [];
 }
 
 async function fetchActiveWorkoutsForWeekday(weekday) {
@@ -111,8 +112,7 @@ async function archivePastCompletedEvents() {
   const { error } = await supabase
     .from("events")
     .update({ status: "archived" })
-    .lt("date", today)
-    .eq("status", "completed");
+    .lt("date", today);
 
   if (error) {
     console.error("❌ Erro ao arquivar eventos completed do passado:", error);
@@ -269,11 +269,10 @@ export function startMorningAgendaScheduler() {
         await archivePastCompletedEvents();
 
         const now = getNowInSaoPaulo();
-        const todayStr = formatDateOnlyInSaoPaulo(now);
         const workoutWeekday = getWorkoutWeekdayInSaoPaulo(now);
 
         const [events, workouts] = await Promise.all([
-          fetchActiveEventsForDate(todayStr),
+          fetchActiveEventsForDate(),
           fetchActiveWorkoutsForWeekday(workoutWeekday),
         ]);
 
