@@ -396,14 +396,18 @@ const useAuth = (client) => {
     restoreSession();
 
     const { data: authListener } = client.auth.onAuthStateChange(
-      async (_event, supabaseSession) => {
+      async (event, supabaseSession) => {
         if (!isMounted) return;
 
-        if (!supabaseSession?.user) {
+        if (event === 'SIGNED_OUT' || !supabaseSession?.user) {
+          console.warn('Sessão expirada. Redirecionando para login.');
           setSession(null);
           setProfile(null);
           window.localStorage.removeItem('gp-session');
           setSupabaseChecked(true);
+          if (window.location.pathname !== '/') {
+            window.location.href = '/';
+          }
           return;
         }
 
@@ -1865,6 +1869,13 @@ function App() {
     setTimeout(() => setToast(null), 4000);
   };
 
+  const handleInvalidRefreshToken = async (error) => {
+    if (!error?.message?.includes('Invalid Refresh Token')) return false;
+    await client.auth.signOut();
+    window.location.reload();
+    return true;
+  };
+
   // Buscar tudo no Supabase (transações, agenda e lista de usuários se for admin)
   const loadRemoteData = async () => {
     if (!client || !session?.user?.id) return;
@@ -1944,6 +1955,7 @@ function App() {
           createdAt: row.created_at,
         }));
       } catch (err) {
+        if (await handleInvalidRefreshToken(err)) return;
         syncFailures += 1;
         console.warn('Falha ao sincronizar transações com Supabase.', err);
       }
@@ -1960,8 +1972,8 @@ function App() {
         if (evError) throw evError;
         eventData = data || [];
       } catch (err) {
+        if (await handleInvalidRefreshToken(err)) return;
         syncFailures += 1;
-        console.warn('Falha ao sincronizar eventos com Supabase.', err);
       }
 
       // 3) Lista de usuários (só se for admin)
@@ -2005,8 +2017,8 @@ function App() {
         pushToast('Não foi possível sincronizar com o Supabase. Usando dados locais.', 'warning');
       }
 
-      console.log('Dados carregados do Supabase com sucesso.');
     } catch (err) {
+      if (await handleInvalidRefreshToken(err)) return;
       console.warn('Falha ao sincronizar com Supabase, usando cache local.', err);
       const hasLocalData = (transactions?.length || 0) > 0 || (events?.length || 0) > 0;
       if (!hasLocalData) {
@@ -2515,8 +2527,19 @@ function App() {
       : [payload, ...events];
     setEvents(newList);
     persistLocalSnapshot({ events: newList });
+
     try {
-      if (client && session) {
+      if (client) {
+        const { data: sessionData } = await client.auth.getSession();
+        const activeSession = sessionData?.session;
+
+        if (!activeSession) {
+          pushToast('Sessão expirada. Faça login novamente.', 'danger');
+          await client.auth.signOut();
+          window.location.reload();
+          return false;
+        }
+
         const { error } = await client.from('events').upsert({
           id: payload.id,
           title: payload.title,
@@ -2524,17 +2547,18 @@ function App() {
           start: payload.start,
           end: payload.end,
           notes: payload.notes,
-          user_id: session.user.id,
+          user_id: activeSession.user.id,
           status: payload.status
         });
         if (error) throw error;
       }
-      pushToast('Evento salvo!', 'success');
+      pushToast('Evento salvo com sucesso.', 'success');
       loadRemoteData();
       return true;
     } catch (err) {
-      console.warn('Falha ao sincronizar evento', err);
-      pushToast('Evento salvo localmente. Configure o Supabase para sincronizar.', 'warning');
+      if (await handleInvalidRefreshToken(err)) return false;
+      console.error('Erro ao salvar evento:', err);
+      pushToast('Sem conexão no momento. O evento será salvo temporariamente.', 'warning');
       return true;
     }
   };
