@@ -65,8 +65,44 @@ router.get("/search", async (req, res) => {
   const qLower = query.toLowerCase();
 
   try {
-    // Se não tiver busca (ou <2 letras), devolve uma lista padrão do banco
-    if (!query || query.length < 2) {
+    if (!query) {
+      // Retorna um "catálogo principal" quando o usuário ainda não digitou nada
+      try {
+        const { data: featuredFoods, error: featuredError } = await supabase
+          .from("taco_foods")
+          .select("name, kcal, protein_g, fat_g, serving_qty, serving_unit, serving_g")
+          .order("name", { ascending: true })
+          .limit(12);
+
+        if (featuredError) {
+          throw new Error(`Falha ao buscar featured foods: ${featuredError.message}`);
+        }
+
+        const mappedFeatured = (featuredFoods || []).map((food, idx) => ({
+          id: `taco-featured-${idx}`,
+          name: food?.name || "Alimento",
+          calories: Number(food?.kcal) || 0,
+          protein: Number(food?.protein_g) || 0,
+          fat: Number(food?.fat_g) || 0,
+          source: "taco",
+          serving_qty: food?.serving_qty ?? 1,
+          serving_unit: food?.serving_unit ?? "g",
+          serving_g: food?.serving_g ?? 100,
+          portion:
+            food?.serving_qty && food?.serving_unit
+              ? `${food.serving_qty} ${food.serving_unit}${food?.serving_g ? ` (${food.serving_g} g)` : ""}`
+              : "100 g",
+        }));
+
+        return res.json(mappedFeatured);
+      } catch (err) {
+        console.error("Erro ao buscar featured foods:", err);
+        return res.status(500).json({ error: "Não foi possível carregar o catálogo agora." });
+      }
+    }
+
+    // Se não tiver busca suficiente (<2 letras), devolve uma lista padrão do banco
+    if (query.length < 2) {
       const { data: tacoFoods, error: tacoError } = await supabase
         .from("taco_foods")
         .select("name, kcal, protein_g, fat_g, serving_qty, serving_unit, serving_g")
