@@ -3,7 +3,7 @@ import { supabase } from "../supabase.js";
 import { fetchUserWhatsapp, sendWhatsAppMessage } from "../reminders.js";
 
 const TZ = "America/Sao_Paulo";
-const CRON_EXPRESSION = "30 6 * * *";
+const CRON_EXPRESSION = "0 7 * * *";
 
 const formatDateOnlyInSaoPaulo = (date = new Date()) => {
   const formatter = new Intl.DateTimeFormat("en-CA", {
@@ -15,26 +15,51 @@ const formatDateOnlyInSaoPaulo = (date = new Date()) => {
   return formatter.format(date);
 };
 
-const buildDateBasedReminderMessage = (event) => {
-  const title = String(event.title || "").trim();
-  const notes = String(event.notes || "").trim();
+const buildAgendaDigestMessage = ({ events = [], workouts = [] }) => {
+  let msg = "Olá, bom dia! ";
 
-  let message =
-    "Olá, bom dia! Na sua agenda diária hoje você tem um compromisso:\n\n" +
-    `📌 Título: ${title || "Sem título"}`;
+  if (events.length) {
+    msg += `Na sua agenda diária hoje você tem ${events.length} compromisso(s):\n\n`;
 
-  if (notes) {
-    message += `\n\n📝 Detalhes:\n${notes}`;
+    for (const ev of events) {
+      const title = String(ev.title || "").trim() || "Sem título";
+      const notes = String(ev.notes || "").trim();
+      const start = String(ev.start || "").trim();
+      const end = String(ev.end || "").trim();
+
+      const time = start && end ? `${start}–${end}` : start ? start : "";
+      msg += `📌 ${time ? `${time} — ` : ""}${title}\n`;
+      if (notes) msg += `📝 ${notes}\n`;
+      msg += "\n";
+    }
+  } else {
+    // Se não tem eventos, a mensagem pode continuar só com treino
+    msg += "sem compromissos na agenda para hoje.\n";
   }
 
-  return message;
+  if (workouts.length) {
+    msg += "\n🏋️ Treino de hoje:\n";
+    for (const w of workouts) {
+      const title = String(w.title || "").trim() || "Treino";
+      const muscles = Array.isArray(w.muscle_groups)
+        ? w.muscle_groups.filter(Boolean)
+        : [];
+      msg += `• ${title}`;
+      if (muscles.length) msg += ` — ${muscles.join(", ")}`;
+      msg += "\n";
+    }
+  }
+
+  return msg.trim();
 };
 
 const fetchEventsForToday = async (todayISOString) => {
   const { data: todaysEvents, error } = await supabase
     .from("events")
-    .select("id, user_id, title, notes, date")
-    .eq("date", todayISOString);
+    .select("id, user_id, title, notes, date, start, end, status")
+    .eq("date", todayISOString)
+    .eq("status", "active")
+    .order("start", { ascending: true });
 
   if (error) {
     throw new Error(
@@ -43,6 +68,20 @@ const fetchEventsForToday = async (todayISOString) => {
   }
 
   return todaysEvents || [];
+};
+
+const fetchWorkoutsForToday = async (todayISOString) => {
+  const { data, error } = await supabase
+    .from("workout_schedule")
+    .select("id, user_id, title, muscle_groups, date, status")
+    .eq("date", todayISOString)
+    .eq("status", "active");
+
+  if (error) {
+    throw new Error(`Erro ao buscar treinos do dia: ${error.message}`);
+  }
+
+  return data || [];
 };
 
 const alreadySentDateBasedReminder = async ({ userId, eventId }) => {
@@ -82,52 +121,65 @@ export const processDateBasedReminders = async () => {
   const now = new Date();
   const todayISOString = formatDateOnlyInSaoPaulo(now);
   const events = await fetchEventsForToday(todayISOString);
+  const workouts = await fetchWorkoutsForToday(todayISOString);
 
-  if (!events.length) return;
+  // Agrupar eventos por usuário (somente os que ainda não foram enviados)
+  const eventsByUser = new Map();
 
   for (const event of events) {
     const userId = event.user_id;
     const eventId = event.id;
     if (!userId || !eventId) continue;
 
-    const alreadySent = await alreadySentDateBasedReminder({
-      userId,
-      eventId,
-    });
+    const alreadySent = await alreadySentDateBasedReminder({ userId, eventId });
+    if (alreadySent) continue;
 
-    if (alreadySent) {
-      continue;
-    }
+    if (!eventsByUser.has(userId)) eventsByUser.set(userId, []);
+    eventsByUser.get(userId).push(event);
+  }
 
+  // Agrupar treinos por usuário
+  const workoutsByUser = new Map();
+  for (const w of workouts) {
+    const userId = w.user_id;
+    if (!userId) continue;
+    if (!workoutsByUser.has(userId)) workoutsByUser.set(userId, []);
+    workoutsByUser.get(userId).push(w);
+  }
+
+  // Lista final de usuários que precisam receber algo
+  const userIds = new Set([...eventsByUser.keys(), ...workoutsByUser.keys()]);
+  if (!userIds.size) return;
+
+  for (const userId of userIds) {
     try {
       const whatsapp = await fetchUserWhatsapp(userId);
-      if (!whatsapp) {
-        continue;
-      }
+      if (!whatsapp) continue;
 
-      const message = buildDateBasedReminderMessage(event);
-      const sendResult = await sendWhatsAppMessage({
-        phone: whatsapp,
-        message,
+      const userEvents = eventsByUser.get(userId) || [];
+      const userWorkouts = workoutsByUser.get(userId) || [];
+
+      // Se não tem eventos e não tem treino, não manda nada
+      if (!userEvents.length && !userWorkouts.length) continue;
+
+      const message = buildAgendaDigestMessage({
+        events: userEvents,
+        workouts: userWorkouts,
       });
+
+      const sendResult = await sendWhatsAppMessage({ phone: whatsapp, message });
 
       if (!sendResult?.ok) {
-        console.error(
-          "❌ Falha ao enviar lembrete por data da agenda:",
-          sendResult?.status
-        );
+        console.error("❌ Falha ao enviar resumo diário:", sendResult?.status);
         continue;
       }
 
-      await registerDateBasedReminderLog({
-        userId,
-        eventId,
-      });
+      // Registrar log somente dos eventos enviados
+      for (const ev of userEvents) {
+        await registerDateBasedReminderLog({ userId, eventId: ev.id });
+      }
     } catch (err) {
-      console.error(
-        "❌ Erro ao enviar lembrete por data da agenda:",
-        err.message || err
-      );
+      console.error("❌ Erro ao enviar resumo diário:", err?.message || err);
     }
   }
 };
@@ -165,7 +217,7 @@ export const startDailyRemindersScheduler = () => {
   );
 
   console.log(
-    `⏰ Scheduler de lembretes por data ativo (todos os dias às 06:30 - ${TZ}).`
+    `⏰ Scheduler de lembretes por data ativo (todos os dias às 07:00 - ${TZ}).`
   );
 
   return dailyReminderTask;

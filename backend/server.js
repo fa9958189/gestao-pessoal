@@ -8,10 +8,7 @@ import { fileURLToPath } from "url";
 import multer from "multer";
 import { supabase } from "./supabase.js";
 import foodsRouter from "./routes/foods.js";
-import {
-  sendWhatsAppMessage,
-  startMorningAgendaScheduler,
-} from "./reminders.js";
+import { sendWhatsAppMessage } from "./reminders.js";
 import { startDailyGoalsReminder } from "./jobs/dailyGoalsReminder.js";
 import { startDailyRemindersScheduler } from "./jobs/dailyRemindersScheduler.js";
 import { analyzeFoodImage } from "./ai/foodScanner.js";
@@ -50,7 +47,7 @@ const getCurrentPeriodMonth = (today = new Date()) =>
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // Inicia o job de lembretes (agenda)
-startMorningAgendaScheduler();
+// startMorningAgendaScheduler();
 startDailyRemindersScheduler();
 startDailyGoalsReminder();
 
