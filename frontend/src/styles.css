@@ -2336,3 +2336,124 @@ canvas{ background:transparent; }
     grid-template-columns: 1fr;
   }
 }
+
+.food-picker-overlay{
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  padding: 16px;
+}
+
+.food-picker-modal{
+  width: min(1100px, 100%);
+  max-height: min(85vh, 800px);
+  background: #0f172a;
+  border: 1px solid rgba(255,255,255,.10);
+  border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(0,0,0,.5);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.food-picker-header{
+  display:flex;
+  align-items:center;
+  justify-content: space-between;
+  padding: 16px;
+  border-bottom: 1px solid rgba(255,255,255,.08);
+}
+
+.food-picker-title{ font-size: 14px; opacity: .9; }
+.food-picker-subtitle{ font-size: 20px; font-weight: 700; margin-top: 2px; }
+
+.food-picker-search{
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(255,255,255,.08);
+}
+
+.food-picker-hint{ margin-top: 6px; font-size: 12px; opacity: .75; }
+.food-picker-error{ margin-top: 8px; color: #ffb4b4; font-size: 13px; }
+
+.food-picker-body{
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 12px;
+  padding: 12px;
+  overflow: hidden;
+}
+
+.food-picker-list{
+  overflow: auto;
+  padding-right: 6px;
+}
+
+.food-picker-grid{
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0,1fr));
+  gap: 10px;
+}
+
+.food-card{
+  text-align: left;
+  background: rgba(255,255,255,.03);
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 12px;
+  padding: 12px;
+  cursor: pointer;
+}
+
+.food-card.active{
+  border-color: rgba(0,255,153,.55);
+  box-shadow: 0 0 0 2px rgba(0,255,153,.18) inset;
+}
+
+.food-card-name{ font-weight: 700; margin-bottom: 6px; }
+.food-card-meta{ display:flex; gap: 10px; font-size: 12px; opacity: .85; }
+.food-card-portion{ margin-top: 8px; font-size: 12px; opacity: .75; }
+
+.food-picker-right{
+  overflow: auto;
+}
+
+.food-picker-panel{
+  background: rgba(255,255,255,.03);
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 12px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.food-picker-panel-title{ font-weight: 800; font-size: 14px; }
+
+.toggle-row{ display:flex; gap: 8px; }
+.toggle{
+  flex: 1;
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,.10);
+  background: rgba(255,255,255,.03);
+}
+.toggle.active{
+  border-color: rgba(0,255,153,.55);
+  box-shadow: 0 0 0 2px rgba(0,255,153,.18) inset;
+}
+
+.food-picker-selected{ margin-top: 6px; }
+.food-picker-small{ font-size: 12px; opacity: .8; margin-top: 4px; }
+.food-picker-empty{ opacity: .75; padding: 8px 0; }
+
+@media (max-width: 900px){
+  .food-picker-body{ grid-template-columns: 1fr; }
+  .food-picker-grid{ grid-template-columns: repeat(2, minmax(0,1fr)); }
+}
+
+@media (max-width: 560px){
+  .food-picker-grid{ grid-template-columns: 1fr; }
+}
