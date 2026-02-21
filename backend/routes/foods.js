@@ -61,67 +61,68 @@ async function searchOpenFoodFacts(query) {
  * [{ id, name, calories, protein, fat, portion, serving_qty, serving_unit, serving_g, source }]
  */
 router.get("/search", async (req, res) => {
-  const query = String(req.query.q || "").trim();
-
-  if (!query || query.length < 2) {
-    return res.json([]);
-  }
+  const query = (req.query.q || "").trim();
+  const qLower = query.toLowerCase();
 
   try {
-    const { data, error } = await supabase
+    // Se não tiver busca (ou <2 letras), devolve uma lista padrão do banco
+    if (!query || query.length < 2) {
+      const { data: tacoFoods, error: tacoError } = await supabase
+        .from("taco_foods")
+        .select("name, kcal, protein_g, fat_g, serving_qty, serving_unit, serving_g")
+        .order("name", { ascending: true })
+        .limit(30);
+
+      if (tacoError) throw new Error(`Falha ao buscar taco_foods: ${tacoError.message}`);
+
+      const mapped = (tacoFoods || []).map((food, idx) => ({
+        id: `taco-${idx}`,
+        name: food?.name || "Alimento",
+        calories: Number(food?.kcal) || 0,
+        protein: Number(food?.protein_g) || 0,
+        fat: Number(food?.fat_g) || 0,
+
+        serving_qty: food?.serving_qty ?? 1,
+        serving_unit: food?.serving_unit ?? "g",
+        serving_g: food?.serving_g ?? 100,
+        portion:
+          food?.serving_unit && food?.serving_g
+            ? `${food.serving_qty ?? 1} ${food.serving_unit} (${food.serving_g} g)`
+            : "100 g",
+      }));
+
+      return res.json(mapped);
+    }
+
+    // Busca normal (2+ letras)
+    const { data: tacoFoods, error: tacoError } = await supabase
       .from("taco_foods")
       .select("name, kcal, protein_g, fat_g, serving_qty, serving_unit, serving_g")
-      .ilike("name", `%${query}%`)
+      .ilike("name", `%${qLower}%`)
       .limit(30);
 
-    if (error) {
-      console.error("Falha ao buscar taco_foods:", error);
-      return res.status(500).json({ error: "Falha ao buscar alimentos" });
-    }
+    if (tacoError) throw new Error(`Falha ao buscar taco_foods: ${tacoError.message}`);
 
-    const items = (data || []).map((food, idx) => {
-      const servingQty = food.serving_qty ?? null;
-      const servingUnit = food.serving_unit ?? null;
-      const servingG = food.serving_g ?? null;
+    const mappedTaco = (tacoFoods || []).map((food, idx) => ({
+      id: `taco-${idx}`,
+      name: food?.name || "Alimento",
+      calories: Number(food?.kcal) || 0,
+      protein: Number(food?.protein_g) || 0,
+      fat: Number(food?.fat_g) || 0,
 
-      // Porção “bonita” (ex: "1 unidade (55 g)" ou "1 fatia (60 g)" ou fallback "100 g"
-      let portion = "100 g";
-      if (servingQty && servingUnit) {
-        portion = `${servingQty} ${servingUnit}`;
-        if (servingG) portion += ` (${servingG} g)`;
-      } else if (servingG) {
-        portion = `${servingG} g`;
-      }
+      serving_qty: food?.serving_qty ?? 1,
+      serving_unit: food?.serving_unit ?? "g",
+      serving_g: food?.serving_g ?? 100,
+      portion:
+        food?.serving_unit && food?.serving_g
+          ? `${food.serving_qty ?? 1} ${food.serving_unit} (${food.serving_g} g)`
+          : "100 g",
+    }));
 
-      return {
-        id: `taco-${idx}`,
-        name: food.name || "Alimento",
-        calories: Number(food.kcal) || 0,
-        protein: Number(food.protein_g) || 0,
-        fat: Number(food.fat_g) || 0,
-        portion,
-        serving_qty: servingQty,
-        serving_unit: servingUnit,
-        serving_g: servingG,
-        source: "taco",
-      };
-    });
-
-    if (items.length > 0) {
-      return res.json(items);
-    }
-
-    const offItems = await searchOpenFoodFacts(query);
-    return res.json(
-      offItems.map((food, idx) => ({
-        id: `off-${idx}`,
-        ...food,
-        source: "openfoodfacts",
-      }))
-    );
+    return res.json(mappedTaco);
   } catch (err) {
-    console.error("Erro inesperado ao buscar alimentos:", err);
-    return res.status(500).json({ error: "Erro inesperado ao buscar alimentos" });
+    console.error("Erro ao buscar alimentos:", err);
+    return res.status(500).json({ error: "Erro ao buscar alimentos" });
   }
 });
 
