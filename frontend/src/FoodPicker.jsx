@@ -34,7 +34,12 @@ export default function FoodPicker({
   const inputRef = useRef(null);
 
   const apiBaseUrl = useMemo(() => {
-    return window?.APP_CONFIG?.apiBaseUrl || "";
+    // prioridade: APP_CONFIG -> VITE_API_URL -> /api (proxy)
+    return (
+      window?.APP_CONFIG?.apiBaseUrl ||
+      import.meta?.env?.VITE_API_URL ||
+      "/api"
+    );
   }, []);
 
   const fallbackFoods = useMemo(() => FOOD_CATALOG, []);
@@ -57,11 +62,6 @@ export default function FoodPicker({
     if (!open) return;
 
     const q = (query || "").trim();
-    if (q.length < 2) {
-      setFoods(fallbackFoods);
-      setErrorMessage("");
-      return;
-    }
 
     const controller = new AbortController();
     const timeoutId = setTimeout(async () => {
@@ -69,7 +69,7 @@ export default function FoodPicker({
         setIsLoading(true);
         setErrorMessage("");
 
-        const url = `${apiBaseUrl}/foods/search?q=${encodeURIComponent(q)}`;
+        const url = `${apiBaseUrl.replace(/\/$/, "")}/foods/search?q=${encodeURIComponent(q)}`;
         const resp = await fetch(url, { signal: controller.signal });
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
 
