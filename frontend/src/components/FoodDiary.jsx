@@ -1247,7 +1247,7 @@ const FoodDiary = React.forwardRef(({ userId, supabase, notify, refreshToken }, 
                             <button
                               type="button"
                               className="ghost small"
-                              onClick={() => setIsFoodPickerOpen(true)}
+                              onClick={(e) => { e.preventDefault(); e.stopPropagation(); setIsFoodPickerOpen(true); }}
                               disabled={isScanningFood}
                             >
                               Buscar alimento
