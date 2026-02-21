@@ -1,261 +1,301 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { FOOD_CATALOG } from './foodCatalog';
-import { DEFAULT_FOOD_ICON, FOOD_ICONS } from './foodIcons';
+import React, { useEffect, useMemo, useState } from "react";
 
-const parseBaseGrams = (descricaoPorcao) => {
-  if (!descricaoPorcao) return 100;
-  const match = descricaoPorcao.match(/(\d+(?:[.,]\d+)?)\s*g/i);
-  if (!match) return 100;
-  const value = Number(match[1].replace(',', '.'));
-  return Number.isFinite(value) ? value : 100;
-};
+// Se o backend/DB estiver vazio, ainda dá pra usar esse fallback local
+import { FOOD_CATALOG } from "./foodCatalog";
 
-const round1 = (n) => Math.round(n * 10) / 10;
-const round0 = (n) => Math.round(n);
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
 
-function FoodPicker({ open, onClose, onSelectFood }) {
-  const [query, setQuery] = useState('');
+/**
+ * Catálogo rápido do diário alimentar.
+ * - calories/protein/fat do backend = por 100g (padrão)
+ * - se vier serving_g + serving_unit, habilita modo "Porções"
+ */
+
+function parseNumberBR(value) {
+  if (value === null || value === undefined) return 0;
+  const s = String(value).replace(",", ".");
+  const n = Number(s);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function pluralizePt(word, qty) {
+  if (!word) return "porção";
+  if (qty === 1) return word;
+  if (word.endsWith("r")) return word + "es";
+  if (word.endsWith("l")) return word + "is";
+  return word + "s";
+}
+
+export default function FoodPicker({ isOpen, onClose, onPick }) {
+  const [query, setQuery] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [foods, setFoods] = useState([]);
+
   const [selectedFood, setSelectedFood] = useState(null);
-  const [grams, setGrams] = useState('');
-  const [foods, setFoods] = useState(FOOD_CATALOG);
-  const [isLoading, setIsLoading] = useState(false);
-  const [errorMessage, setErrorMessage] = useState('');
 
-  const fallbackFoods = useMemo(() => {
-    const term = query.trim().toLowerCase();
-    if (!term) return FOOD_CATALOG;
-    return FOOD_CATALOG.filter((food) =>
-      food.nome.toLowerCase().includes(term)
-    );
-  }, [query]);
+  const [qtyMode, setQtyMode] = useState("grams"); // "grams" | "serving"
+  const [grams, setGrams] = useState(100);
+  const [servingCount, setServingCount] = useState(1);
 
   useEffect(() => {
-    if (!open) return;
+    if (!isOpen) return;
 
-    const term = query.trim();
-    if (!term) {
-      setFoods(FOOD_CATALOG);
-      setIsLoading(false);
-      setErrorMessage('');
-      return;
-    }
+    let alive = true;
 
-    const controller = new AbortController();
-    const timeoutId = setTimeout(async () => {
+    async function fetchFoods() {
+      setLoading(true);
+
       try {
-        setIsLoading(true);
-        setErrorMessage('');
-        const baseUrl = (window.APP_CONFIG?.apiBaseUrl || '').replace(/\/$/, '');
-        const response = await fetch(
-          `${baseUrl}/api/foods/search?q=${encodeURIComponent(term)}`,
-          { signal: controller.signal }
-        );
+        const url = `${API_BASE_URL}/api/foods/search?q=${encodeURIComponent(query || "")}`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const json = await res.json();
 
-        if (!response.ok) {
-          throw new Error('Falha ao buscar alimentos.');
-        }
-
-        const data = await response.json();
-        const mapped = Array.isArray(data)
-          ? data.map((item, index) => ({
-              id: `api-${index}-${item?.name || 'alimento'}`,
-              nome: item?.name || 'Alimento',
-              descricaoPorcao: item?.portion || '100 g',
-              kcalPorPorcao: item?.calories ?? 0,
-              proteina: item?.protein ?? 0
+        const normalized = Array.isArray(json)
+          ? json.map((item) => ({
+              id: item.id || item.name,
+              nome: item.name,
+              descricaoPorcao: item.portion || "100 g",
+              caloriesPer100g: parseNumberBR(item.calories),
+              proteinPer100g: parseNumberBR(item.protein),
+              fatPer100g: parseNumberBR(item.fat),
+              serving_qty: item.serving_qty ? parseNumberBR(item.serving_qty) : null,
+              serving_unit: item.serving_unit || null,
+              serving_g: item.serving_g ? parseNumberBR(item.serving_g) : null,
             }))
           : [];
 
-        setFoods(mapped);
-      } catch (error) {
-        if (error.name === 'AbortError') {
-          return;
-        }
-        console.error('Erro ao buscar alimentos:', error);
-        setErrorMessage('Não foi possível buscar alimentos no momento.');
-        setFoods(fallbackFoods);
+        if (!alive) return;
+        setFoods(normalized);
+      } catch (err) {
+        const fallback = FOOD_CATALOG.filter((f) => {
+          if (!query) return true;
+          return String(f.nome || "").toLowerCase().includes(query.toLowerCase());
+        }).map((f, idx) => ({
+          id: `local-${idx}`,
+          nome: f.nome,
+          descricaoPorcao: f.porcao || "100 g",
+          caloriesPer100g: parseNumberBR(f.kcalPor100g || f.kcal || 0),
+          proteinPer100g: parseNumberBR(f.proteinaPor100g || f.proteina || 0),
+          fatPer100g: parseNumberBR(f.gorduraPor100g || f.gordura || 0),
+          serving_qty: f.serving_qty || null,
+          serving_unit: f.serving_unit || null,
+          serving_g: f.serving_g || null,
+        }));
+
+        if (!alive) return;
+        setFoods(fallback);
       } finally {
-        setIsLoading(false);
+        if (alive) setLoading(false);
       }
-    }, 400);
+    }
+
+    fetchFoods();
 
     return () => {
-      clearTimeout(timeoutId);
-      controller.abort();
+      alive = false;
     };
-  }, [fallbackFoods, open, query]);
+  }, [isOpen, query]);
 
-  if (!open) return null;
+  const filteredFoods = useMemo(() => {
+    if (!query) return foods;
+    const q = query.toLowerCase();
+    return foods.filter((f) => (f.nome || "").toLowerCase().includes(q));
+  }, [foods, query]);
 
-  const handleClose = () => {
-    setSelectedFood(null);
-    setQuery('');
-    setGrams('');
-    setFoods(FOOD_CATALOG);
-    setIsLoading(false);
-    setErrorMessage('');
-    if (onClose) {
-      onClose();
-    }
-  };
-
-  const handlePick = (food) => {
+  function openFood(food) {
     setSelectedFood(food);
-    setGrams(String(parseBaseGrams(food.descricaoPorcao)));
-  };
 
-  const baseGrams = selectedFood
-    ? parseBaseGrams(selectedFood.descricaoPorcao)
-    : 100;
-  const gramsNumber = Number(grams);
-  const gramsValue =
-    Number.isFinite(gramsNumber) && gramsNumber > 0 ? gramsNumber : baseGrams;
+    const hasServing = !!(food?.serving_g && food?.serving_unit);
+    if (hasServing) {
+      setQtyMode("serving");
+      setServingCount(food.serving_qty || 1);
+      const baseQty = food.serving_qty || 1;
+      const g = (food.serving_g * (1 / baseQty));
+      setGrams(Math.round(g));
+    } else {
+      setQtyMode("grams");
+      setGrams(100);
+      setServingCount(1);
+    }
+  }
 
-  const kcalCalc = selectedFood
-    ? round0((selectedFood.kcalPorPorcao / baseGrams) * gramsValue)
-    : 0;
-  const protCalc = selectedFood
-    ? round1(((selectedFood.proteina ?? 0) / baseGrams) * gramsValue)
-    : 0;
+  function computeTotals(food) {
+    const caloriesPer100g = food?.caloriesPer100g || 0;
+    const proteinPer100g = food?.proteinPer100g || 0;
 
-  const handleConfirm = () => {
-    if (!selectedFood || !onSelectFood) return;
-    onSelectFood({
+    let g = 0;
+    let qtyText = "";
+
+    if (qtyMode === "serving" && food?.serving_g && food?.serving_unit) {
+      const baseQty = food.serving_qty || 1;
+      const count = parseNumberBR(servingCount) || 0;
+      g = food.serving_g * (count / baseQty);
+      const unitLabel = pluralizePt(food.serving_unit, count);
+      qtyText = `${count} ${unitLabel} (${Math.round(g)} g)`;
+    } else {
+      g = parseNumberBR(grams) || 0;
+      qtyText = `${g} g`;
+    }
+
+    const kcal = (caloriesPer100g * g) / 100;
+    const protein = (proteinPer100g * g) / 100;
+
+    return { grams: g, quantidadeTexto: qtyText, kcal, protein };
+  }
+
+  function confirmPick() {
+    if (!selectedFood) return;
+
+    const totals = computeTotals(selectedFood);
+
+    onPick?.({
       nome: selectedFood.nome,
-      quantidadeTexto: `${gramsValue} g`,
-      kcal: kcalCalc,
-      proteina: protCalc
+      quantidadeTexto: totals.quantidadeTexto,
+      kcal: Math.round(totals.kcal),
+      proteina: Number(totals.protein.toFixed(1)),
     });
-    handleClose();
-  };
+
+    setSelectedFood(null);
+    setQuery("");
+    onClose?.();
+  }
+
+  if (!isOpen) return null;
+
+  const totals = selectedFood ? computeTotals(selectedFood) : null;
+  const hasServing = !!(selectedFood?.serving_g && selectedFood?.serving_unit);
 
   return (
-    <div className="food-picker-overlay" onClick={handleClose}>
-      <div className="food-picker-card card" onClick={(e) => e.stopPropagation()}>
-        <div className="food-picker-header">
+    <div style={styles.overlay}>
+      <div style={styles.modal}>
+        <div style={styles.header}>
           <div>
-            <div className="muted" style={{ fontSize: 12 }}>
-              {selectedFood ? 'Adicionar ao diário alimentar' : 'Catálogo rápido'}
-            </div>
-            <h4 className="title" style={{ margin: '4px 0 0' }}>
-              {selectedFood ? 'Ajuste a quantidade' : 'Escolha um alimento'}
-            </h4>
+            <div style={{ opacity: 0.8, fontSize: 12 }}>Catálogo rápido</div>
+            <div style={{ fontSize: 20, fontWeight: 700 }}>Escolha um alimento</div>
           </div>
-          <button type="button" className="ghost" onClick={handleClose}>
-            Fechar
-          </button>
+
+          <button style={styles.closeBtn} onClick={onClose}>Fechar</button>
         </div>
 
-        {!selectedFood && (
-          <>
-            <div className="field" style={{ marginBottom: 12 }}>
-              <label>Buscar</label>
-              <input
-                type="text"
-                placeholder="Digite para filtrar"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-              />
-            </div>
+        <div style={styles.searchRow}>
+          <div style={styles.searchLabel}>Buscar</div>
+          <input
+            style={styles.searchInput}
+            placeholder="Digite para filtrar"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+        </div>
 
-            <div className="food-picker-grid">
-              {isLoading && (
-                <div className="muted" style={{ fontSize: 13 }}>
-                  Buscando alimentos...
+        {loading ? (
+          <div style={styles.loading}>Carregando alimentos...</div>
+        ) : (
+          <div style={styles.grid}>
+            {filteredFoods.map((food) => (
+              <button
+                key={food.id}
+                style={styles.foodCard}
+                onClick={() => openFood(food)}
+                title="Selecionar"
+              >
+                <div style={styles.foodName}>{food.nome}</div>
+                <div style={styles.foodMeta}>
+                  <span style={{ opacity: 0.85 }}>
+                    {food.serving_unit && food.serving_g
+                      ? `${food.serving_qty || 1} ${food.serving_unit} (${food.serving_g} g)`
+                      : "100 g"}
+                  </span>
+                  <span style={{ opacity: 0.85 }}>
+                    {Math.round(food.caloriesPer100g)} kcal / 100g
+                  </span>
                 </div>
-              )}
-
-              {!isLoading && errorMessage && (
-                <div className="muted" style={{ fontSize: 13 }}>
-                  {errorMessage}
-                </div>
-              )}
-
-              {!isLoading &&
-                foods.map((item) => {
-                const Icon = FOOD_ICONS[item.icon] || DEFAULT_FOOD_ICON;
-                return (
-                  <button
-                    type="button"
-                    key={item.id}
-                    className="food-picker-item"
-                    onClick={() => handlePick(item)}
-                  >
-                    <div className="food-picker-icon">
-                      <Icon size={26} />
-                    </div>
-                    <div className="food-picker-info">
-                      <div className="food-picker-name">{item.nome}</div>
-                      <div className="muted" style={{ fontSize: 12 }}>
-                        {item.descricaoPorcao}
-                      </div>
-                    </div>
-                    <div className="food-picker-meta">
-                      {item.kcalPorPorcao} kcal
-                    </div>
-                  </button>
-                );
-              })}
-
-              {!isLoading && foods.length === 0 && (
-                <div className="muted" style={{ fontSize: 13 }}>
-                  Nenhum alimento encontrado.
-                </div>
-              )}
-            </div>
-          </>
+              </button>
+            ))}
+          </div>
         )}
 
         {selectedFood && (
-          <div className="food-picker-step">
-            <div>
-              <div className="muted" style={{ fontSize: 12 }}>
-                Alimento selecionado
-              </div>
-              <div className="title" style={{ marginTop: 4 }}>
-                {selectedFood.nome}
-              </div>
-              <div className="muted" style={{ fontSize: 12 }}>
-                Porção base: {selectedFood.descricaoPorcao}
-              </div>
+          <div style={styles.qtyBox}>
+            <div style={styles.qtyTitle}>
+              {selectedFood.nome}
+              <span style={{ fontWeight: 500, opacity: 0.75, marginLeft: 10 }}>
+                ({selectedFood.descricaoPorcao})
+              </span>
             </div>
 
-            <div className="field">
-              <label>Quantidade (g)</label>
-              <input
-                type="number"
-                min={1}
-                step={1}
-                value={grams}
-                onChange={(e) => setGrams(e.target.value)}
-              />
+            {hasServing && (
+              <div style={styles.modeRow}>
+                <button
+                  style={{ ...styles.modeBtn, ...(qtyMode === "serving" ? styles.modeBtnActive : {}) }}
+                  onClick={() => setQtyMode("serving")}
+                >
+                  Porções
+                </button>
+                <button
+                  style={{ ...styles.modeBtn, ...(qtyMode === "grams" ? styles.modeBtnActive : {}) }}
+                  onClick={() => setQtyMode("grams")}
+                >
+                  Gramas
+                </button>
+              </div>
+            )}
+
+            <div style={styles.qtyRow}>
+              {qtyMode === "serving" && hasServing ? (
+                <>
+                  <div style={styles.qtyLabel}>Quantidade</div>
+                  <input
+                    style={styles.qtyInput}
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={servingCount}
+                    onChange={(e) => setServingCount(e.target.value)}
+                  />
+                  <div style={styles.qtyHint}>
+                    {selectedFood.serving_qty || 1} {selectedFood.serving_unit} = {selectedFood.serving_g} g
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div style={styles.qtyLabel}>Quantidade (g)</div>
+                  <input
+                    style={styles.qtyInput}
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={grams}
+                    onChange={(e) => setGrams(e.target.value)}
+                  />
+                  <div style={styles.qtyHint}>Digite o peso em gramas</div>
+                </>
+              )}
             </div>
 
-            <div className="food-picker-macros">
-              <div className="food-picker-macro-card">
-                <div className="muted" style={{ fontSize: 12 }}>
-                  Calorias
+            {totals && (
+              <div style={styles.previewRow}>
+                <div style={styles.previewItem}>
+                  <div style={styles.previewLabel}>Resumo</div>
+                  <div style={styles.previewValue}>{totals.quantidadeTexto}</div>
                 </div>
-                <div className="title">{kcalCalc} kcal</div>
-              </div>
-              <div className="food-picker-macro-card">
-                <div className="muted" style={{ fontSize: 12 }}>
-                  Proteínas
+                <div style={styles.previewItem}>
+                  <div style={styles.previewLabel}>Calorias</div>
+                  <div style={styles.previewValue}>{Math.round(totals.kcal)} kcal</div>
                 </div>
-                <div className="title">{protCalc} g</div>
+                <div style={styles.previewItem}>
+                  <div style={styles.previewLabel}>Proteína</div>
+                  <div style={styles.previewValue}>{totals.protein.toFixed(1)} g</div>
+                </div>
               </div>
-            </div>
+            )}
 
-            <div className="food-picker-actions">
-              <button
-                type="button"
-                className="ghost"
-                onClick={() => setSelectedFood(null)}
-              >
+            <div style={styles.qtyActions}>
+              <button style={styles.cancelBtn} onClick={() => setSelectedFood(null)}>
                 Voltar
               </button>
-              <button type="button" className="primary" onClick={handleConfirm}>
-                Salvar
+              <button style={styles.confirmBtn} onClick={confirmPick}>
+                Adicionar
               </button>
             </div>
           </div>
@@ -265,4 +305,115 @@ function FoodPicker({ open, onClose, onSelectFood }) {
   );
 }
 
-export default FoodPicker;
+const styles = {
+  overlay: {
+    position: "fixed",
+    inset: 0,
+    background: "rgba(0,0,0,0.65)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 16,
+    zIndex: 9999,
+  },
+  modal: {
+    width: "min(1100px, 98vw)",
+    maxHeight: "90vh",
+    overflow: "auto",
+    borderRadius: 16,
+    background: "#0e1420",
+    border: "1px solid rgba(255,255,255,0.08)",
+    boxShadow: "0 30px 80px rgba(0,0,0,0.45)",
+    padding: 18,
+  },
+  header: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 12,
+    marginBottom: 14,
+  },
+  closeBtn: {
+    background: "rgba(255,255,255,0.06)",
+    color: "white",
+    border: "1px solid rgba(255,255,255,0.12)",
+    padding: "8px 12px",
+    borderRadius: 10,
+    cursor: "pointer",
+  },
+  searchRow: { marginBottom: 14 },
+  searchLabel: { fontSize: 12, opacity: 0.75, marginBottom: 6, color: "white" },
+  searchInput: {
+    width: "100%",
+    padding: "10px 12px",
+    borderRadius: 10,
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(255,255,255,0.04)",
+    color: "white",
+    outline: "none",
+  },
+  loading: { color: "white", opacity: 0.8, padding: 18 },
+  grid: { display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 12 },
+  foodCard: {
+    textAlign: "left",
+    background: "rgba(255,255,255,0.04)",
+    border: "1px solid rgba(255,255,255,0.08)",
+    borderRadius: 14,
+    padding: 12,
+    cursor: "pointer",
+    color: "white",
+  },
+  foodName: { fontWeight: 700, marginBottom: 6 },
+  foodMeta: { display: "flex", justifyContent: "space-between", gap: 12, fontSize: 12 },
+  qtyBox: { marginTop: 16, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.08)", color: "white" },
+  qtyTitle: { fontSize: 16, fontWeight: 800, marginBottom: 10 },
+  modeRow: { display: "flex", gap: 10, marginBottom: 10 },
+  modeBtn: {
+    background: "rgba(255,255,255,0.05)",
+    color: "white",
+    border: "1px solid rgba(255,255,255,0.12)",
+    padding: "6px 10px",
+    borderRadius: 999,
+    cursor: "pointer",
+    fontSize: 12,
+  },
+  modeBtnActive: { background: "rgba(34, 197, 94, 0.18)", border: "1px solid rgba(34, 197, 94, 0.45)" },
+  qtyRow: { display: "grid", gridTemplateColumns: "140px 160px 1fr", gap: 10, alignItems: "center" },
+  qtyLabel: { opacity: 0.85, fontSize: 13 },
+  qtyInput: {
+    padding: "8px 10px",
+    borderRadius: 10,
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(255,255,255,0.04)",
+    color: "white",
+    outline: "none",
+  },
+  qtyHint: { fontSize: 12, opacity: 0.7 },
+  previewRow: { marginTop: 12, display: "grid", gridTemplateColumns: "1.3fr 1fr 1fr", gap: 10 },
+  previewItem: {
+    padding: 10,
+    borderRadius: 12,
+    background: "rgba(255,255,255,0.04)",
+    border: "1px solid rgba(255,255,255,0.08)",
+  },
+  previewLabel: { fontSize: 12, opacity: 0.7, marginBottom: 4 },
+  previewValue: { fontWeight: 800 },
+  qtyActions: { marginTop: 14, display: "flex", justifyContent: "flex-end", gap: 10 },
+  cancelBtn: {
+    background: "rgba(255,255,255,0.06)",
+    color: "white",
+    border: "1px solid rgba(255,255,255,0.12)",
+    padding: "10px 14px",
+    borderRadius: 12,
+    cursor: "pointer",
+  },
+  confirmBtn: {
+    background: "rgba(34, 197, 94, 0.95)",
+    color: "#06110a",
+    border: "none",
+    padding: "10px 14px",
+    borderRadius: 12,
+    cursor: "pointer",
+    fontWeight: 900,
+  },
+};
