@@ -13,7 +13,7 @@ router.get("/search", async (req, res) => {
   try {
     const { data: tacoFoods, error: tacoError } = await supabase
       .from("taco_foods")
-      .select("name, kcal, protein_g, fat_g")
+      .select("name, kcal, protein_g, fat_g, serving_qty, serving_unit, serving_g")
       .ilike("name", `%${query}%`)
       .limit(20);
 
@@ -23,21 +23,31 @@ router.get("/search", async (req, res) => {
 
     const mappedTacoFoods = Array.isArray(tacoFoods)
       ? tacoFoods
-          .map((food) => ({
+          .map((food, idx) => ({
+            id: `taco-${idx}`,
             name: food?.name || "Alimento",
+            // continua por 100g (padrão)
             calories: Number(food?.kcal) || 0,
             protein: Number(food?.protein_g) || 0,
             fat: Number(food?.fat_g) || 0,
-            source: "taco",
-            portion: "100 g",
+
+            serving_qty: food?.serving_qty ?? null,
+            serving_unit: food?.serving_unit ?? null,
+            serving_g: food?.serving_g ?? null,
+
+            portion:
+              food?.serving_unit && food?.serving_g
+                ? `${food?.serving_qty || 1} ${food?.serving_unit} (${food?.serving_g} g)`
+                : "100 g",
           }))
-          .filter((food) => Number.isFinite(food.calories))
+          .filter((f) => Number.isFinite(f.calories))
       : [];
 
     if (mappedTacoFoods.length > 0) {
       return res.json(mappedTacoFoods);
     }
 
+    // fallback externo (OpenFoodFacts) mantém por 100g
     const url = new URL("https://world.openfoodfacts.org/cgi/search.pl");
     url.search = new URLSearchParams({
       search_terms: query,
@@ -48,12 +58,9 @@ router.get("/search", async (req, res) => {
     });
 
     const externalController = new AbortController();
-    const externalTimeoutId = setTimeout(() => {
-      externalController.abort();
-    }, 1200);
+    const externalTimeoutId = setTimeout(() => externalController.abort(), 1200);
 
     let response;
-
     try {
       response = await fetch(url, { signal: externalController.signal });
     } finally {
@@ -68,31 +75,30 @@ router.get("/search", async (req, res) => {
     const products = Array.isArray(payload?.products) ? payload.products : [];
 
     const foods = products
-      .map((product) => {
-        const name =
-          product?.product_name || product?.generic_name || "Alimento";
+      .map((product, idx) => {
+        const name = product?.product_name || product?.generic_name || "Alimento";
         const calories = Number(product?.nutriments?.["energy-kcal_100g"]);
         const protein = Number(product?.nutriments?.["proteins_100g"]);
-
-        if (!Number.isFinite(calories)) {
-          return null;
-        }
+        const fat = Number(product?.nutriments?.["fat_100g"]);
 
         return {
+          id: `off-${idx}`,
           name,
-          calories,
+          calories: Number.isFinite(calories) ? calories : 0,
           protein: Number.isFinite(protein) ? protein : 0,
+          fat: Number.isFinite(fat) ? fat : 0,
           portion: "100 g",
+          serving_qty: null,
+          serving_unit: null,
+          serving_g: null,
         };
       })
-      .filter(Boolean);
+      .filter((food) => food?.name && Number.isFinite(food.calories));
 
     return res.json(foods);
-  } catch (error) {
-    console.error("Erro ao buscar alimentos:", error);
-    return res.status(500).json({
-      error: "Não foi possível buscar alimentos no momento.",
-    });
+  } catch (err) {
+    console.error("Erro ao buscar alimentos:", err);
+    return res.status(500).json({ error: "Erro ao buscar alimentos" });
   }
 });
 
