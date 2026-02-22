@@ -121,6 +121,7 @@ const AgendaView = ({
   userId,
 }) => {
   const [selectedDate, setSelectedDate] = useState(null);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
   const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
   const [selectedDateEvents, setSelectedDateEvents] = useState([]);
@@ -167,6 +168,26 @@ const AgendaView = ({
     return selectedDateEvents;
   }, [futureEvents, selectedDate, selectedDateEvents]);
 
+  const handleDateSelect = (date) => {
+    setSelectedDate((current) => {
+      const nextDate = typeof date === 'function' ? date(current) : date;
+      if (window.innerWidth < 768) {
+        setIsDrawerOpen(Boolean(nextDate));
+      }
+      return nextDate;
+    });
+  };
+
+  const renderEventsList = (items) => (
+    <EventsTable
+      items={items}
+      onEdit={(ev) => onOpenEventWizard({ mode: 'edit', data: ev })}
+      onDelete={handleDeleteEvent}
+      formatDate={formatDate}
+      formatTimeRange={formatTimeRange}
+    />
+  );
+
   return (
     <section className="card dashboard-card" ref={agendaRef}>
       <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
@@ -183,10 +204,10 @@ const AgendaView = ({
               supabase={supabase}
               userId={userId}
               selectedDate={selectedDate}
-              onSelectDate={setSelectedDate}
+              onSelectDate={handleDateSelect}
               events={futureEvents}
             />
-            <button onClick={() => setSelectedDate(null)} style={{ marginTop: 8 }}>
+            <button onClick={() => { setSelectedDate(null); setIsDrawerOpen(false); }} style={{ marginTop: 8 }}>
               Mostrar todos os próximos
             </button>
           </div>
@@ -197,22 +218,28 @@ const AgendaView = ({
                 <p className="muted" style={{ margin: 0 }}>
                   Filtrando por data: <strong>{formatDate(selectedDate)}</strong>
                 </p>
-                <button className="ghost" onClick={() => setSelectedDate(null)}>
+                <button className="ghost" onClick={() => { setSelectedDate(null); setIsDrawerOpen(false); }}>
                   Limpar seleção
                 </button>
               </div>
             )}
-
-            <EventsTable
-              items={visibleEvents}
-              onEdit={(ev) => onOpenEventWizard({ mode: 'edit', data: ev })}
-              onDelete={handleDeleteEvent}
-              formatDate={formatDate}
-              formatTimeRange={formatTimeRange}
-            />
+            {renderEventsList(visibleEvents)}
           </div>
         </div>
       </div>
+
+
+      {isDrawerOpen && (
+        <div className="mobile-drawer">
+          <div className="drawer-header">
+            <button className="ghost" onClick={() => setIsDrawerOpen(false)}>
+              Fechar
+            </button>
+          </div>
+
+          <div className="drawer-content">{renderEventsList(selectedDateEvents)}</div>
+        </div>
+      )}
 
       {eventWizardOpen && (
         <GenericWizard

@@ -13,44 +13,44 @@ const AgendaCalendar = ({ supabase, userId, selectedDate, onSelectDate }) => {
         return;
       }
 
-      const start = `${year}-${String(month).padStart(2, '0')}-01`;
-      const end = `${year}-${String(month).padStart(2, '0')}-31`;
+      const start = new Date(year, month - 1, 1).toISOString().slice(0, 10);
+      const end = new Date(year, month, 0).toISOString().slice(0, 10);
 
       const { data, error } = await supabase
         .from('events')
-        .select('date, status')
+        .select('date, status, title')
         .eq('user_id', userId)
         .gte('date', start)
         .lte('date', end);
 
-      if (error) {
-        console.warn('Erro ao carregar eventos do calendário da agenda', error);
+      if (error || !data) {
         setMonthEvents({});
         return;
       }
 
-      if (data) {
-        const grouped = {};
+      const grouped = {};
 
-        data.forEach((event) => {
-          if (!grouped[event.date]) {
-            grouped[event.date] = {
-              total: 0,
-              hasPending: false,
-            };
-          }
+      data.forEach((event) => {
+        if (!grouped[event.date]) {
+          grouped[event.date] = {
+            total: 0,
+            hasPending: false,
+            hasWorkout: false,
+          };
+        }
 
-          grouped[event.date].total += 1;
+        grouped[event.date].total += 1;
 
-          if (event.status === 'pending') {
-            grouped[event.date].hasPending = true;
-          }
-        });
+        if (event.status === 'pending') {
+          grouped[event.date].hasPending = true;
+        }
 
-        setMonthEvents(grouped);
-      } else {
-        setMonthEvents({});
-      }
+        if (event.title?.toLowerCase().includes('treino')) {
+          grouped[event.date].hasWorkout = true;
+        }
+      });
+
+      setMonthEvents(grouped);
     };
 
     fetchMonthEvents(activeStartDate.getFullYear(), activeStartDate.getMonth() + 1);
@@ -66,7 +66,8 @@ const AgendaCalendar = ({ supabase, userId, selectedDate, onSelectDate }) => {
 
     return (
       <div className="calendar-indicator" aria-hidden="true">
-        {dayData.total > 1 ? dayData.total : '•'}
+        {dayData?.hasWorkout && '🔥'}
+        {!dayData?.hasWorkout && (dayData?.total > 1 ? dayData.total : '•')}
       </div>
     );
   };
