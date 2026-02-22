@@ -980,6 +980,38 @@ canvas{ background:transparent; }
 .badge-paid{ background:rgba(74,222,128,.16); color:#b5f8c7; }
 .badge-payment-pending{ background:rgba(251,191,36,.15); color:#facc15; }
 .table-actions{ display:inline-flex; gap:6px; justify-content:flex-end; }
+
+.events-table .badge.pending,
+.mobile-card .badge.pending {
+  background: #facc15;
+  color: #000;
+}
+
+.events-table .badge.sent,
+.mobile-card .badge.sent {
+  background: #3b82f6;
+  color: #fff;
+}
+
+.events-table .badge.completed,
+.mobile-card .badge.completed {
+  background: #22c55e;
+  color: #fff;
+}
+
+.events-table .badge.pending,
+.events-table .badge.sent,
+.events-table .badge.completed,
+.mobile-card .badge.pending,
+.mobile-card .badge.sent,
+.mobile-card .badge.completed {
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: normal;
+}
 .toast{
   position:fixed;
   top:16px;

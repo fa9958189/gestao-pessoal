@@ -99,7 +99,7 @@ const defaultEventForm = {
   start: '',
   end: '',
   notes: '',
-  status: 'active'
+  status: 'pending'
 };
 
 const defaultUserForm = {
@@ -1962,12 +1962,14 @@ function App() {
 
       // 2) Eventos (agenda) do usuário logado
       try {
+        const today = new Date().toISOString().slice(0, 10);
         const { data, error: evError } = await client
           .from('events')
           .select('*')
           .eq('user_id', session.user.id)
-          .eq('status', 'active')
-          .order('date', { ascending: false });
+          .gte('date', today)
+          .eq('status', 'pending')
+          .order('date', { ascending: true });
 
         if (evError) throw evError;
         eventData = data || [];
@@ -2260,7 +2262,6 @@ function App() {
   const filteredEvents = useMemo(() => {
     return events.filter((ev) => {
       if (session && ev.user_id && ev.user_id !== session.user.id) return false;
-      if ((ev.status || 'active') !== 'active') return false;
       return true;
     });
   }, [events, session]);
@@ -2520,7 +2521,7 @@ function App() {
       notes: normalizedNotes,
       start: eventForm.start || null,
       end: eventForm.end || null,
-      status: eventForm.status || 'active',
+      status: eventForm.status || 'pending',
     };
     const newList = eventForm.id
       ? events.map((ev) => (ev.id === eventForm.id ? payload : ev))

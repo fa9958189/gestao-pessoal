@@ -46,10 +46,13 @@ export const processDateBasedReminders = async () => {
       if (sent) {
         await supabase
           .from("events")
-          .update({ status: "completed" })
+          .update({
+            status: "sent",
+            dispatched_at: new Date().toISOString(),
+          })
           .eq("id", event.id);
 
-        console.log("Evento atualizado para completed:", event.id);
+        console.log("Evento atualizado para sent:", event.id);
       }
     }
   } catch (err) {
