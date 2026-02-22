@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import GenericWizard from './GenericWizard.jsx';
 import AgendaCalendar from './AgendaCalendar.jsx';
 
@@ -11,13 +11,14 @@ const EventsTable = ({ items, onEdit, onDelete, formatDate, formatTimeRange }) =
           <th>Título</th>
           <th>Horário</th>
           <th>Notas</th>
+          <th>Status</th>
           <th className="right">Ações</th>
         </tr>
       </thead>
       <tbody id="evTable">
         {items.length === 0 && (
           <tr>
-            <td colSpan="5" style={{ textAlign: 'center', padding: '24px 0' }} className="muted">
+            <td colSpan="6" style={{ textAlign: 'center', padding: '24px 0' }} className="muted">
               Nenhum evento encontrado para este filtro.
             </td>
           </tr>
@@ -28,6 +29,12 @@ const EventsTable = ({ items, onEdit, onDelete, formatDate, formatTimeRange }) =
             <td>{ev.title}</td>
             <td>{formatTimeRange(ev.start, ev.end)}</td>
             <td>{ev.notes || '-'}</td>
+            <td>
+              {ev.status === 'pending' && <span className="badge pending">Pendente</span>}
+              {ev.status === 'sent' && <span className="badge sent">Enviado</span>}
+              {ev.status === 'completed' && <span className="badge completed">Concluído</span>}
+              {!ev.status && <span className="badge pending">Pendente</span>}
+            </td>
             <td className="right">
               <div className="table-actions">
                 <button className="icon-button" onClick={() => onEdit(ev)} title="Editar">
@@ -64,6 +71,15 @@ const EventsTable = ({ items, onEdit, onDelete, formatDate, formatTimeRange }) =
             <div>
               <span className="label">Horário</span>
               <span>{formatTimeRange(ev.start, ev.end)}</span>
+            </div>
+            <div>
+              <span className="label">Status</span>
+              <span>
+                {ev.status === 'pending' && <span className="badge pending">Pendente</span>}
+                {ev.status === 'sent' && <span className="badge sent">Enviado</span>}
+                {ev.status === 'completed' && <span className="badge completed">Concluído</span>}
+                {!ev.status && <span className="badge pending">Pendente</span>}
+              </span>
             </div>
           </div>
           <div className="mobile-card-actions">
@@ -107,16 +123,49 @@ const AgendaView = ({
   const [selectedDate, setSelectedDate] = useState(null);
 
   const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const [selectedDateEvents, setSelectedDateEvents] = useState([]);
 
   const futureEvents = useMemo(
     () => filteredEvents.filter((eventItem) => eventItem.date >= today),
     [filteredEvents, today]
   );
 
+  useEffect(() => {
+    const loadDateEvents = async () => {
+      if (!selectedDate || !supabase || !userId) {
+        setSelectedDateEvents([]);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('events')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('date', selectedDate)
+        .order('start_time', { ascending: true });
+
+      if (error) {
+        console.warn('Erro ao carregar histórico do dia na agenda', error);
+        setSelectedDateEvents([]);
+        return;
+      }
+
+      const normalizedEvents = (data || []).map((eventItem) => ({
+        ...eventItem,
+        start: eventItem.start ?? eventItem.start_time ?? null,
+        end: eventItem.end ?? eventItem.end_time ?? null,
+      }));
+
+      setSelectedDateEvents(normalizedEvents);
+    };
+
+    loadDateEvents();
+  }, [selectedDate, supabase, userId]);
+
   const visibleEvents = useMemo(() => {
     if (!selectedDate) return futureEvents;
-    return futureEvents.filter((eventItem) => eventItem.date === selectedDate);
-  }, [futureEvents, selectedDate]);
+    return selectedDateEvents;
+  }, [futureEvents, selectedDate, selectedDateEvents]);
 
   return (
     <section className="card dashboard-card" ref={agendaRef}>
