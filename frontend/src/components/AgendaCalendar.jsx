@@ -2,86 +2,71 @@ import React, { useEffect, useMemo, useState } from 'react';
 import Calendar from 'react-calendar';
 import 'react-calendar/dist/Calendar.css';
 
-const STATUS_COLORS = {
-  active: '#22c55e',
-  completed: '#3b82f6',
-  archived: '#9ca3af',
-};
-
-const getMonthRange = (baseDate) => {
-  const year = baseDate.getFullYear();
-  const month = baseDate.getMonth();
-  const start = new Date(year, month, 1);
-  const end = new Date(year, month + 1, 0);
-  return {
-    from: start.toISOString().slice(0, 10),
-    to: end.toISOString().slice(0, 10),
-  };
-};
-
-const AgendaCalendar = ({ supabase, userId, selectedDate, onSelectDate, events = [] }) => {
+const AgendaCalendar = ({ supabase, userId, selectedDate, onSelectDate }) => {
   const [activeStartDate, setActiveStartDate] = useState(new Date());
-  const [eventsByDate, setEventsByDate] = useState({});
+  const [monthEvents, setMonthEvents] = useState({});
 
   useEffect(() => {
-    const loadMonthEvents = async () => {
+    const fetchMonthEvents = async (year, month) => {
       if (!supabase || !userId) {
-        setEventsByDate({});
+        setMonthEvents({});
         return;
       }
 
-      const { from, to } = getMonthRange(activeStartDate);
+      const start = `${year}-${String(month).padStart(2, '0')}-01`;
+      const end = `${year}-${String(month).padStart(2, '0')}-31`;
+
       const { data, error } = await supabase
         .from('events')
         .select('date, status')
         .eq('user_id', userId)
-        .gte('date', from)
-        .lte('date', to);
+        .gte('date', start)
+        .lte('date', end);
 
       if (error) {
         console.warn('Erro ao carregar eventos do calendário da agenda', error);
-        setEventsByDate({});
+        setMonthEvents({});
         return;
       }
 
-      const grouped = (data || []).reduce((acc, event) => {
-        const dateKey = event.date;
-        const status = event.status || 'active';
-        if (!acc[dateKey]) {
-          acc[dateKey] = new Set();
-        }
-        acc[dateKey].add(status);
-        return acc;
-      }, {});
+      if (data) {
+        const grouped = {};
 
-      setEventsByDate(grouped);
+        data.forEach((event) => {
+          if (!grouped[event.date]) {
+            grouped[event.date] = {
+              total: 0,
+              hasPending: false,
+            };
+          }
+
+          grouped[event.date].total += 1;
+
+          if (event.status === 'pending') {
+            grouped[event.date].hasPending = true;
+          }
+        });
+
+        setMonthEvents(grouped);
+      } else {
+        setMonthEvents({});
+      }
     };
 
-    loadMonthEvents();
+    fetchMonthEvents(activeStartDate.getFullYear(), activeStartDate.getMonth() + 1);
   }, [activeStartDate, supabase, userId]);
-
-  const eventDatesSet = useMemo(() => {
-    return new Set(events.map((eventItem) => eventItem.date));
-  }, [events]);
 
   const tileContent = ({ date, view }) => {
     if (view !== 'month') return null;
 
-    const dateKey = date.toISOString().slice(0, 10);
-    const statuses = eventsByDate[dateKey];
+    const formattedDate = date.toISOString().slice(0, 10);
+    const dayData = monthEvents[formattedDate];
 
-    if (!statuses || statuses.size === 0) return null;
+    if (!dayData) return null;
 
     return (
-      <div className="agenda-calendar-dots" aria-hidden="true">
-        {Array.from(statuses).map((status) => (
-          <span
-            key={`${dateKey}-${status}`}
-            className="agenda-calendar-dot"
-            style={{ backgroundColor: STATUS_COLORS[status] || STATUS_COLORS.active }}
-            title={status}
-          />
-        ))}
+      <div className="calendar-indicator" aria-hidden="true">
+        {dayData.total > 1 ? dayData.total : '•'}
       </div>
     );
   };
@@ -89,13 +74,14 @@ const AgendaCalendar = ({ supabase, userId, selectedDate, onSelectDate, events =
   const tileClassName = ({ date, view }) => {
     if (view !== 'month') return undefined;
 
-    const dayDateString = date.toISOString().slice(0, 10);
-    const hasEvent = eventDatesSet.has(dayDateString);
+    const formattedDate = date.toISOString().slice(0, 10);
+    const dayData = monthEvents[formattedDate];
 
     return [
       'calendar-day',
-      hasEvent ? 'has-event' : '',
-      selectedDate === dayDateString ? 'selected' : '',
+      dayData?.hasPending ? 'has-pending' : '',
+      dayData && !dayData.hasPending ? 'has-history' : '',
+      selectedDate === formattedDate ? 'selected' : '',
     ]
       .filter(Boolean)
       .join(' ');

@@ -2261,20 +2261,6 @@ canvas{ background:transparent; }
   padding-right: 4px;
 }
 
-.agenda-calendar-dots {
-  display: flex;
-  justify-content: center;
-  gap: 4px;
-  margin-top: 2px;
-}
-
-.agenda-calendar-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 999px;
-  display: inline-block;
-}
-
 .agenda-container {
   width: 100%;
   max-width: 1200px;
@@ -2335,6 +2321,10 @@ canvas{ background:transparent; }
   border-radius: 8px;
 }
 
+.agenda-calendar .react-calendar__tile.calendar-day {
+  position: relative;
+}
+
 .agenda-calendar .react-calendar__tile:hover,
 .agenda-calendar .react-calendar__tile:focus {
   background: #1b2a3a;
@@ -2347,20 +2337,23 @@ canvas{ background:transparent; }
   box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.35);
 }
 
-.agenda-calendar .react-calendar__tile.calendar-day.has-event {
-  background: #163d2a;
-  border: 1px solid #2ecc71;
-  color: #7dffb2;
+.agenda-calendar .react-calendar__tile.calendar-day.has-pending {
+  border: 2px solid #facc15;
+  border-radius: 8px;
 }
 
-.agenda-calendar .react-calendar__tile.calendar-day.has-event::after {
-  content: '';
-  width: 6px;
-  height: 6px;
-  background: #2ecc71;
-  border-radius: 50%;
-  display: block;
-  margin: 2px auto 0;
+.agenda-calendar .react-calendar__tile.calendar-day.has-history {
+  border: 2px solid #3b82f6;
+  border-radius: 8px;
+}
+
+.agenda-calendar .react-calendar__tile .calendar-indicator {
+  position: absolute;
+  bottom: 4px;
+  right: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #22c55e;
 }
 
 @media (max-width: 900px) {
