@@ -21,7 +21,7 @@ const sendWhatsApp = async (phone, message) => {
 };
 
 export const processDateBasedReminders = async () => {
-  console.log("Scheduler de lembretes matinal iniciado (07:00)");
+  console.log("Scheduler 07:00 iniciado");
 
   // ===== AGENDA =====
   try {
@@ -29,19 +29,51 @@ export const processDateBasedReminders = async () => {
 
     const { data: events, error } = await supabase
       .from("events")
-      .select("*")
+      .select("id, user_id, title, notes, start_time, end_time, date, status")
       .eq("date", today)
       .eq("status", "pending");
 
-    if (error) throw error;
+    if (error) {
+      console.log("Erro ao buscar eventos pendentes:", error.message);
+    }
 
     const dailyEvents = events || [];
-    console.log("Eventos do dia encontrados:", dailyEvents.length);
+    console.log("Eventos pendentes encontrados:", dailyEvents.length);
 
     for (const event of dailyEvents) {
       const message = `Bom dia! 📅\n\nHoje você tem:\n${event.title}\nHorário: ${event.start_time} - ${event.end_time}`;
 
-      const sent = await sendWhatsApp(event.user_whatsapp, message);
+      let whatsapp = null;
+
+      // 1. tentar buscar direto do evento
+      if (event.user_whatsapp) {
+        whatsapp = event.user_whatsapp;
+      }
+
+      // 2. se não tiver, buscar do perfil
+      if (!whatsapp) {
+        const { data: profile } = await supabase
+          .from("profiles_auth")
+          .select("whatsapp")
+          .eq("auth_id", event.user_id)
+          .single();
+
+        if (profile?.whatsapp) {
+          whatsapp = profile.whatsapp;
+        }
+      }
+
+      // normalizar telefone
+      if (whatsapp) {
+        whatsapp = whatsapp.replace(/\D/g, "");
+      }
+
+      if (!whatsapp || whatsapp.length < 10) {
+        console.log("WhatsApp inválido para usuário:", event.user_id);
+        continue;
+      }
+
+      const sent = await sendWhatsApp(whatsapp, message);
 
       if (sent) {
         await supabase
@@ -53,10 +85,12 @@ export const processDateBasedReminders = async () => {
           .eq("id", event.id);
 
         console.log("Evento atualizado para sent:", event.id);
+      } else {
+        console.log("Falha no envio do evento:", event.id);
       }
     }
   } catch (err) {
-    console.error("Erro no envio da agenda:", err.message);
+    console.error("Erro no envio da agenda:", err.message || err);
   }
 
   // ===== TREINO =====
@@ -81,8 +115,10 @@ export const processDateBasedReminders = async () => {
       await sendWhatsApp(workout.user_whatsapp, message);
     }
   } catch (err) {
-    console.error("Erro no envio de treinos:", err.message);
+    console.log("Erro no bloco treino:", err.message);
   }
+
+  console.log("Scheduler 07:00 finalizado");
 };
 
 let dailyReminderTask = null;
