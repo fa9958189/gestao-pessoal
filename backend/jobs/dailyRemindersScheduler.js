@@ -5,6 +5,22 @@ import { sendWhatsAppMessage } from "../reminders.js";
 const TZ = "America/Sao_Paulo";
 const CRON_EXPRESSION = "0 7 * * *";
 
+const fetchEventsForToday = async (todayISOString) => {
+  const { data: todaysEvents, error } = await supabase
+    .from("events")
+    .select("id, user_id, title, notes, date, status")
+    .eq("date", todayISOString)
+    .eq("status", "pendente");
+
+  if (error) {
+    throw new Error(
+      `Erro ao buscar eventos por data na agenda: ${error.message}`
+    );
+  }
+
+  return todaysEvents || [];
+};
+
 const getTodayDate = (date = new Date()) => {
   const formatter = new Intl.DateTimeFormat("en-CA", {
     timeZone: TZ,
@@ -16,8 +32,7 @@ const getTodayDate = (date = new Date()) => {
 };
 
 const sendWhatsApp = async (phone, message) => {
-  const sendResult = await sendWhatsAppMessage({ phone, message });
-  return Boolean(sendResult?.ok);
+  return sendWhatsAppMessage({ phone, message });
 };
 
 export const processDateBasedReminders = async () => {
@@ -27,17 +42,7 @@ export const processDateBasedReminders = async () => {
   try {
     const today = getTodayDate();
 
-    const { data: events, error } = await supabase
-      .from("events")
-      .select("id, user_id, title, notes, start_time, end_time, date, status")
-      .eq("date", today)
-      .eq("status", "pending");
-
-    if (error) {
-      console.log("Erro ao buscar eventos pendentes:", error.message);
-    }
-
-    const dailyEvents = events || [];
+    const dailyEvents = await fetchEventsForToday(today);
     console.log("Eventos pendentes encontrados:", dailyEvents.length);
 
     for (const event of dailyEvents) {
@@ -73,20 +78,28 @@ export const processDateBasedReminders = async () => {
         continue;
       }
 
-      const sent = await sendWhatsApp(whatsapp, message);
+      const sendResult = await sendWhatsApp(whatsapp, message);
 
-      if (sent) {
+      if (!sendResult?.ok) {
         await supabase
           .from("events")
           .update({
-            status: "sent",
+            status: "enviado",
             dispatched_at: new Date().toISOString(),
           })
           .eq("id", event.id);
 
-        console.log("Evento atualizado para sent:", event.id);
-      } else {
         console.log("Falha no envio do evento:", event.id);
+      } else {
+        await supabase
+          .from("events")
+          .update({
+            status: "enviado",
+            dispatched_at: new Date().toISOString(),
+          })
+          .eq("id", event.id);
+
+        console.log("Evento atualizado para enviado:", event.id);
       }
     }
   } catch (err) {
