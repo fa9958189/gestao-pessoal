@@ -15,6 +15,7 @@ import {
   normalizeAppPath,
 } from './routes/appRoutes.js';
 import { useInactivityLogout } from './hooks/useInactivityLogout.js';
+import { supabase } from './supabaseClient';
 import './styles.css';
 import { loadGoals } from './services/foodDiaryProfile';
 
@@ -242,6 +243,55 @@ const getCurrentPeriodMonth = (today = new Date()) => {
 };
 
 const randomId = () => crypto.randomUUID ? crypto.randomUUID() : String(Date.now());
+
+function setupSessionProtection(carregarDados) {
+  const checkSession = async () => {
+    const { data } = await supabase.auth.getSession();
+
+    if (!data?.session) {
+      window.location.href = '/login';
+      return;
+    }
+
+    carregarDados();
+  };
+
+  checkSession();
+
+  const handleVisibilityChange = async () => {
+    if (document.visibilityState === 'visible') {
+      const { data } = await supabase.auth.getSession();
+
+      if (!data?.session) {
+        window.location.href = '/login';
+        return;
+      }
+
+      console.log('Recarregando dados após voltar para o sistema');
+      carregarDados();
+    }
+  };
+
+  const handleFocus = async () => {
+    const { data } = await supabase.auth.getSession();
+
+    if (!data?.session) {
+      window.location.href = '/login';
+      return;
+    }
+
+    console.log('Sistema voltou para foco — atualizando');
+    carregarDados();
+  };
+
+  document.addEventListener('visibilitychange', handleVisibilityChange);
+  window.addEventListener('focus', handleFocus);
+
+  return () => {
+    document.removeEventListener('visibilitychange', handleVisibilityChange);
+    window.removeEventListener('focus', handleFocus);
+  };
+}
 
 function getCurrentPath() {
   const raw = window.location.hash.replace(/^#/, '');
@@ -2054,6 +2104,16 @@ function App() {
     }
   };
 
+  const carregarDados = useCallback(() => {
+    runAutoRefresh('session-protection');
+  }, [runAutoRefresh]);
+
+  useEffect(() => {
+    if (!session?.user?.id) return undefined;
+
+    return setupSessionProtection(carregarDados);
+  }, [carregarDados, session?.user?.id]);
+
   useEffect(() => {
     if (!session?.user?.id) return;
 
@@ -2061,23 +2121,8 @@ function App() {
       runAutoRefresh('interval');
     }, 60000);
 
-    const handleVisibility = () => {
-      if (document.visibilityState === 'visible') {
-        runAutoRefresh('visibility');
-      }
-    };
-
-    const handleFocus = () => {
-      runAutoRefresh('focus');
-    };
-
-    document.addEventListener('visibilitychange', handleVisibility);
-    window.addEventListener('focus', handleFocus);
-
     return () => {
       window.clearInterval(intervalId);
-      document.removeEventListener('visibilitychange', handleVisibility);
-      window.removeEventListener('focus', handleFocus);
     };
   }, [session?.user?.id]);
 
