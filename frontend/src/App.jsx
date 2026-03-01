@@ -4,7 +4,6 @@ import FoodDiary from './components/FoodDiary.jsx';
 import GeneralReport from './components/GeneralReport.jsx';
 import './styles.css';
 import { loadGoals } from './services/foodDiaryProfile';
-import { iniciarControleSessao, verificarSessao, logoutCompleto } from './utils/sessionManager';
 
 const currencyFormatter = new Intl.NumberFormat('pt-BR', {
   style: 'currency',
@@ -1590,11 +1589,6 @@ function App() {
   const { client, configError } = useSupabaseClient();
   const { session, profile, loadingSession, setSession, setProfile } = useAuth(client);
 
-  useEffect(() => {
-    verificarSessao();
-    iniciarControleSessao();
-  }, []);
-
   const isAdmin = profile?.role === 'admin';
 
   const affiliateRef = useMemo(() => {
@@ -2830,7 +2824,7 @@ function App() {
   return (
     <>
       <Toast toast={toast} onClose={() => setToast(null)} />
-      <DashboardHeader apiUrl={window.APP_CONFIG?.supabaseUrl} profile={profile} onLogout={logoutCompleto} />
+      <DashboardHeader apiUrl={window.APP_CONFIG?.supabaseUrl} profile={profile} onLogout={handleLogout} />
       <div className="page-nav tabs">
         <button
           className={activeView === 'transactions' ? 'tab active' : 'tab'}
