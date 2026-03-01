@@ -2845,33 +2845,42 @@ function App() {
           {activeTab === 'form' && (
             <div id="tab-form">
               {etapaTx === 'tipo' && (
-                <section className="card" style={{ marginBottom: '16px' }}>
-                  <h3>O que deseja registrar?</h3>
+                <div
+                  style={{
+                    minHeight: '70vh',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}
+                >
+                  <div className="card" style={{ width: '100%', maxWidth: '520px' }}>
+                    <h3>O que deseja registrar?</h3>
 
-                  <button
-                    onClick={() => {
-                      setTxForm({ ...txForm, type: 'income' });
-                      setEtapaTx('categoria');
-                    }}
-                    style={{ width: '100%', padding: '14px', marginBottom: '10px' }}
-                  >
-                    Receita 💰
-                  </button>
+                    <button
+                      onClick={() => {
+                        setTxForm({ ...txForm, type: 'income' });
+                        setEtapaTx('categoria');
+                      }}
+                      style={{ width: '100%', padding: '14px', marginBottom: '10px' }}
+                    >
+                      Receita 💰
+                    </button>
 
-                  <button
-                    onClick={() => {
-                      setTxForm({ ...txForm, type: 'expense' });
-                      setEtapaTx('categoria');
-                    }}
-                    style={{ width: '100%', padding: '14px', marginBottom: '10px' }}
-                  >
-                    Despesa 💸
-                  </button>
+                    <button
+                      onClick={() => {
+                        setTxForm({ ...txForm, type: 'expense' });
+                        setEtapaTx('categoria');
+                      }}
+                      style={{ width: '100%', padding: '14px', marginBottom: '10px' }}
+                    >
+                      Despesa 💸
+                    </button>
 
-                  <button onClick={() => setEtapaTx('lista')} style={{ width: '100%' }}>
-                    Cancelar
-                  </button>
-                </section>
+                    <button onClick={() => setEtapaTx('lista')} style={{ width: '100%' }}>
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
               )}
 
               {etapaTx === 'categoria' && (
@@ -2994,7 +3003,13 @@ function App() {
                           type="month"
                           value={txMonth}
                           onChange={(e) => setTxMonth(e.target.value)}
-                          style={{ width: '100%' }}
+                          style={{
+                            width: '100%',
+                            padding: '14px',
+                            fontSize: '16px',
+                            borderRadius: '10px',
+                            cursor: 'pointer'
+                          }}
                         />
                       </div>
 
@@ -3013,12 +3028,50 @@ function App() {
 
                       <div style={{ flex: '2 1 260px' }}>
                         <label>Busca</label>
-                        <input
-                          value={txFilters.search}
-                          onChange={(e) => setTxFilters({ ...txFilters, search: e.target.value })}
-                          placeholder="descrição ou categoria"
-                          style={{ width: '100%' }}
-                        />
+                        <div>
+                          <select
+                            value={txFilters.search}
+                            onChange={(e) => setTxFilters({ ...txFilters, search: e.target.value })}
+                            style={{
+                              width: '100%',
+                              padding: '12px',
+                              marginBottom: '8px'
+                            }}
+                          >
+                            <option value="">Todas categorias</option>
+
+                            {txFilters.type !== 'income' && (
+                              <>
+                                <option value="Alimentação">Alimentação</option>
+                                <option value="Transporte">Transporte</option>
+                                <option value="Moradia">Moradia</option>
+                                <option value="Lazer">Lazer</option>
+                                <option value="Saúde">Saúde</option>
+                                <option value="Outros">Outros</option>
+                              </>
+                            )}
+
+                            {txFilters.type !== 'expense' && (
+                              <>
+                                <option value="Salário">Salário</option>
+                                <option value="Vendas">Vendas</option>
+                                <option value="Serviços">Serviços</option>
+                                <option value="Investimentos">Investimentos</option>
+                                <option value="Outros">Outros</option>
+                              </>
+                            )}
+                          </select>
+
+                          <input
+                            value={txFilters.search}
+                            onChange={(e) => setTxFilters({ ...txFilters, search: e.target.value })}
+                            placeholder="ou digite descrição"
+                            style={{
+                              width: '100%',
+                              padding: '12px'
+                            }}
+                          />
+                        </div>
                       </div>
 
                       <div style={{ flex: '0 0 120px' }}>
