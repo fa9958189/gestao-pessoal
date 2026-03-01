@@ -24,32 +24,6 @@ const defaultTxForm = {
   category: ''
 };
 
-const CATEGORIES = {
-  expenses: [
-    'Alimentação',
-    'Mercado',
-    'Lazer',
-    'Academia / Esporte',
-    'Saúde',
-    'Transporte',
-    'Moradia',
-    'Contas (água, luz, internet, etc.)',
-    'Educação',
-    'Compras',
-    'Assinaturas',
-    'Outros'
-  ],
-  income: [
-    'Salário',
-    'Vendas',
-    'Freelance',
-    'Comissão',
-    'Pix recebido',
-    'Reembolso',
-    'Outros'
-  ]
-};
-
 const defaultTxFilters = {
   from: '',
   to: '',
@@ -1612,6 +1586,7 @@ function App() {
   const [events, setEvents] = useState(() => getLocalSnapshot().events);
   const [users, setUsers] = useState([]);
   const [txForm, setTxForm] = useState(defaultTxForm);
+  const [etapaTx, setEtapaTx] = useState('lista');
   const [eventForm, setEventForm] = useState(defaultEventForm);
   const [userForm, setUserForm] = useState(defaultUserForm);
   const [broadcastOpen, setBroadcastOpen] = useState(false);
@@ -1651,9 +1626,6 @@ function App() {
   const affiliateCommissionCents = affiliateUsersCommissionCents
     || (affiliateUsersComputed.filter((user) => user.is_active).length * FIXED_COMMISSION_CENTS);
   const affiliateClientsTotal = formatCurrency(affiliateCommissionCents / 100);
-
-  const txCategories = txForm.type === 'income' ? CATEGORIES.income : CATEGORIES.expenses;
-  const hasLegacyCategory = txForm.category && !txCategories.includes(txForm.category);
 
   const [txFilters, setTxFilters] = useState(defaultTxFilters);
   const [eventFilters, setEventFilters] = useState(defaultEventFilters);
@@ -2122,6 +2094,7 @@ function App() {
                           setTransactions(newList);
                           persistLocalSnapshot({ transactions: newList });
                           setTxForm(defaultTxForm);
+                          setEtapaTx('lista');
 
                           // Se não tiver client ou sessão, para por aqui (modo offline)
                           if (!client || !session?.user?.id) {
@@ -2159,6 +2132,8 @@ function App() {
                             pushToast('Transação salva localmente. Configure o Supabase para sincronizar.', 'warning');
                           }
                         };
+
+  const salvarTransacao = handleSaveTransaction;
 
 
 
@@ -2812,7 +2787,25 @@ function App() {
       </div>
 
       {activeView === 'transactions' && (
-        <div className={activeTab === 'reports' ? 'container single-card' : 'container'}>
+        <div className="container single-card">
+          {etapaTx === 'lista' && activeTab === 'form' && (
+            <div style={{ marginBottom: '20px', textAlign: 'center' }}>
+              <button
+                onClick={() => {
+                  setTxForm(defaultTxForm);
+                  setEtapaTx('tipo');
+                }}
+                style={{
+                  padding: '16px',
+                  fontSize: '18px',
+                  width: '100%',
+                  maxWidth: '420px'
+                }}
+              >
+                + Nova Transação
+              </button>
+            </div>
+          )}
           <section className="card dashboard-card">
           <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
             <h2 className="title">Transações</h2>
@@ -2828,91 +2821,177 @@ function App() {
 
           {activeTab === 'form' && (
             <div id="tab-form">
-              <div className="row">
-                <div style={{ flex: 1 }}>
-                  <label>Tipo</label>
-                  <select value={txForm.type} onChange={(e) => setTxForm({ ...txForm, type: e.target.value })}>
-                    <option value="income">Receita</option>
-                    <option value="expense">Despesa</option>
-                  </select>
-                </div>
-                <div style={{ flex: 1 }}>
-                  <label>Valor (use ponto para decimais)</label>
-                  <input type="number" step="0.01" value={txForm.amount} onChange={(e) => setTxForm({ ...txForm, amount: e.target.value })} />
-                </div>
-                <div style={{ flex: 1 }}>
-                  <label>Data</label>
-                  <input type="date" value={txForm.date} onChange={(e) => setTxForm({ ...txForm, date: e.target.value })} />
-                </div>
-              </div>
-              <div className="row">
-                <div style={{ flex: 2 }}>
-                  <label>Descrição</label>
-                  <input value={txForm.description} onChange={(e) => setTxForm({ ...txForm, description: e.target.value })} placeholder="Ex.: Venda no Pix" />
-                </div>
-                <div style={{ flex: 1 }}>
-                  <label>Categoria</label>
-                  <select value={txForm.category} onChange={(e) => setTxForm({ ...txForm, category: e.target.value })}>
-                    {hasLegacyCategory && (
-                      <option value={txForm.category}>Categoria atual: {txForm.category}</option>
-                    )}
-                    <option value="">Selecione</option>
-                    {txCategories.map((category) => (
-                      <option key={category} value={category}>
-                        {category}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-              <div className="row" style={{ justifyContent: 'flex-end', marginTop: 8 }}>
-                <button className="primary" onClick={handleSaveTransaction}>
-                  {txForm.id ? 'Atualizar' : 'Adicionar'}
-                </button>
-                <button className="ghost" onClick={() => setTxForm(defaultTxForm)}>Limpar</button>
-              </div>
+              {etapaTx === 'tipo' && (
+                <section className="card" style={{ marginBottom: '16px' }}>
+                  <h3>O que deseja registrar?</h3>
 
-              <div className="sep"></div>
-
-              <div className="row">
-                <div style={{ flex: 1 }}>
-                  <label>Filtro: de</label>
-                  <input type="date" value={txFilters.from} onChange={(e) => setTxFilters({ ...txFilters, from: e.target.value })} />
-                </div>
-                <div style={{ flex: 1 }}>
-                  <label>até</label>
-                  <input type="date" value={txFilters.to} onChange={(e) => setTxFilters({ ...txFilters, to: e.target.value })} />
-                </div>
-                <div style={{ flex: 1 }}>
-                  <label>Tipo</label>
-                  <select value={txFilters.type} onChange={(e) => setTxFilters({ ...txFilters, type: e.target.value })}>
-                    <option value="">Todos</option>
-                    <option value="income">Receita</option>
-                    <option value="expense">Despesa</option>
-                  </select>
-                </div>
-                <div style={{ flex: 1 }}>
-                  <label>Busca</label>
-                  <input value={txFilters.search} onChange={(e) => setTxFilters({ ...txFilters, search: e.target.value })} placeholder="descrição ou categoria" />
-                </div>
-                <div style={{ alignSelf: 'flex-end' }}>
-                  <button onClick={loadRemoteData} disabled={loadingData}>
-                    {loadingData ? 'Sincronizando...' : 'Filtrar'}
+                  <button
+                    onClick={() => {
+                      setTxForm({ ...txForm, type: 'income' });
+                      setEtapaTx('categoria');
+                    }}
+                    style={{ width: '100%', padding: '14px', marginBottom: '10px' }}
+                  >
+                    Receita 💰
                   </button>
-                </div>
-              </div>
 
-              <div className="sep"></div>
+                  <button
+                    onClick={() => {
+                      setTxForm({ ...txForm, type: 'expense' });
+                      setEtapaTx('categoria');
+                    }}
+                    style={{ width: '100%', padding: '14px', marginBottom: '10px' }}
+                  >
+                    Despesa 💸
+                  </button>
 
-              <SummaryKpis totals={kpis} />
+                  <button onClick={() => setEtapaTx('lista')} style={{ width: '100%' }}>
+                    Cancelar
+                  </button>
+                </section>
+              )}
 
-              <div className="sep"></div>
+              {etapaTx === 'categoria' && (
+                <section className="card" style={{ marginBottom: '16px' }}>
+                  <h3>Escolha a categoria</h3>
 
-              <TransactionsTable
-                items={filteredTransactions}
-                onEdit={(tx) => setTxForm(tx)}
-                onDelete={handleDeleteTransaction}
-              />
+                  <select
+                    value={txForm.category}
+                    onChange={(e) => setTxForm({ ...txForm, category: e.target.value })}
+                    style={{
+                      width: '100%',
+                      padding: '12px',
+                      marginBottom: '15px'
+                    }}
+                  >
+                    <option value="">Selecione</option>
+
+                    <option value="alimentacao">Alimentação</option>
+                    <option value="transporte">Transporte</option>
+                    <option value="casa">Casa</option>
+                    <option value="lazer">Lazer</option>
+                    <option value="outros">Outros</option>
+                  </select>
+
+                  <button onClick={() => setEtapaTx('valor')} style={{ width: '100%', marginBottom: '10px' }}>
+                    Continuar
+                  </button>
+
+                  <button onClick={() => setEtapaTx('tipo')} style={{ width: '100%' }}>
+                    Voltar
+                  </button>
+                </section>
+              )}
+
+              {etapaTx === 'valor' && (
+                <section className="card" style={{ marginBottom: '16px' }}>
+                  <h3>Digite o valor</h3>
+
+                  <input
+                    type="number"
+                    value={txForm.amount}
+                    onChange={(e) => setTxForm({ ...txForm, amount: e.target.value })}
+                    style={{
+                      width: '100%',
+                      padding: '16px',
+                      fontSize: '18px',
+                      marginBottom: '15px'
+                    }}
+                  />
+
+                  <button onClick={() => setEtapaTx('detalhes')} style={{ width: '100%', marginBottom: '10px' }}>
+                    Continuar
+                  </button>
+
+                  <button onClick={() => setEtapaTx('categoria')} style={{ width: '100%' }}>
+                    Voltar
+                  </button>
+                </section>
+              )}
+
+              {etapaTx === 'detalhes' && (
+                <section className="card" style={{ marginBottom: '16px' }}>
+                  <h3>Finalizar lançamento</h3>
+
+                  <label>Data</label>
+
+                  <input
+                    type="date"
+                    value={txForm.date}
+                    onChange={(e) => setTxForm({ ...txForm, date: e.target.value })}
+                    style={{ width: '100%', marginBottom: '10px' }}
+                  />
+
+                  <label>Descrição</label>
+
+                  <input
+                    value={txForm.description}
+                    onChange={(e) => setTxForm({ ...txForm, description: e.target.value })}
+                    style={{ width: '100%', marginBottom: '15px' }}
+                  />
+
+                  <button
+                    onClick={async () => {
+                      await salvarTransacao();
+                      setEtapaTx('lista');
+                    }}
+                    style={{ width: '100%', marginBottom: '10px' }}
+                  >
+                    Salvar Transação
+                  </button>
+
+                  <button onClick={() => setEtapaTx('valor')} style={{ width: '100%' }}>
+                    Voltar
+                  </button>
+                </section>
+              )}
+
+              {etapaTx === 'lista' && (
+                <>
+                  <div className="row">
+                    <div style={{ flex: 1 }}>
+                      <label>Filtro: de</label>
+                      <input type="date" value={txFilters.from} onChange={(e) => setTxFilters({ ...txFilters, from: e.target.value })} />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <label>até</label>
+                      <input type="date" value={txFilters.to} onChange={(e) => setTxFilters({ ...txFilters, to: e.target.value })} />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <label>Tipo</label>
+                      <select value={txFilters.type} onChange={(e) => setTxFilters({ ...txFilters, type: e.target.value })}>
+                        <option value="">Todos</option>
+                        <option value="income">Receita</option>
+                        <option value="expense">Despesa</option>
+                      </select>
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <label>Busca</label>
+                      <input value={txFilters.search} onChange={(e) => setTxFilters({ ...txFilters, search: e.target.value })} placeholder="descrição ou categoria" />
+                    </div>
+                    <div style={{ alignSelf: 'flex-end' }}>
+                      <button onClick={loadRemoteData} disabled={loadingData}>
+                        {loadingData ? 'Sincronizando...' : 'Filtrar'}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="sep"></div>
+
+                  <SummaryKpis totals={kpis} />
+
+                  <div className="sep"></div>
+
+                  <TransactionsTable
+                    items={filteredTransactions}
+                    onEdit={(tx) => {
+                      setTxForm(tx);
+                      setEtapaTx('detalhes');
+                    }}
+                    onDelete={handleDeleteTransaction}
+                  />
+                </>
+              )}
             </div>
           )}
 
