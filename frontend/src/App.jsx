@@ -2788,24 +2788,6 @@ function App() {
 
       {activeView === 'transactions' && (
         <div className="container single-card">
-          {etapaTx === 'lista' && activeTab === 'form' && (
-            <div style={{ marginBottom: '20px', textAlign: 'center' }}>
-              <button
-                onClick={() => {
-                  setTxForm(defaultTxForm);
-                  setEtapaTx('tipo');
-                }}
-                style={{
-                  padding: '16px',
-                  fontSize: '18px',
-                  width: '100%',
-                  maxWidth: '420px'
-                }}
-              >
-                + Nova Transação
-              </button>
-            </div>
-          )}
           <section className="card dashboard-card">
           <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
             <h2 className="title">Transações</h2>
@@ -2866,11 +2848,26 @@ function App() {
                   >
                     <option value="">Selecione</option>
 
-                    <option value="alimentacao">Alimentação</option>
-                    <option value="transporte">Transporte</option>
-                    <option value="casa">Casa</option>
-                    <option value="lazer">Lazer</option>
-                    <option value="outros">Outros</option>
+                    {txForm.type === 'income' && (
+                      <>
+                        <option value="salario">Salário</option>
+                        <option value="vendas">Vendas</option>
+                        <option value="servicos">Serviços</option>
+                        <option value="investimentos">Investimentos</option>
+                        <option value="outros">Outros</option>
+                      </>
+                    )}
+
+                    {txForm.type === 'expense' && (
+                      <>
+                        <option value="alimentacao">Alimentação</option>
+                        <option value="transporte">Transporte</option>
+                        <option value="moradia">Moradia</option>
+                        <option value="lazer">Lazer</option>
+                        <option value="saude">Saúde</option>
+                        <option value="outros">Outros</option>
+                      </>
+                    )}
                   </select>
 
                   <button onClick={() => setEtapaTx('valor')} style={{ width: '100%', marginBottom: '10px' }}>
@@ -2997,6 +2994,30 @@ function App() {
 
           {activeTab === 'reports' && <Reports transactions={filteredTransactions} />}
         </section>
+          {activeTab === 'form' && etapaTx === 'lista' && (
+            <button
+              onClick={() => {
+                setTxForm(defaultTxForm);
+                setEtapaTx('tipo');
+              }}
+              style={{
+                position: 'fixed',
+                bottom: '30px',
+                right: '30px',
+                background: '#22c55e',
+                color: 'white',
+                border: 'none',
+                padding: '16px 22px',
+                fontSize: '16px',
+                borderRadius: '12px',
+                boxShadow: '0 8px 20px rgba(0,0,0,0.4)',
+                cursor: 'pointer',
+                zIndex: 1000
+              }}
+            >
+              + Nova Transação
+            </button>
+          )}
         </div>
       )}
 
