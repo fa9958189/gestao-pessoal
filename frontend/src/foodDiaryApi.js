@@ -38,23 +38,6 @@ const normalizeMealFromDb = (item) => ({
   createdAt: item.created_at,
 });
 
-const normalizeTimeToHHmm = (value) => {
-  if (!value) return null;
-  const input = String(value).trim();
-  if (!input) return null;
-
-  const match = input.match(/^(\d{1,2})(?::?(\d{1,2}))?$/);
-  if (!match) return null;
-
-  const hours = Number(match[1]);
-  const minutes = Number(match[2] ?? 0);
-
-  if (!Number.isInteger(hours) || !Number.isInteger(minutes)) return null;
-  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return null;
-
-  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
-};
-
 export const saveMeal = async (
   {
     userId,
@@ -71,43 +54,25 @@ export const saveMeal = async (
   supabaseClient,
 ) => {
   const supabase = getSupabaseClient(supabaseClient);
-  const { data: sessionData } = await supabase.auth.getSession();
-  const user = sessionData?.session?.user;
-  const resolvedUserId = user?.id || userId;
-  if (!resolvedUserId) {
-    throw new Error('Usuário não autenticado para salvar refeição.');
-  }
-  const selectedFoods = Array.isArray(food) ? food : [];
-  const formattedTime = normalizeTimeToHHmm(time);
-
   const payload = {
-    user_id: resolvedUserId,
+    user_id: userId,
     entry_date: entryDate,
-    entry_time: formattedTime,
-    meal_type: mealType || null,
-    food: selectedFoods.length
-      ? selectedFoods.map((f) => f.name).join(', ')
-      : food || null,
-    quantity: selectedFoods.length
-      ? selectedFoods.map((f) => `${f.qty}g`).join(', ')
-      : quantity || null,
-    calories: calories ? Number(calories) : null,
-    protein: protein ? Number(protein) : null,
-    water_ml: waterMl ? Number(waterMl) : null,
+    entry_time: time || null,
+    meal_type: mealType,
+    food,
+    quantity,
+    calories: calories || 0,
+    protein: protein || 0,
+    water_ml: waterMl || 0,
     notes: notes || null,
   };
 
-  console.log('PAYLOAD REFEIÇÃO:', payload);
-
   const { data, error } = await supabase
     .from('food_diary_entries')
-    .insert(payload)
+    .insert([payload])
     .select()
     .single();
 
-  if (error) {
-    console.error('Erro ao salvar refeição:', error);
-  }
   if (error) throw error;
   return normalizeMealFromDb(data);
 };

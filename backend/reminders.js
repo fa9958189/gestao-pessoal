@@ -56,67 +56,41 @@ function normalizePhone(phone) {
 /**
  * Busca eventos de hoje e de amanhã.
  */
-async function fetchActiveEventsForDate() {
-  const today = new Date().toISOString().slice(0, 10);
-
-  const { data: eventosDoDia, error } = await supabase
-    .from("events")
-    .select("*")
-    .eq("date", today);
-
-  if (error) {
-    throw new Error(`Erro ao buscar eventos do dia: ${error.message}`);
-  }
-
-  return eventosDoDia || [];
-}
-
-async function fetchActiveWorkoutsForWeekday(weekday) {
+async function fetchActiveEventsForDate(dateStr) {
   const { data, error } = await supabase
-    .from("workout_schedule")
-    .select(
-      "id, user_id, weekday, is_active, workout_routines(name, muscle_groups)"
-    )
-    .eq("weekday", weekday)
+    .from("events")
+    .select("id, user_id, title, date, start, notes, is_active")
+    .eq("date", dateStr)
     .eq("is_active", true);
 
   if (error) {
-    throw new Error(`Erro ao buscar treino ativo do dia: ${error.message}`);
+    throw new Error(`Erro ao buscar eventos ativos do dia: ${error.message}`);
   }
 
   return data || [];
 }
 
-async function markEventsAsCompleted(events = []) {
-  for (const event of events) {
-    const { error } = await supabase
-      .from("events")
-      .update({ status: "completed" })
-      .eq("id", event.id);
+async function deleteEventsByIds(eventIds) {
+  if (!eventIds?.length) return;
 
-    if (error) {
-      console.error(
-        `❌ Erro ao atualizar evento ${event.id} para completed:`,
-        error
-      );
-      continue;
-    }
-
-    console.log(`✅ Evento ${event.id} atualizado para completed`);
-  }
-}
-
-async function archivePastCompletedEvents() {
-  const today = new Date().toISOString().slice(0, 10);
-
-  const { error } = await supabase
+  const uniqueIds = [...new Set(eventIds)];
+  const { data, error } = await supabase
     .from("events")
-    .update({ status: "archived" })
-    .lt("date", today);
+    .delete()
+    .in("id", uniqueIds)
+    .select("id");
 
   if (error) {
-    console.error("❌ Erro ao arquivar eventos completed do passado:", error);
+    console.error("❌ Erro ao remover eventos após disparo:", error);
+    return;
   }
+
+  (data || uniqueIds).forEach((event) => {
+    const eventId = typeof event === "object" ? event.id : event;
+    if (eventId) {
+      console.log(`🗑️ Evento ${eventId} removido após disparo`);
+    }
+  });
 }
 
 function buildMorningAgendaMessage(events) {
@@ -145,49 +119,6 @@ function buildMorningAgendaMessage(events) {
   return lines.join("\n");
 }
 
-function buildMorningAgendaAndWorkoutMessage(events = [], workout = null) {
-  const sortedEvents = [...events].sort((a, b) =>
-    String(a.start || "").localeCompare(String(b.start || ""))
-  );
-
-  let workoutText = "";
-
-  const workoutRoutine = Array.isArray(workout?.workout_routines)
-    ? workout.workout_routines[0]
-    : workout?.workout_routines;
-
-  if (workoutRoutine?.name) {
-    const workoutName = workoutRoutine.name;
-    const muscleGroups = String(workoutRoutine.muscle_groups || "").trim();
-
-    workoutText = `💪 Treino de hoje:\n${workoutName}${
-      muscleGroups ? `\n${muscleGroups}` : ""
-    }`;
-  }
-
-  let message = "📅 Bom dia — Gestão Pessoal\n";
-
-  if (sortedEvents.length > 0) {
-    message += "\n🗓 Eventos de hoje:\n";
-
-    for (const ev of sortedEvents) {
-      message += `• ${ev.title || "Evento"} ${ev.start || ""}\n`;
-    }
-  }
-
-  if (workoutText) {
-    message += `\n${workoutText}\n`;
-  }
-
-  if (sortedEvents.length === 0 && !workoutText) {
-    return "";
-  }
-
-  message += "\nBora manter a constância.";
-
-  return message;
-}
-
 function groupEventsByUser(events) {
   return events.reduce((acc, event) => {
     if (!event.user_id) return acc;
@@ -195,20 +126,6 @@ function groupEventsByUser(events) {
     acc.get(event.user_id).push(event);
     return acc;
   }, new Map());
-}
-
-function groupWorkoutsByUser(workouts) {
-  return workouts.reduce((acc, workout) => {
-    if (!workout.user_id) return acc;
-    if (!acc.has(workout.user_id)) acc.set(workout.user_id, []);
-    acc.get(workout.user_id).push(workout);
-    return acc;
-  }, new Map());
-}
-
-function getWorkoutWeekdayInSaoPaulo(date) {
-  const jsDay = date.getDay();
-  return jsDay === 0 ? 7 : jsDay;
 }
 
 /**
@@ -266,34 +183,21 @@ export function startMorningAgendaScheduler() {
 
       try {
         console.log("Scheduler de agenda matinal iniciado (07:00)");
-        await archivePastCompletedEvents();
 
         const now = getNowInSaoPaulo();
-        const workoutWeekday = getWorkoutWeekdayInSaoPaulo(now);
-
-        const [events, workouts] = await Promise.all([
-          fetchActiveEventsForDate(),
-          fetchActiveWorkoutsForWeekday(workoutWeekday),
-        ]);
+        const todayStr = formatDateOnlyInSaoPaulo(now);
+        const events = await fetchActiveEventsForDate(todayStr);
 
         console.log(`Eventos do dia encontrados: ${events.length}`);
-        console.log(`Treinos do dia encontrados: ${workouts.length}`);
 
-        if (!events.length && !workouts.length) {
-          console.log("Nenhum evento ou treino encontrado para hoje");
+        if (!events.length) {
+          console.log("Nenhum evento encontrado para hoje");
           return;
         }
 
-        const groupedEvents = groupEventsByUser(events);
-        const groupedWorkouts = groupWorkoutsByUser(workouts);
-        const usersToNotify = new Set([
-          ...groupedEvents.keys(),
-          ...groupedWorkouts.keys(),
-        ]);
+        const grouped = groupEventsByUser(events);
 
-        for (const userId of usersToNotify) {
-          const userEvents = groupedEvents.get(userId) || [];
-          const userWorkout = (groupedWorkouts.get(userId) || [])[0] || null;
+        for (const [userId, userEvents] of grouped.entries()) {
           const whatsapp = await fetchUserWhatsapp(userId);
           const phone = normalizePhone(whatsapp);
 
@@ -305,16 +209,8 @@ export function startMorningAgendaScheduler() {
             continue;
           }
 
-          const message = buildMorningAgendaAndWorkoutMessage(
-            userEvents,
-            userWorkout
-          );
-
-          if (!message) {
-            continue;
-          }
-
-          console.log("Enviando WhatsApp (agenda + treino do dia)");
+          console.log("Enviando WhatsApp (agenda do dia)");
+          const message = buildMorningAgendaMessage(userEvents);
           const sendResult = await sendWhatsAppMessage({ phone, message });
 
           if (!sendResult?.ok) {
@@ -326,10 +222,7 @@ export function startMorningAgendaScheduler() {
           }
 
           console.log("Mensagem enviada com sucesso");
-
-          if (userEvents.length) {
-            await markEventsAsCompleted(userEvents);
-          }
+          await deleteEventsByIds(userEvents.map((event) => event.id));
         }
       } catch (err) {
         console.error(

@@ -1,4 +1,4 @@
-import React, { useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import PeitoImg from '../assets/muscles/Peito.png';
 import CostasImg from '../assets/muscles/Costas.png';
 import OmbrosImg from '../assets/muscles/Ombros.png';
@@ -64,7 +64,6 @@ import WeightLineChart from './charts/WeightLineChart.jsx';
 import MuscleDonut from './charts/MuscleDonut.jsx';
 import TrainingHeatmap from './charts/TrainingHeatmap.jsx';
 import MiniStats from './charts/MiniStats.jsx';
-import GenericWizard from './GenericWizard.jsx';
 
 const muscleGroups = [
   { id: 'peito', name: 'Peito', image: PeitoImg },
@@ -97,38 +96,11 @@ const MUSCLE_GROUPS = muscleGroups.slice(0, 10).map(({ id, name, image }) => ({
   image
 }));
 
-const WIZARD_MUSCLE_GROUPS = [
-  { id: 'peito', label: 'Peito' },
-  { id: 'costas', label: 'Costas' },
-  { id: 'ombros', label: 'Ombro' },
-  { id: 'biceps', label: 'Bíceps' },
-  { id: 'triceps', label: 'Tríceps' },
-  { id: 'pernas', label: 'Pernas' },
-  { id: 'abdomen', label: 'Abdômen' },
-  { id: 'gluteos', label: 'Glúteos' },
-  { id: 'panturrilha', label: 'Panturrilha' },
-].map(({ id, label }) => {
-  const found = muscleGroups.find((group) => group.id === id);
-  return {
-    value: id,
-    label,
-    image: found?.image,
-  };
-});
-
 const SPORTS = muscleGroups.slice(10).map(({ id, name, image }) => ({
   value: id,
   label: name,
   image
 }));
-
-const defaultWorkoutForm = {
-  id: null,
-  name: '',
-  muscleGroups: [],
-  sportsActivities: [],
-  exercises: [],
-};
 
 const MUSCLE_INFO = {
   peito: {
@@ -684,12 +656,15 @@ const ViewWorkoutModal = ({
   );
 };
 
-const WorkoutRoutine = React.forwardRef(({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushToast }, ref) => {
-  const newTemplateRef = useRef(null);
+const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushToast }) => {
   const [activeTab, setActiveTab] = useState('config');
-  const [workoutForm, setWorkoutForm] = useState(defaultWorkoutForm);
-  const [workoutWizardOpen, setWorkoutWizardOpen] = useState(false);
-  const [workoutWizardMode, setWorkoutWizardMode] = useState('create');
+  const [workoutForm, setWorkoutForm] = useState({
+    id: null,
+    name: '',
+    muscleGroups: [],
+    sportsActivities: [],
+    exercises: [],
+  });
   const [routines, setRoutines] = useState([]);
   const [schedule, setSchedule] = useState(defaultSchedule);
   const [loading, setLoading] = useState(false);
@@ -706,9 +681,6 @@ const WorkoutRoutine = React.forwardRef(({ apiBaseUrl = import.meta.env.VITE_API
   const [progress, setProgress] = useState({ totalSessions: 0, byMuscleGroup: {} });
   const [createReminder, setCreateReminder] = useState(false);
   const [sessionReminder, setSessionReminder] = useState(false);
-  const [wizardScheduleDays, setWizardScheduleDays] = useState([]);
-  const [wizardScheduleTime, setWizardScheduleTime] = useState('');
-  const [wizardScheduleReminder, setWizardScheduleReminder] = useState(false);
 
   const muscleMap = useMemo(
     () =>
@@ -1189,76 +1161,14 @@ const WorkoutRoutine = React.forwardRef(({ apiBaseUrl = import.meta.env.VITE_API
     setViewWorkout(null);
   };
 
-  const openWorkoutWizard = ({ mode = 'create', template } = {}) => {
-    const wizardMode = mode === 'edit' ? 'edit' : 'create';
-    setWorkoutWizardMode(wizardMode);
-    if (wizardMode === 'edit' && template) {
-      const sportsActivities = syncSportsFromTemplate(
-        template.sportsActivities,
-        template.sports
-      );
-      setWorkoutForm({
-        ...template,
-        muscleGroups: Array.isArray(template.muscleGroups)
-          ? template.muscleGroups
-          : template.muscle_groups || [],
-        sportsActivities,
-        sports: sportsActivities,
-      });
-    } else {
-      setWorkoutForm(defaultWorkoutForm);
-      setCreateReminder(false);
-      setSessionReminder(false);
-    }
-    setWizardScheduleDays([]);
-    setWizardScheduleTime('');
-    setWizardScheduleReminder(false);
-    setWorkoutWizardOpen(true);
-  };
-
-  const closeWorkoutWizard = () => {
-    setWorkoutWizardOpen(false);
-    setWorkoutWizardMode('create');
-    setWorkoutForm(defaultWorkoutForm);
-    setCreateReminder(false);
-    setSessionReminder(false);
-    setWizardScheduleDays([]);
-    setWizardScheduleTime('');
-    setWizardScheduleReminder(false);
-  };
-
-  const handleWizardSaveRoutine = async () => {
-    const saved = await handleSaveRoutine();
-    if (saved) {
-      if (wizardScheduleDays.length) {
-        const routineId = saved?.id || workoutForm.id;
-        if (routineId) {
-          setSchedule((prev) =>
-            prev.map((slot) => {
-              if (!wizardScheduleDays.includes(slot.day)) return slot;
-              return {
-                ...slot,
-                workout_id: routineId,
-                time: wizardScheduleTime,
-                reminder: wizardScheduleReminder,
-              };
-            })
-          );
-        }
-      }
-      closeWorkoutWizard();
-      setActiveTab('config');
-    }
-  };
-
   const handleSaveRoutine = async () => {
     if (!workoutForm.name.trim()) {
       notify('Informe o nome do treino.', 'warning');
-      return false;
+      return;
     }
     if (!workoutForm.muscleGroups.length) {
       notify('Selecione pelo menos um grupo muscular.', 'warning');
-      return false;
+      return;
     }
 
     const payload = {
@@ -1291,7 +1201,7 @@ const WorkoutRoutine = React.forwardRef(({ apiBaseUrl = import.meta.env.VITE_API
         throw new Error(saved?.error || 'Não foi possível salvar o treino.');
       }
 
-      setWorkoutForm(defaultWorkoutForm);
+      setWorkoutForm({ id: null, name: '', muscleGroups: [], sportsActivities: [], exercises: [] });
 
       setRoutines((prev) => {
         if (workoutForm.id) {
@@ -1313,11 +1223,9 @@ const WorkoutRoutine = React.forwardRef(({ apiBaseUrl = import.meta.env.VITE_API
       }
 
       notify('Treino salvo com sucesso!', 'success');
-      return saved;
     } catch (err) {
       console.warn('Erro ao salvar treino', err);
       notify(err.message || 'Não foi possível salvar o treino.', 'danger');
-      return false;
     } finally {
       setLoading(false);
     }
@@ -1575,20 +1483,6 @@ const WorkoutRoutine = React.forwardRef(({ apiBaseUrl = import.meta.env.VITE_API
     bestWeekdayCount,
   } = progressStats;
 
-  useImperativeHandle(
-    ref,
-    () => ({
-      focusNewTemplate: () => {
-        setActiveTab('config');
-        setTimeout(() => {
-          newTemplateRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-          openWorkoutWizard({ mode: 'create' });
-        }, 50);
-      },
-    }),
-    []
-  );
-
   return (
     <div className="workout-card">
       {/* COLUNA ESQUERDA – Rotina de Treino (aba + config + histórico + progresso) */}
@@ -1627,163 +1521,65 @@ const WorkoutRoutine = React.forwardRef(({ apiBaseUrl = import.meta.env.VITE_API
         {activeTab === 'config' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
             {/* NOVO TREINO */}
-            <div ref={newTemplateRef}>
-              <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                <h4 className="title" style={{ marginBottom: 0 }}>Novo Template de Treino</h4>
-                <button className="primary" onClick={() => openWorkoutWizard({ mode: 'create' })}>
-                  Novo treino
-                </button>
+            <div>
+              <h4 className="title" style={{ marginBottom: 12 }}>Novo Template de Treino</h4>
+              <label>Nome do treino</label>
+              <input
+                value={workoutForm.name}
+                onChange={(e) => setWorkoutForm({ ...workoutForm, name: e.target.value })}
+                placeholder="Ex.: Treino A – Peito e Tríceps"
+              />
+
+              <div className="sep" style={{ margin: '12px 0 6px' }}></div>
+              <div className="muted" style={{ marginBottom: 6, fontSize: 13 }}>Grupos musculares</div>
+              <div className="muscle-grid">
+                {MUSCLE_GROUPS.map((group) => {
+                  const active = workoutForm.muscleGroups.includes(group.value);
+                  return (
+                    <button
+                      key={group.value}
+                      type="button"
+                      className={active ? 'muscle-card active' : 'muscle-card'}
+                      onClick={() => toggleMuscleGroup(group.value)}
+                    >
+                      <div className="muscle-image-wrapper">
+                        <img src={group.image} alt={group.label} className="muscle-image" />
+                      </div>
+                      <span className="muscle-label">{group.label}</span>
+                    </button>
+                  );
+                })}
               </div>
 
-              {workoutWizardOpen && (
-                <GenericWizard
-                  isOpen={workoutWizardOpen}
-                  mode={workoutWizardMode}
-                  title={workoutWizardMode === 'edit' ? 'Editar treino' : 'Novo treino'}
-                  subtitle="Cadastre seu treino em etapas."
-                  steps={[
-                    { id: 1, label: 'Nome do treino' },
-                    { id: 2, label: 'Grupos musculares' },
-                    { id: 3, label: 'Horários / lembretes' },
-                  ]}
-                  validateStep={(step) => {
-                    if (step === 1 && !workoutForm.name.trim()) {
-                      return { valid: false, message: 'Informe o nome do treino para continuar.' };
-                    }
-                    if (step === 2 && !workoutForm.muscleGroups.length) {
-                      return { valid: false, message: 'Selecione um grupo muscular para continuar.' };
-                    }
-                    return { valid: true, message: '' };
-                  }}
-                  onClose={closeWorkoutWizard}
-                  onSave={handleWizardSaveRoutine}
-                  onReset={() => {
-                    setWorkoutForm(defaultWorkoutForm);
-                    setCreateReminder(false);
-                    setSessionReminder(false);
-                    setWizardScheduleDays([]);
-                    setWizardScheduleTime('');
-                    setWizardScheduleReminder(false);
-                  }}
-                  saveLabel={workoutWizardMode === 'edit' ? 'Atualizar' : 'Salvar'}
-                >
-                  {(step) => (
-                    <>
-                      {step === 1 && (
-                        <div className="transaction-wizard-panel">
-                          <label>Nome do treino</label>
-                          <input
-                            value={workoutForm.name}
-                            onChange={(e) => setWorkoutForm({ ...workoutForm, name: e.target.value })}
-                            placeholder="Ex.: Treino A – Peito e Tríceps"
-                          />
-                        </div>
-                      )}
-
-                      {step === 2 && (
-                        <div className="transaction-wizard-panel">
-                          <div className="muted" style={{ marginBottom: 6, fontSize: 13 }}>Grupos musculares</div>
-                          <div className="muscle-grid">
-                            {WIZARD_MUSCLE_GROUPS.map((group) => {
-                              const active = workoutForm.muscleGroups.includes(group.value);
-                              return (
-                                <button
-                                  key={group.value}
-                                  type="button"
-                                  className={active ? 'muscle-card active' : 'muscle-card'}
-                                  onClick={() => toggleMuscleGroup(group.value)}
-                                >
-                                  <div className="muscle-image-wrapper">
-                                    {group.image && (
-                                      <img src={group.image} alt={group.label} className="muscle-image" />
-                                    )}
-                                  </div>
-                                  <span className="muscle-label">{group.label}</span>
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
-
-                    {step === 3 && (
-                      <div className="transaction-wizard-panel">
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                          <div>
-                            <div className="muted" style={{ marginBottom: 6, fontSize: 13 }}>
-                              Dias da semana
-                            </div>
-                            <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
-                              {WEEK_DAYS.map((day) => {
-                                const isActive = wizardScheduleDays.includes(day);
-                                return (
-                                  <button
-                                    key={day}
-                                    type="button"
-                                    className={isActive ? 'primary' : 'ghost'}
-                                    onClick={() => {
-                                      setWizardScheduleDays((prev) =>
-                                        prev.includes(day)
-                                          ? prev.filter((item) => item !== day)
-                                          : [...prev, day]
-                                      );
-                                    }}
-                                    style={{ padding: '6px 12px', borderRadius: 999 }}
-                                  >
-                                    {day.slice(0, 3)}
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          </div>
-
-                          <div>
-                            <div className="muted" style={{ marginBottom: 6, fontSize: 13 }}>
-                              Horário
-                            </div>
-                            <input
-                              type="time"
-                              value={wizardScheduleTime}
-                              onChange={(e) => setWizardScheduleTime(e.target.value)}
-                            />
-                          </div>
-                        </div>
-                        <div className="checkbox-row">
-                          <label className="checkbox-label">
-                            <input
-                              type="checkbox"
-                              checked={wizardScheduleReminder}
-                              onChange={(e) => setWizardScheduleReminder(e.target.checked)}
-                            />
-                            <span>Lembrete para o treino</span>
-                          </label>
-                        </div>
-                        <div className="checkbox-row">
-                          <label className="checkbox-label">
-                            <input
-                              type="checkbox"
-                              checked={createReminder}
-                              onChange={(e) => setCreateReminder(e.target.checked)}
-                            />
-                            <span>Criar lembrete ao salvar o treino</span>
-                          </label>
-                        </div>
-                        <div className="checkbox-row">
-                          <label className="checkbox-label">
-                            <input
-                              type="checkbox"
-                              checked={sessionReminder}
-                              onChange={(e) => setSessionReminder(e.target.checked)}
-                            />
-                            <span>Ativar lembrete ao concluir treino do dia</span>
-                          </label>
-                        </div>
+              <div className="muted" style={{ margin: '14px 0 6px', fontSize: 13 }}>
+                Esportes / atividades
+              </div>
+              <div className="muscle-grid">
+                {SPORTS.map((sport) => {
+                  const active = workoutForm.sportsActivities.includes(sport.value);
+                  return (
+                    <button
+                      key={sport.value}
+                      type="button"
+                      className={active ? 'muscle-card active' : 'muscle-card'}
+                      onClick={() => toggleSport(sport.value)}
+                    >
+                      <div className="muscle-image-wrapper">
+                        <img src={sport.image} alt={sport.label} className="muscle-image" />
                       </div>
-                    )}
-                  </>
-                  )}
-                </GenericWizard>
-              )}
+                      <span className="muscle-label">{sport.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="row" style={{ justifyContent: 'space-between', marginTop: 12 }}>
+                <div className="row" style={{ gap: 8 }}>
+                  <button className="primary" onClick={handleSaveRoutine} disabled={loading}>
+                    {loading ? 'Salvando...' : workoutForm.id ? 'Cadastrar treino' : 'Salvar template'}
+                  </button>
+                </div>
+              </div>
             </div>
 
             {/* TREINOS CADASTRADOS */}
@@ -1814,7 +1610,21 @@ const WorkoutRoutine = React.forwardRef(({ apiBaseUrl = import.meta.env.VITE_API
                         <button
                           type="button"
                           className="ghost"
-                          onClick={() => openWorkoutWizard({ mode: 'edit', template })}
+                          onClick={() => {
+                            const sportsActivities = syncSportsFromTemplate(
+                              template.sportsActivities,
+                              template.sports
+                            );
+
+                            setWorkoutForm({
+                              ...template,
+                              muscleGroups: Array.isArray(template.muscleGroups)
+                                ? template.muscleGroups
+                                : template.muscle_groups || [],
+                              sportsActivities,
+                              sports: sportsActivities,
+                            });
+                          }}
                         >
                           Editar
                         </button>
@@ -2423,23 +2233,21 @@ const WorkoutRoutine = React.forwardRef(({ apiBaseUrl = import.meta.env.VITE_API
       )}
 
       {/* Modal continua funcionando normalmente, fora dos cards */}
-      {isViewModalOpen && (
-        <ViewWorkoutModal
-          open={isViewModalOpen}
-          workout={viewWorkout}
-          onClose={handleCloseViewWorkout}
-          onCompleteToday={handleCompleteFromModal}
-          muscleMap={muscleMap}
-          sportsMap={sportsMap}
-          restDuration={restDuration}
-          restCountdown={restCountdown}
-          restFinished={restFinished}
-          onChangeDuration={setRestDuration}
-          onStart={startRestTimer}
-        />
-      )}
+      <ViewWorkoutModal
+        open={isViewModalOpen}
+        workout={viewWorkout}
+        onClose={handleCloseViewWorkout}
+        onCompleteToday={handleCompleteFromModal}
+        muscleMap={muscleMap}
+        sportsMap={sportsMap}
+        restDuration={restDuration}
+        restCountdown={restCountdown}
+        restFinished={restFinished}
+        onChangeDuration={setRestDuration}
+        onStart={startRestTimer}
+      />
     </div>
   );
-});
+};
 
 export default WorkoutRoutine;

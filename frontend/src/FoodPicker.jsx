@@ -1,280 +1,268 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import React, { useEffect, useMemo, useState } from 'react';
+import { FOOD_CATALOG } from './foodCatalog';
+import { DEFAULT_FOOD_ICON, FOOD_ICONS } from './foodIcons';
 
-/**
- * FoodPicker
- * - Abre como modal fullscreen (portal no body) para não quebrar em telas grandes
- * - Mantém padrão "catálogo": busca + lista + seleção + porções/gramas
- * - Se não tiver treino/erro: mostra mensagem clara
- */
+const parseBaseGrams = (descricaoPorcao) => {
+  if (!descricaoPorcao) return 100;
+  const match = descricaoPorcao.match(/(\d+(?:[.,]\d+)?)\s*g/i);
+  if (!match) return 100;
+  const value = Number(match[1].replace(',', '.'));
+  return Number.isFinite(value) ? value : 100;
+};
 
-const FOOD_CATALOG = [
-  // fallback mínimo (o resto vem da API)
-  { id: "fallback-1", name: "Arroz branco cozido", calories: 130, protein: 2, portion: "1 xícara (150 g)", serving_unit: "xícara", serving_qty: 1, serving_g: 150 },
-  { id: "fallback-2", name: "Feijão carioca cozido", calories: 90, protein: 6, portion: "1 concha (100 g)", serving_unit: "concha", serving_qty: 1, serving_g: 100 },
-  { id: "fallback-3", name: "Frango grelhado", calories: 150, protein: 30, portion: "100 g", serving_unit: "g", serving_qty: 100, serving_g: 100 },
-];
+const round1 = (n) => Math.round(n * 10) / 10;
+const round0 = (n) => Math.round(n);
 
-export default function FoodPicker({
-  open,
-  onClose,
-  onSelectFood, // (food, { mode, grams, portions }) => void
-}) {
-  const [query, setQuery] = useState("");
-  const [foods, setFoods] = useState(FOOD_CATALOG);
+function FoodPicker({ open, onClose, onSelectFood }) {
+  const [query, setQuery] = useState('');
   const [selectedFood, setSelectedFood] = useState(null);
-
-  const [mode, setMode] = useState("porcoes"); // "porcoes" | "gramas"
-  const [portions, setPortions] = useState(1);
-  const [grams, setGrams] = useState("");
-
+  const [grams, setGrams] = useState('');
+  const [foods, setFoods] = useState(FOOD_CATALOG);
   const [isLoading, setIsLoading] = useState(false);
-  const [errorMessage, setErrorMessage] = useState("");
+  const [errorMessage, setErrorMessage] = useState('');
 
-  const inputRef = useRef(null);
-
-  const apiBaseUrl = useMemo(() => {
-    // prioridade: APP_CONFIG -> VITE_API_URL -> /api (proxy)
-    return (
-      window?.APP_CONFIG?.apiBaseUrl ||
-      import.meta?.env?.VITE_API_URL ||
-      "/api"
+  const fallbackFoods = useMemo(() => {
+    const term = query.trim().toLowerCase();
+    if (!term) return FOOD_CATALOG;
+    return FOOD_CATALOG.filter((food) =>
+      food.nome.toLowerCase().includes(term)
     );
-  }, []);
-
-  const fallbackFoods = useMemo(() => FOOD_CATALOG, []);
-
-  useEffect(() => {
-    if (!open) return;
-    // reset leve ao abrir
-    setErrorMessage("");
-    setIsLoading(false);
-    setSelectedFood(null);
-    setMode("porcoes");
-    setPortions(1);
-    setGrams("");
-    setFoods(fallbackFoods);
-    setQuery("");
-    setTimeout(() => inputRef.current?.focus(), 50);
-  }, [open, fallbackFoods]);
+  }, [query]);
 
   useEffect(() => {
     if (!open) return;
 
-    const q = (query || "").trim();
+    const term = query.trim();
+    if (!term) {
+      setFoods(FOOD_CATALOG);
+      setIsLoading(false);
+      setErrorMessage('');
+      return;
+    }
 
     const controller = new AbortController();
     const timeoutId = setTimeout(async () => {
       try {
         setIsLoading(true);
-        setErrorMessage("");
+        setErrorMessage('');
+        const baseUrl = (window.APP_CONFIG?.apiBaseUrl || '').replace(/\/$/, '');
+        const response = await fetch(
+          `${baseUrl}/api/foods/search?q=${encodeURIComponent(term)}`,
+          { signal: controller.signal }
+        );
 
-        const url = `${apiBaseUrl.replace(/\/$/, "")}/foods/search?q=${encodeURIComponent(q)}`;
-        const resp = await fetch(url, { signal: controller.signal });
-        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        if (!response.ok) {
+          throw new Error('Falha ao buscar alimentos.');
+        }
 
-        const data = await resp.json();
-
+        const data = await response.json();
         const mapped = Array.isArray(data)
-          ? data.map((item, idx) => ({
-              id: item?.id ?? `food-${idx}`,
-              name: item?.name || "Alimento",
-              calories: Number(item?.calories ?? item?.kcal ?? 0),
-              protein: Number(item?.protein ?? item?.protein_g ?? 0),
-              fat: Number(item?.fat ?? item?.fat_g ?? 0),
-
-              // novos metadados (porção)
-              serving_qty: item?.serving_qty ?? 1,
-              serving_unit: item?.serving_unit ?? "g",
-              serving_g: item?.serving_g ?? 100,
-              portion: item?.portion || (item?.serving_g ? `${item.serving_g} g` : "100 g"),
+          ? data.map((item, index) => ({
+              id: `api-${index}-${item?.name || 'alimento'}`,
+              nome: item?.name || 'Alimento',
+              descricaoPorcao: item?.portion || '100 g',
+              kcalPorPorcao: item?.calories ?? 0,
+              proteina: item?.protein ?? 0
             }))
           : [];
 
-        setFoods(mapped.length ? mapped : []);
-      } catch (err) {
-        if (err?.name === "AbortError") return;
-        console.error("Erro ao buscar alimentos:", err);
-        setFoods([]);
-        setErrorMessage("Não foi possível buscar alimentos agora. Tente novamente.");
+        setFoods(mapped);
+      } catch (error) {
+        if (error.name === 'AbortError') {
+          return;
+        }
+        console.error('Erro ao buscar alimentos:', error);
+        setErrorMessage('Não foi possível buscar alimentos no momento.');
+        setFoods(fallbackFoods);
       } finally {
         setIsLoading(false);
       }
-    }, 250); // debounce menor pra ficar responsivo
+    }, 400);
 
     return () => {
       clearTimeout(timeoutId);
       controller.abort();
     };
-  }, [open, query, apiBaseUrl, fallbackFoods]);
+  }, [fallbackFoods, open, query]);
 
   if (!open) return null;
 
-  const close = () => {
-    onClose?.();
+  const handleClose = () => {
+    setSelectedFood(null);
+    setQuery('');
+    setGrams('');
+    setFoods(FOOD_CATALOG);
+    setIsLoading(false);
+    setErrorMessage('');
+    if (onClose) {
+      onClose();
+    }
   };
 
-  const confirmAdd = () => {
-    if (!selectedFood) return;
+  const handlePick = (food) => {
+    setSelectedFood(food);
+    setGrams(String(parseBaseGrams(food.descricaoPorcao)));
+  };
 
-    const isPortions = mode === "porcoes";
-    const portionQty = Math.max(1, Number(portions || 1));
-    const gramsValue = Math.max(1, Number(grams || 0));
+  const baseGrams = selectedFood
+    ? parseBaseGrams(selectedFood.descricaoPorcao)
+    : 100;
+  const gramsNumber = Number(grams);
+  const gramsValue =
+    Number.isFinite(gramsNumber) && gramsNumber > 0 ? gramsNumber : baseGrams;
 
-    // Regra:
-    // - Porções: calcula gramas = serving_g * porções (se tiver serving_g)
-    // - Gramas: usa gramas direto
-    const computedGrams =
-      isPortions
-        ? Math.round((Number(selectedFood.serving_g || 100) * portionQty) * 100) / 100
-        : gramsValue;
+  const kcalCalc = selectedFood
+    ? round0((selectedFood.kcalPorPorcao / baseGrams) * gramsValue)
+    : 0;
+  const protCalc = selectedFood
+    ? round1(((selectedFood.proteina ?? 0) / baseGrams) * gramsValue)
+    : 0;
 
-    onSelectFood?.(selectedFood, {
-      mode,
-      portions: isPortions ? portionQty : null,
-      grams: computedGrams,
+  const handleConfirm = () => {
+    if (!selectedFood || !onSelectFood) return;
+    onSelectFood({
+      nome: selectedFood.nome,
+      quantidadeTexto: `${gramsValue} g`,
+      kcal: kcalCalc,
+      proteina: protCalc
     });
-
-    // mantém aberto? normalmente fecha
-    close();
+    handleClose();
   };
 
-  const overlay = (
-    <div className="food-picker-overlay" onMouseDown={close}>
-      <div className="food-picker-modal" onMouseDown={(e) => e.stopPropagation()}>
+  return (
+    <div className="food-picker-overlay" onClick={handleClose}>
+      <div className="food-picker-card card" onClick={(e) => e.stopPropagation()}>
         <div className="food-picker-header">
           <div>
-            <div className="food-picker-title">Catálogo rápido</div>
-            <div className="food-picker-subtitle">Escolha um alimento</div>
+            <div className="muted" style={{ fontSize: 12 }}>
+              {selectedFood ? 'Adicionar ao diário alimentar' : 'Catálogo rápido'}
+            </div>
+            <h4 className="title" style={{ margin: '4px 0 0' }}>
+              {selectedFood ? 'Ajuste a quantidade' : 'Escolha um alimento'}
+            </h4>
           </div>
-          <button className="btn btn-secondary" onClick={close}>
+          <button type="button" className="ghost" onClick={handleClose}>
             Fechar
           </button>
         </div>
 
-        <div className="food-picker-search">
-          <label className="label">Buscar</label>
-          <input
-            ref={inputRef}
-            className="input"
-            placeholder="Digite para filtrar (ex: pão, arroz, tapioca...)"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
-          <div className="food-picker-hint">
-            {query.trim().length < 2 ? "Digite pelo menos 2 letras." : isLoading ? "Buscando..." : ""}
-          </div>
-          {errorMessage ? <div className="food-picker-error">{errorMessage}</div> : null}
-        </div>
-
-        <div className="food-picker-body">
-          <div className="food-picker-list">
-            {foods.length === 0 && query.trim().length >= 2 && !isLoading ? (
-              <div className="food-picker-empty">Nada encontrado.</div>
-            ) : null}
+        {!selectedFood && (
+          <>
+            <div className="field" style={{ marginBottom: 12 }}>
+              <label>Buscar</label>
+              <input
+                type="text"
+                placeholder="Digite para filtrar"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+              />
+            </div>
 
             <div className="food-picker-grid">
-              {foods.map((f) => {
-                const active = selectedFood?.id === f.id;
+              {isLoading && (
+                <div className="muted" style={{ fontSize: 13 }}>
+                  Buscando alimentos...
+                </div>
+              )}
+
+              {!isLoading && errorMessage && (
+                <div className="muted" style={{ fontSize: 13 }}>
+                  {errorMessage}
+                </div>
+              )}
+
+              {!isLoading &&
+                foods.map((item) => {
+                const Icon = FOOD_ICONS[item.icon] || DEFAULT_FOOD_ICON;
                 return (
                   <button
-                    key={f.id}
-                    className={`food-card ${active ? "active" : ""}`}
-                    onClick={() => setSelectedFood(f)}
                     type="button"
+                    key={item.id}
+                    className="food-picker-item"
+                    onClick={() => handlePick(item)}
                   >
-                    <div className="food-card-name">{f.name}</div>
-                    <div className="food-card-meta">
-                      <span>{Number(f.calories || 0)} kcal</span>
-                      <span>{Number(f.protein || 0)} g proteína</span>
+                    <div className="food-picker-icon">
+                      <Icon size={26} />
                     </div>
-                    <div className="food-card-portion">{f.portion || "100 g"}</div>
+                    <div className="food-picker-info">
+                      <div className="food-picker-name">{item.nome}</div>
+                      <div className="muted" style={{ fontSize: 12 }}>
+                        {item.descricaoPorcao}
+                      </div>
+                    </div>
+                    <div className="food-picker-meta">
+                      {item.kcalPorPorcao} kcal
+                    </div>
                   </button>
                 );
               })}
-            </div>
-          </div>
 
-          <div className="food-picker-right">
-            <div className="food-picker-panel">
-              <div className="food-picker-panel-title">Quantidade</div>
-
-              <div className="toggle-row">
-                <button
-                  type="button"
-                  className={`toggle ${mode === "porcoes" ? "active" : ""}`}
-                  onClick={() => setMode("porcoes")}
-                >
-                  Porções
-                </button>
-                <button
-                  type="button"
-                  className={`toggle ${mode === "gramas" ? "active" : ""}`}
-                  onClick={() => setMode("gramas")}
-                >
-                  Gramas
-                </button>
-              </div>
-
-              {mode === "porcoes" ? (
-                <>
-                  <label className="label">Quantidade (porções)</label>
-                  <input
-                    className="input"
-                    type="number"
-                    min="1"
-                    step="1"
-                    value={portions}
-                    onChange={(e) => setPortions(e.target.value)}
-                  />
-                  <div className="food-picker-small">
-                    Porção padrão:{" "}
-                    <strong>{selectedFood?.portion || "100 g"}</strong>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <label className="label">Quantidade (gramas)</label>
-                  <input
-                    className="input"
-                    type="number"
-                    min="1"
-                    step="1"
-                    value={grams}
-                    onChange={(e) => setGrams(e.target.value)}
-                    placeholder="Ex: 120"
-                  />
-                </>
+              {!isLoading && foods.length === 0 && (
+                <div className="muted" style={{ fontSize: 13 }}>
+                  Nenhum alimento encontrado.
+                </div>
               )}
+            </div>
+          </>
+        )}
 
-              <div className="food-picker-selected">
-                {selectedFood ? (
-                  <>
-                    <div><strong>Selecionado:</strong> {selectedFood.name}</div>
-                    <div className="food-picker-small">
-                      {selectedFood.calories} kcal • {selectedFood.protein} g proteína
-                    </div>
-                  </>
-                ) : (
-                  <div className="food-picker-empty">Selecione um alimento.</div>
-                )}
+        {selectedFood && (
+          <div className="food-picker-step">
+            <div>
+              <div className="muted" style={{ fontSize: 12 }}>
+                Alimento selecionado
               </div>
+              <div className="title" style={{ marginTop: 4 }}>
+                {selectedFood.nome}
+              </div>
+              <div className="muted" style={{ fontSize: 12 }}>
+                Porção base: {selectedFood.descricaoPorcao}
+              </div>
+            </div>
 
+            <div className="field">
+              <label>Quantidade (g)</label>
+              <input
+                type="number"
+                min={1}
+                step={1}
+                value={grams}
+                onChange={(e) => setGrams(e.target.value)}
+              />
+            </div>
+
+            <div className="food-picker-macros">
+              <div className="food-picker-macro-card">
+                <div className="muted" style={{ fontSize: 12 }}>
+                  Calorias
+                </div>
+                <div className="title">{kcalCalc} kcal</div>
+              </div>
+              <div className="food-picker-macro-card">
+                <div className="muted" style={{ fontSize: 12 }}>
+                  Proteínas
+                </div>
+                <div className="title">{protCalc} g</div>
+              </div>
+            </div>
+
+            <div className="food-picker-actions">
               <button
                 type="button"
-                className="btn btn-primary"
-                onClick={confirmAdd}
-                disabled={!selectedFood}
+                className="ghost"
+                onClick={() => setSelectedFood(null)}
               >
-                Adicionar
+                Voltar
+              </button>
+              <button type="button" className="primary" onClick={handleConfirm}>
+                Salvar
               </button>
             </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );
-
-  // ✅ PORTAL: garante que o modal fique bonito e correto em telas grandes
-  return createPortal(overlay, document.body);
 }
+
+export default FoodPicker;

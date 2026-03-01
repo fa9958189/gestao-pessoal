@@ -1,21 +1,7 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import WorkoutRoutine from './components/WorkoutRoutine.jsx';
 import FoodDiary from './components/FoodDiary.jsx';
 import GeneralReport from './components/GeneralReport.jsx';
-import AgendaView from './components/AgendaView.jsx';
-import MobileActionButtons from './components/MobileActionButtons.jsx';
-import TransactionWizard from './components/TransactionWizard.jsx';
-import GenericWizard from './components/GenericWizard.jsx';
-import {
-  ROOT_PATH,
-  getPathForView,
-  getViewForPath,
-  isAdminOnlyView,
-  isProtectedPath,
-  normalizeAppPath,
-} from './routes/appRoutes.js';
-import { useInactivityLogout } from './hooks/useInactivityLogout.js';
-import { supabase } from './supabaseClient';
 import './styles.css';
 import { loadGoals } from './services/foodDiaryProfile';
 
@@ -30,7 +16,7 @@ const percentFormatter = new Intl.NumberFormat('pt-BR', {
 });
 
 const defaultTxForm = {
-  type: '',
+  type: 'income',
   amount: '',
   date: '',
   description: '',
@@ -63,30 +49,12 @@ const CATEGORIES = {
   ]
 };
 
-const formatDateInput = (value) => {
-  if (!value) return '';
-  const date = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(date.getTime())) return '';
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-};
-
-const getCurrentMonthRange = (today = new Date()) => {
-  const start = new Date(today.getFullYear(), today.getMonth(), 1);
-  const end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-  return {
-    from: formatDateInput(start),
-    to: formatDateInput(end)
-  };
-};
-
-const buildDefaultTxFilters = () => ({
-  ...getCurrentMonthRange(),
+const defaultTxFilters = {
+  from: '',
+  to: '',
   type: '',
   search: ''
-});
+};
 
 const defaultGeneralReportGoals = {
   calories: 2000,
@@ -99,8 +67,13 @@ const defaultEventForm = {
   date: '',
   start: '',
   end: '',
-  notes: '',
-  status: 'pending'
+  notes: ''
+};
+
+const defaultEventFilters = {
+  from: '',
+  to: '',
+  search: ''
 };
 
 const defaultUserForm = {
@@ -108,17 +81,9 @@ const defaultUserForm = {
   username: '',
   password: '',
   whatsapp: '',
-  role: '',
+  role: 'user',
   affiliateCode: '',
   applyTrial: false
-};
-
-const defaultAffiliateForm = {
-  code: '',
-  name: '',
-  whatsapp: '',
-  email: '',
-  pix_key: '',
 };
 
 const normalizeBaseUrl = (value) => {
@@ -244,62 +209,6 @@ const getCurrentPeriodMonth = (today = new Date()) => {
 
 const randomId = () => crypto.randomUUID ? crypto.randomUUID() : String(Date.now());
 
-function setupSessionProtection(carregarDados) {
-  const checkSession = async () => {
-    const { data } = await supabase.auth.getSession();
-
-    if (!data?.session) {
-      window.location.href = '/login';
-      return;
-    }
-
-    carregarDados();
-  };
-
-  checkSession();
-
-  const handleVisibilityChange = async () => {
-    if (document.visibilityState === 'visible') {
-      const { data } = await supabase.auth.getSession();
-
-      if (!data?.session) {
-        window.location.href = '/login';
-        return;
-      }
-
-      console.log('Recarregando dados após voltar para o sistema');
-      carregarDados();
-    }
-  };
-
-  const handleFocus = async () => {
-    const { data } = await supabase.auth.getSession();
-
-    if (!data?.session) {
-      window.location.href = '/login';
-      return;
-    }
-
-    console.log('Sistema voltou para foco — atualizando');
-    carregarDados();
-  };
-
-  document.addEventListener('visibilitychange', handleVisibilityChange);
-  window.addEventListener('focus', handleFocus);
-
-  return () => {
-    document.removeEventListener('visibilitychange', handleVisibilityChange);
-    window.removeEventListener('focus', handleFocus);
-  };
-}
-
-function getCurrentPath() {
-  const raw = window.location.hash.replace(/^#/, '');
-  const path = !raw ? '/' : (raw.startsWith('/') ? raw : '/' + raw);
-  const noQuery = path.split('?')[0];
-  return (noQuery.length > 1) ? noQuery.replace(/\/+$/, '') : noQuery;
-}
-
 const useSupabaseClient = () => {
   const [client, setClient] = useState(null);
   const [configError, setConfigError] = useState('');
@@ -399,65 +308,12 @@ const useAuth = (client) => {
       };
     };
 
-    const restoreSession = async () => {
+    const syncSupabaseSession = async () => {
       try {
-        const timeout = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Session timeout')), 8000)
-        );
-        const sessionPromise = client.auth.getSession();
-        const { data, error } = await Promise.race([sessionPromise, timeout]);
-
-        if (!isMounted) return;
-
-        if (error || !data?.session) {
-          console.warn('Sessão inválida ou expirou, limpando sessão:', error?.message);
-          await client.auth.signOut();
-          setSession(null);
-          setProfile(null);
-          window.localStorage.removeItem('gp-session');
-          return;
-        }
-
-        const nextSession = await buildSessionFromSupabase(data.session);
-        if (!nextSession || !isMounted) return;
-
-        setSession(nextSession);
-        setProfile({
-          id: nextSession.user.profile_id || nextSession.user.id,
-          name: nextSession.user.name,
-          role: nextSession.user.role,
-        });
-        window.localStorage.setItem('gp-session', JSON.stringify(nextSession));
-      } catch (err) {
-        console.error('Erro ao restaurar sessão, forçando logout:', err);
-        await client.auth.signOut();
-        if (!isMounted) return;
-        setSession(null);
-        setProfile(null);
-        window.localStorage.removeItem('gp-session');
-      } finally {
-        if (isMounted) {
+        const { data } = await client.auth.getSession();
+        const supabaseSession = data?.session;
+        if (!supabaseSession?.user) {
           setSupabaseChecked(true);
-        }
-      }
-    };
-
-    setSupabaseChecked(false);
-    restoreSession();
-
-    const { data: authListener } = client.auth.onAuthStateChange(
-      async (event, supabaseSession) => {
-        if (!isMounted) return;
-
-        if (event === 'SIGNED_OUT' || !supabaseSession?.user) {
-          console.warn('Sessão expirada. Redirecionando para login.');
-          setSession(null);
-          setProfile(null);
-          window.localStorage.removeItem('gp-session');
-          setSupabaseChecked(true);
-          if (window.location.pathname !== '/') {
-            window.location.href = '/';
-          }
           return;
         }
 
@@ -471,7 +327,38 @@ const useAuth = (client) => {
           role: nextSession.user.role,
         });
         window.localStorage.setItem('gp-session', JSON.stringify(nextSession));
-        setSupabaseChecked(true);
+      } catch (err) {
+        console.warn('Erro ao restaurar sessão do Supabase', err);
+      } finally {
+        if (isMounted) {
+          setSupabaseChecked(true);
+        }
+      }
+    };
+
+    syncSupabaseSession();
+
+    const { data: authListener } = client.auth.onAuthStateChange(
+      async (_event, supabaseSession) => {
+        if (!isMounted) return;
+
+        if (!supabaseSession?.user) {
+          setSession(null);
+          setProfile(null);
+          window.localStorage.removeItem('gp-session');
+          return;
+        }
+
+        const nextSession = await buildSessionFromSupabase(supabaseSession);
+        if (!nextSession || !isMounted) return;
+
+        setSession(nextSession);
+        setProfile({
+          id: nextSession.user.profile_id || nextSession.user.id,
+          name: nextSession.user.name,
+          role: nextSession.user.role,
+        });
+        window.localStorage.setItem('gp-session', JSON.stringify(nextSession));
       }
     );
 
@@ -501,13 +388,6 @@ const Toast = ({ toast, onClose }) => {
   );
 };
 
-const LoginLayout = ({ toast, onToastClose, children }) => (
-  <div className="login-layout">
-    <Toast toast={toast} onClose={onToastClose} />
-    {children}
-  </div>
-);
-
 const LoginScreen = ({ form, onChange, onSubmit, loading, error, configError }) => (
   <div className="login-screen">
     <div className="login-card">
@@ -533,7 +413,7 @@ const LoginScreen = ({ form, onChange, onSubmit, loading, error, configError }) 
         value={form.password}
         onChange={(e) => onChange({ ...form, password: e.target.value })}
       />
-      <button className="primary full" onClick={onSubmit} disabled={loading}>
+      <button className="primary full" onClick={onSubmit} disabled={loading || !form.email || !form.password}>
         {loading ? 'Entrando...' : 'Entrar'}
       </button>
       {import.meta.env.DEV && (
@@ -629,47 +509,49 @@ const TransactionsTable = ({ items, onEdit, onDelete }) => (
         ))}
       </tbody>
     </table>
-    <div className="mobile-card-list" aria-live="polite">
-      {items.length === 0 && (
-        <div className="mobile-card">
-          <p className="muted">Nenhuma transação encontrada para este filtro.</p>
-        </div>
-      )}
-      {items.map((tx) => (
-        <div key={tx.id} className="mobile-card">
-          <div className="mobile-card-header">
-            <div>
-              <h4 className="mobile-card-title">{tx.description || 'Transação'}</h4>
-              <div className="mobile-card-inline">
-                <span className={`badge badge-${tx.type}`}>
-                  {tx.type === 'income' ? 'Receita' : 'Despesa'}
-                </span>
-                <span className="muted">{tx.category || '-'}</span>
+  </div>
+);
+
+const EventsTable = ({ items, onEdit, onDelete }) => (
+  <div className="events-table-container">
+    <table className="events-table">
+      <thead>
+        <tr>
+          <th>Data</th>
+          <th>Título</th>
+          <th>Horário</th>
+          <th>Notas</th>
+          <th className="right">Ações</th>
+        </tr>
+      </thead>
+      <tbody id="evTable">
+        {items.length === 0 && (
+          <tr>
+            <td colSpan="5" style={{ textAlign: 'center', padding: '24px 0' }} className="muted">
+              Nenhum evento encontrado para este filtro.
+            </td>
+          </tr>
+        )}
+        {items.map((ev) => (
+          <tr key={ev.id}>
+            <td>{formatDate(ev.date)}</td>
+            <td>{ev.title}</td>
+            <td>{formatTimeRange(ev.start, ev.end)}</td>
+            <td>{ev.notes || '-'}</td>
+            <td className="right">
+              <div className="table-actions">
+                <button className="icon-button" onClick={() => onEdit(ev)} title="Editar">
+                  ✏️
+                </button>
+                <button className="icon-button" onClick={() => onDelete(ev)} title="Excluir">
+                  🗑️
+                </button>
               </div>
-            </div>
-            <strong>{formatCurrency(tx.amount)}</strong>
-          </div>
-          <div className="mobile-card-meta">
-            <div>
-              <span className="label">Valor</span>
-              <span>{formatCurrency(tx.amount)}</span>
-            </div>
-            <div>
-              <span className="label">Data</span>
-              <span>{formatDate(tx.date)}</span>
-            </div>
-          </div>
-          <div className="mobile-card-actions">
-            <button className="icon-button" onClick={() => onEdit(tx)} title="Editar">
-              ✏️
-            </button>
-            <button className="icon-button" onClick={() => onDelete(tx)} title="Excluir">
-              🗑️
-            </button>
-          </div>
-        </div>
-      ))}
-    </div>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
   </div>
 );
 
@@ -783,88 +665,6 @@ const UsersTable = ({ items, onEdit, onDelete, onBillingAction }) => (
           </tbody>
         </table>
       </div>
-    </div>
-    <div className="mobile-card-list" aria-live="polite">
-      {items.length === 0 && (
-        <div className="mobile-card">
-          <p className="muted">Nenhum usuário cadastrado além de você.</p>
-        </div>
-      )}
-      {items.map((user) => {
-        const status = user.derived_status || user.subscription_status || 'active';
-        const labelMap = { active: 'ATIVO', pending: 'PENDENTE', inactive: 'INATIVO' };
-        const paid = user.payment_status === 'paid';
-        const trialEnd = getTrialEnd(user);
-        const daysLeft = getDaysLeft(trialEnd);
-        return (
-          <div key={user.id} className="mobile-card">
-            <div className="mobile-card-header">
-              <div>
-                <h4 className="mobile-card-title">{user.username}</h4>
-                <p className="muted">{user.name || '-'}</p>
-              </div>
-              <span className="badge">{user.role}</span>
-            </div>
-            <div className="mobile-card-meta">
-              <div>
-                <span className="label">Status</span>
-                <span className={`badge badge-${status}`}>{labelMap[status] || status.toUpperCase()}</span>
-              </div>
-              <div>
-                <span className="label">Pagamento</span>
-                <span className={`badge ${paid ? 'badge-paid' : 'badge-payment-pending'}`}>
-                  {paid ? 'PAGO' : 'PENDENTE'}
-                </span>
-              </div>
-              <div>
-                <span className="label">Vencimento</span>
-                <span>dia {user.due_day || BILLING_DUE_DAY}</span>
-              </div>
-              <div>
-                <span className="label">Último pagamento</span>
-                <span>{formatDate(user.last_payment_at || user.last_paid_at)}</span>
-              </div>
-              <div>
-                <span className="label">Criado em</span>
-                <span>{formatDate(user.created_at)}</span>
-              </div>
-              <div>
-                <span className="label">Teste</span>
-                <span>{formatTrialLabel(daysLeft)}</span>
-              </div>
-            </div>
-            <div className="mobile-card-actions">
-              <button className="icon-button" onClick={() => onEdit(user)} title="Editar">
-                ✏️
-              </button>
-              <button className="icon-button" onClick={() => onDelete(user)} title="Excluir">
-                🗑️
-              </button>
-              <button
-                className="icon-button"
-                onClick={() => onBillingAction(user, 'activate')}
-                title="Ativar"
-              >
-                Ativar
-              </button>
-              <button
-                className="icon-button"
-                onClick={() => onBillingAction(user, 'inactivate')}
-                title="Inativar"
-              >
-                Inativar
-              </button>
-              <button
-                className="icon-button"
-                onClick={() => onBillingAction(user, 'markPaid')}
-                title="Marcar pago"
-              >
-                Marcar pago
-              </button>
-            </div>
-          </div>
-        );
-      })}
     </div>
   </div>
 );
@@ -1788,34 +1588,8 @@ const Reports = ({ transactions }) => {
 function App() {
   const { client, configError } = useSupabaseClient();
   const { session, profile, loadingSession, setSession, setProfile } = useAuth(client);
-  const user = session?.user || null;
-
-  useInactivityLogout(Boolean(session));
 
   const isAdmin = profile?.role === 'admin';
-
-  useEffect(() => {
-    document.body.classList.toggle('login-page', !session);
-    return () => {
-      document.body.classList.remove('login-page');
-    };
-  }, [session]);
-
-  const [currentPath, setCurrentPath] = useState(getCurrentPath());
-
-  const navigate = useCallback((path) => {
-    if (window.location.hash !== '#' + path) {
-      window.location.hash = path;
-    }
-  }, []);
-
-  useEffect(() => {
-    const handler = () => setCurrentPath(getCurrentPath());
-    window.addEventListener('hashchange', handler);
-    return () => {
-      window.removeEventListener('hashchange', handler);
-    };
-  }, []);
 
   const affiliateRef = useMemo(() => {
     try {
@@ -1837,14 +1611,8 @@ function App() {
   const [events, setEvents] = useState(() => getLocalSnapshot().events);
   const [users, setUsers] = useState([]);
   const [txForm, setTxForm] = useState(defaultTxForm);
-  const [txWizardOpen, setTxWizardOpen] = useState(false);
-  const [txWizardMode, setTxWizardMode] = useState('create');
   const [eventForm, setEventForm] = useState(defaultEventForm);
-  const [eventWizardOpen, setEventWizardOpen] = useState(false);
-  const [eventWizardMode, setEventWizardMode] = useState('create');
   const [userForm, setUserForm] = useState(defaultUserForm);
-  const [userWizardOpen, setUserWizardOpen] = useState(false);
-  const [userWizardMode, setUserWizardMode] = useState('create');
   const [broadcastOpen, setBroadcastOpen] = useState(false);
   const [broadcastMessage, setBroadcastMessage] = useState('');
   const [broadcastAudience, setBroadcastAudience] = useState('active');
@@ -1853,9 +1621,13 @@ function App() {
   const [editingUserId, setEditingUserId] = useState(null);
   const [editingUserOriginal, setEditingUserOriginal] = useState(null);
   const [affiliates, setAffiliates] = useState([]);
-  const [affiliateForm, setAffiliateForm] = useState(defaultAffiliateForm);
-  const [affiliateWizardOpen, setAffiliateWizardOpen] = useState(false);
-  const [affiliateWizardMode, setAffiliateWizardMode] = useState('create');
+  const [affiliateForm, setAffiliateForm] = useState({
+    code: '',
+    name: '',
+    whatsapp: '',
+    email: '',
+    pix_key: '',
+  });
   const [affiliatesLoading, setAffiliatesLoading] = useState(false);
   const [affiliatePayoutLoadingId, setAffiliatePayoutLoadingId] = useState(null);
   const [affiliateUsers, setAffiliateUsers] = useState([]);
@@ -1882,25 +1654,11 @@ function App() {
   const txCategories = txForm.type === 'income' ? CATEGORIES.income : CATEGORIES.expenses;
   const hasLegacyCategory = txForm.category && !txCategories.includes(txForm.category);
 
-  const [txFilters, setTxFilters] = useState(buildDefaultTxFilters);
+  const [txFilters, setTxFilters] = useState(defaultTxFilters);
+  const [eventFilters, setEventFilters] = useState(defaultEventFilters);
   const [activeTab, setActiveTab] = useState('form');
   const [activeView, setActiveView] = useState('transactions');
-  const viewTabs = [
-    { key: 'transactions', label: 'Transações', emoji: '💰' },
-    { key: 'agenda', label: 'Agenda', emoji: '📅' },
-    { key: 'users', label: 'Cadastro de Usuários', emoji: '👥', adminOnly: true },
-    { key: 'affiliates', label: 'Afiliados', emoji: '🤝', adminOnly: true },
-    { key: 'workout', label: 'Rotina de Treino', emoji: '🏋️‍♂️' },
-    { key: 'foodDiary', label: 'Diário alimentar', emoji: '🍽️' },
-    { key: 'generalReport', label: 'Relatório Geral', emoji: '📊' },
-  ];
   const [generalReportGoals, setGeneralReportGoals] = useState(defaultGeneralReportGoals);
-  const transactionFormRef = useRef(null);
-  const agendaRef = useRef(null);
-  const adminUsersRef = useRef(null);
-  const adminAffiliatesRef = useRef(null);
-  const workoutRef = useRef(null);
-  const foodDiaryRef = useRef(null);
   const workoutApiBase = normalizeBaseUrl(
     window.APP_CONFIG?.apiBaseUrl ||
     import.meta.env.VITE_API_BASE_URL ||
@@ -1919,13 +1677,6 @@ function App() {
     setTimeout(() => setToast(null), 4000);
   };
 
-  const handleInvalidRefreshToken = async (error) => {
-    if (!error?.message?.includes('Invalid Refresh Token')) return false;
-    await client.auth.signOut();
-    window.location.reload();
-    return true;
-  };
-
   // Buscar tudo no Supabase (transações, agenda e lista de usuários se for admin)
   const loadRemoteData = async () => {
     if (!client || !session?.user?.id) return;
@@ -1933,10 +1684,6 @@ function App() {
     setLoadingData(true);
 
     try {
-      let syncFailures = 0;
-      let normalizedTx = transactions || [];
-      let eventData = events || [];
-
       try {
         const { data: profileRow } = await client
           .from('profiles_auth')
@@ -1989,44 +1736,29 @@ function App() {
         );
       }
 
-      try {
-        const { data: txData, error: txError } = await txQuery;
-        if (txError) throw txError;
+      const { data: txData, error: txError } = await txQuery;
+      if (txError) throw txError;
 
-        normalizedTx = (txData || []).map((row) => ({
-          id: row.id,
-          user_id: row.user_id,
-          userId: row.user_id,
-          type: row.type,
-          amount: row.amount,
-          description: row.description,
-          category: row.category,
-          date: row.date,
-          createdAt: row.created_at,
-        }));
-      } catch (err) {
-        if (await handleInvalidRefreshToken(err)) return;
-        syncFailures += 1;
-        console.warn('Falha ao sincronizar transações com Supabase.', err);
-      }
+      const normalizedTx = (txData || []).map((row) => ({
+        id: row.id,
+        user_id: row.user_id,
+        userId: row.user_id,
+        type: row.type,
+        amount: row.amount,
+        description: row.description,
+        category: row.category,
+        date: row.date,
+        createdAt: row.created_at,
+      }));
 
       // 2) Eventos (agenda) do usuário logado
-      try {
-        const today = new Date().toISOString().slice(0, 10);
-        const { data, error: evError } = await client
-          .from('events')
-          .select('*')
-          .eq('user_id', session.user.id)
-          .gte('date', today)
-          .eq('status', 'pending')
-          .order('date', { ascending: true });
+      const { data: eventData, error: evError } = await client
+        .from('events')
+        .select('*')
+        .eq('user_id', session.user.id)
+        .order('date', { ascending: false });
 
-        if (evError) throw evError;
-        eventData = data || [];
-      } catch (err) {
-        if (await handleInvalidRefreshToken(err)) return;
-        syncFailures += 1;
-      }
+      if (evError) throw evError;
 
       // 3) Lista de usuários (só se for admin)
       let userData = [];
@@ -2063,19 +1795,10 @@ function App() {
         events: eventData || [],
       });
 
-      const hasSyncedData = (normalizedTx?.length || 0) > 0 || (eventData?.length || 0) > 0;
-      const hasLocalData = (transactions?.length || 0) > 0 || (events?.length || 0) > 0;
-      if (syncFailures >= 2 && !hasSyncedData && !hasLocalData) {
-        pushToast('Não foi possível sincronizar com o Supabase. Usando dados locais.', 'warning');
-      }
-
+      console.log('Dados carregados do Supabase com sucesso.');
     } catch (err) {
-      if (await handleInvalidRefreshToken(err)) return;
       console.warn('Falha ao sincronizar com Supabase, usando cache local.', err);
-      const hasLocalData = (transactions?.length || 0) > 0 || (events?.length || 0) > 0;
-      if (!hasLocalData) {
-        pushToast('Não foi possível sincronizar com o Supabase. Usando dados locais.', 'warning');
-      }
+      pushToast('Não foi possível sincronizar com o Supabase. Usando dados locais.', 'warning');
     } finally {
       setLoadingData(false);
     }
@@ -2104,16 +1827,6 @@ function App() {
     }
   };
 
-  const carregarDados = useCallback(() => {
-    runAutoRefresh('session-protection');
-  }, [runAutoRefresh]);
-
-  useEffect(() => {
-    if (!session?.user?.id) return undefined;
-
-    return setupSessionProtection(carregarDados);
-  }, [carregarDados, session?.user?.id]);
-
   useEffect(() => {
     if (!session?.user?.id) return;
 
@@ -2121,8 +1834,23 @@ function App() {
       runAutoRefresh('interval');
     }, 60000);
 
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        runAutoRefresh('visibility');
+      }
+    };
+
+    const handleFocus = () => {
+      runAutoRefresh('focus');
+    };
+
+    document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('focus', handleFocus);
+
     return () => {
       window.clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('focus', handleFocus);
     };
   }, [session?.user?.id]);
 
@@ -2206,79 +1934,9 @@ function App() {
 
   useEffect(() => {
     if (!isAdmin && (activeView === 'users' || activeView === 'affiliates')) {
-      navigate(getPathForView('transactions'));
-    }
-  }, [activeView, isAdmin, navigate]);
-
-  useEffect(() => {
-    const normalizedPath = normalizeAppPath(currentPath);
-
-    if (normalizedPath === '*') {
-      navigate(ROOT_PATH);
-      return;
-    }
-
-    if (loadingSession) return;
-
-    if (!session) {
-      if (isProtectedPath(normalizedPath)) {
-        navigate(ROOT_PATH);
-      }
-      return;
-    }
-
-    if (normalizedPath === ROOT_PATH) {
-      const defaultPath = getPathForView('transactions');
-      navigate(defaultPath);
-      return;
-    }
-
-    const routeView = getViewForPath(normalizedPath);
-
-    if (!routeView || (isAdminOnlyView(routeView) && !isAdmin)) {
-      const fallbackPath = getPathForView('transactions');
       setActiveView('transactions');
-      navigate(fallbackPath);
-      return;
     }
-
-    if (routeView !== activeView) {
-      setActiveView(routeView);
-    }
-  }, [activeView, currentPath, isAdmin, loadingSession, navigate, session]);
-
-  useEffect(() => {
-    setTxWizardOpen(false);
-    setTxWizardMode('create');
-    setTxForm(defaultTxForm);
-    setActiveTab('form');
-
-    setEventWizardOpen(false);
-    setEventWizardMode('create');
-    setEventForm(defaultEventForm);
-
-    setUserWizardOpen(false);
-    setUserWizardMode('create');
-    setUserForm(defaultUserForm);
-    setEditingUserId(null);
-    setEditingUserOriginal(null);
-
-    setAffiliateWizardOpen(false);
-    setAffiliateWizardMode('create');
-    setAffiliateForm(defaultAffiliateForm);
-
-    setSelectedAffiliate(null);
-    setAffiliateUsers([]);
-    setAffiliateUsersCommissionCents(0);
-  }, [activeView]);
-
-  useEffect(() => {
-    if (activeTab !== 'form') {
-      setTxWizardOpen(false);
-      setTxWizardMode('create');
-      setTxForm(defaultTxForm);
-    }
-  }, [activeTab]);
+  }, [isAdmin, activeView]);
 
   useEffect(() => {
     if (activeView === 'affiliates' && isAdmin) {
@@ -2307,9 +1965,17 @@ function App() {
   const filteredEvents = useMemo(() => {
     return events.filter((ev) => {
       if (session && ev.user_id && ev.user_id !== session.user.id) return false;
+      if (eventFilters.from && ev.date < eventFilters.from) return false;
+      if (eventFilters.to && ev.date > eventFilters.to) return false;
+      if (eventFilters.search) {
+        const q = eventFilters.search.toLowerCase();
+        return (
+          ev.title?.toLowerCase().includes(q) || ev.notes?.toLowerCase().includes(q)
+        );
+      }
       return true;
     });
-  }, [events, session]);
+  }, [events, eventFilters]);
 
   const kpis = useMemo(() => {
     const income = filteredTransactions
@@ -2327,14 +1993,10 @@ function App() {
 
 
                 const handleLogin = async () => {
+                  if (!client) return;
+
                   setLoginLoading(true);
                   setLoginError('');
-
-                  if (!client) {
-                    setLoginError('Não foi possível iniciar o cliente do Supabase.');
-                    setLoginLoading(false);
-                    return;
-                  }
 
                   try {
                     // 1) Login real no Supabase Auth
@@ -2354,27 +2016,17 @@ function App() {
                     const accessToken = signInData?.session?.access_token;
 
                     // 2) Buscar o registro correspondente em profiles_auth pelo auth_id
-                    let authProfile = null;
-                    try {
-                      const { data: authProfileData, error: authProfileError } = await client
-                        .from('profiles_auth')
-                        .select('id, name, role, auth_id, email')
-                        .eq('auth_id', authUser.id)
-                        .single();
+                    const { data: authProfile, error: authProfileError } = await client
+                      .from('profiles_auth')
+                      .select('id, name, role, auth_id, email')
+                      .eq('auth_id', authUser.id)
+                      .single();
 
-                      console.log('authProfile:', authProfileData);
-                      console.log('authProfileError:', authProfileError);
+                    console.log('authProfile:', authProfile);
+                    console.log('authProfileError:', authProfileError);
 
-                      if (authProfileError || !authProfileData) {
-                        throw new Error('Perfil de autenticação não encontrado em profiles_auth.');
-                      }
-
-                      authProfile = authProfileData;
-                    } catch (profileErr) {
-                      console.error('Erro ao carregar perfil de autenticação', profileErr);
-                      setLoginError(profileErr.message || 'Erro ao carregar perfil de autenticação.');
-                      setLoginLoading(false);
-                      return;
+                    if (authProfileError || !authProfile) {
+                      throw new Error('Perfil de autenticação não encontrado em profiles_auth.');
                     }
 
                     if (
@@ -2413,23 +2065,8 @@ function App() {
                       }),
                     );
 
-                    setSession({
-                      user: {
-                        id: authUser.id,
-                        profile_id: authProfile.id,
-                        name: authProfile.name,
-                        role: authProfile.role,
-                        email: loginForm.email,
-                      },
-                    });
-                    setProfile({
-                      id: authProfile.id || authUser.id,
-                      name: authProfile.name,
-                      role: authProfile.role,
-                    });
-
                     pushToast('Login realizado com sucesso!', 'success');
-                    navigate('/dashboard');
+                    window.location.reload();
                   } catch (err) {
                     console.error('Erro no login', err);
                     setLoginError(err.message || 'Erro ao fazer login.');
@@ -2450,7 +2087,7 @@ function App() {
     setSession(null);
     setProfile(null);
     setProfileDetails(null);
-    navigate(ROOT_PATH);
+    window.location.reload();
   }
 
   const handleApiForbidden = () => {
@@ -2483,12 +2120,13 @@ function App() {
 
                           setTransactions(newList);
                           persistLocalSnapshot({ transactions: newList });
+                          setTxForm(defaultTxForm);
 
                           // Se não tiver client ou sessão, para por aqui (modo offline)
                           if (!client || !session?.user?.id) {
                             console.warn('Sem client ou sessão – salvando só localmente.');
                             pushToast('Transação salva localmente. Configure o Supabase para sincronizar.', 'warning');
-                            return true;
+                            return;
                           }
 
                           try {
@@ -2515,19 +2153,9 @@ function App() {
 
                             // Recarrega dados remotos para garantir que estado = banco
                             await loadRemoteData();
-                            return true;
                           } catch (err) {
                             console.warn('Falha ao sincronizar transação com Supabase, usando apenas local.', err);
                             pushToast('Transação salva localmente. Configure o Supabase para sincronizar.', 'warning');
-                            return true;
-                          }
-                        };
-
-                        const handleWizardSaveTransaction = async () => {
-                          const saved = await handleSaveTransaction();
-                          if (saved) {
-                            closeTransactionWizard();
-                            setActiveTab('form');
                           }
                         };
 
@@ -2550,42 +2178,15 @@ function App() {
   };
 
   const handleSaveEvent = async () => {
-    const normalizedTitle = String(eventForm.title || '').trim();
-    const normalizedNotes = String(eventForm.notes || '').trim();
-
-    if (!normalizedTitle || !eventForm.date || !normalizedNotes) {
-      pushToast('Título, data e observações são obrigatórios para salvar o evento.', 'warning');
-      return false;
-    }
-
-    const payload = {
-      ...eventForm,
-      id: eventForm.id || randomId(),
-      user_id: session?.user?.id,
-      title: normalizedTitle,
-      notes: normalizedNotes,
-      start: eventForm.start || null,
-      end: eventForm.end || null,
-      status: eventForm.status || 'pending',
-    };
+    const payload = { ...eventForm, id: eventForm.id || randomId(), user_id: session?.user?.id };
     const newList = eventForm.id
       ? events.map((ev) => (ev.id === eventForm.id ? payload : ev))
       : [payload, ...events];
     setEvents(newList);
     persistLocalSnapshot({ events: newList });
-
+    setEventForm(defaultEventForm);
     try {
-      if (client) {
-        const { data: sessionData } = await client.auth.getSession();
-        const activeSession = sessionData?.session;
-
-        if (!activeSession) {
-          pushToast('Sessão expirada. Faça login novamente.', 'danger');
-          await client.auth.signOut();
-          window.location.reload();
-          return false;
-        }
-
+      if (client && session) {
         const { error } = await client.from('events').upsert({
           id: payload.id,
           title: payload.title,
@@ -2593,19 +2194,15 @@ function App() {
           start: payload.start,
           end: payload.end,
           notes: payload.notes,
-          user_id: activeSession.user.id,
-          status: payload.status
+          user_id: session.user.id
         });
         if (error) throw error;
       }
-      pushToast('Evento salvo com sucesso.', 'success');
+      pushToast('Evento salvo!', 'success');
       loadRemoteData();
-      return true;
     } catch (err) {
-      if (await handleInvalidRefreshToken(err)) return false;
-      console.error('Erro ao salvar evento:', err);
-      pushToast('Sem conexão no momento. O evento será salvo temporariamente.', 'warning');
-      return true;
+      console.warn('Falha ao sincronizar evento', err);
+      pushToast('Evento salvo localmente. Configure o Supabase para sincronizar.', 'warning');
     }
   };
 
@@ -2625,148 +2222,10 @@ function App() {
     }
   };
 
-  const scrollToRef = (ref) => {
-    if (!ref?.current) return;
-    ref.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  };
-
-  const openTransactionWizard = ({ mode, data } = {}) => {
-    const wizardMode = mode === 'edit' ? 'edit' : 'create';
-    setTxWizardMode(wizardMode);
-    setTxForm(wizardMode === 'edit' && data ? data : defaultTxForm);
-    setTxWizardOpen(true);
-  };
-
-  const closeTransactionWizard = () => {
-    setTxWizardOpen(false);
-    setTxWizardMode('create');
-    setTxForm(defaultTxForm);
-  };
-
-  const openEventWizard = ({ mode, data } = {}) => {
-    const wizardMode = mode === 'edit' ? 'edit' : 'create';
-    setEventWizardMode(wizardMode);
-    setEventForm(wizardMode === 'edit' && data ? data : defaultEventForm);
-    setEventWizardOpen(true);
-  };
-
-  const closeEventWizard = () => {
-    setEventWizardOpen(false);
-    setEventWizardMode('create');
-    setEventForm(defaultEventForm);
-  };
-
-  const handleWizardSaveEvent = async () => {
-    const saved = await handleSaveEvent();
-    if (saved !== false) {
-      closeEventWizard();
-    }
-  };
-
-  const openUserWizard = ({ mode, data } = {}) => {
-    const wizardMode = mode === 'edit' ? 'edit' : 'create';
-    setUserWizardMode(wizardMode);
-    if (wizardMode === 'edit' && data) {
-      setEditingUserId(data.auth_id || data.id);
-      setEditingUserOriginal(data);
-      setUserForm({
-        name: data.name,
-        username: data.username,
-        whatsapp: data.whatsapp,
-        role: data.role,
-        password: '',
-        affiliateCode: data.affiliate_code || '',
-        applyTrial: false
-      });
-    } else {
-      setEditingUserId(null);
-      setEditingUserOriginal(null);
-      setUserForm(defaultUserForm);
-    }
-    setUserWizardOpen(true);
-  };
-
-  const closeUserWizard = () => {
-    setUserWizardOpen(false);
-    setUserWizardMode('create');
-    setUserForm(defaultUserForm);
-    setEditingUserId(null);
-    setEditingUserOriginal(null);
-  };
-
-  const handleWizardSaveUser = async () => {
-    const saved = await handleSaveUser();
-    if (saved) {
-      closeUserWizard();
-    }
-  };
-
-  const openAffiliateWizard = () => {
-    setAffiliateWizardMode('create');
-    setAffiliateForm(defaultAffiliateForm);
-    setAffiliateWizardOpen(true);
-  };
-
-  const closeAffiliateWizard = () => {
-    setAffiliateWizardOpen(false);
-    setAffiliateWizardMode('create');
-    setAffiliateForm(defaultAffiliateForm);
-  };
-
-  const handleWizardSaveAffiliate = async () => {
-    const saved = await handleSaveAffiliate();
-    if (saved) {
-      closeAffiliateWizard();
-    }
-  };
-
-  const handleFabTransaction = () => {
-    navigate(getPathForView('transactions'));
-    setActiveTab('form');
-    setTimeout(() => {
-      scrollToRef(transactionFormRef);
-      openTransactionWizard({ mode: 'create' });
-    }, 50);
-  };
-
-  const handleFabEvent = () => {
-    navigate(getPathForView('agenda'));
-    setTimeout(() => {
-      scrollToRef(agendaRef);
-      openEventWizard({ mode: 'create' });
-    }, 50);
-  };
-
-  const handleNewUser = () => {
-    navigate(getPathForView('users'));
-    setTimeout(() => {
-      scrollToRef(adminUsersRef);
-      openUserWizard({ mode: 'create' });
-    }, 50);
-  };
-
-  const handleNewAffiliate = () => {
-    navigate(getPathForView('affiliates'));
-    setTimeout(() => {
-      scrollToRef(adminAffiliatesRef);
-      openAffiliateWizard();
-    }, 50);
-  };
-
-  const handleNewWorkout = () => {
-    navigate(getPathForView('workout'));
-    setTimeout(() => workoutRef.current?.focusNewTemplate?.(), 50);
-  };
-
-  const handleNewMeal = () => {
-    navigate(getPathForView('foodDiary'));
-    setTimeout(() => foodDiaryRef.current?.focusNewMeal?.(), 50);
-  };
-
   const handleSaveUser = async () => {
     if (!client || profile?.role !== 'admin') {
       pushToast('Somente administradores podem gerenciar usuários.', 'warning');
-      return false;
+      return;
     }
     try {
       const hasPassword = typeof userForm.password === 'string' && userForm.password.trim().length >= 4;
@@ -2777,12 +2236,12 @@ function App() {
 
         if (!accessToken) {
           pushToast('Sessão expirada. Faça login novamente.', 'warning');
-          return false;
+          return;
         }
 
         if (!workoutApiBase || !/^https?:\/\//i.test(workoutApiBase)) {
           pushToast('Backend não configurado. Não é possível alterar e-mail/senha sem o backend.', 'warning');
-          return false;
+          return;
         }
 
         const bodyPayload = {
@@ -2808,7 +2267,7 @@ function App() {
         const body = await response.json().catch(() => ({}));
         if (response.status === 403) {
           handleApiForbidden();
-          return false;
+          return;
         }
         if (!response.ok) {
           throw new Error(body.error || 'Erro ao atualizar usuário/senha.');
@@ -2819,7 +2278,7 @@ function App() {
             'API do backend não configurada. Verifique a variável do seu .env existente (ex.: VITE_API_BASE_URL) e faça rebuild/deploy do front.',
             'danger'
           );
-          return false;
+          return;
         }
 
         // Criar usuário via backend
@@ -2848,7 +2307,7 @@ function App() {
         const body = await response.json();
         if (response.status === 403) {
           handleApiForbidden();
-          return false;
+          return;
         }
         if (!response.ok) {
           throw new Error(body.error || 'Erro ao criar usuário.');
@@ -2859,11 +2318,9 @@ function App() {
       setEditingUserId(null);
       setEditingUserOriginal(null);
       loadRemoteData();
-      return true;
     } catch (err) {
       console.warn('Erro ao salvar usuário', err);
       pushToast(`Não foi possível salvar o usuário: ${err?.message || 'erro desconhecido'}`, 'danger');
-      return false;
     }
   };
 
@@ -3104,24 +2561,24 @@ function App() {
   const handleSaveAffiliate = async () => {
     if (!client || profile?.role !== 'admin') {
       pushToast('Somente administradores podem criar afiliados.', 'warning');
-      return false;
+      return;
     }
 
     if (!workoutApiBase || !/^https?:\/\//i.test(workoutApiBase)) {
       pushToast('Backend não configurado para afiliados.', 'warning');
-      return false;
+      return;
     }
 
     if (!affiliateForm.code.trim() || !affiliateForm.name.trim()) {
       pushToast('Informe código e nome do afiliado.', 'warning');
-      return false;
+      return;
     }
 
     try {
       const accessToken = await getAccessToken();
       if (!accessToken) {
         pushToast('Sessão expirada. Faça login novamente.', 'warning');
-        return false;
+        return;
       }
 
       const payload = {
@@ -3146,7 +2603,7 @@ function App() {
 
       if (response.status === 403) {
         handleApiForbidden();
-        return false;
+        return;
       }
 
       if (!response.ok) {
@@ -3154,13 +2611,17 @@ function App() {
       }
 
       pushToast('Afiliado criado.', 'success');
-      setAffiliateForm(defaultAffiliateForm);
+      setAffiliateForm({
+        code: '',
+        name: '',
+        whatsapp: '',
+        email: '',
+        pix_key: '',
+      });
       loadAffiliates();
-      return true;
     } catch (err) {
       console.warn('Erro ao salvar afiliado', err);
       pushToast(err?.message || 'Erro ao salvar afiliado.', 'danger');
-      return false;
     }
   };
 
@@ -3279,78 +2740,137 @@ function App() {
     }
   };
 
-  const mobileActionButtons = (() => {
-    if (activeView === 'transactions') {
-      return [{ label: 'Nova Transação', onClick: handleFabTransaction }];
-    }
-    if (activeView === 'agenda') {
-      return [{ label: 'Novo Evento', onClick: handleFabEvent }];
-    }
-    if (activeView === 'users' && isAdmin) {
-      return [{ label: 'Novo Usuário', onClick: handleNewUser }];
-    }
-    if (activeView === 'affiliates' && isAdmin) {
-      return [{ label: 'Novo Afiliado', onClick: handleNewAffiliate }];
-    }
-    if (activeView === 'workout') {
-      return [{ label: 'Novo Treino', onClick: handleNewWorkout }];
-    }
-    if (activeView === 'foodDiary') {
-      return [{ label: 'Nova Refeição', onClick: handleNewMeal }];
-    }
-    return [];
-  })();
+  const renderAgenda = () => (
+    <aside className="card">
+      <h2 className="title">Agenda</h2>
 
-  if (loadingSession) {
-    return (
-      <LoginLayout toast={toast} onToastClose={() => setToast(null)}>
-        <div className="login-screen">
-          <div className="login-card">
-            <p className="muted">Validando sessão...</p>
-          </div>
+      <div className="grid grid-2" style={{ marginBottom: 8 }}>
+        <div>
+          <label>Título</label>
+          <input value={eventForm.title} onChange={(e) => setEventForm({ ...eventForm, title: e.target.value })} placeholder="Reunião, Médico, etc." />
         </div>
-      </LoginLayout>
-    );
-  }
+        <div>
+          <label>Data</label>
+          <input type="date" value={eventForm.date} onChange={(e) => setEventForm({ ...eventForm, date: e.target.value })} />
+        </div>
+      </div>
+      <div className="grid grid-2">
+        <div>
+          <label>Início</label>
+          <input type="time" value={eventForm.start} onChange={(e) => setEventForm({ ...eventForm, start: e.target.value })} />
+        </div>
+        <div>
+          <label>Fim</label>
+          <input type="time" value={eventForm.end} onChange={(e) => setEventForm({ ...eventForm, end: e.target.value })} />
+        </div>
+      </div>
+      <div style={{ marginTop: 8 }}>
+        <label>Notas</label>
+        <textarea value={eventForm.notes} onChange={(e) => setEventForm({ ...eventForm, notes: e.target.value })} placeholder="Observações do evento..."></textarea>
+      </div>
+      <div className="row" style={{ justifyContent: 'flex-end', marginTop: 8 }}>
+        <button className="primary" onClick={handleSaveEvent}>{eventForm.id ? 'Atualizar' : 'Adicionar Evento'}</button>
+        <button className="ghost" onClick={() => setEventForm(defaultEventForm)}>Limpar</button>
+      </div>
+
+      <div className="sep"></div>
+
+      <div className="row">
+        <div style={{ flex: 1 }}>
+          <label>De</label>
+          <input type="date" value={eventFilters.from} onChange={(e) => setEventFilters({ ...eventFilters, from: e.target.value })} />
+        </div>
+        <div style={{ flex: 1 }}>
+          <label>Até</label>
+          <input type="date" value={eventFilters.to} onChange={(e) => setEventFilters({ ...eventFilters, to: e.target.value })} />
+        </div>
+        <div style={{ flex: 1 }}>
+          <label>Busca</label>
+          <input value={eventFilters.search} onChange={(e) => setEventFilters({ ...eventFilters, search: e.target.value })} placeholder="título/notas" />
+        </div>
+        <div style={{ alignSelf: 'flex-end' }}>
+          <button onClick={loadRemoteData} disabled={loadingData}>
+            {loadingData ? 'Sincronizando...' : 'Filtrar'}
+          </button>
+        </div>
+      </div>
+
+      <div className="sep"></div>
+
+      <EventsTable
+        items={filteredEvents}
+        onEdit={(ev) => setEventForm(ev)}
+        onDelete={handleDeleteEvent}
+      />
+    </aside>
+  );
 
   if (!session) {
     return (
-      <LoginLayout toast={toast} onToastClose={() => setToast(null)}>
+      <>
+        <Toast toast={toast} onClose={() => setToast(null)} />
         <LoginScreen
           form={loginForm}
           onChange={setLoginForm}
           onSubmit={handleLogin}
-          loading={loginLoading}
+          loading={loginLoading || loadingSession}
           error={loginError}
           configError={configError}
         />
-      </LoginLayout>
+      </>
     );
   }
 
   return (
-    <div className="app-shell">
+    <>
       <Toast toast={toast} onClose={() => setToast(null)} />
       <DashboardHeader apiUrl={window.APP_CONFIG?.supabaseUrl} profile={profile} onLogout={handleLogout} />
       <div className="page-nav tabs">
-        {viewTabs
-          .filter((tab) => !tab.adminOnly || isAdmin)
-          .map((tab) => (
+        <button
+          className={activeView === 'transactions' ? 'tab active' : 'tab'}
+          onClick={() => setActiveView('transactions')}
+        >
+          Transações
+        </button>
+        {isAdmin && (
+          <>
             <button
-              key={tab.key}
-              className={activeView === tab.key ? 'tab active' : 'tab'}
-              onClick={() => navigate(getPathForView(tab.key))}
+              className={activeView === 'users' ? 'tab active' : 'tab'}
+              onClick={() => setActiveView('users')}
             >
-              <span className="tab-emoji" aria-hidden="true">
-                {tab.emoji}
-              </span>
-              <span className="tab-label">{tab.label}</span>
+              Cadastro de Usuários
             </button>
-          ))}
+            <button
+              className={activeView === 'affiliates' ? 'tab active' : 'tab'}
+              onClick={() => setActiveView('affiliates')}
+            >
+              Afiliados
+            </button>
+          </>
+        )}
+        <button
+          className={activeView === 'workout' ? 'tab active' : 'tab'}
+          onClick={() => setActiveView('workout')}
+        >
+          Rotina de Treino
+        </button>
+
+        <button
+          className={activeView === 'foodDiary' ? 'tab active' : 'tab'}
+          onClick={() => setActiveView('foodDiary')}
+        >
+          Diário alimentar
+        </button>
+        <button
+          className={activeView === 'generalReport' ? 'tab active' : 'tab'}
+          onClick={() => setActiveView('generalReport')}
+        >
+          Relatório Geral
+        </button>
       </div>
 
       {activeView === 'transactions' && (
-        <div className={activeTab === 'reports' ? 'container single-card standard-layout' : 'container standard-layout'}>
+        <div className={activeTab === 'reports' ? 'container single-card' : 'container'}>
           <section className="card dashboard-card">
           <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
             <h2 className="title">Transações</h2>
@@ -3365,32 +2885,50 @@ function App() {
           </div>
 
           {activeTab === 'form' && (
-            <div id="tab-form" ref={transactionFormRef}>
-              <div className="row transaction-wizard-trigger">
-                <div>
-                  <p className="muted">Use o passo a passo para criar ou editar uma transação sem perder nenhum detalhe.</p>
+            <div id="tab-form">
+              <div className="row">
+                <div style={{ flex: 1 }}>
+                  <label>Tipo</label>
+                  <select value={txForm.type} onChange={(e) => setTxForm({ ...txForm, type: e.target.value })}>
+                    <option value="income">Receita</option>
+                    <option value="expense">Despesa</option>
+                  </select>
                 </div>
-                <div>
-                  <button className="primary" onClick={() => openTransactionWizard({ mode: 'create' })}>
-                    Nova Transação
-                  </button>
+                <div style={{ flex: 1 }}>
+                  <label>Valor (use ponto para decimais)</label>
+                  <input type="number" step="0.01" value={txForm.amount} onChange={(e) => setTxForm({ ...txForm, amount: e.target.value })} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label>Data</label>
+                  <input type="date" value={txForm.date} onChange={(e) => setTxForm({ ...txForm, date: e.target.value })} />
                 </div>
               </div>
-
-              {txWizardOpen && (
-                <TransactionWizard
-                  isOpen={txWizardOpen}
-                  mode={txWizardMode}
-                  initialData={txWizardMode === 'edit' ? txForm : null}
-                  formData={txForm}
-                  onChange={setTxForm}
-                  onClose={closeTransactionWizard}
-                  onSave={handleWizardSaveTransaction}
-                  onReset={() => setTxForm(defaultTxForm)}
-                  categories={txCategories}
-                  hasLegacyCategory={hasLegacyCategory}
-                />
-              )}
+              <div className="row">
+                <div style={{ flex: 2 }}>
+                  <label>Descrição</label>
+                  <input value={txForm.description} onChange={(e) => setTxForm({ ...txForm, description: e.target.value })} placeholder="Ex.: Venda no Pix" />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label>Categoria</label>
+                  <select value={txForm.category} onChange={(e) => setTxForm({ ...txForm, category: e.target.value })}>
+                    {hasLegacyCategory && (
+                      <option value={txForm.category}>Categoria atual: {txForm.category}</option>
+                    )}
+                    <option value="">Selecione</option>
+                    {txCategories.map((category) => (
+                      <option key={category} value={category}>
+                        {category}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div className="row" style={{ justifyContent: 'flex-end', marginTop: 8 }}>
+                <button className="primary" onClick={handleSaveTransaction}>
+                  {txForm.id ? 'Atualizar' : 'Adicionar'}
+                </button>
+                <button className="ghost" onClick={() => setTxForm(defaultTxForm)}>Limpar</button>
+              </div>
 
               <div className="sep"></div>
 
@@ -3430,7 +2968,7 @@ function App() {
 
               <TransactionsTable
                 items={filteredTransactions}
-                onEdit={(tx) => openTransactionWizard({ mode: 'edit', data: tx })}
+                onEdit={(tx) => setTxForm(tx)}
                 onDelete={handleDeleteTransaction}
               />
             </div>
@@ -3438,35 +2976,14 @@ function App() {
 
           {activeTab === 'reports' && <Reports transactions={filteredTransactions} />}
         </section>
-        </div>
-      )}
+        {activeTab === 'form' && renderAgenda()}
 
-      {activeView === 'agenda' && (
-        <div className="container single-card standard-layout">
-          <AgendaView
-            agendaRef={agendaRef}
-            eventForm={eventForm}
-            setEventForm={setEventForm}
-            defaultEventForm={defaultEventForm}
-            filteredEvents={filteredEvents}
-            handleDeleteEvent={handleDeleteEvent}
-            formatDate={formatDate}
-            formatTimeRange={formatTimeRange}
-            eventWizardOpen={eventWizardOpen}
-            eventWizardMode={eventWizardMode}
-            onOpenEventWizard={openEventWizard}
-            onCloseEventWizard={closeEventWizard}
-            onSaveEventWizard={handleWizardSaveEvent}
-            onResetEventWizard={() => setEventForm(defaultEventForm)}
-            supabase={client}
-            userId={session?.user?.id}
-          />
         </div>
       )}
 
       {activeView === 'users' && isAdmin && (
-        <div className="container single-card admin-users-container standard-layout">
-          <section className="card admin-card" id="adminUsersSection" ref={adminUsersRef}>
+        <div className="container single-card admin-users-container">
+          <section className="card admin-card" id="adminUsersSection">
             <h2 className="title">Cadastro de Usuários</h2>
             <p className="muted">Somente administradores podem acessar esta área.</p>
 
@@ -3536,179 +3053,84 @@ function App() {
               )}
             </div>
 
-            <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center', marginTop: 12 }}>
-              <p className="muted" style={{ margin: 0 }}>Use o fluxo guiado para criar ou editar usuários.</p>
-              <button className="primary" onClick={() => openUserWizard({ mode: 'create' })}>
-                Novo usuário
-              </button>
+            <div className="grid grid-2 admin-user-form">
+              <div>
+                <label>Nome</label>
+                <input value={userForm.name} onChange={(e) => setUserForm({ ...userForm, name: e.target.value })} placeholder="Nome completo (opcional)" />
+              </div>
+              <div>
+                <label>Usuário</label>
+                <input value={userForm.username} onChange={(e) => setUserForm({ ...userForm, username: e.target.value })} placeholder="ex.: joaosilva" />
+              </div>
+              <div>
+                <label>Senha inicial</label>
+                <input type="password" value={userForm.password} onChange={(e) => setUserForm({ ...userForm, password: e.target.value })} placeholder="Mínimo de 4 caracteres" />
+              </div>
+              <div>
+                <label>WhatsApp</label>
+                <input value={userForm.whatsapp} onChange={(e) => setUserForm({ ...userForm, whatsapp: e.target.value })} placeholder="+5511999999999" />
+              </div>
+              {!editingUserId && (
+                <div>
+                  <label>Criado em</label>
+                  <input
+                    type="date"
+                    value={today}
+                    readOnly
+                    disabled
+                  />
+                </div>
+              )}
+              <div>
+                <label>Perfil</label>
+                <select value={userForm.role} onChange={(e) => setUserForm({ ...userForm, role: e.target.value })}>
+                  <option value="user">Usuário</option>
+                  <option value="admin">Admin</option>
+                </select>
+              </div>
+              <div>
+                <label>Código do afiliado (opcional)</label>
+                <input
+                  value={userForm.affiliateCode}
+                  onChange={(e) => setUserForm({ ...userForm, affiliateCode: e.target.value })}
+                  placeholder="ex: AFI-001"
+                />
+              </div>
+              {!editingUserId && (
+                <div className="checkbox-row">
+                  <label className="checkbox-label">
+                    <input
+                      type="checkbox"
+                      checked={userForm.applyTrial}
+                      onChange={(e) => setUserForm({ ...userForm, applyTrial: e.target.checked })}
+                    />
+                    <span>Aplicar 7 dias grátis</span>
+                  </label>
+                </div>
+              )}
+              <div className="admin-user-actions">
+                <button className="primary" onClick={handleSaveUser}>
+                  {editingUserId ? 'Salvar alterações' : 'Adicionar usuário'}
+                </button>
+                <button className="ghost" onClick={() => { setUserForm(defaultUserForm); setEditingUserId(null); setEditingUserOriginal(null); }}>Limpar</button>
+              </div>
             </div>
-
-            {userWizardOpen && (
-              <GenericWizard
-                isOpen={userWizardOpen}
-                mode={userWizardMode}
-                title={userWizardMode === 'edit' ? 'Editar usuário' : 'Novo usuário'}
-                subtitle="Preencha os dados do usuário em etapas."
-                steps={[
-                  { id: 1, label: 'Dados principais' },
-                  { id: 2, label: 'Contato / acesso' },
-                  { id: 3, label: 'Confirmação' },
-                ]}
-                validateStep={(step) => {
-                  if (step === 1) {
-                    if (!userForm.username.trim()) {
-                      return { valid: false, message: 'Informe o usuário para continuar.' };
-                    }
-                    if (!userForm.role) {
-                      return { valid: false, message: 'Selecione o perfil para continuar.' };
-                    }
-                  }
-                  if (step === 2 && !editingUserId) {
-                    if (!userForm.password || userForm.password.trim().length < 4) {
-                      return { valid: false, message: 'Informe uma senha com pelo menos 4 caracteres.' };
-                    }
-                  }
-                  if (step === 2 && editingUserId && userForm.password) {
-                    if (userForm.password.trim().length < 4) {
-                      return { valid: false, message: 'A senha precisa ter pelo menos 4 caracteres.' };
-                    }
-                  }
-                  return { valid: true, message: '' };
-                }}
-                onClose={closeUserWizard}
-                onSave={handleWizardSaveUser}
-                onReset={() => {
-                  setUserForm(defaultUserForm);
-                  setEditingUserId(null);
-                  setEditingUserOriginal(null);
-                }}
-                saveLabel={userWizardMode === 'edit' ? 'Atualizar' : 'Salvar'}
-              >
-                {(step) => (
-                  <>
-                    {step === 1 && (
-                      <div className="transaction-wizard-panel">
-                        <div className="transaction-wizard-grid">
-                          <div>
-                            <label>Nome</label>
-                            <input
-                              value={userForm.name}
-                              onChange={(e) => setUserForm({ ...userForm, name: e.target.value })}
-                              placeholder="Nome completo (opcional)"
-                            />
-                          </div>
-                          <div>
-                            <label>Usuário</label>
-                            <input
-                              value={userForm.username}
-                              onChange={(e) => setUserForm({ ...userForm, username: e.target.value })}
-                              placeholder="ex.: joaosilva"
-                            />
-                          </div>
-                        </div>
-                        <div>
-                          <label>Perfil</label>
-                          <select
-                            value={userForm.role}
-                            onChange={(e) => setUserForm({ ...userForm, role: e.target.value })}
-                          >
-                            <option value="">Selecione</option>
-                            <option value="user">Usuário</option>
-                            <option value="admin">Admin</option>
-                          </select>
-                        </div>
-                      </div>
-                    )}
-                    {step === 2 && (
-                      <div className="transaction-wizard-panel">
-                        <div className="transaction-wizard-grid">
-                          <div>
-                            <label>Senha inicial</label>
-                            <input
-                              type="password"
-                              value={userForm.password}
-                              onChange={(e) => setUserForm({ ...userForm, password: e.target.value })}
-                              placeholder="Mínimo de 4 caracteres"
-                            />
-                          </div>
-                          <div>
-                            <label>WhatsApp</label>
-                            <input
-                              value={userForm.whatsapp}
-                              onChange={(e) => setUserForm({ ...userForm, whatsapp: e.target.value })}
-                              placeholder="+5511999999999"
-                            />
-                          </div>
-                          <div>
-                            <label>Código do afiliado (opcional)</label>
-                            <input
-                              value={userForm.affiliateCode}
-                              onChange={(e) => setUserForm({ ...userForm, affiliateCode: e.target.value })}
-                              placeholder="ex: AFI-001"
-                            />
-                          </div>
-                          {!editingUserId && (
-                            <div>
-                              <label>Criado em</label>
-                              <input type="date" value={today} readOnly disabled />
-                            </div>
-                          )}
-                        </div>
-                        {!editingUserId && (
-                          <div className="checkbox-row">
-                            <label className="checkbox-label">
-                              <input
-                                type="checkbox"
-                                checked={userForm.applyTrial}
-                                onChange={(e) => setUserForm({ ...userForm, applyTrial: e.target.checked })}
-                              />
-                              <span>Aplicar 7 dias grátis</span>
-                            </label>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                    {step === 3 && (
-                      <div className="transaction-wizard-panel">
-                        <p className="muted">Confira os dados antes de salvar.</p>
-                        <div className="transaction-wizard-grid">
-                          <div>
-                            <label>Nome</label>
-                            <strong>{userForm.name || '—'}</strong>
-                          </div>
-                          <div>
-                            <label>Usuário</label>
-                            <strong>{userForm.username || '—'}</strong>
-                          </div>
-                          <div>
-                            <label>WhatsApp</label>
-                            <strong>{userForm.whatsapp || '—'}</strong>
-                          </div>
-                          <div>
-                            <label>Perfil</label>
-                            <strong>{userForm.role === 'admin' ? 'Admin' : 'Usuário'}</strong>
-                          </div>
-                          <div>
-                            <label>Afiliado</label>
-                            <strong>{userForm.affiliateCode || '—'}</strong>
-                          </div>
-                          {!editingUserId && (
-                            <div>
-                              <label>Trial grátis</label>
-                              <strong>{userForm.applyTrial ? 'Sim' : 'Não'}</strong>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </>
-                )}
-              </GenericWizard>
-            )}
 
             <UsersTable
               items={users.map((user) => ({ ...user, _editing: (user.auth_id || user.id) === editingUserId }))}
-              onEdit={(user) => openUserWizard({ mode: 'edit', data: user })}
+              onEdit={(user) => {
+                setEditingUserId(user.auth_id || user.id);
+                setEditingUserOriginal(user);
+                setUserForm({
+                  name: user.name,
+                  username: user.username,
+                  whatsapp: user.whatsapp,
+                  role: user.role,
+                  password: '',
+                  affiliateCode: user.affiliate_code || '',
+                  applyTrial: false
+                });
+              }}
               onDelete={handleDeleteUser}
               onBillingAction={handleBillingAction}
             />
@@ -3717,136 +3139,70 @@ function App() {
       )}
 
       {activeView === 'affiliates' && isAdmin && (
-        <div className="container single-card standard-layout">
-            <section className="card admin-card" id="adminAffiliatesSection" ref={adminAffiliatesRef}>
+        <div className="container single-card">
+          <section className="card admin-card" id="adminAffiliatesSection">
             <h2 className="title">Afiliados</h2>
             <p className="muted">Gerencie parceiros e visualize seus clientes.</p>
 
-            <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center', marginTop: 12 }}>
-              <p className="muted" style={{ margin: 0 }}>Cadastre novos afiliados em etapas.</p>
-              <button className="primary" onClick={openAffiliateWizard}>
-                Novo afiliado
-              </button>
+            <div className="grid grid-2 admin-user-form">
+              <div>
+                <label>Código</label>
+                <input
+                  value={affiliateForm.code}
+                  onChange={(e) => setAffiliateForm({ ...affiliateForm, code: e.target.value })}
+                  placeholder="AFI-001"
+                />
+              </div>
+              <div>
+                <label>Nome</label>
+                <input
+                  value={affiliateForm.name}
+                  onChange={(e) => setAffiliateForm({ ...affiliateForm, name: e.target.value })}
+                  placeholder="Nome do afiliado"
+                />
+              </div>
+              <div>
+                <label>WhatsApp</label>
+                <input
+                  value={affiliateForm.whatsapp}
+                  onChange={(e) => setAffiliateForm({ ...affiliateForm, whatsapp: e.target.value })}
+                  placeholder="+5511999999999"
+                />
+              </div>
+              <div>
+                <label>E-mail</label>
+                <input
+                  value={affiliateForm.email}
+                  onChange={(e) => setAffiliateForm({ ...affiliateForm, email: e.target.value })}
+                  placeholder="contato@exemplo.com"
+                />
+              </div>
+              <div>
+                <label>Chave PIX</label>
+                <input
+                  value={affiliateForm.pix_key}
+                  onChange={(e) => setAffiliateForm({ ...affiliateForm, pix_key: e.target.value })}
+                  placeholder="CPF, e-mail ou aleatória"
+                />
+              </div>
+              <div className="admin-user-actions">
+                <button className="primary" onClick={handleSaveAffiliate}>Criar afiliado</button>
+                <button
+                  className="ghost"
+                  onClick={() =>
+                    setAffiliateForm({
+                      code: '',
+                      name: '',
+                      whatsapp: '',
+                      email: '',
+                      pix_key: '',
+                    })
+                  }
+                >
+                  Limpar
+                </button>
+              </div>
             </div>
-
-            {affiliateWizardOpen && (
-              <GenericWizard
-                isOpen={affiliateWizardOpen}
-                mode={affiliateWizardMode}
-                title="Novo afiliado"
-                subtitle="Complete os dados do afiliado passo a passo."
-                steps={[
-                  { id: 1, label: 'Dados do afiliado' },
-                  { id: 2, label: 'Configurações' },
-                  { id: 3, label: 'Confirmação' },
-                ]}
-                validateStep={(step) => {
-                  if (step === 1) {
-                    if (!affiliateForm.code.trim()) {
-                      return { valid: false, message: 'Informe o código do afiliado para continuar.' };
-                    }
-                    if (!affiliateForm.name.trim()) {
-                      return { valid: false, message: 'Informe o nome do afiliado para continuar.' };
-                    }
-                  }
-                  if (step === 2) {
-                    const hasContact = Boolean(affiliateForm.whatsapp.trim() || affiliateForm.email.trim());
-                    if (!hasContact) {
-                      return { valid: false, message: 'Informe o WhatsApp ou e-mail para continuar.' };
-                    }
-                  }
-                  return { valid: true, message: '' };
-                }}
-                onClose={closeAffiliateWizard}
-                onSave={handleWizardSaveAffiliate}
-                onReset={() => setAffiliateForm(defaultAffiliateForm)}
-                saveLabel="Salvar"
-              >
-                {(step) => (
-                  <>
-                    {step === 1 && (
-                      <div className="transaction-wizard-panel">
-                        <div className="transaction-wizard-grid">
-                          <div>
-                            <label>Código</label>
-                            <input
-                              value={affiliateForm.code}
-                              onChange={(e) => setAffiliateForm({ ...affiliateForm, code: e.target.value })}
-                              placeholder="AFI-001"
-                            />
-                          </div>
-                          <div>
-                            <label>Nome</label>
-                            <input
-                              value={affiliateForm.name}
-                              onChange={(e) => setAffiliateForm({ ...affiliateForm, name: e.target.value })}
-                              placeholder="Nome do afiliado"
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                    {step === 2 && (
-                      <div className="transaction-wizard-panel">
-                        <div className="transaction-wizard-grid">
-                          <div>
-                            <label>WhatsApp</label>
-                            <input
-                              value={affiliateForm.whatsapp}
-                              onChange={(e) => setAffiliateForm({ ...affiliateForm, whatsapp: e.target.value })}
-                              placeholder="+5511999999999"
-                            />
-                          </div>
-                          <div>
-                            <label>E-mail</label>
-                            <input
-                              value={affiliateForm.email}
-                              onChange={(e) => setAffiliateForm({ ...affiliateForm, email: e.target.value })}
-                              placeholder="contato@exemplo.com"
-                            />
-                          </div>
-                          <div>
-                            <label>Chave PIX</label>
-                            <input
-                              value={affiliateForm.pix_key}
-                              onChange={(e) => setAffiliateForm({ ...affiliateForm, pix_key: e.target.value })}
-                              placeholder="CPF, e-mail ou aleatória"
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                    {step === 3 && (
-                      <div className="transaction-wizard-panel">
-                        <p className="muted">Revise os dados antes de salvar.</p>
-                        <div className="transaction-wizard-grid">
-                          <div>
-                            <label>Código</label>
-                            <strong>{affiliateForm.code || '—'}</strong>
-                          </div>
-                          <div>
-                            <label>Nome</label>
-                            <strong>{affiliateForm.name || '—'}</strong>
-                          </div>
-                          <div>
-                            <label>WhatsApp</label>
-                            <strong>{affiliateForm.whatsapp || '—'}</strong>
-                          </div>
-                          <div>
-                            <label>E-mail</label>
-                            <strong>{affiliateForm.email || '—'}</strong>
-                          </div>
-                          <div>
-                            <label>Chave PIX</label>
-                            <strong>{affiliateForm.pix_key || '—'}</strong>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </>
-                )}
-              </GenericWizard>
-            )}
 
             <div className="users-table-container" style={{ marginTop: 12 }}>
               <table>
@@ -3893,67 +3249,6 @@ function App() {
                   ))}
                 </tbody>
               </table>
-              <div className="mobile-card-list" aria-live="polite">
-                {(affiliates || []).length === 0 && !affiliatesLoading && (
-                  <div className="mobile-card">
-                    <p className="muted">Nenhum afiliado cadastrado.</p>
-                  </div>
-                )}
-                {(affiliates || []).map((item) => (
-                  <div key={item.id} className="mobile-card">
-                    <div className="mobile-card-header">
-                      <div>
-                        <h4 className="mobile-card-title">{item.name}</h4>
-                        <p className="muted">Código: {item.code}</p>
-                      </div>
-                      <span className="badge">{item.is_active ? 'Ativo' : 'Inativo'}</span>
-                    </div>
-                    <div className="mobile-card-meta">
-                      <div>
-                        <span className="label">Clientes ativos</span>
-                        <span>{item.active_clients_count ?? item.active_users ?? 0}</span>
-                      </div>
-                      <div>
-                        <span className="label">Clientes inativos</span>
-                        <span>{item.inactive_clients_count ?? item.inactive_users ?? 0}</span>
-                      </div>
-                      <div>
-                        <span className="label">Pagamento</span>
-                        <span className={`badge ${item.payout_status === 'PAGO' ? 'badge-paid' : 'badge-payment-pending'}`}>
-                          {item.payout_status === 'PAGO' ? 'PAGO' : 'PENDENTE'}
-                        </span>
-                      </div>
-                      <div>
-                        <span className="label">Ref.</span>
-                        <span>{item.payout_ref || item.current_payout_label || '-'}</span>
-                      </div>
-                      <div>
-                        <span className="label">Comissão mês</span>
-                        <span>{formatCurrency((item.commission_month_cents || 0) / 100)}</span>
-                      </div>
-                      <div>
-                        <span className="label">Data</span>
-                        <span>{item.current_payout_period ? formatDate(item.current_payout_period) : '-'}</span>
-                      </div>
-                    </div>
-                    <div className="mobile-card-actions">
-                      <button className="ghost" onClick={() => handleViewAffiliateUsers(item)}>Ver clientes</button>
-                      <button
-                        className="ghost"
-                        onClick={() => handleMarkAffiliatePaid(item)}
-                        disabled={affiliatePayoutLoadingId === item.id}
-                      >
-                        {affiliatePayoutLoadingId === item.id ? 'Marcando...' : 'Marcar pago (mês atual)'}
-                      </button>
-                    </div>
-                  </div>
-                ))}
-                {affiliatesLoading && (
-                  <div className="mobile-card">
-                    <p className="muted">Carregando afiliados...</p>
-                  </div>
-                )}
-              </div>
               {affiliatesLoading && <p className="muted">Carregando afiliados...</p>}
               {!affiliatesLoading && !(affiliates || []).length && (
                 <p className="muted">Nenhum afiliado cadastrado.</p>
@@ -3964,18 +3259,17 @@ function App() {
       )}
 
       {activeView === 'workout' && (
-        <div className="container single-card standard-layout">
+        <div className="container single-card">
           <section className="card">
-            <WorkoutRoutine ref={workoutRef} apiBaseUrl={workoutApiBase} pushToast={pushToast} />
+            <WorkoutRoutine apiBaseUrl={workoutApiBase} pushToast={pushToast} />
           </section>
         </div>
       )}
 
       {activeView === 'foodDiary' && (
-        <div className="container single-card standard-layout">
+        <div className="container single-card">
           <section className="card">
             <FoodDiary
-              ref={foodDiaryRef}
               apiBaseUrl={workoutApiBase}
               supabase={client}
               notify={pushToast}
@@ -3987,7 +3281,7 @@ function App() {
       )}
 
       {activeView === 'generalReport' && (
-        <div className="container single-card standard-layout">
+        <div className="container single-card">
           <section className="card">
             <GeneralReport
               userId={session?.user?.id}
@@ -3998,8 +3292,6 @@ function App() {
           </section>
         </div>
       )}
-
-      <MobileActionButtons buttons={mobileActionButtons} />
 
       {selectedAffiliate && (
         <div
@@ -4055,31 +3347,6 @@ function App() {
                   </tbody>
                 </table>
               )}
-              {!affiliateUsersLoading && affiliateUsersList.length > 0 && (
-                <div className="mobile-card-list" aria-live="polite">
-                  {affiliateUsersComputed.map((user) => (
-                    <div key={user.id || user.auth_id} className="mobile-card">
-                      <div className="mobile-card-header">
-                        <div>
-                          <h4 className="mobile-card-title">{user.name || '-'}</h4>
-                          <p className="muted">{user.email || '-'}</p>
-                        </div>
-                        <span className="badge">{user.status === 'inactive' ? 'INATIVO' : 'ATIVO'}</span>
-                      </div>
-                      <div className="mobile-card-meta">
-                        <div>
-                          <span className="label">Valor</span>
-                          <span>{formatCurrency((user.is_active ? FIXED_COMMISSION_CENTS : 0) / 100)}</span>
-                        </div>
-                        <div>
-                          <span className="label">Data</span>
-                          <span>-</span>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
             </div>
             {!affiliateUsersLoading && affiliateUsersList.length > 0 && (
               <div className="affiliate-modal-total">
@@ -4090,7 +3357,7 @@ function App() {
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }
 

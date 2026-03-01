@@ -1,29 +1,14 @@
-import { createClient } from '@supabase/supabase-js';
+const { supabaseUrl, supabaseAnonKey, authSchema } = window.APP_CONFIG || {};
 
-function getSupabaseConfig() {
-  const cfg = window.APP_CONFIG || {};
-
-  const url =
-    cfg.supabaseUrl ||
-    import.meta.env.VITE_SUPABASE_URL ||
-    '';
-
-  const key =
-    cfg.supabaseAnonKey ||
-    import.meta.env.VITE_SUPABASE_ANON_KEY ||
-    '';
-
-  if (!url || !key) {
-    console.error('❌ Supabase config ausente no runtime:', {
-      windowConfig: cfg,
-      viteEnvUrl: import.meta.env.VITE_SUPABASE_URL,
-      viteEnvKey: import.meta.env.VITE_SUPABASE_ANON_KEY ? 'OK' : 'MISSING'
-    });
-  }
-
-  return { url, key };
+if (!window.supabase || !supabaseUrl || !supabaseAnonKey) {
+  throw new Error('Supabase não configurado corretamente.');
 }
 
-const { url, key } = getSupabaseConfig();
-
-export const supabase = createClient(url, key);
+export const supabase = window.supabase.createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    detectSessionInUrl: true,
+    persistSession: true,
+    storageKey: 'gp-react-session',
+    schema: authSchema || 'public',
+  },
+});

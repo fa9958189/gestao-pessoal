@@ -8,9 +8,11 @@ import { fileURLToPath } from "url";
 import multer from "multer";
 import { supabase } from "./supabase.js";
 import foodsRouter from "./routes/foods.js";
-import { sendWhatsAppMessage } from "./reminders.js";
+import {
+  sendWhatsAppMessage,
+  startMorningAgendaScheduler,
+} from "./reminders.js";
 import { startDailyGoalsReminder } from "./jobs/dailyGoalsReminder.js";
-import { startDailyRemindersScheduler } from "./jobs/dailyRemindersScheduler.js";
 import { analyzeFoodImage } from "./ai/foodScanner.js";
 import {
   createWorkoutSession,
@@ -37,7 +39,6 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 app.use("/api/foods", foodsRouter);
-app.use("/foods", foodsRouter);
 
 const BILLING_DEFAULT_DUE_DAY = 20;
 const AFFILIATE_COMMISSION_CENTS = 2000;
@@ -48,8 +49,7 @@ const getCurrentPeriodMonth = (today = new Date()) =>
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // Inicia o job de lembretes (agenda)
-// startMorningAgendaScheduler();
-startDailyRemindersScheduler();
+startMorningAgendaScheduler();
 startDailyGoalsReminder();
 
 app.get("/debug/zapi-test", async (req, res) => {
@@ -1774,64 +1774,6 @@ const waterStatePayload = (summary) => ({
   total_l: summary?.totalL ?? 0,
   goal_l: summary?.goalL ?? 0,
   last_entry_id: summary?.lastEntryId ?? null,
-});
-
-function normalizeTime(t) {
-  if (!t) return null;
-  if (typeof t === "string" && t.length === 5) return t + ":00";
-  return t;
-}
-
-app.post("/api/food-diary/entries", async (req, res) => {
-  try {
-    const authData = await authenticateRequest(req, res, { requireAdmin: false });
-    if (!authData) return;
-
-    req.user = { id: authData.userId };
-    const body = req.body || {};
-
-    // buscar o profile.id correto antes de inserir
-    const { data: profileRow, error: profileError } = await supabase
-      .from("profiles")
-      .select("id")
-      .eq("id", authData.userId) // usa o authData.userId para encontrar o profile
-      .maybeSingle();
-
-    if (profileError) {
-      console.error("Erro ao buscar profile:", profileError);
-      return res.status(500).json({ error: "Erro interno ao buscar perfil" });
-    }
-
-    if (!profileRow) {
-      return res.status(400).json({ error: "Perfil do usuário não encontrado" });
-    }
-
-    // monta o payload com profileRow.id
-    const payload = {
-      user_id: profileRow.id,
-      entry_date: body.date,
-      entry_time: normalizeTime(body.time),
-      meal_type: body.type,
-      food: body.food,
-      calories: Number(body.calories || 0),
-      protein: Number(body.protein || 0),
-      notes: body.notes || null,
-    };
-
-    const { data: insertedEntry, error: insertError } = await supabase
-      .from("food_diary_entries")
-      .insert(payload);
-
-    if (insertError) {
-      console.error("Erro ao salvar entrada alimentar:", insertError);
-      return res.status(500).json({ error: "Não foi possível salvar refeição" });
-    }
-
-    return res.status(201).json({ data: insertedEntry });
-  } catch (err) {
-    console.error("Erro ao criar entrada no diário alimentar", err);
-    return res.status(500).json({ error: "Erro interno ao salvar entrada" });
-  }
 });
 
 const handleHydrationState = async (req, res) => {
