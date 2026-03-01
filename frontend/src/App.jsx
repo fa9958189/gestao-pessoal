@@ -31,6 +31,27 @@ const defaultTxFilters = {
   search: ''
 };
 
+const getTodayMonth = () => {
+  const d = new Date();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  return `${d.getFullYear()}-${mm}`;
+};
+
+const monthRange = (ym) => {
+  const [y, m] = ym.split('-').map(Number);
+  const first = new Date(y, m - 1, 1);
+  const last = new Date(y, m, 0);
+
+  const toISO = (dt) => {
+    const yyyy = dt.getFullYear();
+    const mm = String(dt.getMonth() + 1).padStart(2, '0');
+    const dd = String(dt.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  };
+
+  return { from: toISO(first), to: toISO(last) };
+};
+
 const defaultGeneralReportGoals = {
   calories: 2000,
   protein: 120,
@@ -1628,9 +1649,16 @@ function App() {
   const affiliateClientsTotal = formatCurrency(affiliateCommissionCents / 100);
 
   const [txFilters, setTxFilters] = useState(defaultTxFilters);
+  const [txMonth, setTxMonth] = useState(getTodayMonth());
+  const [txAdvancedOpen, setTxAdvancedOpen] = useState(false);
   const [eventFilters, setEventFilters] = useState(defaultEventFilters);
   const [activeTab, setActiveTab] = useState('form');
   const [activeView, setActiveView] = useState('transactions');
+  const wizardAberto =
+    activeView === 'transactions' &&
+    activeTab === 'form' &&
+    typeof etapaTx !== 'undefined' &&
+    etapaTx !== 'lista';
   const [generalReportGoals, setGeneralReportGoals] = useState(defaultGeneralReportGoals);
   const workoutApiBase = normalizeBaseUrl(
     window.APP_CONFIG?.apiBaseUrl ||
@@ -1861,6 +1889,11 @@ function App() {
   }, [session, profile?.role]);
 
   useEffect(() => {
+    const { from, to } = monthRange(txMonth);
+    setTxFilters((prev) => ({ ...prev, from, to }));
+  }, [txMonth]);
+
+  useEffect(() => {
     if (!session) return;
     const snapshot = getLocalSnapshot();
     const belongsToUser = (item) => item.user_id === session.user.id || item.userId === session.user.id;
@@ -1934,6 +1967,10 @@ function App() {
       return true;
     });
   }, [transactions, txFilters]);
+
+  const handleApplyTxFilters = () => {
+    loadRemoteData();
+  };
 
   const filteredEvents = useMemo(() => {
     return events.filter((ev) => {
@@ -2736,69 +2773,73 @@ function App() {
     <>
       <Toast toast={toast} onClose={() => setToast(null)} />
       <DashboardHeader apiUrl={window.APP_CONFIG?.supabaseUrl} profile={profile} onLogout={handleLogout} />
-      <div className="page-nav tabs">
-        <button
-          className={activeView === 'transactions' ? 'tab active' : 'tab'}
-          onClick={() => setActiveView('transactions')}
-        >
-          Transações
-        </button>
-        <button
-          className={activeView === 'agenda' ? 'tab active' : 'tab'}
-          onClick={() => setActiveView('agenda')}
-        >
-          Agenda
-        </button>
-        {isAdmin && (
-          <>
-            <button
-              className={activeView === 'users' ? 'tab active' : 'tab'}
-              onClick={() => setActiveView('users')}
-            >
-              Cadastro de Usuários
-            </button>
-            <button
-              className={activeView === 'affiliates' ? 'tab active' : 'tab'}
-              onClick={() => setActiveView('affiliates')}
-            >
-              Afiliados
-            </button>
-          </>
-        )}
-        <button
-          className={activeView === 'workout' ? 'tab active' : 'tab'}
-          onClick={() => setActiveView('workout')}
-        >
-          Rotina de Treino
-        </button>
+      {!wizardAberto && (
+        <div className="page-nav tabs">
+          <button
+            className={activeView === 'transactions' ? 'tab active' : 'tab'}
+            onClick={() => setActiveView('transactions')}
+          >
+            Transações
+          </button>
+          <button
+            className={activeView === 'agenda' ? 'tab active' : 'tab'}
+            onClick={() => setActiveView('agenda')}
+          >
+            Agenda
+          </button>
+          {isAdmin && (
+            <>
+              <button
+                className={activeView === 'users' ? 'tab active' : 'tab'}
+                onClick={() => setActiveView('users')}
+              >
+                Cadastro de Usuários
+              </button>
+              <button
+                className={activeView === 'affiliates' ? 'tab active' : 'tab'}
+                onClick={() => setActiveView('affiliates')}
+              >
+                Afiliados
+              </button>
+            </>
+          )}
+          <button
+            className={activeView === 'workout' ? 'tab active' : 'tab'}
+            onClick={() => setActiveView('workout')}
+          >
+            Rotina de Treino
+          </button>
 
-        <button
-          className={activeView === 'foodDiary' ? 'tab active' : 'tab'}
-          onClick={() => setActiveView('foodDiary')}
-        >
-          Diário alimentar
-        </button>
-        <button
-          className={activeView === 'generalReport' ? 'tab active' : 'tab'}
-          onClick={() => setActiveView('generalReport')}
-        >
-          Relatório Geral
-        </button>
-      </div>
+          <button
+            className={activeView === 'foodDiary' ? 'tab active' : 'tab'}
+            onClick={() => setActiveView('foodDiary')}
+          >
+            Diário alimentar
+          </button>
+          <button
+            className={activeView === 'generalReport' ? 'tab active' : 'tab'}
+            onClick={() => setActiveView('generalReport')}
+          >
+            Relatório Geral
+          </button>
+        </div>
+      )}
 
       {activeView === 'transactions' && (
         <div className="container single-card">
           <section className="card dashboard-card">
           <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
             <h2 className="title">Transações</h2>
-            <div className="tabs">
-              <button className={activeTab === 'form' ? 'tab active' : 'tab'} onClick={() => setActiveTab('form')}>
-                Cadastro
-              </button>
-              <button className={activeTab === 'reports' ? 'tab active' : 'tab'} onClick={() => setActiveTab('reports')}>
-                Relatórios
-              </button>
-            </div>
+            {!wizardAberto && (
+              <div className="tabs">
+                <button className={activeTab === 'form' ? 'tab active' : 'tab'} onClick={() => setActiveTab('form')}>
+                  Cadastro
+                </button>
+                <button className={activeTab === 'reports' ? 'tab active' : 'tab'} onClick={() => setActiveTab('reports')}>
+                  Relatórios
+                </button>
+              </div>
+            )}
           </div>
 
           {activeTab === 'form' && (
@@ -2945,31 +2986,83 @@ function App() {
 
               {etapaTx === 'lista' && (
                 <>
-                  <div className="row">
-                    <div style={{ flex: 1 }}>
-                      <label>Filtro: de</label>
-                      <input type="date" value={txFilters.from} onChange={(e) => setTxFilters({ ...txFilters, from: e.target.value })} />
+                  <div className="card" style={{ padding: 14, marginTop: 14 }}>
+                    <div className="row" style={{ gap: 12, alignItems: 'end', flexWrap: 'wrap' }}>
+                      <div style={{ flex: '1 1 180px' }}>
+                        <label>Mês</label>
+                        <input
+                          type="month"
+                          value={txMonth}
+                          onChange={(e) => setTxMonth(e.target.value)}
+                          style={{ width: '100%' }}
+                        />
+                      </div>
+
+                      <div style={{ flex: '1 1 180px' }}>
+                        <label>Tipo</label>
+                        <select
+                          value={txFilters.type}
+                          onChange={(e) => setTxFilters({ ...txFilters, type: e.target.value })}
+                          style={{ width: '100%' }}
+                        >
+                          <option value="">Todos</option>
+                          <option value="income">Receitas</option>
+                          <option value="expense">Despesas</option>
+                        </select>
+                      </div>
+
+                      <div style={{ flex: '2 1 260px' }}>
+                        <label>Busca</label>
+                        <input
+                          value={txFilters.search}
+                          onChange={(e) => setTxFilters({ ...txFilters, search: e.target.value })}
+                          placeholder="descrição ou categoria"
+                          style={{ width: '100%' }}
+                        />
+                      </div>
+
+                      <div style={{ flex: '0 0 120px' }}>
+                        <button
+                          onClick={handleApplyTxFilters}
+                          style={{ width: '100%' }}
+                          disabled={loadingData}
+                        >
+                          {loadingData ? 'Sincronizando...' : 'Filtrar'}
+                        </button>
+                      </div>
                     </div>
-                    <div style={{ flex: 1 }}>
-                      <label>até</label>
-                      <input type="date" value={txFilters.to} onChange={(e) => setTxFilters({ ...txFilters, to: e.target.value })} />
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <label>Tipo</label>
-                      <select value={txFilters.type} onChange={(e) => setTxFilters({ ...txFilters, type: e.target.value })}>
-                        <option value="">Todos</option>
-                        <option value="income">Receita</option>
-                        <option value="expense">Despesa</option>
-                      </select>
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <label>Busca</label>
-                      <input value={txFilters.search} onChange={(e) => setTxFilters({ ...txFilters, search: e.target.value })} placeholder="descrição ou categoria" />
-                    </div>
-                    <div style={{ alignSelf: 'flex-end' }}>
-                      <button onClick={loadRemoteData} disabled={loadingData}>
-                        {loadingData ? 'Sincronizando...' : 'Filtrar'}
+
+                    <div style={{ marginTop: 10 }}>
+                      <button
+                        className="ghost"
+                        onClick={() => setTxAdvancedOpen((v) => !v)}
+                        style={{ width: '100%' }}
+                      >
+                        {txAdvancedOpen ? 'Fechar pesquisa avançada' : 'Abrir pesquisa avançada (De/Até)'}
                       </button>
+
+                      {txAdvancedOpen && (
+                        <div className="row" style={{ gap: 12, marginTop: 10, flexWrap: 'wrap' }}>
+                          <div style={{ flex: '1 1 200px' }}>
+                            <label>De</label>
+                            <input
+                              type="date"
+                              value={txFilters.from}
+                              onChange={(e) => setTxFilters({ ...txFilters, from: e.target.value })}
+                              style={{ width: '100%' }}
+                            />
+                          </div>
+                          <div style={{ flex: '1 1 200px' }}>
+                            <label>Até</label>
+                            <input
+                              type="date"
+                              value={txFilters.to}
+                              onChange={(e) => setTxFilters({ ...txFilters, to: e.target.value })}
+                              style={{ width: '100%' }}
+                            />
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -3002,17 +3095,26 @@ function App() {
               }}
               style={{
                 position: 'fixed',
-                bottom: '30px',
-                right: '30px',
+                bottom: '18px',
+                left: '50%',
+                transform: 'translateX(-50%)',
+
+                width: 'min(560px, calc(100% - 24px))',
+                maxWidth: '560px',
+
                 background: '#22c55e',
                 color: 'white',
                 border: 'none',
-                padding: '16px 22px',
+
+                padding: '16px 18px',
                 fontSize: '16px',
-                borderRadius: '12px',
-                boxShadow: '0 8px 20px rgba(0,0,0,0.4)',
+                fontWeight: 700,
+
+                borderRadius: '14px',
+                boxShadow: '0 10px 22px rgba(0,0,0,0.45)',
+
                 cursor: 'pointer',
-                zIndex: 1000
+                zIndex: 2000
               }}
             >
               + Nova Transação
