@@ -3038,12 +3038,15 @@ function App() {
                           onPaste={(e) => e.preventDefault()}
                           style={{
                             width: '100%',
+                            maxWidth: '100%',
+                            boxSizing: 'border-box',
                             padding: '14px',
                             fontSize: '16px',
                             borderRadius: '10px',
                             cursor: 'pointer',
                             background: '#0f172a',
-                            color: '#fff'
+                            color: '#fff',
+                            overflow: 'hidden'
                           }}
                         />
                       </div>
