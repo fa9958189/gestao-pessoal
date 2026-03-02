@@ -2828,8 +2828,40 @@ function App() {
       {activeView === 'transactions' && (
         <div className="container single-card">
           <section className="card dashboard-card">
-          <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
-            <h2 className="title">Transações</h2>
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '10px',
+                flexWrap: 'wrap',
+                gap: '10px'
+              }}
+            >
+              <h2 style={{ margin: 0 }}>
+                Transações
+              </h2>
+
+              <button
+                onClick={() => {
+                  setActiveTab('form');
+                  setEtapaTx('tipo');
+                }}
+                style={{
+                  background: '#22c55e',
+                  color: 'white',
+                  border: 'none',
+                  padding: '10px 18px',
+                  borderRadius: '10px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  fontSize: '15px'
+                }}
+              >
+                + Nova Transação
+              </button>
+            </div>
+
             {!wizardAberto && (
               <div className="tabs">
                 <button className={activeTab === 'form' ? 'tab active' : 'tab'} onClick={() => setActiveTab('form')}>
@@ -2840,7 +2872,6 @@ function App() {
                 </button>
               </div>
             )}
-          </div>
 
           {activeTab === 'form' && (
             <div id="tab-form">
@@ -3144,39 +3175,6 @@ function App() {
 
           {activeTab === 'reports' && <Reports transactions={filteredTransactions} />}
         </section>
-          {activeTab === 'form' && etapaTx === 'lista' && (
-            <button
-              onClick={() => {
-                setTxForm(defaultTxForm);
-                setEtapaTx('tipo');
-              }}
-              style={{
-                position: 'fixed',
-                bottom: '18px',
-                left: '50%',
-                transform: 'translateX(-50%)',
-
-                width: 'min(560px, calc(100% - 24px))',
-                maxWidth: '560px',
-
-                background: '#22c55e',
-                color: 'white',
-                border: 'none',
-
-                padding: '16px 18px',
-                fontSize: '16px',
-                fontWeight: 700,
-
-                borderRadius: '14px',
-                boxShadow: '0 10px 22px rgba(0,0,0,0.45)',
-
-                cursor: 'pointer',
-                zIndex: 2000
-              }}
-            >
-              + Nova Transação
-            </button>
-          )}
         </div>
       )}
 
