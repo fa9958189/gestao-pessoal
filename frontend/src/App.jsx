@@ -3061,28 +3061,6 @@ function App() {
                     {txAdvancedOpen && (
                       <div className="row" style={{ gap: 12, marginTop: 10, flexWrap: 'wrap' }}>
                           <div style={{ flex: '1 1 180px' }}>
-                            <label>Mês</label>
-                            <input
-                              type="month"
-                              value={txMonth}
-                              onChange={(e) => setTxMonth(e.target.value)}
-                              onKeyDown={(e) => e.preventDefault()}
-                              onPaste={(e) => e.preventDefault()}
-                              style={{
-                                width: '100%',
-                                maxWidth: '100%',
-                                boxSizing: 'border-box',
-                                padding: '14px',
-                                fontSize: '16px',
-                                borderRadius: '10px',
-                                cursor: 'pointer',
-                                background: '#0f172a',
-                                color: '#fff',
-                                overflow: 'hidden'
-                              }}
-                            />
-                          </div>
-                          <div style={{ flex: '1 1 180px' }}>
                             <label>Tipo</label>
                             <select
                               value={txFilters.type}
