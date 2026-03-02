@@ -2779,13 +2779,13 @@ function App() {
             className={activeView === 'transactions' ? 'tab active' : 'tab'}
             onClick={() => setActiveView('transactions')}
           >
-            Transações
+            💰 Transações
           </button>
           <button
             className={activeView === 'agenda' ? 'tab active' : 'tab'}
             onClick={() => setActiveView('agenda')}
           >
-            Agenda
+            📅 Agenda
           </button>
           {isAdmin && (
             <>
@@ -2793,13 +2793,13 @@ function App() {
                 className={activeView === 'users' ? 'tab active' : 'tab'}
                 onClick={() => setActiveView('users')}
               >
-                Cadastro de Usuários
+                👤 Usuários
               </button>
               <button
                 className={activeView === 'affiliates' ? 'tab active' : 'tab'}
                 onClick={() => setActiveView('affiliates')}
               >
-                Afiliados
+                🤝 Afiliados
               </button>
             </>
           )}
@@ -2807,20 +2807,20 @@ function App() {
             className={activeView === 'workout' ? 'tab active' : 'tab'}
             onClick={() => setActiveView('workout')}
           >
-            Rotina de Treino
+            🏋️ Treino
           </button>
 
           <button
             className={activeView === 'foodDiary' ? 'tab active' : 'tab'}
             onClick={() => setActiveView('foodDiary')}
           >
-            Diário alimentar
+            🥗 Alimentação
           </button>
           <button
             className={activeView === 'generalReport' ? 'tab active' : 'tab'}
             onClick={() => setActiveView('generalReport')}
           >
-            Relatório Geral
+            📊 Relatórios
           </button>
         </div>
       )}
@@ -3003,12 +3003,16 @@ function App() {
                           type="month"
                           value={txMonth}
                           onChange={(e) => setTxMonth(e.target.value)}
+                          onKeyDown={(e) => e.preventDefault()}
+                          onPaste={(e) => e.preventDefault()}
                           style={{
                             width: '100%',
                             padding: '14px',
                             fontSize: '16px',
                             borderRadius: '10px',
-                            cursor: 'pointer'
+                            cursor: 'pointer',
+                            background: '#0f172a',
+                            color: '#fff'
                           }}
                         />
                       </div>
