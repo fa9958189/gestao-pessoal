@@ -2172,6 +2172,17 @@ function App() {
 
   const salvarTransacao = handleSaveTransaction;
 
+  const valorValido = txForm.amount && Number(txForm.amount) > 0;
+
+  const proximoPasso = () => {
+    if (!txForm.amount || Number(txForm.amount) <= 0) {
+      alert('Digite um valor para continuar');
+      return;
+    }
+
+    setEtapaTx('detalhes');
+  };
+
 
 
   const handleDeleteTransaction = async (tx) => {
@@ -2977,7 +2988,16 @@ function App() {
                     }}
                   />
 
-                  <button onClick={() => setEtapaTx('detalhes')} style={{ width: '100%', marginBottom: '10px' }}>
+                  <button
+                    onClick={proximoPasso}
+                    disabled={!valorValido}
+                    style={{
+                      width: '100%',
+                      marginBottom: '10px',
+                      opacity: valorValido ? 1 : 0.5,
+                      cursor: valorValido ? 'pointer' : 'not-allowed'
+                    }}
+                  >
                     Continuar
                   </button>
 
