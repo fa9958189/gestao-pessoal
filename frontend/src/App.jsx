@@ -28,7 +28,8 @@ const defaultTxFilters = {
   from: '',
   to: '',
   type: '',
-  search: ''
+  category: '',
+  description: ''
 };
 
 const getTodayMonth = () => {
@@ -1730,11 +1731,11 @@ function App() {
       if (txFilters.type) {
         txQuery = txQuery.eq('type', txFilters.type);
       }
-      if (txFilters.search) {
-        const s = txFilters.search;
-        txQuery = txQuery.or(
-          `description.ilike.%${s}%,category.ilike.%${s}%`
-        );
+      if (txFilters.category) {
+        txQuery = txQuery.eq('category', txFilters.category);
+      }
+      if (txFilters.description) {
+        txQuery = txQuery.ilike('description', `%${txFilters.description}%`);
       }
 
       const { data: txData, error: txError } = await txQuery;
@@ -1957,16 +1958,18 @@ function App() {
       if (txFilters.type && tx.type !== txFilters.type) return false;
       if (txFilters.from && tx.date < txFilters.from) return false;
       if (txFilters.to && tx.date > txFilters.to) return false;
-      if (txFilters.search) {
-        const q = txFilters.search.toLowerCase();
-        return (
-          tx.description?.toLowerCase().includes(q) ||
-          tx.category?.toLowerCase().includes(q)
-        );
+      if (txFilters.category && tx.category !== txFilters.category) return false;
+      if (txFilters.description) {
+        const q = txFilters.description.toLowerCase();
+        return tx.description?.toLowerCase().includes(q);
       }
       return true;
     });
   }, [transactions, txFilters]);
+
+  const txCategories = useMemo(() => {
+    return Array.from(new Set(transactions.map((tx) => tx.category).filter(Boolean))).sort((a, b) => a.localeCompare(b));
+  }, [transactions]);
 
   const handleApplyTxFilters = () => {
     loadRemoteData();
@@ -3048,88 +3051,17 @@ function App() {
                 <>
                   <div className="card" style={{ padding: 14, marginTop: 14 }}>
                     <div className="row" style={{ gap: 12, alignItems: 'end', flexWrap: 'wrap' }}>
-                      <div style={{ flex: '1 1 180px' }}>
-                        <label>Mês</label>
+                      <div style={{ flex: '2 1 260px' }}>
+                        <label>Pesquisar</label>
                         <input
-                          type="month"
-                          value={txMonth}
-                          onChange={(e) => setTxMonth(e.target.value)}
-                          onKeyDown={(e) => e.preventDefault()}
-                          onPaste={(e) => e.preventDefault()}
+                          value={txFilters.description}
+                          onChange={(e) => setTxFilters({ ...txFilters, description: e.target.value })}
+                          placeholder="Digite descrição"
                           style={{
                             width: '100%',
-                            maxWidth: '100%',
-                            boxSizing: 'border-box',
-                            padding: '14px',
-                            fontSize: '16px',
-                            borderRadius: '10px',
-                            cursor: 'pointer',
-                            background: '#0f172a',
-                            color: '#fff',
-                            overflow: 'hidden'
+                            padding: '12px'
                           }}
                         />
-                      </div>
-
-                      <div style={{ flex: '1 1 180px' }}>
-                        <label>Tipo</label>
-                        <select
-                          value={txFilters.type}
-                          onChange={(e) => setTxFilters({ ...txFilters, type: e.target.value })}
-                          style={{ width: '100%' }}
-                        >
-                          <option value="">Todos</option>
-                          <option value="income">Receitas</option>
-                          <option value="expense">Despesas</option>
-                        </select>
-                      </div>
-
-                      <div style={{ flex: '2 1 260px' }}>
-                        <label>Busca</label>
-                        <div>
-                          <select
-                            value={txFilters.search}
-                            onChange={(e) => setTxFilters({ ...txFilters, search: e.target.value })}
-                            style={{
-                              width: '100%',
-                              padding: '12px',
-                              marginBottom: '8px'
-                            }}
-                          >
-                            <option value="">Todas categorias</option>
-
-                            {txFilters.type !== 'income' && (
-                              <>
-                                <option value="Alimentação">Alimentação</option>
-                                <option value="Transporte">Transporte</option>
-                                <option value="Moradia">Moradia</option>
-                                <option value="Lazer">Lazer</option>
-                                <option value="Saúde">Saúde</option>
-                                <option value="Outros">Outros</option>
-                              </>
-                            )}
-
-                            {txFilters.type !== 'expense' && (
-                              <>
-                                <option value="Salário">Salário</option>
-                                <option value="Vendas">Vendas</option>
-                                <option value="Serviços">Serviços</option>
-                                <option value="Investimentos">Investimentos</option>
-                                <option value="Outros">Outros</option>
-                              </>
-                            )}
-                          </select>
-
-                          <input
-                            value={txFilters.search}
-                            onChange={(e) => setTxFilters({ ...txFilters, search: e.target.value })}
-                            placeholder="ou digite descrição"
-                            style={{
-                              width: '100%',
-                              padding: '12px'
-                            }}
-                          />
-                        </div>
                       </div>
 
                       <div style={{ flex: '0 0 120px' }}>
@@ -3149,11 +3081,60 @@ function App() {
                         onClick={() => setTxAdvancedOpen((v) => !v)}
                         style={{ width: '100%' }}
                       >
-                        {txAdvancedOpen ? 'Fechar pesquisa avançada' : 'Abrir pesquisa avançada (De/Até)'}
+                        Abrir pesquisa avançada (De/Até)
                       </button>
 
                       {txAdvancedOpen && (
                         <div className="row" style={{ gap: 12, marginTop: 10, flexWrap: 'wrap' }}>
+                          <div style={{ flex: '1 1 180px' }}>
+                            <label>Mês</label>
+                            <input
+                              type="month"
+                              value={txMonth}
+                              onChange={(e) => setTxMonth(e.target.value)}
+                              onKeyDown={(e) => e.preventDefault()}
+                              onPaste={(e) => e.preventDefault()}
+                              style={{
+                                width: '100%',
+                                maxWidth: '100%',
+                                boxSizing: 'border-box',
+                                padding: '14px',
+                                fontSize: '16px',
+                                borderRadius: '10px',
+                                cursor: 'pointer',
+                                background: '#0f172a',
+                                color: '#fff',
+                                overflow: 'hidden'
+                              }}
+                            />
+                          </div>
+                          <div style={{ flex: '1 1 180px' }}>
+                            <label>Tipo</label>
+                            <select
+                              value={txFilters.type}
+                              onChange={(e) => setTxFilters({ ...txFilters, type: e.target.value })}
+                              style={{ width: '100%' }}
+                            >
+                              <option value="">Todos</option>
+                              <option value="income">Receitas</option>
+                              <option value="expense">Despesas</option>
+                            </select>
+                          </div>
+                          <div style={{ flex: '2 1 260px' }}>
+                            <label>Categoria</label>
+                            <select
+                              value={txFilters.category}
+                              onChange={(e) => setTxFilters({ ...txFilters, category: e.target.value })}
+                              style={{ width: '100%' }}
+                            >
+                              <option value="">Todas categorias</option>
+                              {txCategories.map((cat) => (
+                                <option key={cat} value={cat}>
+                                  {cat}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
                           <div style={{ flex: '1 1 200px' }}>
                             <label>De</label>
                             <input
