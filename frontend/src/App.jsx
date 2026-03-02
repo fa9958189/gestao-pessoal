@@ -3050,42 +3050,16 @@ function App() {
               {etapaTx === 'lista' && (
                 <>
                   <div className="card" style={{ padding: 14, marginTop: 14 }}>
-                    <div className="row" style={{ gap: 12, alignItems: 'end', flexWrap: 'wrap' }}>
-                      <div style={{ flex: '2 1 260px' }}>
-                        <label>Pesquisar</label>
-                        <input
-                          value={txFilters.description}
-                          onChange={(e) => setTxFilters({ ...txFilters, description: e.target.value })}
-                          placeholder="Digite descrição"
-                          style={{
-                            width: '100%',
-                            padding: '12px'
-                          }}
-                        />
-                      </div>
+                    <button
+                      className="ghost"
+                      onClick={() => setTxAdvancedOpen((v) => !v)}
+                      style={{ width: '100%' }}
+                    >
+                      Abrir pesquisa avançada (De/Até)
+                    </button>
 
-                      <div style={{ flex: '0 0 120px' }}>
-                        <button
-                          onClick={handleApplyTxFilters}
-                          style={{ width: '100%' }}
-                          disabled={loadingData}
-                        >
-                          {loadingData ? 'Sincronizando...' : 'Filtrar'}
-                        </button>
-                      </div>
-                    </div>
-
-                    <div style={{ marginTop: 10 }}>
-                      <button
-                        className="ghost"
-                        onClick={() => setTxAdvancedOpen((v) => !v)}
-                        style={{ width: '100%' }}
-                      >
-                        Abrir pesquisa avançada (De/Até)
-                      </button>
-
-                      {txAdvancedOpen && (
-                        <div className="row" style={{ gap: 12, marginTop: 10, flexWrap: 'wrap' }}>
+                    {txAdvancedOpen && (
+                      <div className="row" style={{ gap: 12, marginTop: 10, flexWrap: 'wrap' }}>
                           <div style={{ flex: '1 1 180px' }}>
                             <label>Mês</label>
                             <input
@@ -3153,9 +3127,8 @@ function App() {
                               style={{ width: '100%' }}
                             />
                           </div>
-                        </div>
-                      )}
-                    </div>
+                      </div>
+                    )}
                   </div>
 
                   <div className="sep"></div>
