@@ -1732,7 +1732,7 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
                         className={`card ${tipoTreino === 'esporte' ? 'active' : ''}`}
                         onClick={() => {
                           setTipoTreino('esporte');
-                          setCreateStep(3);
+                          setCreateStep(2);
                         }}
                       >
                         🥊 Esporte
@@ -1742,7 +1742,7 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
                         className={`card ${tipoTreino === 'cardio' ? 'active' : ''}`}
                         onClick={() => {
                           setTipoTreino('cardio');
-                          setCreateStep(3);
+                          setCreateStep(2);
                         }}
                       >
                         🏃 Cardio
@@ -1780,7 +1780,7 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
 
                     {tipoTreino === 'esporte' && (
                       <>
-                        <h3>Selecione o esporte</h3>
+                        <h3>Selecione os esportes/atividades que farão parte do treino</h3>
                         <div className="muscle-grid">
                           {SPORTS.map((sport) => (
                             <button
@@ -1801,7 +1801,7 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
 
                     {tipoTreino === 'cardio' && (
                       <>
-                        <h3>Selecione a atividade cardiovascular</h3>
+                        <h3>Selecione as atividades cardio</h3>
                         <div className="muscle-grid">
                           {CARDIO_ACTIVITIES.map((cardio) => (
                             <button
@@ -1827,6 +1827,9 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
                       </div>
                       <button type="button" className="primary" disabled={selecionados.length === 0} onClick={() => setCreateStep(3)}>Continuar</button>
                     </div>
+                    {selecionados.length === 0 && (
+                      <p style={{ marginTop: 8 }}>Selecione pelo menos 1 opção para continuar.</p>
+                    )}
                   </>
                 )}
 
