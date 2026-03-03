@@ -448,7 +448,13 @@ const ViewWorkoutModal = ({
       >
         <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
           <h4 style={{ margin: 0 }}>Detalhes do treino</h4>
-          <button className="ghost" onClick={onClose}>
+          <button
+            className="ghost"
+            onClick={() => {
+              setInfoTarget(null);
+              onClose();
+            }}
+          >
             Fechar
           </button>
         </div>
