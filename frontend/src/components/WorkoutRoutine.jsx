@@ -1066,14 +1066,13 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
     }
   };
 
-  const loadSchedule = async () => {
+  const fetchWeeklyPlan = async () => {
     try {
       if (!userId) {
-        notify('Perfil do usuário não carregado.', 'warning');
         return;
       }
 
-      const data = await fetchJson(`${apiBaseUrl}/workout-schedule?user_id=${userId}`);
+      const data = await fetchJson(`${apiBaseUrl}/weekly-plan?user_id=${userId}`);
 
       const rows = Array.isArray(data)
         ? data
@@ -1529,9 +1528,14 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
   }, [supabase]);
 
   useEffect(() => {
+    fetchWeeklyPlan();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
     if (!userId) return;
     loadRoutines();
-    loadSchedule();
+    fetchWeeklyPlan();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
 
@@ -2446,7 +2450,21 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
                       <input
                         type="checkbox"
                         checked={!!slot.reminder}
-                        onChange={(e) => handleScheduleChange(slot.day, 'reminder', e.target.checked)}
+                        onChange={(e) => {
+                          const value = e.target.checked;
+
+                          setSchedule((prev) =>
+                            prev.map((item) =>
+                              item.day === slot.day ? { ...item, reminder: value } : item
+                            )
+                          );
+
+                          autoSavePlan(slot.day, {
+                            workoutId: slot.workout_id || null,
+                            time: slot.time || null,
+                            reminderEnabled: value,
+                          });
+                        }}
                         style={{
                           position: 'absolute',
                           inset: 0,
