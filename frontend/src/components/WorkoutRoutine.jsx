@@ -1717,9 +1717,36 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
                   <>
                     <h3>Qual tipo de treino você deseja montar?</h3>
                     <div className="tipo-grid">
-                      <button type="button" onClick={() => setTipoTreino('musculacao')}>💪 Musculação</button>
-                      <button type="button" onClick={() => setTipoTreino('esporte')}>🥊 Esporte</button>
-                      <button type="button" onClick={() => setTipoTreino('cardio')}>🏃 Cardio</button>
+                      <button
+                        type="button"
+                        className={`card ${tipoTreino === 'musculacao' ? 'active' : ''}`}
+                        onClick={() => {
+                          setTipoTreino('musculacao');
+                          setCreateStep(2);
+                        }}
+                      >
+                        💪 Musculação
+                      </button>
+                      <button
+                        type="button"
+                        className={`card ${tipoTreino === 'esporte' ? 'active' : ''}`}
+                        onClick={() => {
+                          setTipoTreino('esporte');
+                          setCreateStep(3);
+                        }}
+                      >
+                        🥊 Esporte
+                      </button>
+                      <button
+                        type="button"
+                        className={`card ${tipoTreino === 'cardio' ? 'active' : ''}`}
+                        onClick={() => {
+                          setTipoTreino('cardio');
+                          setCreateStep(3);
+                        }}
+                      >
+                        🏃 Cardio
+                      </button>
                     </div>
                     <div className="row" style={{ justifyContent: 'flex-end', marginTop: 12, gap: 8 }}>
                       <button type="button" className="ghost" onClick={handleCancelCreateTreino}>Cancelar</button>
