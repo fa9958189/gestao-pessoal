@@ -43,6 +43,61 @@ function formatDateOnlyInSaoPaulo(date) {
   return formatter.format(date);
 }
 
+
+function getDayOfWeek() {
+  const jsDay = getNowInSaoPaulo().getDay();
+  return jsDay === 0 ? 7 : jsDay;
+}
+
+async function fetchTodayWorkoutPlans() {
+  const today = getDayOfWeek();
+
+  const { data: plans, error } = await supabase
+    .from('workout_schedule')
+    .select('user_id, weekday, workout_id, time, is_active')
+    .eq('weekday', today)
+    .eq('is_active', true);
+
+  if (error) {
+    throw new Error(`Erro ao buscar planejamento semanal: ${error.message}`);
+  }
+
+  const planRows = plans || [];
+  const workoutIds = [...new Set(planRows.map((item) => item.workout_id).filter(Boolean))];
+
+  let workoutById = new Map();
+  if (workoutIds.length) {
+    const { data: workouts, error: workoutError } = await supabase
+      .from('workout_routines')
+      .select('id, name')
+      .in('id', workoutIds);
+
+    if (workoutError) {
+      throw new Error(`Erro ao buscar treinos do planejamento: ${workoutError.message}`);
+    }
+
+    workoutById = new Map((workouts || []).map((workout) => [workout.id, workout]));
+  }
+
+  return planRows.map((plan) => ({
+    ...plan,
+    workout: workoutById.get(plan.workout_id) || null,
+  }));
+}
+
+function buildDailyWorkoutReminderMessage(plan) {
+  return [
+    'Bom dia! 💪',
+    '',
+    'Hoje é dia de:',
+    `${plan?.workout?.name || 'Seu treino'}`,
+    '',
+    `Horário programado: ${plan?.time || '--:--'}`,
+    '',
+    'Bora treinar 🚀',
+  ].join('\n');
+}
+
 function normalizePhone(phone) {
   const digits = String(phone || "").replace(/\D/g, "");
   if (!digits) return null;
@@ -192,7 +247,6 @@ export function startMorningAgendaScheduler() {
 
         if (!events.length) {
           console.log("Nenhum evento encontrado para hoje");
-          return;
         }
 
         const grouped = groupEventsByUser(events);
@@ -223,6 +277,32 @@ export function startMorningAgendaScheduler() {
 
           console.log("Mensagem enviada com sucesso");
           await deleteEventsByIds(userEvents.map((event) => event.id));
+        }
+
+        const plans = await fetchTodayWorkoutPlans();
+        console.log(`Planejamentos de treino ativos para hoje: ${plans.length}`);
+
+        for (const plan of plans) {
+          const whatsapp = await fetchUserWhatsapp(plan.user_id);
+          const phone = normalizePhone(whatsapp);
+
+          if (!phone) {
+            console.warn(
+              "⚠️ WhatsApp não encontrado ou inválido para usuário do planejamento:",
+              plan.user_id
+            );
+            continue;
+          }
+
+          const message = buildDailyWorkoutReminderMessage(plan);
+          const sendResult = await sendWhatsAppMessage({ phone, message });
+
+          if (!sendResult?.ok) {
+            console.error(
+              "❌ Falha ao enviar lembrete diário de treino:",
+              sendResult?.status
+            );
+          }
         }
       } catch (err) {
         console.error(
