@@ -102,6 +102,10 @@ const SPORTS = muscleGroups.slice(10).map(({ id, name, image }) => ({
   image
 }));
 
+const CARDIO_ACTIVITIES = SPORTS.filter((item) => (
+  ['bicicleta', 'corrida_ao_ar_livre', 'escada', 'esteira'].includes(item.value)
+));
+
 const MUSCLE_INFO = {
   peito: {
     title: 'Peito',
@@ -661,6 +665,9 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
   const [etapaTreino, setEtapaTreino] = useState('tipo');
   const [isCreatingTreino, setIsCreatingTreino] = useState(false);
   const [createStep, setCreateStep] = useState(1);
+  const [tipoTreino, setTipoTreino] = useState(null);
+  const [selecionados, setSelecionados] = useState([]);
+  const [nomeTreino, setNomeTreino] = useState('');
   const [workoutForm, setWorkoutForm] = useState({
     id: null,
     name: '',
@@ -1147,26 +1154,42 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
     setWorkoutForm({ id: null, name: '', muscleGroups: [], sportsActivities: [], exercises: [] });
   };
 
+  const resetCreateFlow = () => {
+    setCreateStep(1);
+    setTipoTreino(null);
+    setSelecionados([]);
+    setNomeTreino('');
+  };
+
   const handleStartCreateTreino = () => {
     resetWorkoutForm();
     setIsCreatingTreino(true);
-    setCreateStep(1);
+    resetCreateFlow();
     setEtapaTreino('tipo');
     setTreinoTab('treinos');
   };
 
   const handleCancelCreateTreino = () => {
     setIsCreatingTreino(false);
-    setCreateStep(1);
+    resetCreateFlow();
     resetWorkoutForm();
   };
 
-  const handleContinueCreateTreino = () => {
-    if (!workoutForm.muscleGroups.length) {
-      notify('Selecione pelo menos um grupo muscular.', 'warning');
-      return;
-    }
-    setCreateStep(2);
+  const toggleSelecionado = (value) => {
+    setSelecionados((prev) => (
+      prev.includes(value) ? prev.filter((item) => item !== value) : [...prev, value]
+    ));
+  };
+
+  const salvarTreino = async (nome, itensSelecionados, tipo) => {
+    const isMusculacao = tipo === 'musculacao';
+    const payloadData = {
+      name: nome,
+      muscleGroups: isMusculacao ? itensSelecionados : [],
+      sportsActivities: isMusculacao ? [] : itensSelecionados,
+    };
+
+    await handleSaveRoutine(payloadData);
   };
 
   const handleOpenViewWorkout = (template) => {
@@ -1190,28 +1213,35 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
     setViewWorkout(null);
   };
 
-  const handleSaveRoutine = async () => {
-    if (!workoutForm.name.trim()) {
+  const handleSaveRoutine = async (overrideData = null) => {
+    const formData = {
+      id: workoutForm.id,
+      name: overrideData?.name ?? workoutForm.name,
+      muscleGroups: overrideData?.muscleGroups ?? workoutForm.muscleGroups,
+      sportsActivities: overrideData?.sportsActivities ?? workoutForm.sportsActivities,
+    };
+
+    if (!formData.name.trim()) {
       notify('Informe o nome do treino.', 'warning');
       return;
     }
-    if (!workoutForm.muscleGroups.length) {
-      notify('Selecione pelo menos um grupo muscular.', 'warning');
+    if (!formData.muscleGroups.length && !formData.sportsActivities.length) {
+      notify('Selecione ao menos uma opção para o treino.', 'warning');
       return;
     }
 
     const payload = {
       userId,
-      name: workoutForm.name,
-      muscleGroups: workoutForm.muscleGroups,
-      sportsActivities: workoutForm.sportsActivities,
+      name: formData.name,
+      muscleGroups: formData.muscleGroups,
+      sportsActivities: formData.sportsActivities,
     };
 
     try {
       setLoading(true);
       let response;
-      if (workoutForm.id) {
-        response = await fetch(`${apiBaseUrl}/api/workout/routines/${workoutForm.id}`, {
+      if (formData.id) {
+        response = await fetch(`${apiBaseUrl}/api/workout/routines/${formData.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
@@ -1232,10 +1262,10 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
 
       resetWorkoutForm();
       setIsCreatingTreino(false);
-      setCreateStep(1);
+      resetCreateFlow();
 
       setRoutines((prev) => {
-        if (workoutForm.id) {
+        if (formData.id) {
           return prev.map((routine) => (routine.id === saved.id ? normalizeRoutineFromApi(saved) : routine));
         }
         return [...prev, normalizeRoutineFromApi(saved)];
@@ -1244,7 +1274,7 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
       if (createReminder) {
         const reminderPayload = {
           type: 'workout',
-          workoutName: saved?.name || workoutForm.name,
+          workoutName: saved?.name || formData.name,
           date: new Date().toISOString().slice(0, 10),
         };
         await fetchJson(`${apiBaseUrl}/api/workouts/reminders`, {
@@ -1593,76 +1623,203 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
         {/* Aba CONFIG – manter apenas "Novo Template de Treino" + "Treinos cadastrados" aqui */}
         {treinoTab === 'treinos' && etapaTreino === 'tipo' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            {!isCreatingTreino && (
+              <div>
+                <h4 className="title" style={{ marginBottom: 12 }}>Treinos cadastrados</h4>
+                {!routines.length && <div className="muted">Nenhum treino cadastrado.</div>}
+                {routines.length > 0 && (
+                  <div className="table workout-routines-scroll">
+                    {routines.map((template) => (
+                      <div
+                        key={template.id || template.name}
+                        className="workout-template-item table-row"
+                      >
+                        <div className="workout-template-header">
+                          <strong>{template.name}</strong>
+                          <div className="workout-template-subtitle">
+                            {Array.isArray(template.muscleGroups) && template.muscleGroups.length > 0 && (
+                              <span>
+                                {(template.muscleGroups || [])
+                                  .map((group) => muscleMap[group]?.label || group)
+                                  .join(', ')}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="workout-template-actions">
+                          <button
+                            type="button"
+                            className="ghost"
+                            onClick={() => {
+                              const sportsActivities = syncSportsFromTemplate(
+                                template.sportsActivities,
+                                template.sports
+                              );
+
+                              const normalizedMuscles = Array.isArray(template.muscleGroups)
+                                ? template.muscleGroups
+                                : template.muscle_groups || [];
+                              const isCardioTemplate = sportsActivities.every((item) => (
+                                ['bicicleta', 'corrida_ao_ar_livre', 'escada', 'esteira'].includes(item)
+                              ));
+
+                              setWorkoutForm({
+                                ...template,
+                                muscleGroups: normalizedMuscles,
+                                sportsActivities,
+                                sports: sportsActivities,
+                              });
+                              setTipoTreino(
+                                normalizedMuscles.length ? 'musculacao' : (isCardioTemplate ? 'cardio' : 'esporte')
+                              );
+                              setSelecionados(normalizedMuscles.length ? normalizedMuscles : sportsActivities);
+                              setNomeTreino(template.name || '');
+                              setIsCreatingTreino(true);
+                              setCreateStep(2);
+                            }}
+                          >
+                            Editar
+                          </button>
+                          <button
+                            type="button"
+                            className="ghost"
+                            onClick={() => handleOpenViewWorkout({
+                              ...template,
+                              sportsActivities: syncSportsFromTemplate(
+                                template.sportsActivities,
+                                template.sports
+                              )
+                            })}
+                          >
+                            Ver treino
+                          </button>
+                          <button
+                            type="button"
+                            className="ghost small btn-danger-outline"
+                            onClick={() => handleDeleteRoutine(template.id)}
+                          >
+                            Excluir
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
             {isCreatingTreino && (
               <div className="workout-create-wizard">
                 <h4 className="title" style={{ marginBottom: 12 }}>Novo Template de Treino</h4>
 
                 {createStep === 1 && (
                   <>
-                    <div className="muted" style={{ marginBottom: 6, fontSize: 13 }}>Grupos musculares</div>
-                    <div className="muscle-grid">
-                      {MUSCLE_GROUPS.map((group) => {
-                        const active = workoutForm.muscleGroups.includes(group.value);
-                        return (
-                          <button
-                            key={group.value}
-                            type="button"
-                            className={active ? 'muscle-card active' : 'muscle-card'}
-                            onClick={() => toggleMuscleGroup(group.value)}
-                          >
-                            <div className="muscle-image-wrapper">
-                              <img src={group.image} alt={group.label} className="muscle-image" />
-                            </div>
-                            <span className="muscle-label">{group.label}</span>
-                          </button>
-                        );
-                      })}
+                    <h3>Qual tipo de treino você deseja montar?</h3>
+                    <div className="tipo-grid">
+                      <button type="button" onClick={() => setTipoTreino('musculacao')}>💪 Musculação</button>
+                      <button type="button" onClick={() => setTipoTreino('esporte')}>🥊 Esporte</button>
+                      <button type="button" onClick={() => setTipoTreino('cardio')}>🏃 Cardio</button>
                     </div>
-
-                    <div className="muted" style={{ margin: '14px 0 6px', fontSize: 13 }}>
-                      Esportes / atividades
-                    </div>
-                    <div className="muscle-grid">
-                      {SPORTS.map((sport) => {
-                        const active = workoutForm.sportsActivities.includes(sport.value);
-                        return (
-                          <button
-                            key={sport.value}
-                            type="button"
-                            className={active ? 'muscle-card active' : 'muscle-card'}
-                            onClick={() => toggleSport(sport.value)}
-                          >
-                            <div className="muscle-image-wrapper">
-                              <img src={sport.image} alt={sport.label} className="muscle-image" />
-                            </div>
-                            <span className="muscle-label">{sport.label}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-
                     <div className="row" style={{ justifyContent: 'flex-end', marginTop: 12, gap: 8 }}>
                       <button type="button" className="ghost" onClick={handleCancelCreateTreino}>Cancelar</button>
-                      <button type="button" className="primary" onClick={handleContinueCreateTreino}>Continuar</button>
+                      <button type="button" className="primary" disabled={!tipoTreino} onClick={() => setCreateStep(2)}>Continuar</button>
                     </div>
                   </>
                 )}
 
                 {createStep === 2 && (
                   <>
-                    <label>Nome do treino</label>
-                    <input
-                      value={workoutForm.name}
-                      onChange={(e) => setWorkoutForm({ ...workoutForm, name: e.target.value })}
-                      placeholder="Ex.: Treino A – Peito e Tríceps"
-                    />
+                    {tipoTreino === 'musculacao' && (
+                      <>
+                        <h3>Selecione os grupos musculares</h3>
+                        <div className="muscle-grid">
+                          {MUSCLE_GROUPS.map((group) => (
+                            <button
+                              key={group.value}
+                              type="button"
+                              className={selecionados.includes(group.value) ? 'card muscle-card active' : 'card muscle-card'}
+                              onClick={() => toggleSelecionado(group.value)}
+                            >
+                              <div className="muscle-image-wrapper">
+                                <img src={group.image} alt={group.label} className="muscle-image" />
+                              </div>
+                              <span className="muscle-label">{group.label}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </>
+                    )}
+
+                    {tipoTreino === 'esporte' && (
+                      <>
+                        <h3>Selecione o esporte</h3>
+                        <div className="muscle-grid">
+                          {SPORTS.map((sport) => (
+                            <button
+                              key={sport.value}
+                              type="button"
+                              className={selecionados.includes(sport.value) ? 'card muscle-card active' : 'card muscle-card'}
+                              onClick={() => toggleSelecionado(sport.value)}
+                            >
+                              <div className="muscle-image-wrapper">
+                                <img src={sport.image} alt={sport.label} className="muscle-image" />
+                              </div>
+                              <span className="muscle-label">{sport.label}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </>
+                    )}
+
+                    {tipoTreino === 'cardio' && (
+                      <>
+                        <h3>Selecione a atividade cardiovascular</h3>
+                        <div className="muscle-grid">
+                          {CARDIO_ACTIVITIES.map((cardio) => (
+                            <button
+                              key={cardio.value}
+                              type="button"
+                              className={selecionados.includes(cardio.value) ? 'card muscle-card active' : 'card muscle-card'}
+                              onClick={() => toggleSelecionado(cardio.value)}
+                            >
+                              <div className="muscle-image-wrapper">
+                                <img src={cardio.image} alt={cardio.label} className="muscle-image" />
+                              </div>
+                              <span className="muscle-label">{cardio.label}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </>
+                    )}
 
                     <div className="row" style={{ justifyContent: 'space-between', marginTop: 12, gap: 8 }}>
                       <div className="row" style={{ gap: 8 }}>
                         <button type="button" className="ghost" onClick={() => setCreateStep(1)}>Voltar</button>
                         <button type="button" className="ghost" onClick={handleCancelCreateTreino}>Cancelar</button>
                       </div>
-                      <button className="primary" onClick={handleSaveRoutine} disabled={loading}>
+                      <button type="button" className="primary" disabled={selecionados.length === 0} onClick={() => setCreateStep(3)}>Continuar</button>
+                    </div>
+                  </>
+                )}
+
+                {createStep === 3 && (
+                  <>
+                    <h3>Digite o nome do treino</h3>
+                    <input
+                      value={nomeTreino}
+                      onChange={(e) => setNomeTreino(e.target.value)}
+                      placeholder="Ex: Treino A - Peito e Tríceps"
+                    />
+
+                    <div className="row" style={{ justifyContent: 'space-between', marginTop: 12, gap: 8 }}>
+                      <button type="button" className="ghost" onClick={() => setCreateStep(2)}>Voltar</button>
+                      <button
+                        type="button"
+                        className="primary"
+                        disabled={!nomeTreino.trim() || loading}
+                        onClick={() => salvarTreino(nomeTreino, selecionados, tipoTreino)}
+                      >
                         {loading ? 'Salvando...' : 'Salvar Treino'}
                       </button>
                     </div>
@@ -1670,81 +1827,6 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
                 )}
               </div>
             )}
-
-            {/* TREINOS CADASTRADOS */}
-            <div>
-              <h4 className="title" style={{ marginBottom: 12 }}>Treinos cadastrados</h4>
-              {!routines.length && <div className="muted">Nenhum treino cadastrado.</div>}
-              {routines.length > 0 && (
-                <div className="table workout-routines-scroll">
-                  {routines.map((template) => (
-                    <div
-                      key={template.id || template.name}
-                      className="workout-template-item table-row"
-                    >
-                      <div className="workout-template-header">
-                        <strong>{template.name}</strong>
-                        <div className="workout-template-subtitle">
-                          {Array.isArray(template.muscleGroups) && template.muscleGroups.length > 0 && (
-                            <span>
-                              {(template.muscleGroups || [])
-                                .map((group) => muscleMap[group]?.label || group)
-                                .join(', ')}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="workout-template-actions">
-                        <button
-                          type="button"
-                          className="ghost"
-                          onClick={() => {
-                            const sportsActivities = syncSportsFromTemplate(
-                              template.sportsActivities,
-                              template.sports
-                            );
-
-                            setWorkoutForm({
-                              ...template,
-                              muscleGroups: Array.isArray(template.muscleGroups)
-                                ? template.muscleGroups
-                                : template.muscle_groups || [],
-                              sportsActivities,
-                              sports: sportsActivities,
-                            });
-                            setIsCreatingTreino(true);
-                            setCreateStep(1);
-                          }}
-                        >
-                          Editar
-                        </button>
-                        <button
-                          type="button"
-                          className="ghost"
-                          onClick={() => handleOpenViewWorkout({
-                            ...template,
-                            sportsActivities: syncSportsFromTemplate(
-                              template.sportsActivities,
-                              template.sports
-                            )
-                          })}
-                        >
-                          Ver treino
-                        </button>
-                        <button
-                          type="button"
-                          className="ghost small btn-danger-outline"
-                          onClick={() => handleDeleteRoutine(template.id)}
-                        >
-                          Excluir
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
           </div>
         )}
 
