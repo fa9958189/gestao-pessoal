@@ -682,6 +682,15 @@ canvas{ background:transparent; }
   margin-top: 12px;
 }
 
+.workout-create-wizard {
+  width: 100%;
+  max-width: 900px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
 .muscle-card {
   background: var(--card-2, #101522);
   border: 1px solid var(--border, #232838);
