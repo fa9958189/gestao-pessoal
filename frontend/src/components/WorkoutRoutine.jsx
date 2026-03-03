@@ -1628,11 +1628,11 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
                 <h4 className="title" style={{ marginBottom: 12 }}>Treinos cadastrados</h4>
                 {!routines.length && <div className="muted">Nenhum treino cadastrado.</div>}
                 {routines.length > 0 && (
-                  <div className="table workout-routines-scroll">
+                  <div className="table workout-routines-scroll treinos-list">
                     {routines.map((template) => (
                       <div
                         key={template.id || template.name}
-                        className="workout-template-item table-row"
+                        className="workout-template-item table-row treino-item"
                       >
                         <div className="workout-template-header">
                           <strong>{template.name}</strong>
