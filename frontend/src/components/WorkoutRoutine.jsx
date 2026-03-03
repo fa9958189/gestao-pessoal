@@ -1549,7 +1549,7 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
   return (
     <div className="workout-card">
       {/* COLUNA ESQUERDA – Rotina de Treino (aba + config + histórico + progresso) */}
-      <section className="card" style={{ marginTop: 16 }}>
+      <section style={{ marginTop: 16 }}>
         <div
           style={{
             display: 'flex',
