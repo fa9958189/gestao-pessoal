@@ -1445,6 +1445,8 @@ app.patch('/weekly-plan/:day', async (req, res) => {
     const reminderEnabled =
       req.body?.reminderEnabled !== undefined
         ? !!req.body.reminderEnabled
+        : req.body?.reminder_enabled !== undefined
+        ? !!req.body.reminder_enabled
         : req.body?.reminder !== undefined
         ? !!req.body.reminder
         : true;
@@ -1469,6 +1471,42 @@ app.patch('/weekly-plan/:day', async (req, res) => {
     return res.json({ success: true });
   } catch (err) {
     console.error('Erro inesperado em PATCH /weekly-plan/:day:', err);
+    return res.status(500).json({ error: 'Erro interno no servidor' });
+  }
+});
+
+// GET /weekly-plan
+app.get('/weekly-plan', async (req, res) => {
+  try {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(400).json({ error: 'user_id é obrigatório.' });
+    }
+
+    const { data, error } = await supabase
+      .from('workout_schedule')
+      .select('id, user_id, weekday, workout_id, time, is_active')
+      .eq('user_id', userId)
+      .order('weekday', { ascending: true });
+
+    if (error) {
+      console.error('Erro ao buscar planejamento semanal:', error);
+      return res.status(400).json({ error: error.message });
+    }
+
+    const mapped = (data || []).map((row) => ({
+      id: row.id,
+      user_id: row.user_id,
+      weekday: row.weekday,
+      workout_id: row.workout_id,
+      time: row.time,
+      is_active: row.is_active,
+      reminder: !!row.is_active,
+    }));
+
+    return res.json(mapped);
+  } catch (err) {
+    console.error('Erro inesperado em GET /weekly-plan:', err);
     return res.status(500).json({ error: 'Erro interno no servidor' });
   }
 });
