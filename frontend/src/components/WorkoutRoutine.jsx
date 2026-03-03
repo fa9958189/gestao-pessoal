@@ -1161,6 +1161,12 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
     setNomeTreino('');
   };
 
+  const selectTipoTreino = (tipo) => {
+    setTipoTreino(tipo);
+    setSelecionados([]);
+    setCreateStep(2);
+  };
+
   const handleStartCreateTreino = () => {
     resetWorkoutForm();
     setIsCreatingTreino(true);
@@ -1547,9 +1553,9 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
   } = progressStats;
 
   return (
-    <div className="workout-card">
+    <div className="workout-routine">
       {/* COLUNA ESQUERDA – Rotina de Treino (aba + config + histórico + progresso) */}
-      <section style={{ marginTop: 16 }}>
+      <div style={{ marginTop: 16 }}>
         <div
           style={{
             display: 'flex',
@@ -1719,30 +1725,21 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
                       <button
                         type="button"
                         className={`card ${tipoTreino === 'musculacao' ? 'active' : ''}`}
-                        onClick={() => {
-                          setTipoTreino('musculacao');
-                          setCreateStep(2);
-                        }}
+                        onClick={() => selectTipoTreino('musculacao')}
                       >
                         💪 Musculação
                       </button>
                       <button
                         type="button"
                         className={`card ${tipoTreino === 'esporte' ? 'active' : ''}`}
-                        onClick={() => {
-                          setTipoTreino('esporte');
-                          setCreateStep(2);
-                        }}
+                        onClick={() => selectTipoTreino('esporte')}
                       >
                         🥊 Esporte
                       </button>
                       <button
                         type="button"
                         className={`card ${tipoTreino === 'cardio' ? 'active' : ''}`}
-                        onClick={() => {
-                          setTipoTreino('cardio');
-                          setCreateStep(2);
-                        }}
+                        onClick={() => selectTipoTreino('cardio')}
                       >
                         🏃 Cardio
                       </button>
@@ -1824,7 +1821,14 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
                         <button type="button" className="ghost" onClick={() => setCreateStep(1)}>Voltar</button>
                         <button type="button" className="ghost" onClick={handleCancelCreateTreino}>Cancelar</button>
                       </div>
-                      <button type="button" className="primary" disabled={selecionados.length === 0} onClick={() => setCreateStep(3)}>Continuar</button>
+                      <button
+                        type="button"
+                        className="btn-primary"
+                        disabled={selecionados.length === 0}
+                        onClick={() => setCreateStep(3)}
+                      >
+                        Continuar
+                      </button>
                     </div>
                     {selecionados.length === 0 && (
                       <p style={{ marginTop: 8 }}>Selecione pelo menos 1 opção para continuar.</p>
@@ -2202,7 +2206,7 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
             </div>
           </div>
         )}
-      </section>
+      </div>
 
       {treinoTab === 'planejamento' && (
         <section className="card" style={{ marginTop: 16 }}>

@@ -280,6 +280,11 @@ h2.title, h3.title{ margin:0 0 10px; font-weight:600; }
 
 .muted{ color:var(--muted); font-size:12px; }
 
+
+.workout-routine {
+  width: 100%;
+}
+
 /* Inputs */
 label{ display:block; font-size:12px; color:var(--muted); margin-bottom:6px; }
 input, select, textarea{
@@ -308,7 +313,8 @@ button{
 button:hover{ filter:brightness(1.05); }
 button:active{ transform:translateY(1px); }
 
-button.primary{ background:var(--accent); color:var(--accent-ink); border:none; }
+button.primary,
+button.btn-primary{ background:var(--accent); color:var(--accent-ink); border:none; }
 button.danger{ background:var(--danger); color:#fff; border:none; }
 button.ghost{ background:transparent; border:1px solid #38425b; }
 
