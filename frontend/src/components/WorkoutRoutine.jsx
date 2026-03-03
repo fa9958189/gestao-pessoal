@@ -1711,10 +1711,9 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
 
             {isCreatingTreino && (
               <div className="workout-create-wizard">
-                <h4 className="title" style={{ marginBottom: 12 }}>Novo Template de Treino</h4>
-
                 {createStep === 1 && (
-                  <>
+                  <div className="workout-type-step-wrapper">
+                    <h4 className="title" style={{ marginBottom: 12 }}>Novo Template de Treino</h4>
                     <h3>Qual tipo de treino você deseja montar?</h3>
                     <div className="tipo-grid">
                       <button
@@ -1752,7 +1751,7 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
                       <button type="button" className="ghost" onClick={handleCancelCreateTreino}>Cancelar</button>
                       <button type="button" className="primary" disabled={!tipoTreino} onClick={() => setCreateStep(2)}>Continuar</button>
                     </div>
-                  </>
+                  </div>
                 )}
 
                 {createStep === 2 && (
