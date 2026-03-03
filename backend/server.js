@@ -1405,6 +1405,74 @@ app.delete("/api/workout/routines/:id", async (req, res) => {
   }
 });
 
+const WEEKDAY_BY_NAME = {
+  segunda: 1,
+  terca: 2,
+  quarta: 3,
+  quinta: 4,
+  sexta: 5,
+  sabado: 6,
+  domingo: 7,
+};
+
+const toWeekdayNumber = (value) => {
+  const asNumber = Number(value);
+  if (!Number.isNaN(asNumber) && asNumber >= 1 && asNumber <= 7) {
+    return asNumber;
+  }
+
+  const normalized = String(value || '')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase();
+
+  return WEEKDAY_BY_NAME[normalized] || null;
+};
+
+// PATCH /weekly-plan/:day
+app.patch('/weekly-plan/:day', async (req, res) => {
+  try {
+    const userId = getUserIdFromRequest(req);
+    const dayParam = req.params?.day;
+    const weekday = toWeekdayNumber(dayParam);
+
+    if (!userId || !weekday) {
+      return res.status(400).json({ error: 'userId e dia da semana válidos são obrigatórios.' });
+    }
+
+    const workoutId = req.body?.workoutId || req.body?.workout_id || null;
+    const time = req.body?.time || null;
+    const reminderEnabled =
+      req.body?.reminderEnabled !== undefined
+        ? !!req.body.reminderEnabled
+        : req.body?.reminder !== undefined
+        ? !!req.body.reminder
+        : true;
+
+    const payload = {
+      user_id: userId,
+      weekday,
+      workout_id: workoutId,
+      time,
+      is_active: reminderEnabled,
+    };
+
+    const { error } = await supabase
+      .from('workout_schedule')
+      .upsert(payload, { onConflict: 'user_id,weekday' });
+
+    if (error) {
+      console.error('Erro ao salvar planejamento semanal automático:', error);
+      return res.status(400).json({ error: error.message });
+    }
+
+    return res.json({ success: true });
+  } catch (err) {
+    console.error('Erro inesperado em PATCH /weekly-plan/:day:', err);
+    return res.status(500).json({ error: 'Erro interno no servidor' });
+  }
+});
+
 // GET /workout-schedule
 app.get("/workout-schedule", async (req, res) => {
   try {

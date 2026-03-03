@@ -685,6 +685,8 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
   const [schedule, setSchedule] = useState(defaultSchedule);
   const [loading, setLoading] = useState(false);
   const [savingSchedule, setSavingSchedule] = useState(false);
+  const [autoSaveStatus, setAutoSaveStatus] = useState(null);
+  const [openWorkoutSelectDay, setOpenWorkoutSelectDay] = useState(null);
   const [userId, setUserId] = useState('');
   const [viewWorkout, setViewWorkout] = useState(null);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
@@ -960,6 +962,14 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
 
   const hasRoutines = useMemo(() => routines.length > 0, [routines]);
 
+  const weekSummary = useMemo(() => {
+    const totalTreinos = (Array.isArray(schedule) ? schedule : []).filter((slot) => !!slot.workout_id).length;
+    return {
+      totalTreinos,
+      diasDescanso: 7 - totalTreinos,
+    };
+  }, [schedule]);
+
   const notify = (message, variant = 'info') => {
     if (typeof pushToast === 'function') {
       pushToast(message, variant);
@@ -979,6 +989,31 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
       throw new Error(data.error || 'Erro ao comunicar com o servidor.');
     }
     return data;
+  };
+
+  const updateWeeklyPlan = async (day, { workoutId, time, reminderEnabled }) => {
+    await fetchJson(`${apiBaseUrl}/weekly-plan/${day}`, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        userId,
+        workoutId,
+        time,
+        reminderEnabled,
+      }),
+    });
+  };
+
+  const autoSavePlan = async (day, data) => {
+    try {
+      setSavingSchedule(true);
+      await updateWeeklyPlan(day, data);
+      setAutoSaveStatus('salvo');
+      setTimeout(() => setAutoSaveStatus(null), 1500);
+    } catch (err) {
+      console.error('Erro ao salvar planejamento', err);
+    } finally {
+      setSavingSchedule(false);
+    }
   };
 
   const normalizeRoutineFromApi = (item) => {
@@ -1372,39 +1407,20 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
   };
 
   const handleScheduleChange = (day, field, value) => {
-    setSchedule((prev) =>
-      prev.map((slot) => (slot.day === day ? { ...slot, [field]: value } : slot))
-    );
-  };
+    setSchedule((prev) => {
+      const nextSchedule = prev.map((slot) => (slot.day === day ? { ...slot, [field]: value } : slot));
+      const updatedSlot = nextSchedule.find((slot) => slot.day === day);
 
-  const handleSaveSchedule = async () => {
-    try {
-      setSavingSchedule(true);
+      if (updatedSlot) {
+        autoSavePlan(day, {
+          workoutId: updatedSlot.workout_id || null,
+          time: updatedSlot.time || null,
+          reminderEnabled: !!updatedSlot.reminder,
+        });
+      }
 
-      const normalizedSchedule = (Array.isArray(schedule) ? schedule : []).map((item, index) => {
-        const weekday = Number(item.weekday || item.dayIndex || index + 1);
-        return {
-          weekday,
-          workout_id: item.workout_id || item.workoutId || null,
-          time: item.time || null,
-          reminder: item.reminder !== undefined ? !!item.reminder : true,
-        };
-      });
-
-      const payload = { schedule: normalizedSchedule, userId, user_id: userId };
-
-      await fetchJson(`${apiBaseUrl}/workout-schedule`, {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      });
-
-      notify('Semana de treino salva!', 'success');
-    } catch (err) {
-      console.warn('Erro ao salvar semana de treino', err);
-      notify(err.message || 'Não foi possível salvar a semana.', 'danger');
-    } finally {
-      setSavingSchedule(false);
-    }
+      return nextSchedule;
+    });
   };
 
   const completeWorkoutSession = async (template) => {
@@ -2218,6 +2234,21 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
         <section className="card" style={{ marginTop: 16 }}>
           <h4 className="title" style={{ marginBottom: 12 }}>Semana de Treino</h4>
 
+          <div
+            className="week-summary"
+            style={{
+              border: '1px solid rgba(255,255,255,0.08)',
+              borderRadius: 12,
+              padding: 14,
+              marginBottom: 16,
+              background: 'linear-gradient(120deg, rgba(80, 190, 120, 0.12), rgba(15, 19, 28, 0.75))',
+            }}
+          >
+            <h3 style={{ margin: '0 0 6px 0' }}>📅 Semana ativa</h3>
+            <p style={{ margin: 0 }}>{weekSummary.totalTreinos} dias de treino</p>
+            <p style={{ margin: '4px 0 0 0' }}>{weekSummary.diasDescanso} dias de descanso</p>
+          </div>
+
           {/* usar exatamente o mesmo conteúdo que hoje está dentro do comentário "SEMANA DE TREINO" */}
           <div
             style={{
@@ -2275,24 +2306,76 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   <label style={{ fontSize: 13, color: '#9ba4b5' }}>Treino</label>
-                  <select
-                    value={slot.workout_id}
-                    onChange={(e) => handleScheduleChange(slot.day, 'workout_id', e.target.value)}
+                  <div
+                    className="custom-select"
                     style={{
                       background: '#0f131c',
                       border: '1px solid rgba(255,255,255,0.08)',
-                      color: '#fff',
                       borderRadius: 10,
-                      padding: '10px 12px',
+                      position: 'relative',
                     }}
                   >
-                    <option value="">Selecione um treino</option>
-                    {routines.map((item) => (
-                      <option key={item.id || item.name} value={item.id}>
-                        {item.name}
-                      </option>
-                    ))}
-                  </select>
+                    <button
+                      type="button"
+                      onClick={() => setOpenWorkoutSelectDay((prev) => (prev === slot.day ? null : slot.day))}
+                      style={{
+                        width: '100%',
+                        background: 'transparent',
+                        border: 'none',
+                        color: '#fff',
+                        padding: '10px 12px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        cursor: 'pointer',
+                        fontWeight: 500,
+                      }}
+                    >
+                      <span>
+                        {routines.find((item) => String(item.id) === String(slot.workout_id))?.name || 'Selecione um treino'}
+                      </span>
+                      <span style={{ opacity: 0.8 }}>▾</span>
+                    </button>
+
+                    {openWorkoutSelectDay === slot.day && (
+                      <div
+                        style={{
+                          position: 'absolute',
+                          top: 'calc(100% + 6px)',
+                          left: 0,
+                          right: 0,
+                          zIndex: 10,
+                          background: '#131722',
+                          border: '1px solid rgba(255,255,255,0.08)',
+                          borderRadius: 10,
+                          boxShadow: '0 10px 24px rgba(0,0,0,0.3)',
+                          overflow: 'hidden',
+                        }}
+                      >
+                        {[{ id: '', name: 'Selecione um treino' }, ...routines].map((item) => (
+                          <button
+                            key={`${slot.day}-${item.id || 'none'}-${item.name}`}
+                            type="button"
+                            onClick={() => {
+                              handleScheduleChange(slot.day, 'workout_id', item.id);
+                              setOpenWorkoutSelectDay(null);
+                            }}
+                            style={{
+                              width: '100%',
+                              textAlign: 'left',
+                              border: 'none',
+                              background: String(item.id) === String(slot.workout_id) ? 'rgba(80, 190, 120, 0.15)' : 'transparent',
+                              color: '#fff',
+                              padding: '10px 12px',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            {item.name}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -2339,7 +2422,14 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
                       border: '1px solid rgba(255,255,255,0.08)',
                     }}
                   >
-                    <span style={{ color: '#d3d8e6' }}>Ativar lembrete</span>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      <span style={{ color: '#d3d8e6' }}>Ativar lembrete</span>
+                      <span style={{ fontSize: 12, color: '#9ba4b5' }}>
+                        {slot.reminder
+                          ? `🟢 Lembrete ativo às ${slot.time || '--:--'}`
+                          : '⚪ Lembrete desativado'}
+                      </span>
+                    </div>
                     <div
                       style={{
                         position: 'relative',
@@ -2384,15 +2474,11 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
             ))}
           </div>
 
-          <div className="row" style={{ justifyContent: 'flex-end', marginTop: 12 }}>
-            <button
-              className="primary"
-              onClick={handleSaveSchedule}
-              disabled={savingSchedule || !hasRoutines}
-            >
-              {savingSchedule ? 'Salvando...' : 'Salvar semana de treino'}
-            </button>
-          </div>
+          {autoSaveStatus && (
+            <div className="muted" style={{ marginTop: 12, color: '#50be78' }}>
+              Alterações salvas automaticamente.
+            </div>
+          )}
 
           {!hasRoutines && (
             <div className="muted" style={{ marginTop: 8, fontSize: 13 }}>
