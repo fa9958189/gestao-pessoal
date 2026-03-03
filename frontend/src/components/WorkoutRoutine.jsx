@@ -657,7 +657,8 @@ const ViewWorkoutModal = ({
 };
 
 const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushToast }) => {
-  const [activeTab, setActiveTab] = useState('config');
+  const [treinoTab, setTreinoTab] = useState('treinos');
+  const [etapaTreino, setEtapaTreino] = useState('tipo');
   const [workoutForm, setWorkoutForm] = useState({
     id: null,
     name: '',
@@ -1222,6 +1223,8 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
         });
       }
 
+      setEtapaTreino('tipo');
+      setTreinoTab('treinos');
       notify('Treino salvo com sucesso!', 'success');
     } catch (err) {
       console.warn('Erro ao salvar treino', err);
@@ -1445,14 +1448,14 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
   }, [userId]);
 
   useEffect(() => {
-    if (activeTab === 'history') {
+    if (treinoTab === 'historico') {
       loadSessions();
-    } else if (activeTab === 'progress') {
+    } else if (treinoTab === 'evolucao') {
       loadProgress();
       loadSessions();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, historyRange]);
+  }, [treinoTab, historyRange]);
 
   useEffect(() => {
     if (!restRunning) return;
@@ -1487,38 +1490,78 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
     <div className="workout-card">
       {/* COLUNA ESQUERDA – Rotina de Treino (aba + config + histórico + progresso) */}
       <section className="card" style={{ marginTop: 16 }}>
-        <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
-          <h3 className="title" style={{ margin: 0 }}>Rotina de Treino</h3>
-          <div className="muted" style={{ fontSize: 13 }}>
-            Monte templates detalhados, salve o histórico e acompanhe o progresso.
-          </div>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: '12px',
+            flexWrap: 'wrap',
+            gap: '10px'
+          }}
+        >
+          <h2 style={{ margin: 0 }}>
+            🏋️ Treinos
+          </h2>
+
+          <button
+            onClick={() => {
+              setEtapaTreino('tipo');
+              setTreinoTab('treinos');
+            }}
+            style={{
+              background: '#22c55e',
+              color: '#fff',
+              border: 'none',
+              padding: '10px 18px',
+              borderRadius: '10px',
+              fontWeight: '600',
+              cursor: 'pointer'
+            }}
+          >
+            + Novo Treino
+          </button>
         </div>
 
         <div className="sep" style={{ marginTop: 12 }}></div>
 
-        <div className="row" style={{ gap: 12, margin: '10px 0 18px' }}>
+        <div
+          style={{
+            display: 'flex',
+            gap: '10px',
+            marginBottom: '20px',
+            flexWrap: 'wrap',
+            marginTop: '10px'
+          }}
+        >
           <button
-            className={activeTab === 'config' ? 'primary' : 'ghost'}
-            onClick={() => setActiveTab('config')}
+            onClick={() => setTreinoTab('treinos')}
+            className={treinoTab === 'treinos' ? 'active' : ''}
           >
-            Configuração
+            📋 Treinos
           </button>
           <button
-            className={activeTab === 'history' ? 'primary' : 'ghost'}
-            onClick={() => setActiveTab('history')}
+            onClick={() => setTreinoTab('planejamento')}
+            className={treinoTab === 'planejamento' ? 'active' : ''}
           >
-            Histórico
+            📅 Planejamento
           </button>
           <button
-            className={activeTab === 'progress' ? 'primary' : 'ghost'}
-            onClick={() => setActiveTab('progress')}
+            onClick={() => setTreinoTab('evolucao')}
+            className={treinoTab === 'evolucao' ? 'active' : ''}
           >
-            Progresso
+            📊 Evolução
+          </button>
+          <button
+            onClick={() => setTreinoTab('historico')}
+            className={treinoTab === 'historico' ? 'active' : ''}
+          >
+            🕓 Histórico
           </button>
         </div>
 
         {/* Aba CONFIG – manter apenas "Novo Template de Treino" + "Treinos cadastrados" aqui */}
-        {activeTab === 'config' && (
+        {treinoTab === 'treinos' && etapaTreino === 'tipo' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
             {/* NOVO TREINO */}
             <div>
@@ -1657,8 +1700,8 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
           </div>
         )}
 
-        {/* Aba HISTÓRICO – copiar exatamente o conteúdo atual do bloco activeTab === 'history' */}
-        {activeTab === 'history' && (
+        {/* Aba HISTÓRICO */}
+        {treinoTab === 'historico' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div className="row" style={{ gap: 8 }}>
               <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -1757,8 +1800,8 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
           </div>
         )}
 
-        {/* Aba PROGRESSO – copiar exatamente o conteúdo atual do bloco activeTab === 'progress' */}
-        {activeTab === 'progress' && (
+        {/* Aba EVOLUÇÃO */}
+        {treinoTab === 'evolucao' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div className="muted" style={{ fontSize: 14 }}>
               Total de treinos no mês: <strong>{progress.totalSessions || 0}</strong>
@@ -2002,8 +2045,7 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
         )}
       </section>
 
-      {/* COLUNA DIREITA – Semana de Treino (só aparece na aba de configuração) */}
-      {activeTab === 'config' && (
+      {treinoTab === 'planejamento' && (
         <section className="card" style={{ marginTop: 16 }}>
           <h4 className="title" style={{ marginBottom: 12 }}>Semana de Treino</h4>
 
@@ -2191,8 +2233,7 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
         </section>
       )}
 
-      {/* COLUNA DIREITA – Gráficos de Progresso (só aparece na aba de progresso) */}
-      {activeTab === 'progress' && (
+      {treinoTab === 'evolucao' && (
         <section className="card" style={{ marginTop: 16 }}>
           <h4 className="title" style={{ marginBottom: 12 }}>Visão analítica</h4>
           <div className="grid" style={{ gap: 16 }}>
