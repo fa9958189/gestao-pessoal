@@ -3418,10 +3418,12 @@ function App() {
       )}
 
       {activeView === 'workout' && (
-        <div className="container single-card">
-          <section className="card dashboard-card">
-            <WorkoutRoutine apiBaseUrl={workoutApiBase} pushToast={pushToast} />
-          </section>
+        <div className="page-container">
+          <div className="card-container">
+            <section className="card dashboard-card">
+              <WorkoutRoutine apiBaseUrl={workoutApiBase} pushToast={pushToast} />
+            </section>
+          </div>
         </div>
       )}
 
