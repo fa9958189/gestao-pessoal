@@ -42,6 +42,13 @@ app.use("/api/foods", foodsRouter);
 
 const BILLING_DEFAULT_DUE_DAY = 20;
 const AFFILIATE_COMMISSION_CENTS = 2000;
+let schedulerStarted = false;
+
+function parseBoolean(value) {
+  if (value === true || value === "true" || value === 1 || value === "1") return true;
+  if (value === false || value === "false" || value === 0 || value === "0") return false;
+  return false;
+}
 
 const getCurrentPeriodMonth = (today = new Date()) =>
   new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10);
@@ -52,9 +59,12 @@ const ENABLE_MORNING_AGENDA = process.env.ENABLE_MORNING_AGENDA === "true";
 const ENABLE_DAILY_GOALS_REMINDER =
   process.env.ENABLE_DAILY_GOALS_REMINDER !== "false";
 
-// Inicia o job de lembretes (agenda)
-if (ENABLE_MORNING_AGENDA) startMorningAgendaScheduler();
-if (ENABLE_DAILY_GOALS_REMINDER) startDailyGoalsReminder();
+// Inicia os schedulers uma única vez
+if (!schedulerStarted) {
+  if (ENABLE_MORNING_AGENDA) startMorningAgendaScheduler();
+  if (ENABLE_DAILY_GOALS_REMINDER) startDailyGoalsReminder();
+  schedulerStarted = true;
+}
 
 app.get("/debug/zapi-test", async (req, res) => {
   try {
@@ -1444,32 +1454,65 @@ app.patch('/weekly-plan/:day', async (req, res) => {
       return res.status(400).json({ error: 'userId e dia da semana válidos são obrigatórios.' });
     }
 
-    const workoutId = req.body?.workoutId || req.body?.workout_id || null;
-    const time = req.body?.time || null;
+    const hasWorkoutId = req.body?.workoutId !== undefined || req.body?.workout_id !== undefined;
+    const hasTime = req.body?.time !== undefined;
+    const reminderRaw = req.body?.reminderEnabled ?? req.body?.reminder_enabled ?? req.body?.reminder;
     const reminderEnabled =
-      req.body?.reminderEnabled !== undefined
-        ? !!req.body.reminderEnabled
-        : req.body?.reminder_enabled !== undefined
-        ? !!req.body.reminder_enabled
-        : req.body?.reminder !== undefined
-        ? !!req.body.reminder
-        : true;
+      reminderRaw !== undefined
+        ? parseBoolean(
+            req.body?.reminderEnabled ?? req.body?.reminder_enabled ?? req.body?.reminder
+          )
+        : undefined;
 
-    const payload = {
-      user_id: userId,
-      weekday,
-      workout_id: workoutId,
-      time,
-      is_active: reminderEnabled,
-    };
+    console.log('Atualizando lembrete:', {
+      day: weekday,
+      reminderEnabled,
+    });
 
-    const { error } = await supabase
+    const workoutId = req.body?.workoutId ?? req.body?.workout_id;
+    const time = req.body?.time;
+    const updateData = {};
+
+    if (hasWorkoutId) updateData.workout_id = workoutId ?? null;
+    if (hasTime) updateData.time = time ?? null;
+    if (reminderEnabled !== undefined) updateData.is_active = reminderEnabled;
+
+    const { data: existingPlan, error: existingPlanError } = await supabase
       .from('workout_schedule')
-      .upsert(payload, { onConflict: 'user_id,weekday' });
+      .select('id')
+      .eq('user_id', userId)
+      .eq('weekday', weekday)
+      .maybeSingle();
 
-    if (error) {
-      console.error('Erro ao salvar planejamento semanal automático:', error);
-      return res.status(400).json({ error: error.message });
+    if (existingPlanError) {
+      console.error('Erro ao buscar planejamento semanal automático:', existingPlanError);
+      return res.status(400).json({ error: existingPlanError.message });
+    }
+
+    let saveError = null;
+
+    if (existingPlan?.id) {
+      if (Object.keys(updateData).length > 0) {
+        const { error } = await supabase
+          .from('workout_schedule')
+          .update(updateData)
+          .eq('id', existingPlan.id);
+        saveError = error;
+      }
+    } else {
+      const insertData = {
+        user_id: userId,
+        weekday,
+        ...updateData,
+      };
+
+      const { error } = await supabase.from('workout_schedule').insert(insertData);
+      saveError = error;
+    }
+
+    if (saveError) {
+      console.error('Erro ao salvar planejamento semanal automático:', saveError);
+      return res.status(400).json({ error: saveError.message });
     }
 
     return res.json({ success: true });
