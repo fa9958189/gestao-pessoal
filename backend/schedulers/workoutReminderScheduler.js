@@ -49,6 +49,22 @@ const sendWhatsApp = async (userId, message) => {
   await sendWhatsAppMessage({ phone, message });
 };
 
+const getRandomMotivationalQuote = async () => {
+  const { data, error } = await supabase
+    .from("motivational_quotes")
+    .select("message")
+    .eq("active", true)
+    .order("random()")
+    .limit(1)
+    .single();
+
+  if (error || !data) {
+    return "Disciplina vence motivação.";
+  }
+
+  return data.message;
+};
+
 export function startWorkoutReminderScheduler() {
   if (started) return;
   started = true;
@@ -95,17 +111,19 @@ export function startWorkoutReminderScheduler() {
         if (alreadySent) continue;
 
         const workout = schedule.workout_routines;
+        const workoutName = workout?.name || "Treino";
+        const workoutTime = schedule?.time || "Não definido";
+        const quote = await getRandomMotivationalQuote();
 
         const message = `
 ☀️ Bom dia!
 
-💪 Treino de hoje:
-${workout?.name || "Treino"}
+🔥 ${quote}
 
-🏋️ Músculos:
-${workout?.muscle_groups || ""}
+💪 Treino de hoje
+${workoutName}
 
-🔥 Disciplina vence motivação.
+⏰ Horário: ${workoutTime}
 `;
 
         try {
@@ -115,6 +133,7 @@ ${workout?.muscle_groups || ""}
             user_id: schedule.user_id,
             entry_date: entryDate,
             status: "success",
+            message,
           });
         } catch (err) {
           console.error("Erro ao enviar lembrete:", err);
@@ -123,7 +142,7 @@ ${workout?.muscle_groups || ""}
             user_id: schedule.user_id,
             entry_date: entryDate,
             status: "error",
-            message: err.message,
+            message,
           });
         }
       }
