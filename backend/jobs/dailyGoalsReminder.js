@@ -7,6 +7,8 @@ const CRON_EXPRESSION = "0 23 * * *";
 const ALERT_TYPE = "daily_goals_23h";
 const GOALS_INTERVAL_MINUTES =
   Number(process.env.GOALS_INTERVAL_MINUTES) || 15; // PERF: intervalo configurável
+const ENABLE_DAILY_GOALS_LOGGING =
+  process.env.ENABLE_DAILY_GOALS_LOGGING === "true";
 
 const DEFAULT_CALORIE_GOAL = 2000;
 const DEFAULT_PROTEIN_GOAL = 120;
@@ -60,6 +62,10 @@ const computeAvatarTip = ({ pctCalories, pctProtein, pctWater }) => {
 };
 
 const fetchTableColumns = async (tableName) => {
+  if (!ENABLE_DAILY_GOALS_LOGGING) {
+    return [];
+  }
+
   const { data, error } = await supabase
     .from("information_schema.columns")
     .select("column_name")
@@ -138,6 +144,10 @@ const resolveLogTable = async () => {
 };
 
 const getLogTableConfig = async () => {
+  if (!ENABLE_DAILY_GOALS_LOGGING) {
+    return null;
+  }
+
   if (!logTableConfig) {
     logTableConfig = await resolveLogTable();
   }
@@ -158,6 +168,10 @@ const buildLogPayload = (config, { userId, dateStr, message, status }) => {
 };
 
 const hasNotificationBeenSent = async (config, userId, dateStr) => {
+  if (!ENABLE_DAILY_GOALS_LOGGING) {
+    return false;
+  }
+
   if (!config?.tableName || !config.userColumn || !config.dateColumn || !config.typeColumn) {
     return false;
   }
@@ -179,6 +193,10 @@ const hasNotificationBeenSent = async (config, userId, dateStr) => {
 };
 
 const logNotification = async (config, payload) => {
+  if (!ENABLE_DAILY_GOALS_LOGGING) {
+    return;
+  }
+
   if (!config?.tableName) {
     return;
   }
@@ -356,14 +374,16 @@ const runDailyGoalsReminder = async () => {
 
       await sendWhatsAppMessage({ phone: user.whatsapp, message });
 
-      const payload = buildLogPayload(config, {
-        userId,
-        dateStr: todayStr,
-        message,
-        status: "success",
-      });
+      if (ENABLE_DAILY_GOALS_LOGGING) {
+        const payload = buildLogPayload(config, {
+          userId,
+          dateStr: todayStr,
+          message,
+          status: "success",
+        });
 
-      await logNotification(config, payload);
+        await logNotification(config, payload);
+      }
     } catch (err) {
       console.error("❌ Erro ao enviar metas diárias:", err.message || err);
     }
