@@ -48,9 +48,13 @@ const getCurrentPeriodMonth = (today = new Date()) =>
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+const ENABLE_MORNING_AGENDA = process.env.ENABLE_MORNING_AGENDA === "true";
+const ENABLE_DAILY_GOALS_REMINDER =
+  process.env.ENABLE_DAILY_GOALS_REMINDER !== "false";
+
 // Inicia o job de lembretes (agenda)
-startMorningAgendaScheduler();
-startDailyGoalsReminder();
+if (ENABLE_MORNING_AGENDA) startMorningAgendaScheduler();
+if (ENABLE_DAILY_GOALS_REMINDER) startDailyGoalsReminder();
 
 app.get("/debug/zapi-test", async (req, res) => {
   try {
