@@ -963,7 +963,7 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
   const hasRoutines = useMemo(() => routines.length > 0, [routines]);
 
   const weekSummary = useMemo(() => {
-    const totalTreinos = (Array.isArray(schedule) ? schedule : []).filter((slot) => !!slot.workout_id).length;
+    const totalTreinos = (Array.isArray(schedule) ? schedule : []).filter((slot) => slot?.is_active === true).length;
     return {
       totalTreinos,
       diasDescanso: 7 - totalTreinos,
