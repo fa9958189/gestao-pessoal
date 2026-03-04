@@ -13,6 +13,7 @@ import {
   startMorningAgendaScheduler,
 } from "./reminders.js";
 import { startDailyGoalsReminder } from "./jobs/dailyGoalsReminder.js";
+import { startWorkoutReminderScheduler } from "./schedulers/workoutReminderScheduler.js";
 import { analyzeFoodImage } from "./ai/foodScanner.js";
 import {
   createWorkoutSession,
@@ -63,6 +64,7 @@ const ENABLE_DAILY_GOALS_REMINDER =
 if (!schedulerStarted) {
   if (ENABLE_MORNING_AGENDA) startMorningAgendaScheduler();
   if (ENABLE_DAILY_GOALS_REMINDER) startDailyGoalsReminder();
+  startWorkoutReminderScheduler();
   schedulerStarted = true;
 }
 
