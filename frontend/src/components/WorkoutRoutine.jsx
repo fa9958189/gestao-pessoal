@@ -313,6 +313,16 @@ const WEEK_DAYS = [
   'Domingo'
 ];
 
+const WEEKDAY_NAME = {
+  1: 'Segunda',
+  2: 'Terça',
+  3: 'Quarta',
+  4: 'Quinta',
+  5: 'Sexta',
+  6: 'Sábado',
+  7: 'Domingo',
+};
+
 const defaultSchedule = WEEK_DAYS.map((day) => ({
   day,
   workout_id: '',
@@ -962,13 +972,32 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
 
   const hasRoutines = useMemo(() => routines.length > 0, [routines]);
 
-  const weekSummary = useMemo(() => {
-    const totalTreinos = (Array.isArray(schedule) ? schedule : []).filter((slot) => slot?.is_active === true).length;
+  const nextWorkout = useMemo(() => {
+    const normalizedSchedule = Array.isArray(schedule) ? schedule : [];
+    const activeWorkouts = normalizedSchedule
+      .filter((slot) => (slot?.is_active ?? slot?.reminder) === true && slot?.workout_id)
+      .map((slot, idx) => ({
+        ...slot,
+        weekday: Number(slot?.weekday || slot?.dayIndex || idx + 1),
+      }))
+      .sort((a, b) => a.weekday - b.weekday);
+
+    if (activeWorkouts.length === 0) {
+      return null;
+    }
+
+    const currentJsDay = new Date().getDay();
+    const today = currentJsDay === 0 ? 7 : currentJsDay;
+    const upcoming = activeWorkouts.find((slot) => slot.weekday >= today) || activeWorkouts[0];
+    const workoutName =
+      routines.find((routine) => String(routine.id) === String(upcoming.workout_id))?.name ||
+      'Treino sem nome';
+
     return {
-      totalTreinos,
-      diasDescanso: 7 - totalTreinos,
+      ...upcoming,
+      workoutName,
     };
-  }, [schedule]);
+  }, [schedule, routines]);
 
   const notify = (message, variant = 'info') => {
     if (typeof pushToast === 'function') {
@@ -1090,6 +1119,7 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
               ...r,
               // padroniza o toggle no formato do front
               reminder: r.is_active ?? r.isActive ?? true,
+              is_active: r.is_active ?? r.isActive ?? true,
             },
           ])
       );
@@ -1105,6 +1135,7 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
           workout_id: fromDb?.workout_id ?? slot.workout_id ?? null,
           time: fromDb?.time ?? slot.time ?? null,
           reminder: fromDb?.reminder ?? slot.reminder ?? true,
+          is_active: fromDb?.is_active ?? slot.is_active ?? slot.reminder ?? true,
         };
       });
 
@@ -1407,7 +1438,15 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
 
   const handleScheduleChange = (day, field, value) => {
     setSchedule((prev) => {
-      const nextSchedule = prev.map((slot) => (slot.day === day ? { ...slot, [field]: value } : slot));
+      const nextSchedule = prev.map((slot) => {
+        if (slot.day !== day) return slot;
+
+        if (field === 'reminder') {
+          return { ...slot, reminder: value, is_active: value };
+        }
+
+        return { ...slot, [field]: value };
+      });
       const updatedSlot = nextSchedule.find((slot) => slot.day === day);
 
       if (updatedSlot) {
@@ -2239,7 +2278,7 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
           <h4 className="title" style={{ marginBottom: 12 }}>Semana de Treino</h4>
 
           <div
-            className="week-summary"
+            className="next-workout-card"
             style={{
               border: '1px solid rgba(255,255,255,0.08)',
               borderRadius: 12,
@@ -2248,9 +2287,17 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
               background: 'linear-gradient(120deg, rgba(80, 190, 120, 0.12), rgba(15, 19, 28, 0.75))',
             }}
           >
-            <h3 style={{ margin: '0 0 6px 0' }}>📅 Semana ativa</h3>
-            <p style={{ margin: 0 }}>{weekSummary.totalTreinos} dias de treino</p>
-            <p style={{ margin: '4px 0 0 0' }}>{weekSummary.diasDescanso} dias de descanso</p>
+            <h3 style={{ margin: '0 0 6px 0' }}>📅 Próximo Treino</h3>
+
+            {nextWorkout ? (
+              <>
+                <p style={{ margin: 0 }}>💪 {nextWorkout.workoutName}</p>
+                <p style={{ margin: '4px 0 0 0' }}>📆 {WEEKDAY_NAME[nextWorkout.weekday]}</p>
+                <p style={{ margin: '4px 0 0 0' }}>⏰ {nextWorkout.time || 'Horário não definido'}</p>
+              </>
+            ) : (
+              <p style={{ margin: 0 }}>Nenhum treino programado</p>
+            )}
           </div>
 
           {/* usar exatamente o mesmo conteúdo que hoje está dentro do comentário "SEMANA DE TREINO" */}
@@ -2455,7 +2502,7 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
 
                           setSchedule((prev) =>
                             prev.map((item) =>
-                              item.day === slot.day ? { ...item, reminder: value } : item
+                              item.day === slot.day ? { ...item, reminder: value, is_active: value } : item
                             )
                           );
 
