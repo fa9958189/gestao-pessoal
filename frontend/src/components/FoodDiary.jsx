@@ -89,6 +89,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
   );
   const [activeSubTab, setActiveSubTab] = useState('diario');
   const [isAddMealModalOpen, setIsAddMealModalOpen] = useState(false);
+  const [addMealStep, setAddMealStep] = useState(1);
   const [foodInputMode, setFoodInputMode] = useState(null);
   const [expandedMeals, setExpandedMeals] = useState({});
 
@@ -399,6 +400,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
       }
       return [selectedItem];
     });
+    setAddMealStep(3);
     setIsAddMealModalOpen(true);
   };
 
@@ -510,7 +512,10 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
         ? analysis.itens.map((item) => normalizeScanItem(item))
         : [];
       setScanPreview(items);
-      if (items.length > 0) setIsAddMealModalOpen(true);
+      if (items.length > 0) {
+        setAddMealStep(2);
+        setIsAddMealModalOpen(true);
+      }
       setError(null);
       if (typeof notify === 'function') {
         notify('Alimento escaneado com sucesso.', 'success');
@@ -545,6 +550,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
       calories: String(calories),
       protein: String(protein),
     }));
+    setAddMealStep(3);
     setIsAddMealModalOpen(true);
   };
 
@@ -584,6 +590,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
       calories: String(total.calorias),
       protein: total.proteina.toFixed(1),
     }));
+    setAddMealStep(3);
     setIsAddMealModalOpen(true);
   };
 
@@ -708,6 +715,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
       setScanPreview(null);
       setScanDescription('');
       setEditingId(null);
+      setAddMealStep(1);
       setIsAddMealModalOpen(false);
       setError(null);
       if (typeof notify === 'function') {
@@ -731,6 +739,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
 
   const handleEditEntry = (entry) => {
     setEditingId(entry.id);
+    setAddMealStep(1);
     setIsAddMealModalOpen(true);
     setFoodInputMode('manual');
     setForm({
@@ -756,11 +765,13 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
       time: '',
       notes: ''
     });
+    setAddMealStep(1);
     setIsAddMealModalOpen(true);
   };
 
   const closeAddMealModal = () => {
     setIsAddMealModalOpen(false);
+    setAddMealStep(1);
     setEditingId(null);
   };
 
@@ -1452,192 +1463,246 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
                   {editingId ? 'Editar alimento' : 'Cadastrar alimento'}
                 </h4>
                 <form onSubmit={handleAddEntry} className="food-diary-form" autoComplete="off">
-                  <div className="row" style={{ gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
-                    <div className="field" style={{ flex: 1, minWidth: 180 }}>
-                      <label>Data</label>
-                      <input
-                        type="date"
-                        value={selectedDate}
-                        onChange={(e) => setSelectedDate(e.target.value)}
-                      />
+                  <div style={{ marginBottom: 12 }}>
+                    <div className="muted" style={{ marginBottom: 6, fontSize: 13 }}>
+                      Passo {addMealStep} de 3
                     </div>
-                    <div className="field" style={{ flex: 1, minWidth: 180 }}>
-                      <label>Refeição</label>
-                      <select
-                        value={form.mealType}
-                        onChange={(e) => handleChangeForm('mealType', e.target.value)}
-                      >
-                        <option>Café da manhã</option>
-                        <option>Almoço</option>
-                        <option>Jantar</option>
-                        <option>Lanche</option>
-                        <option>Pós-treino</option>
-                      </select>
-                    </div>
-                    <div className="field" style={{ flex: 1, minWidth: 180 }}>
-                      <label>Horário</label>
-                      <input
-                        type="time"
-                        value={form.time}
-                        onChange={(e) => handleChangeForm('time', e.target.value)}
+                    <div
+                      style={{
+                        height: 6,
+                        width: '100%',
+                        borderRadius: 999,
+                        background: 'rgba(255,255,255,0.12)',
+                        overflow: 'hidden',
+                      }}
+                    >
+                      <div
+                        style={{
+                          height: '100%',
+                          width: `${(addMealStep / 3) * 100}%`,
+                          background: 'var(--accent, #6ba8ff)',
+                          transition: 'width 160ms ease',
+                        }}
                       />
                     </div>
                   </div>
 
-                  <div className="row" style={{ gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
-                    <button
-                      type="button"
-                      className="ghost small"
-                      onClick={() => {
-                        setFoodInputMode('buscar');
-                        setIsFoodPickerOpen(true);
-                      }}
-                      disabled={isScanningFood}
-                    >
-                      Buscar alimento
-                    </button>
-                    <button
-                      type="button"
-                      className="ghost small"
-                      onClick={() => {
-                        setFoodInputMode('scan');
-                        handleSelectImageForScan();
-                      }}
-                      disabled={isScanningFood}
-                    >
-                      Escanear comida
-                    </button>
-                    <button
-                      type="button"
-                      className={foodInputMode === 'manual' ? 'primary small' : 'ghost small'}
-                      onClick={() => setFoodInputMode('manual')}
-                    >
-                      Inserir manualmente
-                    </button>
-                  </div>
+                  {addMealStep === 1 && (
+                    <>
+                      <div className="row" style={{ gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+                        <div className="field" style={{ flex: 1, minWidth: 180 }}>
+                          <label>Data</label>
+                          <input
+                            type="date"
+                            value={selectedDate}
+                            onChange={(e) => setSelectedDate(e.target.value)}
+                          />
+                        </div>
+                        <div className="field" style={{ flex: 1, minWidth: 180 }}>
+                          <label>Refeição</label>
+                          <select
+                            value={form.mealType}
+                            onChange={(e) => handleChangeForm('mealType', e.target.value)}
+                          >
+                            <option>Café da manhã</option>
+                            <option>Almoço</option>
+                            <option>Jantar</option>
+                            <option>Lanche</option>
+                            <option>Pós-treino</option>
+                          </select>
+                        </div>
+                        <div className="field" style={{ flex: 1, minWidth: 180 }}>
+                          <label>Horário</label>
+                          <input
+                            type="time"
+                            value={form.time}
+                            onChange={(e) => handleChangeForm('time', e.target.value)}
+                          />
+                        </div>
+                      </div>
 
-                  <div className="field">
-                    <label>Alimento</label>
-                    <input
-                      type="text"
-                      placeholder="Ex.: Arroz, frango grelhado, iogurte..."
-                      value={form.food}
-                      onChange={(e) => handleChangeForm('food', e.target.value)}
-                    />
-                  </div>
+                      <div className="row" style={{ justifyContent: 'space-between', marginTop: 8 }}>
+                        <button type="button" className="ghost" onClick={closeAddMealModal}>
+                          Cancelar
+                        </button>
+                        <button type="button" className="primary" onClick={() => setAddMealStep(2)}>
+                          Continuar
+                        </button>
+                      </div>
+                    </>
+                  )}
 
-                {Array.isArray(scanPreview) && scanPreview.length > 0 && (
-                  <div className="scan-preview-card">
-                    <div className="scan-preview-header">
-                      <strong>Itens identificados:</strong>
-                    </div>
-                    <ul className="scan-preview-list">
-                      {scanPreview.map((item, index) => (
-                        <li key={`${item.nome || 'item'}-${index}`} className="scan-preview-item">
-                          <div className="scan-preview-row">
-                            <span>
-                              {item.nome}
-                              {item.quantidade ? ` – ${item.quantidade}` : ''}
-                            </span>
-                            <label style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                              <input
-                                type="number"
-                                min="1"
-                                max="2000"
-                                step="1"
-                                value={item.grams}
-                                onChange={(e) =>
-                                  handleScannedGramsChange(index, e.target.value)
-                                }
-                                style={{ width: 72 }}
-                              />
-                              <span>g</span>
-                            </label>
+                  {addMealStep === 2 && (
+                    <>
+                      <div className="row" style={{ gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+                        <button
+                          type="button"
+                          className={foodInputMode === 'buscar' ? 'primary small' : 'ghost small'}
+                          onClick={() => {
+                            setFoodInputMode('buscar');
+                            setIsFoodPickerOpen(true);
+                          }}
+                          disabled={isScanningFood}
+                        >
+                          Buscar alimento
+                        </button>
+                        <button
+                          type="button"
+                          className={foodInputMode === 'scan' ? 'primary small' : 'ghost small'}
+                          onClick={() => {
+                            setFoodInputMode('scan');
+                            handleSelectImageForScan();
+                          }}
+                          disabled={isScanningFood}
+                        >
+                          Escanear comida
+                        </button>
+                        <button
+                          type="button"
+                          className={foodInputMode === 'manual' ? 'primary small' : 'ghost small'}
+                          onClick={() => setFoodInputMode('manual')}
+                        >
+                          Inserir manualmente
+                        </button>
+                      </div>
+
+                      {Array.isArray(scanPreview) && scanPreview.length > 0 && (
+                        <div className="scan-preview-card">
+                          <div className="scan-preview-header">
+                            <strong>Itens identificados:</strong>
                           </div>
-                          <div className="muted" style={{ fontSize: 12 }}>
-                            {Math.round(
-                              scaleByGrams(
-                                item.baseCalories ?? item.calorias,
-                                item.grams,
-                                item.baseGrams,
-                              ),
-                            )}{' '}
-                            kcal •{' '}
-                            {Number(
-                              scaleByGrams(
-                                item.baseProtein ?? item.proteina,
-                                item.grams,
-                                item.baseGrams,
-                              ).toFixed(1),
-                            )}{' '}
-                            g proteína
-                          </div>
+                          <ul className="scan-preview-list">
+                            {scanPreview.map((item, index) => (
+                              <li key={`${item.nome || 'item'}-${index}`} className="scan-preview-item">
+                                <div className="scan-preview-row">
+                                  <span>
+                                    {item.nome}
+                                    {item.quantidade ? ` – ${item.quantidade}` : ''}
+                                  </span>
+                                  <label style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                    <input
+                                      type="number"
+                                      min="1"
+                                      max="2000"
+                                      step="1"
+                                      value={item.grams}
+                                      onChange={(e) =>
+                                        handleScannedGramsChange(index, e.target.value)
+                                      }
+                                      style={{ width: 72 }}
+                                    />
+                                    <span>g</span>
+                                  </label>
+                                </div>
+                                <div className="muted" style={{ fontSize: 12 }}>
+                                  {Math.round(
+                                    scaleByGrams(
+                                      item.baseCalories ?? item.calorias,
+                                      item.grams,
+                                      item.baseGrams,
+                                    ),
+                                  )}{' '}
+                                  kcal •{' '}
+                                  {Number(
+                                    scaleByGrams(
+                                      item.baseProtein ?? item.proteina,
+                                      item.grams,
+                                      item.baseGrams,
+                                    ).toFixed(1),
+                                  )}{' '}
+                                  g proteína
+                                </div>
+                                <button
+                                  type="button"
+                                  className="ghost small"
+                                  style={{ marginTop: 4 }}
+                                  onClick={() => handleApplyScannedItem(item)}
+                                >
+                                  Usar este alimento
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+
                           <button
                             type="button"
-                            className="ghost small"
-                            style={{ marginTop: 4 }}
-                            onClick={() => handleApplyScannedItem(item)}
+                            className="primary small"
+                            style={{ marginTop: 8 }}
+                            onClick={handleApplyAllScannedItems}
                           >
-                            Usar este alimento
+                            Somar tudo e preencher a refeição
                           </button>
-                        </li>
-                      ))}
-                    </ul>
+                        </div>
+                      )}
 
-                    <button
-                      type="button"
-                      className="primary small"
-                      style={{ marginTop: 8 }}
-                      onClick={handleApplyAllScannedItems}
-                    >
-                      Somar tudo e preencher a refeição
-                    </button>
-                  </div>
-                )}
+                      <div className="row" style={{ justifyContent: 'space-between', marginTop: 8 }}>
+                        <button type="button" className="ghost" onClick={() => setAddMealStep(1)}>
+                          Voltar
+                        </button>
+                        <button type="button" className="primary" onClick={() => setAddMealStep(3)}>
+                          Continuar
+                        </button>
+                      </div>
+                    </>
+                  )}
 
-                <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
-                  <div className="field" style={{ flex: 1, minWidth: 180 }}>
-                    <label>Calorias (kcal)</label>
-                    <input
-                      type="number"
-                      step="1"
-                      min="0"
-                      value={form.calories}
-                      onChange={(e) => handleChangeForm('calories', e.target.value)}
-                      placeholder="Ex.: 250"
-                    />
-                  </div>
-                  <div className="field" style={{ flex: 1, minWidth: 180 }}>
-                    <label>Proteína (g) – opcional</label>
-                    <input
-                      type="number"
-                      step="1"
-                      min="0"
-                      value={form.protein}
-                      onChange={(e) => handleChangeForm('protein', e.target.value)}
-                      placeholder="Ex.: 25"
-                    />
-                  </div>
-                </div>
+                  {addMealStep === 3 && (
+                    <>
+                      <div className="field">
+                        <label>Alimento</label>
+                        <input
+                          type="text"
+                          placeholder="Ex.: Arroz, frango grelhado, iogurte..."
+                          value={form.food}
+                          onChange={(e) => handleChangeForm('food', e.target.value)}
+                        />
+                      </div>
 
-                <div className="field">
-                  <label>Observações</label>
-                  <textarea
-                    rows="2"
-                    placeholder="Ex.: refeição pré-treino, comi com pressa, etc."
-                    value={form.notes}
-                    onChange={(e) => handleChangeForm('notes', e.target.value)}
-                  ></textarea>
-                </div>
+                      <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+                        <div className="field" style={{ flex: 1, minWidth: 180 }}>
+                          <label>Calorias (kcal)</label>
+                          <input
+                            type="number"
+                            step="1"
+                            min="0"
+                            value={form.calories}
+                            onChange={(e) => handleChangeForm('calories', e.target.value)}
+                            placeholder="Ex.: 250"
+                          />
+                        </div>
+                        <div className="field" style={{ flex: 1, minWidth: 180 }}>
+                          <label>Proteína (g) – opcional</label>
+                          <input
+                            type="number"
+                            step="1"
+                            min="0"
+                            value={form.protein}
+                            onChange={(e) => handleChangeForm('protein', e.target.value)}
+                            placeholder="Ex.: 25"
+                          />
+                        </div>
+                      </div>
 
-                  <div className="row" style={{ justifyContent: 'space-between', marginTop: 8 }}>
-                    <button type="button" className="ghost" onClick={closeAddMealModal}>
-                      Cancelar
-                    </button>
-                    <button type="submit" className="primary">
-                      Salvar
-                    </button>
-                  </div>
+                      <div className="field">
+                        <label>Observações</label>
+                        <textarea
+                          rows="2"
+                          placeholder="Ex.: refeição pré-treino, comi com pressa, etc."
+                          value={form.notes}
+                          onChange={(e) => handleChangeForm('notes', e.target.value)}
+                        ></textarea>
+                      </div>
+
+                      <div className="row" style={{ justifyContent: 'space-between', marginTop: 8 }}>
+                        <button type="button" className="ghost" onClick={() => setAddMealStep(2)}>
+                          Voltar
+                        </button>
+                        <button type="submit" className="primary">
+                          Salvar
+                        </button>
+                      </div>
+                    </>
+                  )}
                 </form>
               </div>
             </div>
