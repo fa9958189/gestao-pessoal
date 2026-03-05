@@ -1311,14 +1311,47 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
         </div>
       )}
 
-      <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 10, flexWrap: 'wrap' }}>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: '12px',
+          flexWrap: 'wrap',
+          gap: '10px',
+        }}
+      >
         <h2 style={{ margin: 0 }}>🍽 Alimentação</h2>
-        <button type="button" className="btn-primary" onClick={openAddMealModal}>
-          + Adicionar alimento
+
+        <button
+          type="button"
+          onClick={openAddMealModal}
+          style={{
+            background: '#22c55e',
+            color: '#fff',
+            border: 'none',
+            padding: '10px 18px',
+            borderRadius: '10px',
+            fontWeight: '600',
+            cursor: 'pointer',
+            display: 'inline-flex',
+          }}
+        >
+          + Novo Alimento
         </button>
       </div>
 
-      <div className="tabs" style={{ margin: '0 0 16px', flexWrap: 'wrap' }}>
+      <div className="sep" style={{ marginTop: 12 }}></div>
+
+      <div
+        style={{
+          display: 'flex',
+          gap: '10px',
+          marginBottom: '20px',
+          flexWrap: 'wrap',
+          marginTop: '10px',
+        }}
+      >
         {[
           { key: 'diario', label: 'Diário' },
           { key: 'agua', label: 'Água' },
@@ -1329,7 +1362,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
           <button
             key={subTab.key}
             type="button"
-            className={`tab ${activeSubTab === subTab.key ? 'active' : ''}`}
+            className={activeSubTab === subTab.key ? 'active' : ''}
             onClick={() => setActiveSubTab(subTab.key)}
           >
             {subTab.label}
