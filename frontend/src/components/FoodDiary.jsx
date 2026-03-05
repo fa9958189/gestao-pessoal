@@ -91,6 +91,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
   const [isAddMealModalOpen, setIsAddMealModalOpen] = useState(false);
   const [addMealStep, setAddMealStep] = useState(1);
   const [foodInputMode, setFoodInputMode] = useState(null);
+  const [selectedFood, setSelectedFood] = useState(null);
   const [expandedMeals, setExpandedMeals] = useState({});
 
   const [form, setForm] = useState({
@@ -387,12 +388,21 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
   };
 
   const handleSelectFood = (foodData) => {
+    const parsedQuantity = Number(foodData.quantity);
+    const quantity = Number.isFinite(parsedQuantity) && parsedQuantity > 0 ? parsedQuantity : 100;
     const selectedItem = {
-      nome: foodData.nome,
-      quantidade: foodData.quantidadeTexto,
-      calorias: Number(foodData.kcal) || 0,
-      proteina: Number(foodData.proteina) || 0,
+      nome: foodData.name,
+      quantidade: `${quantity} g`,
+      calorias: Number(foodData.calories) || 0,
+      proteina: Number(foodData.protein) || 0,
     };
+
+    setSelectedFood({
+      name: selectedItem.nome,
+      calories: selectedItem.calorias,
+      protein: selectedItem.proteina,
+      quantity,
+    });
 
     setScanPreview((prev) => {
       if (Array.isArray(prev)) {
@@ -403,6 +413,17 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
     setAddMealStep(3);
     setIsAddMealModalOpen(true);
   };
+
+  useEffect(() => {
+    if (!selectedFood) return;
+
+    setForm((prev) => ({
+      ...prev,
+      food: selectedFood.name || prev.food,
+      calories: String(selectedFood.calories ?? prev.calories ?? ''),
+      protein: String(selectedFood.protein ?? prev.protein ?? ''),
+    }));
+  }, [selectedFood]);
 
   const isHeicFile = (file) => {
     if (!file) return false;
@@ -712,6 +733,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
         notes: ''
       });
       setFoodInputMode(null);
+      setSelectedFood(null);
       setScanPreview(null);
       setScanDescription('');
       setEditingId(null);
@@ -742,6 +764,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
     setAddMealStep(1);
     setIsAddMealModalOpen(true);
     setFoodInputMode('manual');
+    setSelectedFood(null);
     setForm({
       mealType: entry.mealType || 'Almoço',
       food: entry.food || '',
@@ -755,6 +778,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
   const openAddMealModal = () => {
     setEditingId(null);
     setFoodInputMode(null);
+    setSelectedFood(null);
     setScanPreview(null);
     setScanDescription('');
     setForm({
@@ -773,6 +797,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
     setIsAddMealModalOpen(false);
     setAddMealStep(1);
     setEditingId(null);
+    setSelectedFood(null);
   };
 
   const handleDeleteEntry = async (entryId) => {
