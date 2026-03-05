@@ -88,8 +88,9 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
     () => getLocalDateString()
   );
   const [activeSubTab, setActiveSubTab] = useState('diario');
-  const [currentStep, setCurrentStep] = useState(1);
+  const [isAddMealModalOpen, setIsAddMealModalOpen] = useState(false);
   const [foodInputMode, setFoodInputMode] = useState(null);
+  const [expandedMeals, setExpandedMeals] = useState({});
 
   const [form, setForm] = useState({
     mealType: 'Almoço',
@@ -398,7 +399,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
       }
       return [selectedItem];
     });
-    setCurrentStep(3);
+    setIsAddMealModalOpen(true);
   };
 
   const isHeicFile = (file) => {
@@ -509,9 +510,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
         ? analysis.itens.map((item) => normalizeScanItem(item))
         : [];
       setScanPreview(items);
-      if (items.length > 0) {
-        setCurrentStep(3);
-      }
+      if (items.length > 0) setIsAddMealModalOpen(true);
       setError(null);
       if (typeof notify === 'function') {
         notify('Alimento escaneado com sucesso.', 'success');
@@ -546,7 +545,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
       calories: String(calories),
       protein: String(protein),
     }));
-    setCurrentStep(3);
+    setIsAddMealModalOpen(true);
   };
 
   const handleApplyAllScannedItems = () => {
@@ -585,7 +584,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
       calories: String(total.calorias),
       protein: total.proteina.toFixed(1),
     }));
-    setCurrentStep(3);
+    setIsAddMealModalOpen(true);
   };
 
   const handleSelectImageForScan = () => {
@@ -705,11 +704,11 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
         time: '',
         notes: ''
       });
-      setCurrentStep(1);
       setFoodInputMode(null);
       setScanPreview(null);
       setScanDescription('');
       setEditingId(null);
+      setIsAddMealModalOpen(false);
       setError(null);
       if (typeof notify === 'function') {
         notify(
@@ -732,7 +731,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
 
   const handleEditEntry = (entry) => {
     setEditingId(entry.id);
-    setCurrentStep(3);
+    setIsAddMealModalOpen(true);
     setFoodInputMode('manual');
     setForm({
       mealType: entry.mealType || 'Almoço',
@@ -742,6 +741,27 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
       time: entry.time || '',
       notes: entry.notes || ''
     });
+  };
+
+  const openAddMealModal = () => {
+    setEditingId(null);
+    setFoodInputMode(null);
+    setScanPreview(null);
+    setScanDescription('');
+    setForm({
+      mealType: 'Almoço',
+      food: '',
+      calories: '',
+      protein: '',
+      time: '',
+      notes: ''
+    });
+    setIsAddMealModalOpen(true);
+  };
+
+  const closeAddMealModal = () => {
+    setIsAddMealModalOpen(false);
+    setEditingId(null);
   };
 
   const handleDeleteEntry = async (entryId) => {
@@ -1019,17 +1039,33 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
     }
   };
 
-  useEffect(() => {
-    if (currentStep === 2 && (form.food?.trim() || form.calories || form.protein)) {
-      setCurrentStep(3);
-    }
-  }, [currentStep, form.food, form.calories, form.protein]);
-
   const todayCaloriesText = `Hoje você comeu ${formatNumber(
     totals.totalCalories,
     0
   )} kcal`;
   const scanHelpText = 'Ajude a identificar melhor o seu alimento';
+  const mealIcons = {
+    'Café da manhã': '🍳',
+    Almoço: '🍽',
+    Jantar: '🍲',
+    Lanche: '🍎',
+    'Pós-treino': '🥤',
+  };
+
+  const mealsOfDay = useMemo(() => {
+    const grouped = dayEntries.reduce((acc, item) => {
+      const key = item.mealType || 'Outros';
+      if (!acc[key]) {
+        acc[key] = { mealType: key, count: 0, calories: 0, items: [] };
+      }
+      acc[key].count += 1;
+      acc[key].calories += Number(item.calories) || 0;
+      acc[key].items.push(item);
+      return acc;
+    }, {});
+
+    return Object.values(grouped).sort((a, b) => b.calories - a.calories);
+  }, [dayEntries]);
 
   const renderSummaryCard = () => (
     <div className="food-diary-summary-card">
@@ -1275,16 +1311,14 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
         </div>
       )}
 
-      <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 10 }}>
-        <h4 className="title" style={{ margin: 0 }}>🍽️ Alimentação</h4>
-        {activeSubTab === 'diario' && (
-          <div className="muted" style={{ fontSize: 12 }}>
-            Registre o que comeu e acompanhe suas metas diárias.
-          </div>
-        )}
+      <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 10, flexWrap: 'wrap' }}>
+        <h2 style={{ margin: 0 }}>🍽 Alimentação</h2>
+        <button type="button" className="btn-primary" onClick={openAddMealModal}>
+          + Adicionar alimento
+        </button>
       </div>
 
-      <div className="row" style={{ gap: 10, margin: '0 0 16px', flexWrap: 'wrap' }}>
+      <div className="tabs" style={{ margin: '0 0 16px', flexWrap: 'wrap' }}>
         {[
           { key: 'diario', label: 'Diário' },
           { key: 'agua', label: 'Água' },
@@ -1295,7 +1329,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
           <button
             key={subTab.key}
             type="button"
-            className={activeSubTab === subTab.key ? 'primary small' : 'ghost small'}
+            className={`tab ${activeSubTab === subTab.key ? 'active' : ''}`}
             onClick={() => setActiveSubTab(subTab.key)}
           >
             {subTab.label}
@@ -1307,95 +1341,150 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
         <>
           {renderSummaryCard()}
           <div className="sep" style={{ margin: '10px 0 14px' }}></div>
-
-          <form
-            onSubmit={handleAddEntry}
-            className="food-diary-form"
-            autoComplete="off"
-          >
-            <div className="muted" style={{ marginBottom: 10, fontSize: 12 }}>
-              Passo {currentStep} de 3
-            </div>
-
-            {currentStep === 1 && (
-              <>
-                <div className="row" style={{ gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
-                  <div className="field" style={{ flex: 1, minWidth: 180 }}>
-                    <label>Data</label>
-                    <input
-                      type="date"
-                      value={selectedDate}
-                      onChange={(e) => setSelectedDate(e.target.value)}
-                    />
-                  </div>
-                  <div className="field" style={{ flex: 1, minWidth: 180 }}>
-                    <label>Refeição</label>
-                    <select
-                      value={form.mealType}
-                      onChange={(e) => handleChangeForm('mealType', e.target.value)}
-                    >
-                      <option>Café da manhã</option>
-                      <option>Almoço</option>
-                      <option>Jantar</option>
-                      <option>Lanche</option>
-                      <option>Pós-treino</option>
-                    </select>
-                  </div>
-                  <div className="field" style={{ flex: 1, minWidth: 180 }}>
-                    <label>Horário</label>
-                    <input
-                      type="time"
-                      value={form.time}
-                      onChange={(e) => handleChangeForm('time', e.target.value)}
-                    />
-                  </div>
-                </div>
-
-                <div className="row" style={{ justifyContent: 'flex-end', marginTop: 8 }}>
-                  <button type="button" className="primary" onClick={() => setCurrentStep(2)}>
-                    Continuar
-                  </button>
-                </div>
-              </>
+          <div>
+            <h4 className="title" style={{ margin: '0 0 10px' }}>Refeições de hoje</h4>
+            {mealsOfDay.length === 0 && (
+              <div className="muted" style={{ fontSize: 13 }}>
+                Nenhuma refeição registrada para este dia.
+              </div>
             )}
 
-            {currentStep === 2 && (
-              <>
-                <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
-                  <button
-                    type="button"
-                    className="ghost small"
-                    onClick={() => {
-                      setFoodInputMode('buscar');
-                      setIsFoodPickerOpen(true);
-                    }}
-                    disabled={isScanningFood}
-                  >
-                    Buscar alimento
-                  </button>
-                  <button
-                    type="button"
-                    className="ghost small"
-                    onClick={() => {
-                      setFoodInputMode('scan');
-                      handleSelectImageForScan();
-                    }}
-                    disabled={isScanningFood}
-                  >
-                    📷 Escanear comida
-                  </button>
-                  <button
-                    type="button"
-                    className={foodInputMode === 'manual' ? 'primary small' : 'ghost small'}
-                    onClick={() => setFoodInputMode('manual')}
-                  >
-                    Manual
-                  </button>
-                </div>
+            {mealsOfDay.map((meal) => {
+              const isExpanded = Boolean(expandedMeals[meal.mealType]);
+              return (
+                <div key={meal.mealType} className="food-diary-entry">
+                  <div className="food-diary-entry-header">
+                    <span>
+                      <strong>{mealIcons[meal.mealType] || '🍽'} {meal.mealType}</strong>
+                    </span>
+                    <span>{formatNumber(meal.calories, 0)} kcal</span>
+                  </div>
+                  <div className="food-diary-entry-meta" style={{ justifyContent: 'space-between' }}>
+                    <span>{meal.count} {meal.count === 1 ? 'alimento' : 'alimentos'}</span>
+                    <button
+                      type="button"
+                      className="ghost small"
+                      onClick={() =>
+                        setExpandedMeals((prev) => ({
+                          ...prev,
+                          [meal.mealType]: !prev[meal.mealType],
+                        }))
+                      }
+                    >
+                      {isExpanded ? 'Ocultar alimentos' : 'Ver alimentos'}
+                    </button>
+                  </div>
 
-                {foodInputMode === 'manual' && (
-                  <div className="field" style={{ marginTop: 10 }}>
-                    <label>Nome do alimento</label>
+                  {isExpanded && meal.items.map((item) => (
+                    <div key={item.id} style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                      <div className="food-diary-entry-header">
+                        <span>
+                          {item.food || 'Alimento sem nome'}
+                          {item.time && <span className="muted"> • {item.time}</span>}
+                        </span>
+                        <span>{formatNumber(item.calories, 0)} kcal</span>
+                      </div>
+                      <div className="food-diary-entry-meta">
+                        {item.protein ? <span>{formatNumber(item.protein, 0)} g proteína</span> : null}
+                      </div>
+                      <div className="table-actions" style={{ justifyContent: 'flex-end', marginTop: 6 }}>
+                        <button
+                          type="button"
+                          className="icon-button"
+                          onClick={() => handleEditEntry(item)}
+                          title="Editar refeição"
+                        >
+                          <span role="img" aria-label="Editar">✏️</span>
+                        </button>
+                        <button
+                          type="button"
+                          className="icon-button"
+                          onClick={() => handleDeleteEntry(item.id)}
+                          title="Excluir refeição"
+                        >
+                          <span role="img" aria-label="Excluir">🗑️</span>
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })}
+          </div>
+
+          {isAddMealModalOpen && (
+            <div className="scan-modal-backdrop">
+              <div className="scan-modal" style={{ maxWidth: 720 }}>
+                <h4 className="title" style={{ marginTop: 0 }}>
+                  {editingId ? 'Editar alimento' : 'Cadastrar alimento'}
+                </h4>
+                <form onSubmit={handleAddEntry} className="food-diary-form" autoComplete="off">
+                  <div className="row" style={{ gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+                    <div className="field" style={{ flex: 1, minWidth: 180 }}>
+                      <label>Data</label>
+                      <input
+                        type="date"
+                        value={selectedDate}
+                        onChange={(e) => setSelectedDate(e.target.value)}
+                      />
+                    </div>
+                    <div className="field" style={{ flex: 1, minWidth: 180 }}>
+                      <label>Refeição</label>
+                      <select
+                        value={form.mealType}
+                        onChange={(e) => handleChangeForm('mealType', e.target.value)}
+                      >
+                        <option>Café da manhã</option>
+                        <option>Almoço</option>
+                        <option>Jantar</option>
+                        <option>Lanche</option>
+                        <option>Pós-treino</option>
+                      </select>
+                    </div>
+                    <div className="field" style={{ flex: 1, minWidth: 180 }}>
+                      <label>Horário</label>
+                      <input
+                        type="time"
+                        value={form.time}
+                        onChange={(e) => handleChangeForm('time', e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="row" style={{ gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+                    <button
+                      type="button"
+                      className="ghost small"
+                      onClick={() => {
+                        setFoodInputMode('buscar');
+                        setIsFoodPickerOpen(true);
+                      }}
+                      disabled={isScanningFood}
+                    >
+                      Buscar alimento
+                    </button>
+                    <button
+                      type="button"
+                      className="ghost small"
+                      onClick={() => {
+                        setFoodInputMode('scan');
+                        handleSelectImageForScan();
+                      }}
+                      disabled={isScanningFood}
+                    >
+                      Escanear comida
+                    </button>
+                    <button
+                      type="button"
+                      className={foodInputMode === 'manual' ? 'primary small' : 'ghost small'}
+                      onClick={() => setFoodInputMode('manual')}
+                    >
+                      Inserir manualmente
+                    </button>
+                  </div>
+
+                  <div className="field">
+                    <label>Alimento</label>
                     <input
                       type="text"
                       placeholder="Ex.: Arroz, frango grelhado, iogurte..."
@@ -1403,27 +1492,6 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
                       onChange={(e) => handleChangeForm('food', e.target.value)}
                     />
                   </div>
-                )}
-
-                <div className="row" style={{ justifyContent: 'space-between', marginTop: 10 }}>
-                  <button type="button" className="ghost" onClick={() => setCurrentStep(1)}>
-                    Voltar
-                  </button>
-                </div>
-              </>
-            )}
-
-            {currentStep === 3 && (
-              <>
-                <div className="field">
-                  <label>Alimento</label>
-                  <input
-                    type="text"
-                    placeholder="Ex.: Arroz, frango grelhado, iogurte..."
-                    value={form.food}
-                    onChange={(e) => handleChangeForm('food', e.target.value)}
-                  />
-                </div>
 
                 {Array.isArray(scanPreview) && scanPreview.length > 0 && (
                   <div className="scan-preview-card">
@@ -1529,79 +1597,18 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
                   ></textarea>
                 </div>
 
-                <div className="row" style={{ justifyContent: 'space-between', marginTop: 8 }}>
-                  <button type="button" className="ghost" onClick={() => setCurrentStep(2)}>
-                    Voltar
-                  </button>
-                  <button type="submit" className="primary">
-                    {editingId ? 'Salvar alterações' : 'Salvar refeição'}
-                  </button>
-                </div>
-              </>
-            )}
-          </form>
-
-          <div className="food-diary-entries">
-            {dayEntries.length === 0 && (
-              <div className="muted" style={{ fontSize: 13 }}>
-                Nenhuma refeição registrada para este dia.
-              </div>
-            )}
-
-            {dayEntries.map((item) => (
-              <div key={item.id} className="food-diary-entry">
-                <div className="food-diary-entry-header">
-                  <span>
-                    <strong>{item.mealType}</strong>{' '}
-                    {item.time && <span className="muted">– {item.time}</span>}
-                    {(item.date || selectedDate) && (
-                      <span className="muted">
-                        {' '}
-                        • {new Date(item.date || selectedDate).toLocaleDateString('pt-BR')}
-                      </span>
-                    )}
-                  </span>
-                  <span>{formatNumber(item.calories, 0)} kcal</span>
-                </div>
-                <div className="food-diary-entry-meta">
-                  {item.food && <span>{item.food}</span>}
-                  {item.protein ? (
-                    <span className="muted">
-                      • {formatNumber(item.protein, 0)} g proteína
-                    </span>
-                  ) : null}
-                </div>
-                {item.notes && (
-                  <div className="muted" style={{ fontSize: 12 }}>
-                    {item.notes}
-                  </div>
-                )}
-                <div
-                  className="food-diary-entry-actions"
-                  style={{ marginTop: 6, display: 'flex', justifyContent: 'flex-end' }}
-                >
-                  <div className="table-actions">
-                    <button
-                      type="button"
-                      className="icon-button"
-                      onClick={() => handleEditEntry(item)}
-                      title="Editar refeição"
-                    >
-                      <span role="img" aria-label="Editar">✏️</span>
+                  <div className="row" style={{ justifyContent: 'space-between', marginTop: 8 }}>
+                    <button type="button" className="ghost" onClick={closeAddMealModal}>
+                      Cancelar
                     </button>
-                    <button
-                      type="button"
-                      className="icon-button"
-                      onClick={() => handleDeleteEntry(item.id)}
-                      title="Excluir refeição"
-                    >
-                      <span role="img" aria-label="Excluir">🗑️</span>
+                    <button type="submit" className="primary">
+                      Salvar
                     </button>
                   </div>
-                </div>
+                </form>
               </div>
-            ))}
-          </div>
+            </div>
+          )}
         </>
       )}
 
