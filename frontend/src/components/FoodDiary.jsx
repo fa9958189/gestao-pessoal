@@ -1353,11 +1353,11 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
         }}
       >
         {[
-          { key: 'diario', label: 'Diário' },
-          { key: 'agua', label: 'Água' },
-          { key: 'metas', label: 'Metas' },
-          { key: 'corpo', label: 'Corpo' },
-          { key: 'relatorios', label: 'Relatórios' },
+          { key: 'diario', label: '📖 Diário' },
+          { key: 'agua', label: '💧 Água' },
+          { key: 'metas', label: '🎯 Metas' },
+          { key: 'corpo', label: '📏 Corpo' },
+          { key: 'relatorios', label: '📊 Relatórios' },
         ].map((subTab) => (
           <button
             key={subTab.key}
