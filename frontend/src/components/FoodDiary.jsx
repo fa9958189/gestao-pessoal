@@ -1467,6 +1467,14 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
                     <div className="muted" style={{ marginBottom: 6, fontSize: 13 }}>
                       Passo {addMealStep} de 3
                     </div>
+                    {addMealStep === 1 && (
+                      <div style={{ marginBottom: 8 }}>
+                        <div style={{ fontWeight: 600, marginBottom: 2 }}>Informações da refeição</div>
+                        <div className="muted" style={{ fontSize: 13 }}>
+                          Informe a data, a refeição e o horário.
+                        </div>
+                      </div>
+                    )}
                     <div
                       style={{
                         height: 6,
@@ -1489,9 +1497,9 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
 
                   {addMealStep === 1 && (
                     <>
-                      <div className="row" style={{ gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+                      <div className="row" style={{ gap: 10, marginBottom: 8, flexWrap: 'wrap' }}>
                         <div className="field" style={{ flex: 1, minWidth: 180 }}>
-                          <label>Data</label>
+                          <label>📅 Data</label>
                           <input
                             type="date"
                             value={selectedDate}
@@ -1499,7 +1507,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
                           />
                         </div>
                         <div className="field" style={{ flex: 1, minWidth: 180 }}>
-                          <label>Refeição</label>
+                          <label>🍽 Refeição</label>
                           <select
                             value={form.mealType}
                             onChange={(e) => handleChangeForm('mealType', e.target.value)}
@@ -1512,7 +1520,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
                           </select>
                         </div>
                         <div className="field" style={{ flex: 1, minWidth: 180 }}>
-                          <label>Horário</label>
+                          <label>⏰ Horário</label>
                           <input
                             type="time"
                             value={form.time}
@@ -1523,10 +1531,10 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
 
                       <div className="row" style={{ justifyContent: 'space-between', marginTop: 8 }}>
                         <button type="button" className="ghost" onClick={closeAddMealModal}>
-                          Cancelar
+                          ← Cancelar
                         </button>
                         <button type="button" className="primary" onClick={() => setAddMealStep(2)}>
-                          Continuar
+                          Continuar →
                         </button>
                       </div>
                     </>
