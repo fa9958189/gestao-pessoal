@@ -121,10 +121,10 @@ function FoodPicker({ open, onClose, onSelectFood }) {
   const handleConfirm = () => {
     if (!selectedFood || !onSelectFood) return;
     onSelectFood({
-      nome: selectedFood.nome,
-      quantidadeTexto: `${gramsValue} g`,
-      kcal: kcalCalc,
-      proteina: protCalc
+      name: selectedFood.nome,
+      calories: kcalCalc,
+      protein: protCalc,
+      quantity: gramsValue,
     });
     handleClose();
   };
