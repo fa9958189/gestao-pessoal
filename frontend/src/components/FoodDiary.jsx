@@ -387,6 +387,11 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
     setForm((prev) => ({ ...prev, [field]: value }));
   };
 
+  const normalizeDecimal = (value) => {
+    if (!value) return value;
+    return value.toString().replace(',', '.');
+  };
+
   const handleSelectFood = (foodData) => {
     const parsedQuantity = Number(foodData.quantity);
     const quantity = Number.isFinite(parsedQuantity) && parsedQuantity > 0 ? parsedQuantity : 100;
@@ -687,13 +692,16 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
       return;
     }
 
+    const proteinValue = parseFloat(normalizeDecimal(form.protein));
+    const caloriesValue = parseFloat(normalizeDecimal(form.calories));
+
     const isEditing = Boolean(editingId);
 
     const payload = {
       mealType: form.mealType,
       food: form.food,
-      calories: form.calories ? Number(form.calories) : 0,
-      protein: form.protein ? Number(form.protein) : 0,
+      calories: Number.isFinite(caloriesValue) ? caloriesValue : 0,
+      protein: Number.isFinite(proteinValue) ? proteinValue : 0,
       time: form.time,
       notes: form.notes,
       entryDate: selectedDate,
@@ -1696,10 +1704,14 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
                           <label>Calorias (kcal)</label>
                           <input
                             type="number"
-                            step="1"
+                            step="0.01"
+                            inputMode="decimal"
                             min="0"
                             value={form.calories}
-                            onChange={(e) => handleChangeForm('calories', e.target.value)}
+                            onChange={(e) => {
+                              const normalized = normalizeDecimal(e.target.value);
+                              handleChangeForm('calories', normalized);
+                            }}
                             placeholder="Ex.: 250"
                           />
                         </div>
@@ -1707,10 +1719,14 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
                           <label>Proteína (g) – opcional</label>
                           <input
                             type="number"
-                            step="1"
+                            step="0.01"
+                            inputMode="decimal"
                             min="0"
                             value={form.protein}
-                            onChange={(e) => handleChangeForm('protein', e.target.value)}
+                            onChange={(e) => {
+                              const normalized = normalizeDecimal(e.target.value);
+                              handleChangeForm('protein', normalized);
+                            }}
                             placeholder="Ex.: 25"
                           />
                         </div>
