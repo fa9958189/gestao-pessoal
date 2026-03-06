@@ -92,6 +92,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
   const [addMealStep, setAddMealStep] = useState(1);
   const [foodInputMode, setFoodInputMode] = useState(null);
   const [selectedFood, setSelectedFood] = useState(null);
+  const [mealItems, setMealItems] = useState([]);
   const [expandedMeals, setExpandedMeals] = useState({});
 
   const [form, setForm] = useState({
@@ -361,6 +362,14 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
 
   const totalCalories = totals.totalCalories;
   const totalProtein = totals.totalProtein;
+  const mealTotalCalories = mealItems.reduce(
+    (sum, item) => sum + Number(item.calories || 0),
+    0,
+  );
+  const mealTotalProtein = mealItems.reduce(
+    (sum, item) => sum + Number(item.protein || 0),
+    0,
+  );
   const calorieGoal = goals.calories || 0;
   const proteinGoal = goals.protein || 0;
   const waterTotalLiters = waterSummary.totalMl / 1000;
@@ -707,6 +716,34 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
       entryDate: selectedDate,
     };
 
+    if (!isEditing) {
+      const newItem = {
+        name: form.food,
+        calories: Number.isFinite(caloriesValue) ? caloriesValue : 0,
+        protein: Number.isFinite(proteinValue) ? proteinValue : 0,
+        notes: form.notes || '',
+      };
+
+      setMealItems((prev) => [...prev, newItem]);
+      setForm((prev) => ({
+        ...prev,
+        food: '',
+        calories: '',
+        protein: '',
+        notes: '',
+      }));
+      setFoodInputMode(null);
+      setSelectedFood(null);
+      setScanPreview(null);
+      setScanDescription('');
+      setAddMealStep(2);
+      setError(null);
+      if (typeof notify === 'function') {
+        notify('Alimento adicionado à refeição.', 'success');
+      }
+      return;
+    }
+
     setSavingEntry(true);
 
     try {
@@ -773,6 +810,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
     setIsAddMealModalOpen(true);
     setFoodInputMode('manual');
     setSelectedFood(null);
+    setMealItems([]);
     setForm({
       mealType: entry.mealType || 'Almoço',
       food: entry.food || '',
@@ -787,6 +825,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
     setEditingId(null);
     setFoodInputMode(null);
     setSelectedFood(null);
+    setMealItems([]);
     setScanPreview(null);
     setScanDescription('');
     setForm({
@@ -806,6 +845,80 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
     setAddMealStep(1);
     setEditingId(null);
     setSelectedFood(null);
+    setMealItems([]);
+  };
+
+  const handleSaveMealItems = async () => {
+    if (mealItems.length === 0) {
+      if (typeof notify === 'function') {
+        notify('Adicione pelo menos um alimento antes de salvar.', 'warning');
+      }
+      return;
+    }
+
+    if (!userId) {
+      setError('Usuário não identificado para salvar a refeição.');
+      return;
+    }
+
+    setSavingEntry(true);
+
+    try {
+      const createdItems = await Promise.all(
+        mealItems.map((item) =>
+          saveMeal(
+            {
+              userId,
+              entryDate: selectedDate,
+              mealType: form.mealType,
+              food: item.name,
+              calories: item.calories,
+              protein: item.protein,
+              time: form.time,
+              notes: item.notes || null,
+            },
+            supabase,
+          ),
+        ),
+      );
+
+      setEntriesByDate((prev) => {
+        const existing = prev[selectedDate] || [];
+        return {
+          ...prev,
+          [selectedDate]: [...createdItems.reverse(), ...existing],
+        };
+      });
+
+      setForm({
+        mealType: 'Almoço',
+        food: '',
+        calories: '',
+        protein: '',
+        time: '',
+        notes: ''
+      });
+      setFoodInputMode(null);
+      setSelectedFood(null);
+      setScanPreview(null);
+      setScanDescription('');
+      setMealItems([]);
+      setEditingId(null);
+      setAddMealStep(1);
+      setIsAddMealModalOpen(false);
+      setError(null);
+      if (typeof notify === 'function') {
+        notify('Refeição adicionada com sucesso.', 'success');
+      }
+    } catch (err) {
+      console.error('Falha ao salvar refeição', err);
+      setError('Não foi possível salvar a refeição.');
+      if (typeof notify === 'function') {
+        notify('Não foi possível salvar a refeição.', 'error');
+      }
+    } finally {
+      setSavingEntry(false);
+    }
   };
 
   const handleDeleteEntry = async (entryId) => {
@@ -1585,7 +1698,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
                           }}
                           disabled={isScanningFood}
                         >
-                          Buscar alimento
+                          {mealItems.length > 0 ? 'Adicionar alimento' : 'Buscar alimento'}
                         </button>
                         <button
                           type="button"
@@ -1606,6 +1719,27 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
                           Inserir manualmente
                         </button>
                       </div>
+
+
+                      {mealItems.length > 0 && (
+                        <div className="scan-preview-card" style={{ marginBottom: 10 }}>
+                          <div className="scan-preview-header">
+                            <strong>Itens da refeição</strong>
+                          </div>
+                          <div className="scan-preview-list">
+                            {mealItems.map((item, index) => (
+                              <div key={`${item.name || 'item'}-${index}`} className="scan-preview-item">
+                                {item.name} — {formatNumber(item.calories, 0)} kcal
+                              </div>
+                            ))}
+                          </div>
+                          <div className="muted" style={{ marginTop: 8 }}>
+                            <strong>Total da refeição</strong>
+                            <div>{formatNumber(mealTotalCalories, 0)} kcal</div>
+                            <div>{formatNumber(mealTotalProtein, 1)} g proteína</div>
+                          </div>
+                        </div>
+                      )}
 
                       {Array.isArray(scanPreview) && scanPreview.length > 0 && (
                         <div className="scan-preview-card">
@@ -1676,13 +1810,25 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
                         </div>
                       )}
 
-                      <div className="row" style={{ justifyContent: 'space-between', marginTop: 8 }}>
+                      <div className="row" style={{ justifyContent: 'space-between', marginTop: 8, gap: 8, flexWrap: 'wrap' }}>
                         <button type="button" className="ghost" onClick={() => setAddMealStep(1)}>
                           Voltar
                         </button>
-                        <button type="button" className="primary" onClick={() => setAddMealStep(3)}>
-                          Continuar
-                        </button>
+                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                          <button
+                            type="button"
+                            className="ghost"
+                            onClick={() => {
+                              setFoodInputMode('buscar');
+                              setIsFoodPickerOpen(true);
+                            }}
+                          >
+                            + Adicionar alimento
+                          </button>
+                          <button type="button" className="primary" onClick={handleSaveMealItems}>
+                            Salvar refeição
+                          </button>
+                        </div>
                       </div>
                     </>
                   )}
@@ -1747,7 +1893,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
                           Voltar
                         </button>
                         <button type="submit" className="primary">
-                          Salvar
+                          {editingId ? 'Salvar' : 'Adicionar alimento'}
                         </button>
                       </div>
                     </>
