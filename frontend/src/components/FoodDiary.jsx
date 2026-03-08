@@ -102,6 +102,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
 
   const [isFoodPickerOpen, setIsFoodPickerOpen] = useState(false);
   const [isScanningFood, setIsScanningFood] = useState(false);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [, setScanPreview] = useState(null);
   const [scanDescription, setScanDescription] = useState('');
   const [isScanModalOpen, setIsScanModalOpen] = useState(false);
@@ -519,6 +520,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
 
   const handleScanFood = async (file) => {
     setIsScanningFood(true);
+    setIsAnalyzing(true);
     try {
       const sanitizedFile = await prepareImageForScan(file);
       const analysis = await scanFood(sanitizedFile, scanDescription);
@@ -554,6 +556,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
       }
     } finally {
       setIsScanningFood(false);
+      setIsAnalyzing(false);
     }
   };
 
@@ -1333,49 +1336,67 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
       {isScanModalOpen && (
         <div className="scan-modal-backdrop scan-modal-backdrop--top">
           <div className="scan-modal">
-            <div className="scan-modal-title">
-              Para analisar melhor, descreva rapidamente o que você está comendo.
-            </div>
-            <div className="scan-modal-body">
-              <small className="food-help-text">{scanHelpText}</small>
-              <input
-                type="text"
-                placeholder="Ex.: arroz, feijão e frango grelhado"
-                value={scanDescription}
-                onChange={(e) => setScanDescription(e.target.value)}
-              />
-
-              <div className="scan-file-row">
-                <input
-                  ref={inputCameraRef}
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  style={{ display: 'none' }}
-                  onChange={handleFoodImageChange}
-                />
-                <input
-                  ref={inputGalleryRef}
-                  type="file"
-                  accept="image/*"
-                  style={{ display: 'none' }}
-                  onChange={handleFoodImageChange}
-                />
-                <button
-                  type="button"
-                  className="primary full"
-                  onClick={handleOpenScanFilePicker}
-                >
-                  {isMobile() ? 'Abrir câmera' : 'Escolher foto'}
-                </button>
+            {isAnalyzing ? (
+              <div className="scanner-loading">
+                <div className="scanner-loading-content">
+                  <div className="spinner"></div>
+                  <h3>🔎 Analisando sua refeição</h3>
+                  <p>⏳ Aguarde um momento</p>
+                  <p>
+                    Estamos identificando os alimentos da foto enviada.
+                  </p>
+                  <p>
+                    Isso pode levar até 40 segundos.
+                  </p>
+                </div>
               </div>
-            </div>
+            ) : (
+              <>
+                <div className="scan-modal-title">
+                  Para analisar melhor, descreva rapidamente o que você está comendo.
+                </div>
+                <div className="scan-modal-body">
+                  <small className="food-help-text">{scanHelpText}</small>
+                  <input
+                    type="text"
+                    placeholder="Ex.: arroz, feijão e frango grelhado"
+                    value={scanDescription}
+                    onChange={(e) => setScanDescription(e.target.value)}
+                  />
 
-            <div className="row scan-modal-actions">
-              <button type="button" className="ghost" onClick={handleCloseScanModal}>
-                Cancelar
-              </button>
-            </div>
+                  <div className="scan-file-row">
+                    <input
+                      ref={inputCameraRef}
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      style={{ display: 'none' }}
+                      onChange={handleFoodImageChange}
+                    />
+                    <input
+                      ref={inputGalleryRef}
+                      type="file"
+                      accept="image/*"
+                      style={{ display: 'none' }}
+                      onChange={handleFoodImageChange}
+                    />
+                    <button
+                      type="button"
+                      className="primary full"
+                      onClick={handleOpenScanFilePicker}
+                    >
+                      {isMobile() ? 'Abrir câmera' : 'Escolher foto'}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="row scan-modal-actions">
+                  <button type="button" className="ghost" onClick={handleCloseScanModal}>
+                    Cancelar
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
