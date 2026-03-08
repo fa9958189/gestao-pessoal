@@ -396,6 +396,10 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
     setForm((prev) => ({ ...prev, [field]: value }));
   };
 
+  const removeMealItem = (index) => {
+    setMealItems((prev) => prev.filter((_, i) => i !== index));
+  };
+
   const normalizeDecimal = (value) => {
     if (!value) return value;
     return value.toString().replace(',', '.');
@@ -1728,8 +1732,18 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
                           </div>
                           <div className="scan-preview-list">
                             {mealItems.map((item, index) => (
-                              <div key={`${item.name || 'item'}-${index}`} className="scan-preview-item">
-                                {item.name} — {formatNumber(item.calories, 0)} kcal
+                              <div key={`${item.name || 'item'}-${index}`} className="meal-item">
+                                <span>
+                                  {item.name} — {formatNumber(item.calories, 0)} kcal
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => removeMealItem(index)}
+                                  className="remove-food-button"
+                                  aria-label={`Remover ${item.name || 'item'} da refeição`}
+                                >
+                                  🗑
+                                </button>
                               </div>
                             ))}
                           </div>

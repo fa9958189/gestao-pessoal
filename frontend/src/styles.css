@@ -1585,6 +1585,29 @@ canvas{ background:transparent; }
   font-size: 12px;
 }
 
+
+.meal-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.remove-food-button {
+  border: 1px solid #38425b;
+  background: transparent;
+  color: var(--muted);
+  border-radius: 8px;
+  min-width: 32px;
+  height: 32px;
+  cursor: pointer;
+}
+
+.remove-food-button:hover {
+  color: #fca5a5;
+  border-color: rgba(252, 165, 165, 0.6);
+}
+
 @media (max-width: 900px) {
   .food-diary-grid {
     grid-template-columns: 1fr;
