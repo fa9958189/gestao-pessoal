@@ -1423,7 +1423,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
   return (
     <div className="food-diary">
       {isScanModalOpen && (
-        <div className="scan-modal-backdrop">
+        <div className="scan-modal-backdrop scan-modal-backdrop--top">
           <div className="scan-modal">
             <div className="scan-modal-title">
               Para analisar melhor, descreva rapidamente o que você está comendo.
@@ -1607,7 +1607,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
           </div>
 
           {isAddMealModalOpen && (
-            <div className="scan-modal-backdrop">
+            <div className="scan-modal-backdrop meal-wizard-backdrop">
               <div className="scan-modal" style={{ maxWidth: 720 }}>
                 <h4 className="title" style={{ marginTop: 0 }}>
                   {editingId ? 'Editar alimento' : 'Cadastrar alimento'}
