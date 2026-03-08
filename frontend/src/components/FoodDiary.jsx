@@ -1632,7 +1632,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
                           <div className="scan-preview-header">
                             <strong>Itens da refeição</strong>
                           </div>
-                          <div className="scan-preview-list" style={{ maxHeight: 300, overflowY: 'auto' }}>
+                          <div className="scan-preview-list meal-items-container">
                             {mealItems.map((item, index) => (
                               <div key={`${item.name || 'item'}-${index}`} className="meal-item">
                                 <span>
