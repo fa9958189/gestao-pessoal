@@ -1884,6 +1884,14 @@ canvas{ background:transparent; }
   backdrop-filter:blur(2px);
 }
 
+.meal-wizard-backdrop{
+  z-index:1000;
+}
+
+.scan-modal-backdrop--top{
+  z-index:1100;
+}
+
 .scan-modal{
   width:90%;
   max-width:460px;
