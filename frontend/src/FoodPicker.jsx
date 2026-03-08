@@ -137,6 +137,7 @@ function FoodPicker({ open, onClose, onSelectFood }) {
       ? selectedFood.serving_g
       : 100)
     : 100;
+  const unit = selectedFood?.serving_unit === 'ml' ? 'ml' : 'g';
   const gramsNumber = Number(grams);
   const gramsValue = Number.isFinite(gramsNumber) ? gramsNumber : 0;
 
@@ -271,12 +272,12 @@ function FoodPicker({ open, onClose, onSelectFood }) {
                 {selectedFood.nome}
               </div>
               <div className="muted" style={{ fontSize: 12 }}>
-                Porção base: {selectedFood.descricaoPorcao}
+                Porção base: {selectedFood.serving_g} {unit}
               </div>
             </div>
 
             <div className="field">
-              <label>Quantidade (g)</label>
+              <label>Quantidade ({unit})</label>
               <input
                 type="number"
                 min={1}
