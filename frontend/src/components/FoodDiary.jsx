@@ -1332,7 +1332,28 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
   );
 
   return (
-    <div className="food-diary">
+    <>
+      {isScanningFood && (
+        <div className="scan-overlay">
+          <div className="scan-overlay-box">
+            <div className="scan-spinner"></div>
+
+            <h3>🔎 Analisando sua refeição</h3>
+
+            <p>⏳ Aguarde um momento</p>
+
+            <p>
+              Estamos identificando os alimentos da foto enviada.
+            </p>
+
+            <p>
+              Isso pode levar até 40 segundos.
+            </p>
+          </div>
+        </div>
+      )}
+
+      <div className="food-diary">
       {isScanModalOpen && (
         <div className="scan-modal-backdrop scan-modal-backdrop--top">
           <div className="scan-modal">
@@ -1801,7 +1822,8 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
           onSelectFood={handleSelectFood}
         />
       )}
-    </div>
+      </div>
+    </>
   );
 }
 
