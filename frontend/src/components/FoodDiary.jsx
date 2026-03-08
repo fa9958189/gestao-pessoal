@@ -1185,17 +1185,17 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
         </div>
       </div>
 
-      <div
-        style={{
-          marginTop: 8,
-          fontSize: 12,
-          color: goalsMet ? '#16a34a' : '#dc2626',
-        }}
-      >
-        {goalsMet
-          ? '✅ Meta do dia batida. Bom trabalho!'
-          : '⚠️ Meta do dia não batida. Um alerta será enviado no WhatsApp às 23h.'}
-      </div>
+      {goalsMet ? (
+        <div
+          style={{
+            marginTop: 8,
+            fontSize: 12,
+            color: '#16a34a',
+          }}
+        >
+          ✅ Meta do dia batida. Bom trabalho!
+        </div>
+      ) : null}
     </div>
   );
 
