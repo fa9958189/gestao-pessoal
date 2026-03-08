@@ -1,6 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { FOOD_CATALOG } from './foodCatalog';
 import { DEFAULT_FOOD_ICON, FOOD_ICONS } from './foodIcons';
+import { supabase } from './supabaseClient';
 
 const parseBaseGrams = (descricaoPorcao) => {
   if (!descricaoPorcao) return 100;
@@ -21,18 +22,12 @@ function FoodPicker({ open, onClose, onSelectFood }) {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
-  const fallbackFoods = useMemo(() => {
-    const term = query.trim().toLowerCase();
-    if (!term) return FOOD_CATALOG;
-    return FOOD_CATALOG.filter((food) =>
-      food.nome.toLowerCase().includes(term)
-    );
-  }, [query]);
+  const normalizedQuery = query.trim();
 
   useEffect(() => {
     if (!open) return;
 
-    const term = query.trim();
+    const term = normalizedQuery;
     if (!term) {
       setFoods(FOOD_CATALOG);
       setIsLoading(false);
@@ -40,50 +35,76 @@ function FoodPicker({ open, onClose, onSelectFood }) {
       return;
     }
 
-    const controller = new AbortController();
+    if (term.length < 2) {
+      setFoods(FOOD_CATALOG);
+      setIsLoading(false);
+      setErrorMessage('');
+      return;
+    }
+
+    let shouldCancel = false;
     const timeoutId = setTimeout(async () => {
       try {
         setIsLoading(true);
         setErrorMessage('');
-        const baseUrl = (window.APP_CONFIG?.apiBaseUrl || '').replace(/\/$/, '');
-        const response = await fetch(
-          `${baseUrl}/api/foods/search?q=${encodeURIComponent(term)}`,
-          { signal: controller.signal }
-        );
+        const { data, error } = await supabase
+          .from('taco_foods')
+          .select('*')
+          .ilike('name', `%${term}%`)
+          .limit(20);
 
-        if (!response.ok) {
-          throw new Error('Falha ao buscar alimentos.');
+        if (error) {
+          throw error;
         }
 
-        const data = await response.json();
+        if (shouldCancel) {
+          return;
+        }
+
         const mapped = Array.isArray(data)
-          ? data.map((item, index) => ({
-              id: `api-${index}-${item?.name || 'alimento'}`,
-              nome: item?.name || 'Alimento',
-              descricaoPorcao: item?.portion || '100 g',
-              kcalPorPorcao: item?.calories ?? 0,
-              proteina: item?.protein ?? 0
-            }))
+          ? data.map((item, index) => {
+              const servingQty = Number(item?.serving_qty);
+              const parsedQty = Number.isFinite(servingQty) ? servingQty : 1;
+              const servingUnit = item?.serving_unit || 'porção';
+              const servingG = Number(item?.serving_g);
+              const servingGText = Number.isFinite(servingG) ? ` (${round0(servingG)} g)` : '';
+
+              return {
+                id: `taco-${item?.id || index}`,
+                nome: item?.name || 'Alimento',
+                descricaoPorcao: `${parsedQty} ${servingUnit}${servingGText}`,
+                kcalPorPorcao: Number(item?.kcal) || 0,
+                proteina: Number(item?.protein_g) || 0,
+                gordura: Number(item?.fat_g) || 0,
+                carboidrato: Number(item?.carbs_g) || 0,
+                fibra: Number(item?.fiber_g) || 0,
+                serving_g: Number.isFinite(servingG) ? servingG : 100,
+                serving_qty: parsedQty,
+                serving_unit: servingUnit,
+              };
+            })
           : [];
 
         setFoods(mapped);
       } catch (error) {
-        if (error.name === 'AbortError') {
+        if (shouldCancel) {
           return;
         }
         console.error('Erro ao buscar alimentos:', error);
         setErrorMessage('Não foi possível buscar alimentos no momento.');
-        setFoods(fallbackFoods);
+        setFoods([]);
       } finally {
-        setIsLoading(false);
+        if (!shouldCancel) {
+          setIsLoading(false);
+        }
       }
-    }, 400);
+    }, 300);
 
     return () => {
+      shouldCancel = true;
       clearTimeout(timeoutId);
-      controller.abort();
     };
-  }, [fallbackFoods, open, query]);
+  }, [normalizedQuery, open]);
 
   if (!open) return null;
 
@@ -124,6 +145,12 @@ function FoodPicker({ open, onClose, onSelectFood }) {
       name: selectedFood.nome,
       calories: kcalCalc,
       protein: protCalc,
+      fat: round1(((selectedFood.gordura ?? 0) / baseGrams) * gramsValue),
+      carbs: round1(((selectedFood.carboidrato ?? 0) / baseGrams) * gramsValue),
+      fiber: round1(((selectedFood.fibra ?? 0) / baseGrams) * gramsValue),
+      serving_g: selectedFood.serving_g,
+      serving_qty: selectedFood.serving_qty,
+      serving_unit: selectedFood.serving_unit,
       quantity: gramsValue,
     });
     handleClose();
@@ -199,7 +226,7 @@ function FoodPicker({ open, onClose, onSelectFood }) {
 
               {!isLoading && foods.length === 0 && (
                 <div className="muted" style={{ fontSize: 13 }}>
-                  Nenhum alimento encontrado.
+                  Nenhum alimento encontrado
                 </div>
               )}
             </div>
