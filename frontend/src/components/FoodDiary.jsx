@@ -714,7 +714,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
     setEditingId(entry.id);
     setAddMealStep(1);
     setIsAddMealModalOpen(true);
-    setFoodInputMode('manual');
+    setFoodInputMode(null);
     setSelectedFood(null);
     setMealItems([]);
     setForm({
@@ -1604,7 +1604,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
                           }}
                           disabled={isScanningFood}
                         >
-                          {mealItems.length > 0 ? 'Adicionar alimento' : 'Buscar alimento'}
+                          Adicionar alimento
                         </button>
                         <button
                           type="button"
@@ -1616,13 +1616,6 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
                           disabled={isScanningFood}
                         >
                           Escanear comida
-                        </button>
-                        <button
-                          type="button"
-                          className={foodInputMode === 'manual' ? 'primary small' : 'ghost small'}
-                          onClick={() => setFoodInputMode('manual')}
-                        >
-                          Inserir manualmente
                         </button>
                       </div>
 
