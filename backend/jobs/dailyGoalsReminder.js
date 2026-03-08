@@ -29,38 +29,6 @@ const formatDateOnlyInSaoPaulo = (date = new Date()) => {
   return formatter.format(date);
 };
 
-const formatNumber = (value, decimals = 0) => Number(value || 0).toFixed(decimals);
-
-const clampPercent = (value) => Math.min(120, Math.max(0, value));
-
-const computeAvatarState = ({ pctCalories, pctProtein, pctWater }) => {
-  const average = (pctCalories + pctProtein + pctWater) / 3;
-
-  if (average >= 85) return "Em forma";
-  if (average >= 55) return "Em progresso";
-  return "Recuperação";
-};
-
-const computeAvatarTip = ({ pctCalories, pctProtein, pctWater }) => {
-  const worstMetric = [
-    { key: "water", pct: pctWater },
-    { key: "protein", pct: pctProtein },
-    { key: "calories", pct: pctCalories },
-  ].sort((a, b) => a.pct - b.pct)[0]?.key;
-
-  switch (worstMetric) {
-    case "water":
-      return "Bebe mais água.";
-    case "protein":
-      return "Capricha na proteína.";
-    case "calories":
-      if (pctCalories > 110) return "Reduz um pouco as calorias.";
-      return "Ajusta as calorias.";
-    default:
-      return "Segue firme nas metas.";
-  }
-};
-
 const fetchTableColumns = async (tableName) => {
   if (!ENABLE_DAILY_GOALS_LOGGING) {
     return [];
@@ -210,7 +178,7 @@ const logNotification = async (config, payload) => {
 const fetchActiveUsers = async () => {
   const { data, error } = await supabase
     .from("profiles_auth")
-    .select("id, auth_id, whatsapp, subscription_status, role")
+    .select("id, auth_id, name, whatsapp, subscription_status, role, goal_type")
     .not("whatsapp", "is", null)
     .neq("whatsapp", "")
     .neq("subscription_status", "inactive");
@@ -301,48 +269,47 @@ const fetchDailyTotals = async (userId, dayDate) => {
   };
 };
 
-const buildDailyGoalsMessage = ({ totals, goals, missing }) => {
-  const caloriesText = `${formatNumber(totals.calories, 0)} / ${formatNumber(
-    goals.calories,
-    0
-  )}`;
-  const proteinText = `${formatNumber(totals.protein, 0)}g / ${formatNumber(
-    goals.protein,
-    0
-  )}g`;
-  const waterText = `${formatNumber(totals.waterL, 1)}L / ${formatNumber(
-    goals.waterL,
-    1
-  )}L`;
-  const pctCalories = goals.calories
-    ? clampPercent((totals.calories / goals.calories) * 100)
-    : 0;
-  const pctProtein = goals.protein
-    ? clampPercent((totals.protein / goals.protein) * 100)
-    : 0;
-  const pctWater = goals.waterL ? clampPercent((totals.waterL / goals.waterL) * 100) : 0;
-  const avatarState = computeAvatarState({ pctCalories, pctProtein, pctWater });
-  const avatarTip = computeAvatarTip({ pctCalories, pctProtein, pctWater });
-  const avatarLines = [`👤 Seu Avatar hoje: ${avatarState}`, `💡 Dica: ${avatarTip}`];
+const resolveGoalTypeMessage = (goalType) => {
+  switch (goalType) {
+    case "lose_weight":
+      return "🔥 Você está no caminho certo para perder peso.";
+    case "gain_muscle":
+      return "💪 Continue alimentando seu corpo para crescimento muscular.";
+    case "maintain":
+    default:
+      return "⚖️ Manter equilíbrio é o segredo da saúde.";
+  }
+};
 
-  if (missing.calories === 0 && missing.protein === 0 && missing.waterL === 0) {
+const buildDailyGoalsMessage = ({ name, goalReached, goalType }) => {
+  const userName = name || "";
+  const objectiveLine = resolveGoalTypeMessage(goalType);
+
+  if (goalReached) {
     return [
-      "✅ Parabéns! Você bateu suas metas de hoje! 🎉",
-      `🔥 Calorias: ${caloriesText}`,
-      `💪 Proteína: ${proteinText}`,
-      `💧 Água: ${waterText}`,
-      ...avatarLines,
-      "Continua assim!",
+      `🎉 Parabéns ${userName}!`,
+      "",
+      "Hoje você atingiu suas metas:",
+      "",
+      "Calorias ✔",
+      "Proteína ✔",
+      "Água ✔",
+      "",
+      "Continue assim! Consistência gera resultado.",
+      "",
+      objectiveLine,
     ].join("\n");
   }
 
   return [
-    "⚠️ Hoje você NÃO bateu todas as metas.",
-    `🔥 Calorias: ${caloriesText} (faltou ${formatNumber(missing.calories, 0)})`,
-    `💪 Proteína: ${proteinText} (faltou ${formatNumber(missing.protein, 0)}g)`,
-    `💧 Água: ${waterText} (faltou ${formatNumber(missing.waterL, 1)}L)`,
-    ...avatarLines,
-    "Amanhã dá pra fechar 💪",
+    `⚠️ ${userName}, hoje suas metas não foram totalmente atingidas.`,
+    "",
+    "Mas não tem problema!",
+    "Amanhã é uma nova oportunidade.",
+    "",
+    "Continue firme!",
+    "",
+    objectiveLine,
   ].join("\n");
 };
 
@@ -364,13 +331,23 @@ const runDailyGoalsReminder = async () => {
         fetchDailyTotals(userId, todayStr),
       ]);
 
-      const missing = {
-        calories: Math.max(0, goals.calories - totals.calories),
-        protein: Math.max(0, goals.protein - totals.protein),
-        waterL: Math.max(0, goals.waterL - totals.waterL),
-      };
+      const calorias_consumidas = totals.calories;
+      const meta_calorias = goals.calories;
+      const proteina_consumida = totals.protein;
+      const meta_proteina = goals.protein;
+      const agua_consumida = totals.waterL;
+      const meta_agua = goals.waterL;
 
-      const message = buildDailyGoalsMessage({ totals, goals, missing });
+      const goalReached =
+        calorias_consumidas >= meta_calorias &&
+        proteina_consumida >= meta_proteina &&
+        agua_consumida >= meta_agua;
+
+      const message = buildDailyGoalsMessage({
+        name: user.name,
+        goalReached,
+        goalType: user.goal_type,
+      });
 
       await sendWhatsAppMessage({ phone: user.whatsapp, message });
 
