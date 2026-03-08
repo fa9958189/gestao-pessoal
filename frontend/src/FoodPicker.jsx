@@ -21,6 +21,8 @@ function FoodPicker({ open, onClose, onSelectFood }) {
   const [foods, setFoods] = useState(FOOD_CATALOG);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [caloriesCalc, setCaloriesCalc] = useState(0);
+  const [proteinCalc, setProteinCalc] = useState(0);
 
   const normalizedQuery = query.trim();
 
@@ -115,6 +117,8 @@ function FoodPicker({ open, onClose, onSelectFood }) {
     setFoods(FOOD_CATALOG);
     setIsLoading(false);
     setErrorMessage('');
+    setCaloriesCalc(0);
+    setProteinCalc(0);
     if (onClose) {
       onClose();
     }
@@ -122,32 +126,56 @@ function FoodPicker({ open, onClose, onSelectFood }) {
 
   const handlePick = (food) => {
     setSelectedFood(food);
-    setGrams(String(parseBaseGrams(food.descricaoPorcao)));
+    const baseServing = food.serving_g && food.serving_g > 0
+      ? food.serving_g
+      : parseBaseGrams(food.descricaoPorcao);
+    setGrams(String(baseServing));
   };
 
   const baseGrams = selectedFood
-    ? parseBaseGrams(selectedFood.descricaoPorcao)
+    ? (selectedFood.serving_g && selectedFood.serving_g > 0
+      ? selectedFood.serving_g
+      : 100)
     : 100;
   const gramsNumber = Number(grams);
-  const gramsValue =
-    Number.isFinite(gramsNumber) && gramsNumber > 0 ? gramsNumber : baseGrams;
+  const gramsValue = Number.isFinite(gramsNumber) ? gramsNumber : 0;
 
-  const kcalCalc = selectedFood
-    ? round0((selectedFood.kcalPorPorcao / baseGrams) * gramsValue)
+  useEffect(() => {
+    if (!selectedFood) return;
+
+    const quantity = Number(grams);
+    if (!quantity || quantity <= 0) {
+      setCaloriesCalc(0);
+      setProteinCalc(0);
+      return;
+    }
+
+    const calories = (quantity / baseGrams) * (selectedFood.kcalPorPorcao || 0);
+    const protein = (quantity / baseGrams) * (selectedFood.proteina || 0);
+
+    setCaloriesCalc(Number(calories.toFixed(1)));
+    setProteinCalc(Number(protein.toFixed(1)));
+  }, [grams, selectedFood, baseGrams]);
+
+  const fatCalc = selectedFood && gramsValue > 0
+    ? round1(((selectedFood.gordura ?? 0) / baseGrams) * gramsValue)
     : 0;
-  const protCalc = selectedFood
-    ? round1(((selectedFood.proteina ?? 0) / baseGrams) * gramsValue)
+  const carbsCalc = selectedFood && gramsValue > 0
+    ? round1(((selectedFood.carboidrato ?? 0) / baseGrams) * gramsValue)
+    : 0;
+  const fiberCalc = selectedFood && gramsValue > 0
+    ? round1(((selectedFood.fibra ?? 0) / baseGrams) * gramsValue)
     : 0;
 
   const handleConfirm = () => {
     if (!selectedFood || !onSelectFood) return;
     onSelectFood({
       name: selectedFood.nome,
-      calories: kcalCalc,
-      protein: protCalc,
-      fat: round1(((selectedFood.gordura ?? 0) / baseGrams) * gramsValue),
-      carbs: round1(((selectedFood.carboidrato ?? 0) / baseGrams) * gramsValue),
-      fiber: round1(((selectedFood.fibra ?? 0) / baseGrams) * gramsValue),
+      calories: caloriesCalc,
+      protein: proteinCalc,
+      fat: fatCalc,
+      carbs: carbsCalc,
+      fiber: fiberCalc,
       serving_g: selectedFood.serving_g,
       serving_qty: selectedFood.serving_qty,
       serving_unit: selectedFood.serving_unit,
@@ -263,13 +291,13 @@ function FoodPicker({ open, onClose, onSelectFood }) {
                 <div className="muted" style={{ fontSize: 12 }}>
                   Calorias
                 </div>
-                <div className="title">{kcalCalc} kcal</div>
+                <div className="title">{caloriesCalc} kcal</div>
               </div>
               <div className="food-picker-macro-card">
                 <div className="muted" style={{ fontSize: 12 }}>
                   Proteínas
                 </div>
-                <div className="title">{protCalc} g</div>
+                <div className="title">{proteinCalc} g</div>
               </div>
             </div>
 
