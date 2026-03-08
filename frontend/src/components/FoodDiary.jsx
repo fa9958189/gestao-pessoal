@@ -56,12 +56,6 @@ const parseNumberInput = (value) => {
   return Number.isFinite(numeric) ? numeric : null;
 };
 
-const scaleByGrams = (value, grams, baseGrams) => {
-  const safeBase = Number(baseGrams) || 100;
-  const safeGrams = Number(grams) || safeBase;
-  return (Number(value) || 0) * (safeGrams / safeBase);
-};
-
 const getLocalDateString = () => {
   const now = new Date();
   const offsetMs = now.getTimezoneOffset() * 60 * 1000;
@@ -108,7 +102,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
 
   const [isFoodPickerOpen, setIsFoodPickerOpen] = useState(false);
   const [isScanningFood, setIsScanningFood] = useState(false);
-  const [scanPreview, setScanPreview] = useState(null);
+  const [, setScanPreview] = useState(null);
   const [scanDescription, setScanDescription] = useState('');
   const [isScanModalOpen, setIsScanModalOpen] = useState(false);
   const inputCameraRef = useRef(null);
@@ -522,36 +516,20 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
     try {
       const sanitizedFile = await prepareImageForScan(file);
       const analysis = await scanFood(sanitizedFile, scanDescription);
-      const normalizeScanItem = (item) => {
-        const directBase =
-          Number(item?.baseGrams ?? item?.gramsBase ?? item?.grams ?? item?.gramas);
-        let parsedBase = directBase;
-
-        if (!Number.isFinite(parsedBase) && typeof item?.quantidade === 'string') {
-          const match = item.quantidade.match(/[\d,.]+/);
-          if (match) {
-            parsedBase = Number(match[0].replace(',', '.'));
-          }
-        }
-
-        const baseGrams = Number.isFinite(parsedBase) && parsedBase > 0 ? parsedBase : 100;
-        const baseCalories = Number(item?.calorias) || 0;
-        const baseProtein = Number(item?.proteina) || 0;
-
-        return {
-          ...item,
-          baseGrams,
-          grams: baseGrams,
-          baseCalories,
-          baseProtein,
-        };
-      };
-
-      const items = Array.isArray(analysis?.itens)
-        ? analysis.itens.map((item) => normalizeScanItem(item))
+      const foodsDetected = Array.isArray(analysis?.itens)
+        ? analysis.itens
+            .map((item) => ({
+              name: item?.nome || 'Alimento escaneado',
+              calories: Number(item?.calorias) || 0,
+              protein: Number(item?.proteina) || 0,
+              notes: item?.quantidade || '',
+            }))
+            .filter((item) => item.name)
         : [];
-      setScanPreview(items);
-      if (items.length > 0) {
+
+      setMealItems((prev) => [...prev, ...foodsDetected]);
+      setScanPreview([]);
+      if (foodsDetected.length > 0) {
         setAddMealStep(2);
         setIsAddMealModalOpen(true);
       }
@@ -571,66 +549,6 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
     } finally {
       setIsScanningFood(false);
     }
-  };
-
-  const handleApplyScannedItem = (item) => {
-    if (!item) return;
-    const baseGrams = Number(item.baseGrams) || 100;
-    const grams = Number(item.grams) || baseGrams;
-    const calories = Math.round(
-      scaleByGrams(item.baseCalories ?? item.calorias, grams, baseGrams),
-    );
-    const protein = Number(
-      scaleByGrams(item.baseProtein ?? item.proteina, grams, baseGrams).toFixed(1),
-    );
-    setForm((prev) => ({
-      ...prev,
-      food: item.nome || prev.food,
-      calories: String(calories),
-      protein: String(protein),
-    }));
-    setAddMealStep(3);
-    setIsAddMealModalOpen(true);
-  };
-
-  const handleApplyAllScannedItems = () => {
-    if (!Array.isArray(scanPreview) || scanPreview.length === 0) return;
-
-    const total = scanPreview.reduce(
-      (acc, item) => ({
-        calorias:
-          acc.calorias +
-          Math.round(
-            scaleByGrams(
-              item.baseCalories ?? item.calorias,
-              item.grams,
-              item.baseGrams,
-            ),
-          ),
-        proteina:
-          acc.proteina +
-          Number(
-            scaleByGrams(
-              item.baseProtein ?? item.proteina,
-              item.grams,
-              item.baseGrams,
-            ).toFixed(1),
-          ),
-      }),
-      { calorias: 0, proteina: 0 }
-    );
-
-    setForm((prev) => ({
-      ...prev,
-      food: scanPreview
-        .map((i) => i.nome)
-        .filter(Boolean)
-        .join(', ') || prev.food,
-      calories: String(total.calorias),
-      protein: total.proteina.toFixed(1),
-    }));
-    setAddMealStep(3);
-    setIsAddMealModalOpen(true);
   };
 
   const handleSelectImageForScan = () => {
@@ -664,22 +582,6 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
 
   const handleCloseScanModal = () => {
     setIsScanModalOpen(false);
-  };
-
-  const handleScannedGramsChange = (index, value) => {
-    if (!Array.isArray(scanPreview)) return;
-    if (value === '') return;
-
-    const numeric = Number(value);
-    if (!Number.isFinite(numeric)) return;
-
-    const clamped = Math.min(2000, Math.max(1, Math.round(numeric)));
-
-    setScanPreview((prev) =>
-      prev.map((item, idx) =>
-        idx === index ? { ...item, grams: clamped } : item,
-      ),
-    );
   };
 
   const handleOpenScanFilePicker = () => {
@@ -1730,7 +1632,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
                           <div className="scan-preview-header">
                             <strong>Itens da refeição</strong>
                           </div>
-                          <div className="scan-preview-list">
+                          <div className="scan-preview-list" style={{ maxHeight: 300, overflowY: 'auto' }}>
                             {mealItems.map((item, index) => (
                               <div key={`${item.name || 'item'}-${index}`} className="meal-item">
                                 <span>
@@ -1752,75 +1654,6 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
                             <div>{formatNumber(mealTotalCalories, 0)} kcal</div>
                             <div>{formatNumber(mealTotalProtein, 1)} g proteína</div>
                           </div>
-                        </div>
-                      )}
-
-                      {Array.isArray(scanPreview) && scanPreview.length > 0 && (
-                        <div className="scan-preview-card">
-                          <div className="scan-preview-header">
-                            <strong>Itens identificados:</strong>
-                          </div>
-                          <ul className="scan-preview-list">
-                            {scanPreview.map((item, index) => (
-                              <li key={`${item.nome || 'item'}-${index}`} className="scan-preview-item">
-                                <div className="scan-preview-row">
-                                  <span>
-                                    {item.nome}
-                                    {item.quantidade ? ` – ${item.quantidade}` : ''}
-                                  </span>
-                                  <label style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                                    <input
-                                      type="number"
-                                      min="1"
-                                      max="2000"
-                                      step="1"
-                                      value={item.grams}
-                                      onChange={(e) =>
-                                        handleScannedGramsChange(index, e.target.value)
-                                      }
-                                      style={{ width: 72 }}
-                                    />
-                                    <span>g</span>
-                                  </label>
-                                </div>
-                                <div className="muted" style={{ fontSize: 12 }}>
-                                  {Math.round(
-                                    scaleByGrams(
-                                      item.baseCalories ?? item.calorias,
-                                      item.grams,
-                                      item.baseGrams,
-                                    ),
-                                  )}{' '}
-                                  kcal •{' '}
-                                  {Number(
-                                    scaleByGrams(
-                                      item.baseProtein ?? item.proteina,
-                                      item.grams,
-                                      item.baseGrams,
-                                    ).toFixed(1),
-                                  )}{' '}
-                                  g proteína
-                                </div>
-                                <button
-                                  type="button"
-                                  className="ghost small"
-                                  style={{ marginTop: 4 }}
-                                  onClick={() => handleApplyScannedItem(item)}
-                                >
-                                  Usar este alimento
-                                </button>
-                              </li>
-                            ))}
-                          </ul>
-
-                          <button
-                            type="button"
-                            className="primary small"
-                            style={{ marginTop: 8 }}
-                            onClick={handleApplyAllScannedItems}
-                          >
-                            Somar tudo e preencher a refeição
-                          </button>
                         </div>
                       )}
 
