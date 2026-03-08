@@ -413,6 +413,12 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
       name: selectedItem.nome,
       calories: selectedItem.calorias,
       protein: selectedItem.proteina,
+      fat: Number(foodData.fat) || 0,
+      carbs: Number(foodData.carbs) || 0,
+      fiber: Number(foodData.fiber) || 0,
+      serving_g: Number(foodData.serving_g) || 0,
+      serving_qty: Number(foodData.serving_qty) || 0,
+      serving_unit: foodData.serving_unit || '',
       quantity,
     });
 
