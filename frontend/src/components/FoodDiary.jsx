@@ -1814,21 +1814,9 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
                         <button type="button" className="ghost" onClick={() => setAddMealStep(1)}>
                           Voltar
                         </button>
-                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                          <button
-                            type="button"
-                            className="ghost"
-                            onClick={() => {
-                              setFoodInputMode('buscar');
-                              setIsFoodPickerOpen(true);
-                            }}
-                          >
-                            + Adicionar alimento
-                          </button>
-                          <button type="button" className="primary" onClick={handleSaveMealItems}>
-                            Salvar refeição
-                          </button>
-                        </div>
+                        <button type="button" className="primary" onClick={handleSaveMealItems}>
+                          Salvar refeição
+                        </button>
                       </div>
                     </>
                   )}
