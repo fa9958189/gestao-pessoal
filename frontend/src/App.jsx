@@ -2834,7 +2834,7 @@ function App() {
             className={activeView === 'generalReport' ? 'tab active' : 'tab'}
             onClick={() => setActiveView('generalReport')}
           >
-            📊 Relatórios
+            📊 Relatório Geral
           </button>
         </div>
       )}
