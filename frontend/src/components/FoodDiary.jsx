@@ -6,7 +6,7 @@ import {
   saveMeal,
   updateMeal,
 } from '../foodDiaryApi';
-import FoodDiaryReports from './FoodDiaryReports';
+import NutritionReports from './reports/NutritionReports';
 import HydrationCard from './HydrationCard';
 import { updateHydrationGoal } from '../hydrationApi';
 import { scanFood } from '../services/foodScannerApi';
@@ -1862,7 +1862,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
       )}
 
       {activeSubTab === 'relatorios' && (
-        <FoodDiaryReports
+        <NutritionReports
           userId={userId}
           supabase={supabase}
           selectedDate={selectedDate}
