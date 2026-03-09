@@ -65,6 +65,7 @@ const getLocalDateString = () => {
 function FoodDiary({ userId, supabase, notify, refreshToken }) {
   const [entriesByDate, setEntriesByDate] = useState({});
   const [goals, setGoals] = useState(defaultGoals);
+  const [goalType, setGoalType] = useState('maintain');
   const [body, setBody] = useState(defaultBody);
   const [weightHistory, setWeightHistory] = useState(defaultWeightHistory);
   const [waterSummary, setWaterSummary] = useState({
@@ -225,6 +226,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
         };
 
         setGoals(nextGoals);
+        setGoalType(normalizedProfile?.goalType || 'maintain');
         setWaterSummary((prev) => ({
           ...prev,
           goalMl: nextGoals.water * 1000,
@@ -927,6 +929,25 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
     }
   };
 
+  const handleGoalTypeChange = async (value) => {
+    setGoalType(value);
+    try {
+      await saveProfile({
+        supabase,
+        userId,
+        goalType: value,
+      });
+      if (typeof notify === 'function') {
+        notify('Objetivo salvo com sucesso.', 'success');
+      }
+    } catch (error) {
+      console.error('Falha ao salvar objetivo', error);
+      if (typeof notify === 'function') {
+        notify('Não foi possível salvar o objetivo.', 'error');
+      }
+    }
+  };
+
   const handleBodyChange = (field, value) => {
     const nextBody = {
       ...body,
@@ -1201,6 +1222,40 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
 
   const DailyGoalsCard = () => (
     <div className="food-diary-summary-card" style={{ maxWidth: 560, width: '100%' }}>
+      <div style={{ marginBottom: 16 }}>
+        <h5 className="title" style={{ margin: 0, fontSize: 14 }}>
+          Objetivo
+        </h5>
+        <p style={{ margin: '6px 0 10px', fontSize: 12, color: '#6b7280' }}>
+          Escolha o foco principal da sua rotina.
+        </p>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {[
+            { value: 'lose_weight', label: 'Perder peso' },
+            { value: 'maintain', label: 'Manter peso' },
+            { value: 'gain_muscle', label: 'Ganhar massa' },
+          ].map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => handleGoalTypeChange(option.value)}
+              style={{
+                border: goalType === option.value ? '1px solid #7c3aed' : '1px solid #d1d5db',
+                background: goalType === option.value ? '#f5f3ff' : '#fff',
+                color: goalType === option.value ? '#5b21b6' : '#374151',
+                borderRadius: 999,
+                padding: '6px 12px',
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <h5 className="title" style={{ margin: 0, fontSize: 14 }}>
         Metas diárias
       </h5>

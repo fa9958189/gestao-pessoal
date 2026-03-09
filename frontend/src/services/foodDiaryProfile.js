@@ -10,7 +10,7 @@ const selectProfileAuth = async ({ supabase, userId }) => {
   try {
     const { data, error } = await supabase
       .from('profiles_auth')
-      .select('height_cm, sex, age, activity_level')
+      .select('height_cm, sex, age, activity_level, goal_type')
       .or(`auth_id.eq.${userId},id.eq.${userId}`)
       .maybeSingle();
 
@@ -33,6 +33,7 @@ const updateProfileAuth = async ({
   sex,
   age,
   activityLevel,
+  goalType,
 }) => {
   try {
     const payload = {};
@@ -41,6 +42,7 @@ const updateProfileAuth = async ({
     if (sex !== undefined) payload.sex = sex;
     if (age !== undefined) payload.age = age;
     if (activityLevel !== undefined) payload.activity_level = activityLevel;
+    if (goalType !== undefined) payload.goal_type = goalType;
 
     if (Object.keys(payload).length === 0) return;
 
@@ -149,6 +151,7 @@ export async function saveProfile({
   sex,
   age,
   activityLevel,
+  goalType,
 }) {
   ensureSupabase(supabase, 'salvar perfil');
 
@@ -169,6 +172,7 @@ export async function saveProfile({
     sex: sex !== undefined ? normalizedSex : undefined,
     age: age !== undefined ? normalizedAge : undefined,
     activityLevel: activityLevel !== undefined ? normalizedActivity : undefined,
+    goalType,
   });
 
   const profilePayload = {
@@ -332,6 +336,7 @@ export async function loadProfile({ supabase, userId }) {
   // 2) Se existir profiles_auth, ele manda nos campos “persistentes” do perfil
   const merged = {
     ...diaryNormalized,
+    goalType: 'maintain',
   };
 
   if (authRow) {
@@ -343,6 +348,7 @@ export async function loadProfile({ supabase, userId }) {
         authRow.activity_level,
       );
     }
+    merged.goalType = authRow.goal_type || 'maintain';
   }
 
   return merged;
