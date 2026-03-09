@@ -1248,6 +1248,63 @@ canvas{ background:transparent; }
   gap: 4px;
   text-align: center;
   color: var(--muted);
+  cursor: pointer;
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+.evolution-level-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(56, 189, 248, 0.6);
+}
+
+.level-preview-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(2, 6, 23, 0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 3000;
+  padding: 16px;
+}
+
+.level-preview-modal {
+  position: relative;
+  width: min(420px, 100%);
+  padding: 22px;
+  border-radius: 16px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  background: #0f172a;
+  color: #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 12px;
+}
+
+.level-preview-avatar {
+  width: 160px;
+  height: 160px;
+  object-fit: contain;
+}
+
+.level-preview-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  background: transparent;
+  color: #e2e8f0;
+  cursor: pointer;
+}
+
+.level-preview-objective {
+  font-size: 13px;
+  color: #94a3b8;
 }
 
 .evolution-level-card.active {
