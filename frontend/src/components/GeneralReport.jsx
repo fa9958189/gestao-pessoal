@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import LevelPreviewModal from './LevelPreviewModal';
 
 const CACHE_PREFIX = 'gp-general-report-cache-v1';
 const CACHE_TTL_MS = 1000 * 60 * 60 * 6;
@@ -314,6 +315,42 @@ const evolutionLevels = [
   { label: 'Alta performance', min: 80, max: 100 },
 ];
 
+const levelAvatars = {
+  inicio: '/avatars/inicio.svg',
+  progresso: '/avatars/progresso.svg',
+  consistente: '/avatars/consistente.svg',
+  evoluindo: '/avatars/evoluindo.svg',
+  performance: '/avatars/performance.svg',
+};
+
+const levelDetails = {
+  'Início': {
+    avatar: levelAvatars.inicio,
+    description: 'Esse nível representa o começo da jornada.',
+    objective: 'Criar rotina mínima e registrar os primeiros hábitos.',
+  },
+  'Em progresso': {
+    avatar: levelAvatars.progresso,
+    description: 'Você já iniciou sua evolução e está ganhando ritmo.',
+    objective: 'Aumentar frequência semanal e manter constância.',
+  },
+  Consistente: {
+    avatar: levelAvatars.consistente,
+    description: 'Você já tem disciplina básica.',
+    objective: 'Consolidar hábitos para evitar oscilações.',
+  },
+  Evoluindo: {
+    avatar: levelAvatars.evoluindo,
+    description: 'Seu progresso está claro e seus resultados aparecem.',
+    objective: 'Refinar execução e subir a qualidade da rotina.',
+  },
+  'Alta performance': {
+    avatar: levelAvatars.performance,
+    description: 'Você atingiu um alto nível de consistência.',
+    objective: 'Sustentar excelência e buscar evolução contínua.',
+  },
+};
+
 const getLifeLevel = (score) => {
   const value = Number(score) || 0;
   if (value < 20) return 'Início';
@@ -449,6 +486,7 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
   const [lastUpdated, setLastUpdated] = useState(() => readCache(userId)?.savedAt || null);
   const [loading, setLoading] = useState(!summary);
   const [avatarCache, setAvatarCache] = useState(() => readAvatarCache(userId));
+  const [previewLevel, setPreviewLevel] = useState(null);
 
   const baseDate = useMemo(() => new Date(), []);
 
@@ -602,6 +640,16 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
     evolutionTips.push('Mantenha a consistência diária para avançar de nível.');
   }
 
+  const openLevelPreview = (level) => {
+    const details = levelDetails[level.label] || {};
+    setPreviewLevel({
+      ...level,
+      avatar: details.avatar,
+      description: details.description,
+      objective: details.objective,
+    });
+  };
+
   return (
     <div className="general-report">
       <div className="general-report-hero">
@@ -658,12 +706,22 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
       <div className="gp-avatar-section">
         <div className="gp-avatar-header">
           <h5 className="title" style={{ margin: 0 }}>Níveis de Evolução</h5>
+          <span className="muted" style={{ fontSize: 12 }}>Toque em um nível para visualizar o avatar.</span>
         </div>
         <div className="evolution-level-grid">
           {evolutionLevels.map((level) => (
             <div
               key={level.label}
               className={`evolution-level-card ${currentLevel === level.label ? 'active' : ''}`}
+              onClick={() => openLevelPreview(level)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  openLevelPreview(level);
+                }
+              }}
             >
               <strong>{level.label}</strong>
               <span>{level.min} - {level.max}</span>
@@ -671,6 +729,12 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
           ))}
         </div>
       </div>
+
+      <LevelPreviewModal
+        isOpen={Boolean(previewLevel)}
+        level={previewLevel}
+        onClose={() => setPreviewLevel(null)}
+      />
 
       <div className="general-report-grid">
         <div className="general-report-card">
