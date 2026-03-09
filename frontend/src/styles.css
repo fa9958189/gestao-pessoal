@@ -938,6 +938,18 @@ canvas{ background:transparent; }
   gap: 8px;
 }
 
+.gridDashboard {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 24px;
+}
+
+.gridBody {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 24px;
+}
+
 .hydration-card {
   gap: 10px;
 }
@@ -1618,6 +1630,18 @@ canvas{ background:transparent; }
 @media (max-width: 900px) {
   .food-diary-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (min-width: 900px) {
+  .gridDashboard {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (min-width: 1000px) {
+  .gridBody {
+    grid-template-columns: 1fr 1fr 2fr;
   }
 }
 

@@ -18,6 +18,15 @@ import {
   saveProfile,
   saveWeightEntry,
 } from '../services/foodDiaryProfile';
+import {
+  CartesianGrid,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
 
 const defaultGoals = {
   calories: 2000,
@@ -388,6 +397,34 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
     else if (value >= 30) label = 'Obesidade';
     return { value, label };
   }, [body.heightCm, body.weightKg]);
+
+  const healthyWeightRange = useMemo(() => {
+    const heightMeters = Number(body.heightCm) / 100;
+    if (!heightMeters) return null;
+    const squared = heightMeters * heightMeters;
+    return {
+      min: 18.5 * squared,
+      max: 24.9 * squared,
+    };
+  }, [body.heightCm]);
+
+  const goalRecommendation = useMemo(() => {
+    if (goalType === 'lose_weight') return 'Para perda de peso moderada recomenda-se déficit de 300–500 kcal.';
+    if (goalType === 'gain_muscle') return 'Para ganho de massa recomenda-se superávit leve de calorias.';
+    return 'Para manutenção, mantenha constância e ajuste as metas conforme sua rotina.';
+  }, [goalType]);
+
+  const weightChartData = useMemo(
+    () =>
+      weightHistory
+        .slice()
+        .sort((a, b) => a.date.localeCompare(b.date))
+        .map((item) => ({
+          date: new Date(item.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
+          peso: Number(item.weightKg) || 0,
+        })),
+    [weightHistory]
+  );
 
   const handleChangeForm = (field, value) => {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -1221,7 +1258,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
   );
 
   const DailyGoalsCard = () => (
-    <div className="food-diary-summary-card" style={{ maxWidth: 560, width: '100%' }}>
+    <div className="food-diary-summary-card">
       <div style={{ marginBottom: 16 }}>
         <h5 className="title" style={{ margin: 0, fontSize: 14 }}>
           Objetivo
@@ -1296,8 +1333,34 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
     </div>
   );
 
+  const GoalsSummaryCard = () => (
+    <div className="food-diary-summary-card">
+      <h5 className="title" style={{ margin: 0, fontSize: 14 }}>
+        Resumo das metas
+      </h5>
+      <div className="food-diary-meta-list">
+        <div>
+          Calorias alvo
+          <div><strong>{formatNumber(calorieGoal, 0)} kcal</strong></div>
+        </div>
+        <div>
+          Proteína alvo
+          <div><strong>{formatNumber(proteinGoal, 0)} g</strong></div>
+        </div>
+        <div>
+          Água alvo
+          <div><strong>{formatNumber(waterGoalLiters, 1)} L</strong></div>
+        </div>
+      </div>
+
+      <div className="muted" style={{ fontSize: 12 }}>
+        {goalRecommendation}
+      </div>
+    </div>
+  );
+
   const BodyInfoCard = () => (
-    <div className="food-diary-summary-card" style={{ maxWidth: 560, width: '100%' }}>
+    <div className="food-diary-summary-card">
       <h5 className="title" style={{ margin: 0, fontSize: 14 }}>
         Altura e peso
       </h5>
@@ -1332,11 +1395,6 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
       >
         Salvar peso
       </button>
-      {bmi && (
-        <div className="muted" style={{ fontSize: 13 }}>
-          IMC: <strong>{formatNumber(bmi.value, 1)}</strong> – {bmi.label}
-        </div>
-      )}
 
       {weightHistory.length > 0 && (
         <div className="muted" style={{ fontSize: 12, marginTop: 6 }}>
@@ -1381,6 +1439,67 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
                 </div>
               ))}
           </div>
+        </div>
+      )}
+    </div>
+  );
+
+  const BmiCard = () => (
+    <div className="food-diary-summary-card">
+      <h5 className="title" style={{ margin: 0, fontSize: 14 }}>IMC e classificação</h5>
+
+      {bmi ? (
+        <>
+          <div>
+            IMC atual
+            <div><strong>{formatNumber(bmi.value, 1)}</strong></div>
+          </div>
+          <div>
+            Classificação
+            <div><strong>{bmi.label}</strong></div>
+          </div>
+        </>
+      ) : (
+        <div className="muted" style={{ fontSize: 12 }}>
+          Preencha altura e peso para calcular o IMC.
+        </div>
+      )}
+
+      {healthyWeightRange && (
+        <div className="muted" style={{ fontSize: 12 }}>
+          Peso saudável estimado:{' '}
+          <strong>
+            {formatNumber(healthyWeightRange.min, 1)}kg – {formatNumber(healthyWeightRange.max, 1)}kg
+          </strong>
+        </div>
+      )}
+    </div>
+  );
+
+  const WeightEvolutionCard = () => (
+    <div className="food-diary-summary-card">
+      <h5 className="title" style={{ margin: 0, fontSize: 14 }}>Evolução do peso</h5>
+      {weightChartData.length > 0 ? (
+        <div style={{ width: '100%', height: 260 }}>
+          <ResponsiveContainer>
+            <LineChart data={weightChartData}>
+              <CartesianGrid stroke="rgba(255,255,255,0.08)" strokeDasharray="3 3" />
+              <XAxis dataKey="date" stroke="#9ca3af" />
+              <YAxis stroke="#9ca3af" unit="kg" />
+              <Tooltip
+                contentStyle={{
+                  background: '#111827',
+                  border: '1px solid #374151',
+                  borderRadius: 8,
+                }}
+              />
+              <Line type="monotone" dataKey="peso" stroke="#38bdf8" strokeWidth={2} dot={{ r: 3 }} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      ) : (
+        <div className="muted" style={{ fontSize: 12 }}>
+          Adicione registros de peso para visualizar a tendência.
         </div>
       )}
     </div>
@@ -1858,14 +1977,17 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
       )}
 
       {activeSubTab === 'metas' && (
-        <div style={{ display: 'flex', justifyContent: 'center' }}>
+        <div className="gridDashboard">
           <DailyGoalsCard />
+          <GoalsSummaryCard />
         </div>
       )}
 
       {activeSubTab === 'corpo' && (
-        <div style={{ display: 'flex', justifyContent: 'center' }}>
+        <div className="gridBody">
           <BodyInfoCard />
+          <BmiCard />
+          <WeightEvolutionCard />
         </div>
       )}
 
