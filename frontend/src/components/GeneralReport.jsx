@@ -3,23 +3,6 @@ import React, { useEffect, useMemo, useState } from 'react';
 const CACHE_PREFIX = 'gp-general-report-cache-v1';
 const CACHE_TTL_MS = 1000 * 60 * 60 * 6;
 
-const formatNumber = (value, decimals = 0) => {
-  const number = Number(value);
-  if (!Number.isFinite(number)) return '—';
-  return number.toLocaleString('pt-BR', {
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals,
-  });
-};
-
-const formatCurrency = (value) => {
-  const number = Number(value || 0);
-  return number.toLocaleString('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-  });
-};
-
 const formatRelativeTime = (timestamp) => {
   if (!timestamp) return 'agora há pouco';
   const diffMinutes = Math.max(1, Math.floor((Date.now() - timestamp) / 60000));
@@ -298,12 +281,6 @@ const getAvatarState = (score) => {
   return 'em_forma';
 };
 
-const getNextAvatarState = (state) => {
-  if (state === 'recuperacao') return 'em_progresso';
-  if (state === 'em_progresso') return 'em_forma';
-  return 'em_forma';
-};
-
 const avatarMeta = {
   recuperacao: {
     label: 'Recuperação',
@@ -326,6 +303,50 @@ const avatarMeta = {
     accent: '#22c55e',
     mood: 'happy',
   },
+};
+
+
+const evolutionLevels = [
+  { label: 'Início', min: 0, max: 19 },
+  { label: 'Em progresso', min: 20, max: 39 },
+  { label: 'Consistente', min: 40, max: 59 },
+  { label: 'Evoluindo', min: 60, max: 79 },
+  { label: 'Alta performance', min: 80, max: 100 },
+];
+
+const getLifeLevel = (score) => {
+  const value = Number(score) || 0;
+  if (value < 20) return 'Início';
+  if (value < 40) return 'Em progresso';
+  if (value < 60) return 'Consistente';
+  if (value < 80) return 'Evoluindo';
+  return 'Alta performance';
+};
+
+const getNextLevel = (score) => {
+  const value = Number(score) || 0;
+  const currentIndex = evolutionLevels.findIndex((level) => value >= level.min && value <= level.max);
+  const next = evolutionLevels[Math.min(currentIndex + 1, evolutionLevels.length - 1)];
+  return next?.label || evolutionLevels[evolutionLevels.length - 1].label;
+};
+
+const getRemainingPointsToNextLevel = (score) => {
+  const value = Number(score) || 0;
+  if (value >= 80) return 0;
+  if (value < 20) return 20 - value;
+  if (value < 40) return 40 - value;
+  if (value < 60) return 60 - value;
+  return 80 - value;
+};
+
+const generateWeeklyInsight = ({ nutritionScore, trainingScore, financeScore }) => {
+  const priorities = [
+    { key: 'alimentação', value: nutritionScore, message: 'Seu foco da semana deve ser melhorar a qualidade da sua alimentação.' },
+    { key: 'treinos', value: trainingScore, message: 'Seu foco da semana deve ser melhorar sua constância nos treinos.' },
+    { key: 'financeiro', value: financeScore, message: 'Seu foco da semana deve ser organizar melhor seus gastos para proteger seu saldo.' },
+  ];
+  priorities.sort((a, b) => a.value - b.value);
+  return priorities[0]?.message || 'Você está em ótimo ritmo. Mantenha sua consistência nos três pilares.';
 };
 
 const Avatar2D = ({ state = 'em_progresso', size = 160, className = '' }) => {
@@ -545,8 +566,6 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
   const updatedLabel = formatRelativeTime(lastUpdated);
   const lifeScore = data?.scores?.lifeScore ?? 0;
   const avatarState = getAvatarState(lifeScore);
-  const nextAvatarState = getNextAvatarState(avatarState);
-  const idealAvatarState = 'em_forma';
   const cachedState = avatarCache?.state;
   const displayAvatarState = avatarState || cachedState || 'em_progresso';
 
@@ -557,31 +576,31 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
     }
   }, [avatarState, cachedState, userId]);
 
-  const focusPoints = useMemo(() => {
-    const points = [];
-    if (data?.goals?.proteinGoal && data.averages.protein < data.goals.proteinGoal * 0.9) {
-      points.push('proteína');
-    }
-    if (data?.goals?.waterGoalMl && data.averages.water < data.goals.waterGoalMl * 0.9) {
-      points.push('água');
-    }
-    if (data?.workouts?.constancy !== undefined && data.workouts.constancy < 50) {
-      points.push('treino');
-    }
-    return points;
-  }, [data]);
-
-  const buildAvatarCopy = (state) => {
-    const base = avatarMeta[state]?.description || '';
-    if (!focusPoints.length || state === 'em_forma') return base;
-    return `${base} Foco: ${focusPoints.join(', ')}.`;
-  };
-
   const heroAvatarLabel = {
     recuperacao: 'Fase de recuperação',
     em_progresso: 'Em progresso',
     em_forma: 'Em forma',
   };
+
+  const currentLevel = getLifeLevel(lifeScore);
+  const nextLevel = getNextLevel(lifeScore);
+  const pointsToNextLevel = getRemainingPointsToNextLevel(lifeScore);
+  const weeklyInsight = generateWeeklyInsight({
+    nutritionScore: data.scores.nutritionScore,
+    trainingScore: data.scores.trainingScore,
+    financeScore: data.scores.financeScore,
+  });
+
+  const evolutionTips = [];
+  if (data.scores.nutritionScore < 60) {
+    evolutionTips.push('Melhore sua alimentação esta semana');
+  }
+  if (data.scores.trainingScore < 60) {
+    evolutionTips.push('Registre mais treinos');
+  }
+  if (!evolutionTips.length) {
+    evolutionTips.push('Mantenha a consistência diária para avançar de nível.');
+  }
 
   return (
     <div className="general-report">
@@ -589,7 +608,7 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
         <div className="general-report-hero-header">
           <div>
             <h4 className="title" style={{ margin: 0 }}>
-              Meu Estado Atual
+              Relatório Geral
             </h4>
             <span className="muted" style={{ fontSize: 12 }}>
               Baseado nos últimos 7 dias e no mês atual.
@@ -608,15 +627,22 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
             </div>
           </div>
           <div className="general-report-hero-info">
-            <p className="general-report-hero-text">
-              Seu score combina alimentação, treinos e finanças. Use os
-              indicadores abaixo para ajustar o que precisa de atenção esta
-              semana.
-            </p>
             <div className="general-report-score">
               <div className="general-report-score-header">
-                <span>Score de Vida</span>
-                <strong>{data.scores.lifeScore}</strong>
+                <span>Nível atual</span>
+                <strong>{currentLevel}</strong>
+              </div>
+              <div className="general-report-metric">
+                <span>Score de vida</span>
+                <strong>{data.scores.lifeScore} / 100</strong>
+              </div>
+              <div className="general-report-metric">
+                <span>Próximo nível</span>
+                <strong>{nextLevel}</strong>
+              </div>
+              <div className="general-report-metric">
+                <span>Pontos restantes</span>
+                <strong>{pointsToNextLevel}</strong>
               </div>
               <div className="general-report-score-bar">
                 <div
@@ -624,15 +650,6 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
                   style={{ width: `${Math.min(data.scores.lifeScore, 100)}%` }}
                 />
               </div>
-              <div className="general-report-score-caption">
-                Alimentação {data.scores.nutritionScore}% · Treino {data.scores.trainingScore}% ·
-                Financeiro {data.scores.financeScore}%
-              </div>
-            </div>
-            <div className="general-report-chips">
-              <span className="general-report-chip">Alimentação: {data.statuses.calories}</span>
-              <span className="general-report-chip">Treino: {data.workouts.constancy}% constância</span>
-              <span className="general-report-chip">Financeiro: {data.finance.spentPercent}% gasto</span>
             </div>
           </div>
         </div>
@@ -640,158 +657,59 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
 
       <div className="gp-avatar-section">
         <div className="gp-avatar-header">
-          <div>
-            <h5 className="title" style={{ margin: 0 }}>
-              Seu Avatar
-            </h5>
-            <span className="muted" style={{ fontSize: 12 }}>
-              Veja seu estado atual e como pode evoluir.
-            </span>
-          </div>
-          <div className="gp-avatar-score">
-            Score atual <strong>{lifeScore}</strong>
-          </div>
+          <h5 className="title" style={{ margin: 0 }}>Níveis de Evolução</h5>
         </div>
-        <div className="gp-avatar-content">
-          <div className="gp-avatar-current">
-            <Avatar2D state={displayAvatarState} size={180} />
-            <div className="gp-avatar-current-label">
-              {avatarMeta[displayAvatarState]?.label}
+        <div className="evolution-level-grid">
+          {evolutionLevels.map((level) => (
+            <div
+              key={level.label}
+              className={`evolution-level-card ${currentLevel === level.label ? 'active' : ''}`}
+            >
+              <strong>{level.label}</strong>
+              <span>{level.min} - {level.max}</span>
             </div>
-            <p className="gp-avatar-current-text">
-              {buildAvatarCopy(displayAvatarState)}
-            </p>
-          </div>
-          <div className="gp-avatar-cards">
-            <div className="gp-avatar-card">
-              <div className="gp-avatar-card-title">Atual</div>
-              <Avatar2D state={displayAvatarState} size={96} className="gp-avatar-mini" />
-              <div className="gp-avatar-card-state">{avatarMeta[displayAvatarState]?.label}</div>
-              <p className="gp-avatar-card-text">{buildAvatarCopy(displayAvatarState)}</p>
-            </div>
-            <div className="gp-avatar-card">
-              <div className="gp-avatar-card-title">Próximo</div>
-              <Avatar2D state={nextAvatarState} size={96} className="gp-avatar-mini" />
-              <div className="gp-avatar-card-state">{avatarMeta[nextAvatarState]?.label}</div>
-              <p className="gp-avatar-card-text">{buildAvatarCopy(nextAvatarState)}</p>
-            </div>
-            <div className="gp-avatar-card">
-              <div className="gp-avatar-card-title">Ideal</div>
-              <Avatar2D state={idealAvatarState} size={96} className="gp-avatar-mini" />
-              <div className="gp-avatar-card-state">{avatarMeta[idealAvatarState]?.label}</div>
-              <p className="gp-avatar-card-text">{buildAvatarCopy(idealAvatarState)}</p>
-            </div>
-          </div>
+          ))}
         </div>
       </div>
 
       <div className="general-report-grid">
         <div className="general-report-card">
           <div className="general-report-card-header">
-            <h5 className="title" style={{ margin: 0 }}>
-              Alimentação
-            </h5>
-            <span className="general-report-badge">7 dias</span>
+            <h5 className="title" style={{ margin: 0 }}>Score detalhado</h5>
           </div>
-          <div className="general-report-metric">
-            <span>Média kcal</span>
-            <strong>{formatNumber(data.averages.calories, 0)} kcal</strong>
+          <div className="detailed-score-row">
+            <div className="general-report-metric"><span>Alimentação: {data.scores.nutritionScore} / 100</span></div>
+            <div className="general-report-score-bar"><div className="general-report-score-progress" style={{ width: `${data.scores.nutritionScore}%` }} /></div>
           </div>
-          <div className="general-report-metric">
-            <span>Proteína</span>
-            <strong>{formatNumber(data.averages.protein, 1)} g</strong>
+          <div className="detailed-score-row">
+            <div className="general-report-metric"><span>Treino: {data.scores.trainingScore} / 100</span></div>
+            <div className="general-report-score-bar"><div className="general-report-score-progress" style={{ width: `${data.scores.trainingScore}%` }} /></div>
           </div>
-          <div className="general-report-metric">
-            <span>Água</span>
-            <strong>{formatNumber(data.averages.water / 1000, 1)} L</strong>
-          </div>
-          <div className="general-report-pill">
-            {data.statuses.calories} · {data.statuses.protein} · {data.statuses.water}
+          <div className="detailed-score-row">
+            <div className="general-report-metric"><span>Financeiro: {data.scores.financeScore} / 100</span></div>
+            <div className="general-report-score-bar"><div className="general-report-score-progress" style={{ width: `${data.scores.financeScore}%` }} /></div>
           </div>
         </div>
 
         <div className="general-report-card">
           <div className="general-report-card-header">
-            <h5 className="title" style={{ margin: 0 }}>
-              Treino
-            </h5>
-            <span className="general-report-badge">7 dias</span>
+            <h5 className="title" style={{ margin: 0 }}>Como subir de nível</h5>
           </div>
-          <div className="general-report-metric">
-            <span>Treinos na semana</span>
-            <strong>{data.workouts.totalWorkouts}</strong>
-          </div>
-          <div className="general-report-metric">
-            <span>Constância</span>
-            <strong>{data.workouts.constancy}%</strong>
-          </div>
-          <div className="general-report-metric">
-            <span>Streak atual</span>
-            <strong>{data.workouts.streak} dia(s)</strong>
-          </div>
-          <div className="general-report-pill">
-            {data.workouts.daysWithWorkout} de 7 dias com treino
-          </div>
-        </div>
-
-        <div className="general-report-card">
-          <div className="general-report-card-header">
-            <h5 className="title" style={{ margin: 0 }}>
-              Financeiro
-            </h5>
-            <span className="general-report-badge">Mês atual</span>
-          </div>
-          <div className="general-report-metric">
-            <span>Saldo do mês</span>
-            <strong>{formatCurrency(data.finance.balance)}</strong>
-          </div>
-          <div className="general-report-metric">
-            <span>Gastos</span>
-            <strong>{formatCurrency(data.finance.expenses)}</strong>
-          </div>
-          <div className="general-report-metric">
-            <span>% gasto vs entradas</span>
-            <strong>{data.finance.spentPercent}%</strong>
-          </div>
-          <div className="general-report-pill">
-            {formatCurrency(data.finance.income)} em entradas no mês
-          </div>
-        </div>
-      </div>
-
-      <div className="general-report-timeline">
-        <div className="general-report-timeline-header">
-          <h5 className="title" style={{ margin: 0 }}>
-            Linha do tempo da semana
-          </h5>
-          <span className="muted" style={{ fontSize: 12 }}>
-            Alimentação · Treino · Gastos altos
-          </span>
-        </div>
-        <div className="general-report-timeline-track">
-          {data.timeline.map((day) => (
-            <div key={day.date} className="general-report-timeline-day">
-              <div className="general-report-timeline-label">{day.label}</div>
-              <div className="general-report-timeline-dots">
-                <span
-                  className={`general-report-dot ${day.nutritionOk ? 'ok' : 'warn'}`}
-                  title="Alimentação"
-                />
-                <span
-                  className={`general-report-dot ${day.workout ? 'ok' : 'muted'}`}
-                  title="Treino"
-                />
-                <span
-                  className={`general-report-dot ${day.highSpending ? 'danger' : 'muted'}`}
-                  title="Gastos altos"
-                />
-              </div>
-            </div>
+          {evolutionTips.map((tip) => (
+            <div key={tip} className="general-report-pill">{tip}</div>
           ))}
+        </div>
+
+        <div className="general-report-card">
+          <div className="general-report-card-header">
+            <h5 className="title" style={{ margin: 0 }}>Insight automático</h5>
+          </div>
+          <p className="general-report-hero-text" style={{ color: '#e2e8f0' }}>{weeklyInsight}</p>
         </div>
       </div>
     </div>
   );
+
 }
 
 export default GeneralReport;
