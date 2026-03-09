@@ -1837,7 +1837,15 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
       )}
 
       {activeSubTab === 'agua' && (
-        <div style={{ maxWidth: 720 }}>
+        <div
+          style={{
+            maxWidth: '900px',
+            margin: '0 auto',
+            width: '100%',
+            padding: '0 16px',
+            boxSizing: 'border-box',
+          }}
+        >
           <HydrationCard
             key={`${selectedDate}-${hydrationRefreshToken}`}
             userId={userId}
