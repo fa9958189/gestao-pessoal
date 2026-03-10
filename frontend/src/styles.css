@@ -1036,6 +1036,12 @@ canvas{ background:transparent; }
   gap: 8px;
 }
 
+.general-report-avatar-image {
+  width: 140px;
+  height: 140px;
+  object-fit: contain;
+}
+
 .general-report-avatar-label {
   font-size: 12px;
   color: var(--muted);
