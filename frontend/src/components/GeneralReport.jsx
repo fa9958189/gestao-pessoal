@@ -323,6 +323,14 @@ const levelAvatars = {
   performance: '/avatars/performance.svg',
 };
 
+function getUserLevel(score) {
+  if (score < 20) return 'inicio';
+  if (score < 40) return 'progresso';
+  if (score < 60) return 'consistente';
+  if (score < 80) return 'evoluindo';
+  return 'performance';
+}
+
 const levelDetails = {
   'Início': {
     avatar: levelAvatars.inicio,
@@ -605,8 +613,6 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
   const lifeScore = data?.scores?.lifeScore ?? 0;
   const avatarState = getAvatarState(lifeScore);
   const cachedState = avatarCache?.state;
-  const displayAvatarState = avatarState || cachedState || 'em_progresso';
-
   useEffect(() => {
     if (avatarState && avatarState !== cachedState) {
       writeAvatarCache(userId, avatarState);
@@ -614,13 +620,9 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
     }
   }, [avatarState, cachedState, userId]);
 
-  const heroAvatarLabel = {
-    recuperacao: 'Fase de recuperação',
-    em_progresso: 'Em progresso',
-    em_forma: 'Em forma',
-  };
-
   const currentLevel = getLifeLevel(lifeScore);
+  const level = getUserLevel(lifeScore);
+  const avatarSrc = levelAvatars[level];
   const nextLevel = getNextLevel(lifeScore);
   const pointsToNextLevel = getRemainingPointsToNextLevel(lifeScore);
   const weeklyInsight = generateWeeklyInsight({
@@ -669,10 +671,9 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
 
         <div className="general-report-hero-content">
           <div className="general-report-avatar">
-            <Avatar2D state={displayAvatarState} size={200} />
-            <div className="general-report-avatar-label">
-              {heroAvatarLabel[displayAvatarState]}
-            </div>
+            <img src={avatarSrc} alt="Avatar do usuário" className="general-report-avatar-image" />
+            <h3>{level}</h3>
+            <div className="general-report-avatar-label">Seu avatar evolui conforme seu desempenho.</div>
           </div>
           <div className="general-report-hero-info">
             <div className="general-report-score">
