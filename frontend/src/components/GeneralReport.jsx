@@ -498,7 +498,7 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
   const [weeklyAnalysis, setWeeklyAnalysis] = useState({
     topFoods: [],
     badFoods: [],
-    topWorkouts: [],
+    topMuscles: [],
     topExpenses: [],
   });
 
@@ -609,31 +609,11 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
       return [];
     };
 
-    const getTopWorkouts = async ({ weekStartStr, todayStr }) => {
+    const getTopMuscles = async ({ weekStartStr, todayStr }) => {
       const topFromGrouped = (grouped) => Object.entries(grouped)
-        .map(([name, total]) => ({ name, total }))
+        .map(([muscle, total]) => ({ muscle, total }))
         .sort((a, b) => b.total - a.total)
         .slice(0, 5);
-
-      const { data: activityData, error: activityError } = await supabase
-        .from('workouts')
-        .select('activity, date')
-        .eq('user_id', userId)
-        .gte('date', weekStartStr)
-        .lte('date', todayStr);
-
-      if (!activityError) {
-        const groupedByActivity = (activityData || []).reduce((acc, row) => {
-          const activity = (row.activity || '').trim();
-          if (!activity) return acc;
-          acc[activity] = (acc[activity] || 0) + 1;
-          return acc;
-        }, {});
-
-        if (Object.keys(groupedByActivity).length) {
-          return topFromGrouped(groupedByActivity);
-        }
-      }
 
       const { data: musclesData, error: musclesError } = await supabase
         .from('workouts')
@@ -647,7 +627,13 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
         const groupedByMuscles = (musclesData || []).reduce((acc, row) => {
           const muscles = (row.muscles || '').trim();
           if (!muscles) return acc;
-          acc[muscles] = (acc[muscles] || 0) + 1;
+
+          muscles.split(',').forEach((muscleRaw) => {
+            const muscle = muscleRaw.trim();
+            if (!muscle) return;
+            acc[muscle] = (acc[muscle] || 0) + 1;
+          });
+
           return acc;
         }, {});
 
@@ -696,7 +682,7 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
 
         const calorieGoal = Number(goals?.calories || 0);
 
-        const [foodResult, txResult, topFoods, badFoods, topWorkouts, topExpenses] = await Promise.all([
+        const [foodResult, txResult, topFoods, badFoods, topMuscles, topExpenses] = await Promise.all([
           supabase
             .from('food_diary_entries')
             .select('entry_date, calories, protein, water_ml')
@@ -713,7 +699,7 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
             .order('date', { ascending: true }),
           getTopFoods({ weekStartStr, todayStr }),
           getBadFoods({ weekStartStr, todayStr, calorieGoal }),
-          getTopWorkouts({ weekStartStr, todayStr }),
+          getTopMuscles({ weekStartStr, todayStr }),
           getTopExpenses({ monthStartStr, todayStr }),
         ]);
 
@@ -757,7 +743,7 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
         setWeeklyAnalysis({
           topFoods,
           badFoods,
-          topWorkouts,
+          topMuscles,
           topExpenses,
         });
         setLastUpdated(Date.now());
@@ -981,12 +967,12 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
           </article>
 
           <article className="analysis-card">
-            <h6>🏋️ Treinos mais executados</h6>
+            <h6>🏋️ Grupos musculares mais treinados</h6>
             <ul>
-              {(weeklyAnalysis.topWorkouts || []).map((item) => (
-                <li key={`top-workout-${item.name}`}>{item.name} — {item.total}x</li>
+              {(weeklyAnalysis.topMuscles || []).map((item) => (
+                <li key={`top-muscle-${item.muscle}`}>{item.muscle} — {item.total} treinos</li>
               ))}
-              {!weeklyAnalysis.topWorkouts?.length && <li>Sem treinos registrados.</li>}
+              {!weeklyAnalysis.topMuscles?.length && <li>Nenhum treino registrado na semana.</li>}
             </ul>
           </article>
 
