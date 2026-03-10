@@ -495,6 +495,12 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
   const [loading, setLoading] = useState(!summary);
   const [avatarCache, setAvatarCache] = useState(() => readAvatarCache(userId));
   const [previewLevel, setPreviewLevel] = useState(null);
+  const [weeklyAnalysis, setWeeklyAnalysis] = useState({
+    topFoods: [],
+    badFoods: [],
+    topWorkouts: [],
+    topExpenses: [],
+  });
 
   const baseDate = useMemo(() => new Date(), []);
 
@@ -510,6 +516,159 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
   useEffect(() => {
     let isMounted = true;
 
+    const getTopFoods = async ({ weekStartStr, todayStr }) => {
+      const attempts = [
+        supabase
+          .from('food_logs')
+          .select('name, date')
+          .eq('user_id', userId)
+          .gte('date', weekStartStr)
+          .lte('date', todayStr),
+        supabase
+          .from('food_diary_entries')
+          .select('food, entry_date')
+          .eq('user_id', userId)
+          .gte('entry_date', weekStartStr)
+          .lte('entry_date', todayStr),
+      ];
+
+      for (const query of attempts) {
+        // eslint-disable-next-line no-await-in-loop
+        const { data, error } = await query;
+        if (error) continue;
+
+        const grouped = (data || []).reduce((acc, row) => {
+          const name = (row.name || row.food || '').trim();
+          if (!name) return acc;
+          acc[name] = (acc[name] || 0) + 1;
+          return acc;
+        }, {});
+
+        return Object.entries(grouped)
+          .map(([name, total]) => ({ name, total }))
+          .sort((a, b) => b.total - a.total)
+          .slice(0, 5);
+      }
+
+      return [];
+    };
+
+    const getBadFoods = async ({ weekStartStr, todayStr, calorieGoal }) => {
+      if (!calorieGoal) return [];
+
+      const attempts = [
+        supabase
+          .from('food_logs')
+          .select('name, calories, date')
+          .eq('user_id', userId)
+          .gte('date', weekStartStr)
+          .lte('date', todayStr),
+        supabase
+          .from('food_diary_entries')
+          .select('food, calories, entry_date')
+          .eq('user_id', userId)
+          .gte('entry_date', weekStartStr)
+          .lte('entry_date', todayStr),
+      ];
+
+      for (const query of attempts) {
+        // eslint-disable-next-line no-await-in-loop
+        const { data, error } = await query;
+        if (error) continue;
+
+        const entries = (data || []).map((row) => ({
+          name: row.name || row.food || '',
+          calories: Number(row.calories) || 0,
+          date: row.date || row.entry_date || '',
+        }));
+
+        const caloriesByDay = entries.reduce((acc, item) => {
+          if (!item.date) return acc;
+          acc[item.date] = (acc[item.date] || 0) + item.calories;
+          return acc;
+        }, {});
+
+        const exceededDays = new Set(
+          Object.entries(caloriesByDay)
+            .filter(([, calories]) => calories > calorieGoal)
+            .map(([date]) => date),
+        );
+
+        const grouped = entries.reduce((acc, item) => {
+          if (!item.name || !exceededDays.has(item.date)) return acc;
+          acc[item.name] = (acc[item.name] || 0) + 1;
+          return acc;
+        }, {});
+
+        return Object.entries(grouped)
+          .map(([name, total]) => ({ name, total }))
+          .sort((a, b) => b.total - a.total)
+          .slice(0, 5);
+      }
+
+      return [];
+    };
+
+    const getTopWorkouts = async ({ weekStartStr, todayStr }) => {
+      const attempts = [
+        supabase
+          .from('workouts')
+          .select('workout_name, date')
+          .eq('user_id', userId)
+          .gte('date', weekStartStr)
+          .lte('date', todayStr),
+        supabase
+          .from('workout_sessions')
+          .select('name, date, performed_at')
+          .eq('user_id', userId)
+          .gte('date', weekStartStr)
+          .lte('date', todayStr),
+      ];
+
+      for (const query of attempts) {
+        // eslint-disable-next-line no-await-in-loop
+        const { data, error } = await query;
+        if (error) continue;
+
+        const grouped = (data || []).reduce((acc, row) => {
+          const workoutName = (row.workout_name || row.name || '').trim();
+          if (!workoutName) return acc;
+          acc[workoutName] = (acc[workoutName] || 0) + 1;
+          return acc;
+        }, {});
+
+        return Object.entries(grouped)
+          .map(([name, total]) => ({ name, total }))
+          .sort((a, b) => b.total - a.total)
+          .slice(0, 5);
+      }
+
+      return [];
+    };
+
+    const getTopExpenses = async ({ monthStartStr, todayStr }) => {
+      const { data, error } = await supabase
+        .from('transactions')
+        .select('type, amount, category, date')
+        .eq('user_id', userId)
+        .eq('type', 'expense')
+        .gte('date', monthStartStr)
+        .lte('date', todayStr);
+
+      if (error) return [];
+
+      const grouped = (data || []).reduce((acc, row) => {
+        const category = (row.category || 'Sem categoria').trim();
+        acc[category] = (acc[category] || 0) + (Number(row.amount) || 0);
+        return acc;
+      }, {});
+
+      return Object.entries(grouped)
+        .map(([name, total]) => ({ name, total }))
+        .sort((a, b) => b.total - a.total)
+        .slice(0, 5);
+    };
+
     const loadData = async () => {
       if (!userId || !supabase) return;
 
@@ -524,7 +683,9 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
         const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
         const monthStartStr = monthStart.toISOString().slice(0, 10);
 
-        const [foodResult, txResult] = await Promise.all([
+        const calorieGoal = Number(goals?.calories || 0);
+
+        const [foodResult, txResult, topFoods, badFoods, topWorkouts, topExpenses] = await Promise.all([
           supabase
             .from('food_diary_entries')
             .select('entry_date, calories, protein, water_ml')
@@ -539,6 +700,10 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
             .gte('date', monthStartStr)
             .lte('date', todayStr)
             .order('date', { ascending: true }),
+          getTopFoods({ weekStartStr, todayStr }),
+          getBadFoods({ weekStartStr, todayStr, calorieGoal }),
+          getTopWorkouts({ weekStartStr, todayStr }),
+          getTopExpenses({ monthStartStr, todayStr }),
         ]);
 
         if (foodResult.error) throw foodResult.error;
@@ -578,6 +743,12 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
 
         if (!isMounted) return;
         setSummary(nextSummary);
+        setWeeklyAnalysis({
+          topFoods,
+          badFoods,
+          topWorkouts,
+          topExpenses,
+        });
         setLastUpdated(Date.now());
         writeCache(userId, nextSummary);
       } catch (error) {
@@ -772,6 +943,53 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
           <p className="general-report-hero-text" style={{ color: '#e2e8f0' }}>{weeklyInsight}</p>
         </div>
       </div>
+
+      <section className="analysis-section">
+        <div className="general-report-card-header">
+          <h5 className="title" style={{ margin: 0 }}>Análise da semana</h5>
+        </div>
+        <div className="analysis-grid">
+          <article className="analysis-card">
+            <h6>🍽️ Alimentos mais consumidos</h6>
+            <ul>
+              {(weeklyAnalysis.topFoods || []).map((item) => (
+                <li key={`top-food-${item.name}`}>{item.name} ({item.total}x)</li>
+              ))}
+              {!weeklyAnalysis.topFoods?.length && <li>Sem dados na semana.</li>}
+            </ul>
+          </article>
+
+          <article className="analysis-card">
+            <h6>⚠️ Alimentos que prejudicam meta</h6>
+            <ul>
+              {(weeklyAnalysis.badFoods || []).map((item) => (
+                <li key={`bad-food-${item.name}`}>{item.name} ({item.total}x)</li>
+              ))}
+              {!weeklyAnalysis.badFoods?.length && <li>Sem ocorrências acima da meta.</li>}
+            </ul>
+          </article>
+
+          <article className="analysis-card">
+            <h6>🏋️ Treinos mais executados</h6>
+            <ul>
+              {(weeklyAnalysis.topWorkouts || []).map((item) => (
+                <li key={`top-workout-${item.name}`}>{item.name} ({item.total}x)</li>
+              ))}
+              {!weeklyAnalysis.topWorkouts?.length && <li>Sem treinos registrados.</li>}
+            </ul>
+          </article>
+
+          <article className="analysis-card">
+            <h6>💸 Maiores gastos</h6>
+            <ul>
+              {(weeklyAnalysis.topExpenses || []).map((item) => (
+                <li key={`top-expense-${item.name}`}>{item.name} (R$ {item.total.toFixed(2)})</li>
+              ))}
+              {!weeklyAnalysis.topExpenses?.length && <li>Sem gastos no período.</li>}
+            </ul>
+          </article>
+        </div>
+      </section>
     </div>
   );
 
