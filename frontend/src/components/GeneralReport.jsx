@@ -3,6 +3,41 @@ import LevelPreviewModal from './LevelPreviewModal';
 
 const CACHE_PREFIX = 'gp-general-report-cache-v1';
 const CACHE_TTL_MS = 1000 * 60 * 60 * 6;
+const ALL_MUSCLES = [
+  'Peito',
+  'Costas',
+  'Ombros',
+  'Bíceps',
+  'Tríceps',
+  'Quadríceps',
+  'Posterior',
+  'Glúteos',
+  'Panturrilha',
+  'Abdômen',
+];
+
+const normalizeMuscleName = (value = '') => value
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '')
+  .trim()
+  .toLowerCase();
+
+const getCurrentWeekBounds = (baseDate = new Date()) => {
+  const monday = new Date(baseDate);
+  const day = monday.getDay();
+  const diffToMonday = day === 0 ? -6 : 1 - day;
+  monday.setDate(monday.getDate() + diffToMonday);
+  monday.setHours(0, 0, 0, 0);
+
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  sunday.setHours(23, 59, 59, 999);
+
+  return {
+    mondayStr: monday.toISOString().slice(0, 10),
+    sundayStr: sunday.toISOString().slice(0, 10),
+  };
+};
 
 const formatRelativeTime = (timestamp) => {
   if (!timestamp) return 'agora há pouco';
@@ -499,6 +534,7 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
     topFoods: [],
     badFoods: [],
     topMuscles: [],
+    neglectedMuscles: [],
     topExpenses: [],
   });
 
@@ -609,7 +645,7 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
       return [];
     };
 
-    const getTopMuscles = async ({ weekStartStr, todayStr }) => {
+    const getTopMuscles = async ({ weekStartStr, weekEndStr }) => {
       const topFromGrouped = (grouped) => Object.entries(grouped)
         .map(([muscle, total]) => ({ muscle, total }))
         .sort((a, b) => b.total - a.total)
@@ -620,7 +656,7 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
         .select('muscles, date')
         .eq('user_id', userId)
         .gte('date', weekStartStr)
-        .lte('date', todayStr)
+        .lte('date', weekEndStr)
         .not('muscles', 'is', null);
 
       if (!musclesError) {
@@ -637,10 +673,23 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
           return acc;
         }, {});
 
-        return topFromGrouped(groupedByMuscles);
+        const trainedMusclesSet = new Set(
+          Object.keys(groupedByMuscles).map((muscle) => normalizeMuscleName(muscle)),
+        );
+        const neglectedMuscles = ALL_MUSCLES.filter(
+          (muscle) => !trainedMusclesSet.has(normalizeMuscleName(muscle)),
+        );
+
+        return {
+          topMuscles: topFromGrouped(groupedByMuscles),
+          neglectedMuscles,
+        };
       }
 
-      return [];
+      return {
+        topMuscles: [],
+        neglectedMuscles: [],
+      };
     };
 
     const getTopExpenses = async ({ monthStartStr, todayStr }) => {
@@ -675,6 +724,7 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
         const weekStart = new Date(today);
         weekStart.setDate(today.getDate() - 6);
         const weekStartStr = weekStart.toISOString().slice(0, 10);
+        const { mondayStr, sundayStr } = getCurrentWeekBounds(today);
         const todayStr = today.toISOString().slice(0, 10);
 
         const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
@@ -682,7 +732,7 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
 
         const calorieGoal = Number(goals?.calories || 0);
 
-        const [foodResult, txResult, topFoods, badFoods, topMuscles, topExpenses] = await Promise.all([
+        const [foodResult, txResult, topFoods, badFoods, musclesAnalysis, topExpenses] = await Promise.all([
           supabase
             .from('food_diary_entries')
             .select('entry_date, calories, protein, water_ml')
@@ -699,7 +749,7 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
             .order('date', { ascending: true }),
           getTopFoods({ weekStartStr, todayStr }),
           getBadFoods({ weekStartStr, todayStr, calorieGoal }),
-          getTopMuscles({ weekStartStr, todayStr }),
+          getTopMuscles({ weekStartStr: mondayStr, weekEndStr: sundayStr }),
           getTopExpenses({ monthStartStr, todayStr }),
         ]);
 
@@ -743,7 +793,8 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
         setWeeklyAnalysis({
           topFoods,
           badFoods,
-          topMuscles,
+          topMuscles: musclesAnalysis.topMuscles,
+          neglectedMuscles: musclesAnalysis.neglectedMuscles,
           topExpenses,
         });
         setLastUpdated(Date.now());
@@ -973,6 +1024,18 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
                 <li key={`top-muscle-${item.muscle}`}>{item.muscle} — {item.total} treinos</li>
               ))}
               {!weeklyAnalysis.topMuscles?.length && <li>Nenhum treino registrado na semana.</li>}
+            </ul>
+          </article>
+
+          <article className="analysis-card">
+            <h6>⚠️ 🧠 Músculos negligenciados na semana</h6>
+            <ul>
+              {(weeklyAnalysis.neglectedMuscles || []).map((muscle) => (
+                <li key={`neglected-muscle-${muscle}`}>{muscle}</li>
+              ))}
+              {!weeklyAnalysis.neglectedMuscles?.length && (
+                <li>✅ Todos os grupos musculares foram treinados esta semana.</li>
+              )}
             </ul>
           </article>
 
