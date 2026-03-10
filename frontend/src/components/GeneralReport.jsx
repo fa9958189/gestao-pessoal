@@ -610,37 +610,48 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
     };
 
     const getTopWorkouts = async ({ weekStartStr, todayStr }) => {
-      const attempts = [
-        supabase
-          .from('workouts')
-          .select('workout_name, date')
-          .eq('user_id', userId)
-          .gte('date', weekStartStr)
-          .lte('date', todayStr),
-        supabase
-          .from('workout_sessions')
-          .select('name, date, performed_at')
-          .eq('user_id', userId)
-          .gte('date', weekStartStr)
-          .lte('date', todayStr),
-      ];
+      const topFromGrouped = (grouped) => Object.entries(grouped)
+        .map(([name, total]) => ({ name, total }))
+        .sort((a, b) => b.total - a.total)
+        .slice(0, 5);
 
-      for (const query of attempts) {
-        // eslint-disable-next-line no-await-in-loop
-        const { data, error } = await query;
-        if (error) continue;
+      const { data: activityData, error: activityError } = await supabase
+        .from('workouts')
+        .select('activity, date')
+        .eq('user_id', userId)
+        .gte('date', weekStartStr)
+        .lte('date', todayStr);
 
-        const grouped = (data || []).reduce((acc, row) => {
-          const workoutName = (row.workout_name || row.name || '').trim();
-          if (!workoutName) return acc;
-          acc[workoutName] = (acc[workoutName] || 0) + 1;
+      if (!activityError) {
+        const groupedByActivity = (activityData || []).reduce((acc, row) => {
+          const activity = (row.activity || '').trim();
+          if (!activity) return acc;
+          acc[activity] = (acc[activity] || 0) + 1;
           return acc;
         }, {});
 
-        return Object.entries(grouped)
-          .map(([name, total]) => ({ name, total }))
-          .sort((a, b) => b.total - a.total)
-          .slice(0, 5);
+        if (Object.keys(groupedByActivity).length) {
+          return topFromGrouped(groupedByActivity);
+        }
+      }
+
+      const { data: musclesData, error: musclesError } = await supabase
+        .from('workouts')
+        .select('muscles, date')
+        .eq('user_id', userId)
+        .gte('date', weekStartStr)
+        .lte('date', todayStr)
+        .not('muscles', 'is', null);
+
+      if (!musclesError) {
+        const groupedByMuscles = (musclesData || []).reduce((acc, row) => {
+          const muscles = (row.muscles || '').trim();
+          if (!muscles) return acc;
+          acc[muscles] = (acc[muscles] || 0) + 1;
+          return acc;
+        }, {});
+
+        return topFromGrouped(groupedByMuscles);
       }
 
       return [];
@@ -973,7 +984,7 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
             <h6>🏋️ Treinos mais executados</h6>
             <ul>
               {(weeklyAnalysis.topWorkouts || []).map((item) => (
-                <li key={`top-workout-${item.name}`}>{item.name} ({item.total}x)</li>
+                <li key={`top-workout-${item.name}`}>{item.name} — {item.total}x</li>
               ))}
               {!weeklyAnalysis.topWorkouts?.length && <li>Sem treinos registrados.</li>}
             </ul>
