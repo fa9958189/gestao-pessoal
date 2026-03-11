@@ -652,16 +652,16 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
         .slice(0, 5);
 
       const { data: musclesData, error: musclesError } = await supabase
-        .from('workouts')
-        .select('muscles, date')
+        .from('workout_sessions')
+        .select('muscle_groups, performed_at')
         .eq('user_id', userId)
-        .gte('date', weekStartStr)
-        .lte('date', weekEndStr)
-        .not('muscles', 'is', null);
+        .gte('performed_at', `${weekStartStr}T00:00:00`)
+        .lte('performed_at', `${weekEndStr}T23:59:59`)
+        .not('muscle_groups', 'is', null);
 
       if (!musclesError) {
         const groupedByMuscles = (musclesData || []).reduce((acc, row) => {
-          const muscles = (row.muscles || '').trim();
+          const muscles = (row.muscle_groups || '').trim();
           if (!muscles) return acc;
 
           muscles.split(',').forEach((muscleRaw) => {
