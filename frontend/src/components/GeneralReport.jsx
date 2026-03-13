@@ -351,11 +351,11 @@ const evolutionLevels = [
 ];
 
 const levelAvatars = {
-  inicio: '/avatars/inicio.svg',
-  progresso: '/avatars/progresso.svg',
-  consistente: '/avatars/consistente.svg',
-  evoluindo: '/avatars/evoluindo.svg',
-  performance: '/avatars/performance.svg',
+  inicio: '/avatars/Nivel 1.png',
+  progresso: '/avatars/Nivel 5.png',
+  consistente: '/avatars/Nivel 3.png',
+  evoluindo: '/avatars/Nivel 2.png',
+  performance: '/avatars/Nivel 4.png',
 };
 
 function getUserLevel(score) {
@@ -890,7 +890,7 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
 
         <div className="general-report-hero-content">
           <div className="general-report-avatar">
-            <img src={avatarSrc} alt="Avatar do usuário" className="general-report-avatar-image" />
+            <img src={avatarSrc} alt="Avatar do usuário" className="general-report-avatar-image avatar-evolucao" />
             <h3>{level}</h3>
             <div className="general-report-avatar-label">Seu avatar evolui conforme seu desempenho.</div>
           </div>
