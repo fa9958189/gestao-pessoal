@@ -1036,10 +1036,17 @@ canvas{ background:transparent; }
   gap: 8px;
 }
 
-.general-report-avatar-image {
-  width: 140px;
-  height: 140px;
-  object-fit: contain;
+.avatar-evolucao {
+  max-width: 220px;
+  width: 100%;
+  height: auto;
+  display: block;
+  margin: 0 auto;
+  border-radius: 16px;
+  border: 2px solid rgba(59,130,246,0.45);
+  box-shadow: 0 0 18px rgba(59,130,246,0.18);
+  background: rgba(9,18,40,0.55);
+  padding: 10px;
 }
 
 .general-report-avatar-label {
