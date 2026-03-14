@@ -1,5 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import LevelPreviewModal from './LevelPreviewModal';
+import nivel1 from '../assets/avatars/nivel1.png';
+import nivel2 from '../assets/avatars/nivel2.png';
+import nivel3 from '../assets/avatars/nivel3.png';
+import nivel4 from '../assets/avatars/nivel4.png';
+import nivel5 from '../assets/avatars/nivel5.png';
 
 const CACHE_PREFIX = 'gp-general-report-cache-v1';
 const CACHE_TTL_MS = 1000 * 60 * 60 * 6;
@@ -351,11 +356,11 @@ const evolutionLevels = [
 ];
 
 const levelAvatars = {
-  inicio: '/avatars/nivel1.png',
-  progresso: '/avatars/nivel5.png',
-  consistente: '/avatars/nivel3.png',
-  evoluindo: '/avatars/nivel2.png',
-  performance: '/avatars/nivel4.png',
+  inicio: nivel1,
+  progresso: nivel5,
+  consistente: nivel3,
+  evoluindo: nivel2,
+  performance: nivel4,
 };
 
 function getUserLevel(score) {
