@@ -356,11 +356,11 @@ const evolutionLevels = [
 ];
 
 const levelAvatars = {
-  inicio: '/avatars/nivel1.png',
-  progresso: '/avatars/nivel2.png',
-  consistente: '/avatars/nivel3.png',
-  evoluindo: '/avatars/nivel4.png',
-  performance: '/avatars/nivel5.png',
+  inicio: nivel1,
+  progresso: nivel2,
+  consistente: nivel3,
+  evoluindo: nivel4,
+  performance: nivel5,
 };
 
 function getUserLevel(score) {
@@ -846,7 +846,6 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
 
   const currentLevel = getLifeLevel(lifeScore);
   const level = getUserLevel(lifeScore);
-  const avatarSrc = levelAvatars[level];
   const nextLevel = getNextLevel(lifeScore);
   const pointsToNextLevel = getRemainingPointsToNextLevel(lifeScore);
   const weeklyInsight = generateWeeklyInsight({
@@ -895,7 +894,7 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
 
         <div className="general-report-hero-content">
           <div className="general-report-avatar">
-            <img src={avatarSrc} alt="Avatar do usuário" className="avatar-evolucao" />
+            <img src={levelAvatars[level]} alt="Avatar do usuário" className="avatar-evolucao" />
             <h3>{level}</h3>
             <div className="general-report-avatar-label">Seu avatar evolui conforme seu desempenho.</div>
           </div>
