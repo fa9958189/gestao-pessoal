@@ -846,6 +846,18 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
 
   const currentLevel = getLifeLevel(lifeScore);
   const level = getUserLevel(lifeScore);
+  const [levelUpEffect, setLevelUpEffect] = useState(false);
+
+  useEffect(() => {
+    setLevelUpEffect(true);
+
+    const timer = setTimeout(() => {
+      setLevelUpEffect(false);
+    }, 1200);
+
+    return () => clearTimeout(timer);
+  }, [level]);
+
   const nextLevel = getNextLevel(lifeScore);
   const pointsToNextLevel = getRemainingPointsToNextLevel(lifeScore);
   const weeklyInsight = generateWeeklyInsight({
@@ -894,7 +906,19 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
 
         <div className="general-report-hero-content">
           <div className="general-report-avatar">
-            <img src={levelAvatars[level]} alt="Avatar do usuário" className="avatar-evolucao" />
+            <div className={`avatar-container ${levelUpEffect ? 'level-up' : ''}`}>
+              <img
+                src={levelAvatars[level]}
+                alt="Avatar do usuário"
+                className="avatar-evolucao glow"
+              />
+
+              <div className="level-badge">
+                {level}
+              </div>
+
+              {levelUpEffect && <div className="level-particles" />}
+            </div>
             <h3>{level}</h3>
             <div className="general-report-avatar-label">Seu avatar evolui conforme seu desempenho.</div>
           </div>
@@ -918,7 +942,7 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
               </div>
               <div className="general-report-score-bar">
                 <div
-                  className="general-report-score-progress"
+                  className="general-report-score-progress animated-progress"
                   style={{ width: `${Math.min(data.scores.lifeScore, 100)}%` }}
                 />
               </div>
