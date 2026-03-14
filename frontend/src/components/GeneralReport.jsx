@@ -356,11 +356,11 @@ const evolutionLevels = [
 ];
 
 const levelAvatars = {
-  inicio: nivel1,
-  progresso: nivel5,
-  consistente: nivel3,
-  evoluindo: nivel2,
-  performance: nivel4,
+  inicio: '/avatars/nivel1.png',
+  progresso: '/avatars/nivel2.png',
+  consistente: '/avatars/nivel3.png',
+  evoluindo: '/avatars/nivel4.png',
+  performance: '/avatars/nivel5.png',
 };
 
 function getUserLevel(score) {
