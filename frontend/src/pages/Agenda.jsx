@@ -13,7 +13,7 @@ export default function Agenda() {
   const [dataDe, setDataDe] = useState(hoje);
   const [dataAte, setDataAte] = useState(hoje);
 
-  const [showForm, setShowForm] = useState(false);
+  const [openModal, setOpenModal] = useState(false);
   const [step, setStep] = useState(1);
 
   function limpar() {
@@ -35,100 +35,110 @@ export default function Agenda() {
       <button
         className="btn-primary"
         onClick={() => {
-          setShowForm(true);
+          setOpenModal(true);
           setStep(1);
         }}
       >
-        + Novo Evento
+        * Novo Evento
       </button>
 
-      {showForm && (
-        <div className="agenda-form">
-          <div className="wizard-progress">
-            Passo {step} de 4
-          </div>
+      {openModal && (
+        <div className="modal-overlay">
+          <div className="modal-card">
+            <h2>Cadastrar evento</h2>
 
-          {step === 1 && (
-            <div>
-              <label>Título</label>
-              <input
-                type="text"
-                value={titulo}
-                onChange={(e)=>setTitulo(e.target.value)}
-                placeholder="Reunião, Médico, etc."
+            <div className="wizard-progress">
+              Passo {step} de 4
+            </div>
+
+            <div className="progress-bar">
+              <div
+                className="progress-fill"
+                style={{ width: `${(step / 4) * 100}%` }}
               />
             </div>
-          )}
 
-          {step === 2 && (
-            <div>
-              <label>Data</label>
-              <input
-                type="date"
-                value={data}
-                onChange={(e)=>setData(e.target.value)}
-              />
-            </div>
-          )}
-
-          {step === 3 && (
-            <div>
-              <label>Horário</label>
-              <input
-                type="time"
-                value={inicio}
-                onChange={(e)=>setInicio(e.target.value)}
-                placeholder="Início"
-              />
-              <input
-                type="time"
-                value={fim}
-                onChange={(e)=>setFim(e.target.value)}
-                placeholder="Fim"
-              />
-            </div>
-          )}
-
-          {step === 4 && (
-            <div>
-              <label>Notas</label>
-              <textarea
-                value={notas}
-                onChange={(e)=>setNotas(e.target.value)}
-                placeholder="Observações do evento..."
-              />
-            </div>
-          )}
-
-          <div className="wizard-actions">
-            {step > 1 && (
-              <button onClick={() => setStep(step - 1)}>
-                Voltar
-              </button>
+            {step === 1 && (
+              <div>
+                <label>Título</label>
+                <input
+                  type="text"
+                  value={titulo}
+                  onChange={(e) => setTitulo(e.target.value)}
+                  placeholder="Reunião, médico..."
+                />
+              </div>
             )}
 
-            {step < 4 && (
-              <button onClick={() => setStep(step + 1)}>
-                Próximo
-              </button>
+            {step === 2 && (
+              <div>
+                <label>Data</label>
+                <input
+                  type="date"
+                  value={data}
+                  onChange={(e) => setData(e.target.value)}
+                />
+              </div>
+            )}
+
+            {step === 3 && (
+              <div>
+                <label>Horário início</label>
+                <input
+                  type="time"
+                  value={inicio}
+                  onChange={(e) => setInicio(e.target.value)}
+                />
+
+                <label>Horário fim</label>
+                <input
+                  type="time"
+                  value={fim}
+                  onChange={(e) => setFim(e.target.value)}
+                />
+              </div>
             )}
 
             {step === 4 && (
-              <button className="btn-primary">
-                Salvar Evento
-              </button>
+              <div>
+                <label>Notas</label>
+                <textarea
+                  value={notas}
+                  onChange={(e) => setNotas(e.target.value)}
+                  placeholder="Observações..."
+                />
+              </div>
             )}
 
-            <button
-              className="btn-secondary"
-              onClick={() => setShowForm(false)}
-            >
-              Cancelar
-            </button>
+            <div className="wizard-actions">
+              {step > 1 && (
+                <button onClick={() => setStep(step - 1)}>
+                  ← Voltar
+                </button>
+              )}
 
-            <button onClick={limpar}>
-              Limpar
-            </button>
+              {step < 4 && (
+                <button onClick={() => setStep(step + 1)}>
+                  Continuar →
+                </button>
+              )}
+
+              {step === 4 && (
+                <button className="btn-primary">
+                  Salvar Evento
+                </button>
+              )}
+
+              <button
+                onClick={() => setOpenModal(false)}
+              >
+                Cancelar
+              </button>
+
+              <button onClick={limpar}>
+                Limpar
+              </button>
+            </div>
           </div>
         </div>
       )}
