@@ -69,6 +69,38 @@ const goalScore = (value, goal) => {
   return Math.max(0, Math.min(100, Math.round(100 - diff * 100)));
 };
 
+function calcularScore(alimentacao, treino, financeiro) {
+  const pesoAlimentacao = 0.4;
+  const pesoTreino = 0.4;
+  const pesoFinanceiro = 0.2;
+
+  const score =
+    (alimentacao * pesoAlimentacao)
+    + (treino * pesoTreino)
+    + (financeiro * pesoFinanceiro);
+
+  return Math.round(score);
+}
+
+function calcularNivel(score) {
+  if (score <= 19) return 'inicio';
+  if (score <= 39) return 'progresso';
+  if (score <= 59) return 'consistente';
+  if (score <= 79) return 'evoluindo';
+  return 'performance';
+}
+
+function aplicarPenalidade(diasSemTreino, diasSemAlimentacao, score) {
+  let nextScore = score;
+
+  if (diasSemTreino >= 2) nextScore -= 10;
+  if (diasSemAlimentacao >= 2) nextScore -= 10;
+
+  if (nextScore < 0) nextScore = 0;
+
+  return nextScore;
+}
+
 const parseDateKey = (value) => {
   if (!value) return '';
   if (typeof value === 'string') return value.slice(0, 10);
@@ -187,9 +219,32 @@ const buildSummary = ({ foodEntries, workoutSessions, transactions, goals, baseD
   const financeScore = income > 0
     ? Math.max(0, Math.min(100, Math.round(100 - (expenses / income) * 100)))
     : expenses > 0 ? 40 : 70;
-  const lifeScore = Math.round(
-    nutritionScore * 0.4 + trainingScore * 0.3 + financeScore * 0.3,
+
+  let diasSemTreino = 0;
+  for (let i = daysRange.length - 1; i >= 0; i -= 1) {
+    if (workoutByDay[daysRange[i]]) break;
+    diasSemTreino += 1;
+  }
+
+  let diasSemAlimentacao = 0;
+  for (let i = daysRange.length - 1; i >= 0; i -= 1) {
+    const dayNutrition = dailyNutrition.find((item) => item.date === daysRange[i]);
+    const temAlimentacao = (dayNutrition?.calories || 0) > 0
+      || (dayNutrition?.protein || 0) > 0
+      || (dayNutrition?.water || 0) > 0;
+    if (temAlimentacao) break;
+    diasSemAlimentacao += 1;
+  }
+
+  const scoreBase = calcularScore(nutritionScore, trainingScore, financeScore);
+
+  const scoreFinal = aplicarPenalidade(
+    diasSemTreino,
+    diasSemAlimentacao,
+    scoreBase,
   );
+
+  const lifeScore = scoreFinal;
 
   const averageCalories = averages.calories;
   let avatarType = 'normal';
@@ -362,14 +417,6 @@ const levelAvatars = {
   evoluindo: nivel4,
   performance: nivel5,
 };
-
-function getUserLevel(score) {
-  if (score < 20) return 'inicio';
-  if (score < 40) return 'progresso';
-  if (score < 60) return 'consistente';
-  if (score < 80) return 'evoluindo';
-  return 'performance';
-}
 
 const levelDetails = {
   'Início': {
@@ -845,7 +892,7 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
   }, [avatarState, cachedState, userId]);
 
   const currentLevel = getLifeLevel(lifeScore);
-  const level = getUserLevel(lifeScore);
+  const nivel = calcularNivel(lifeScore);
   const [levelUpEffect, setLevelUpEffect] = useState(false);
 
   useEffect(() => {
@@ -856,7 +903,7 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
     }, 1200);
 
     return () => clearTimeout(timer);
-  }, [level]);
+  }, [nivel]);
 
   const nextLevel = getNextLevel(lifeScore);
   const pointsToNextLevel = getRemainingPointsToNextLevel(lifeScore);
@@ -908,18 +955,18 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
           <div className="general-report-avatar">
             <div className={`avatar-container ${levelUpEffect ? 'level-up' : ''}`}>
               <img
-                src={levelAvatars[level]}
+                src={levelAvatars[nivel]}
                 alt="Avatar do usuário"
                 className="avatar-evolucao glow"
               />
 
               <div className="level-badge">
-                {level}
+                {nivel}
               </div>
 
               {levelUpEffect && <div className="level-particles" />}
             </div>
-            <h3>{level}</h3>
+            <h3>{nivel}</h3>
             <div className="general-report-avatar-label">Seu avatar evolui conforme seu desempenho.</div>
           </div>
           <div className="general-report-hero-info">
