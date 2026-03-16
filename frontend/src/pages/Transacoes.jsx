@@ -9,7 +9,9 @@ export default function Transacoes() {
   const [valor, setValor] = useState("");
   const [data, setData] = useState(hoje);
   const [descricao, setDescricao] = useState("");
-  const [etapa, setEtapa] = useState("lista");
+  const [openTransacaoModal, setOpenTransacaoModal] = useState(false);
+  const [step, setStep] = useState(1);
+  const [tipoTransacao, setTipoTransacao] = useState(null);
 
   const totais = useMemo(() => {
     return transacoes.reduce(
@@ -46,156 +48,139 @@ export default function Transacoes() {
     setValor("");
     setData(hoje);
     setDescricao("");
+    setTipoTransacao(null);
+    setStep(1);
+  }
+
+  function selecionarTipo(tipoSelecionado) {
+    setTipoTransacao(tipoSelecionado);
+    setTipo(tipoSelecionado);
+  }
+
+  async function salvarTransacao() {
+    await adicionarTransacao();
+    setOpenTransacaoModal(false);
   }
 
   return (
     <div className="card">
       <h2>Transações</h2>
 
-      {etapa === "lista" && (
-        <div style={{ marginBottom: "20px" }}>
-          <button
-            onClick={() => setEtapa("tipo")}
-            style={{
-              padding: "14px",
-              fontSize: "18px",
-              width: "100%",
-              maxWidth: "400px",
-            }}
-          >
-            + Nova Transação
-          </button>
+      <div style={{ marginBottom: "20px" }}>
+        <button
+          className="btn-primary"
+          onClick={() => {
+            setOpenTransacaoModal(true);
+            setStep(1);
+          }}
+        >
+          * Nova Transação
+        </button>
+      </div>
+
+      {openTransacaoModal && (
+        <div className="modal-overlay">
+          <div className="report-modal">
+            <h2>Nova transação</h2>
+
+            <p>Passo {step} de 3</p>
+
+            <div className="progress-bar">
+              <div
+                className="progress-fill"
+                style={{ width: `${(step / 3) * 100}%` }}
+              />
+            </div>
+
+            {step === 1 && (
+              <div>
+                <h3>O que deseja registrar?</h3>
+
+                <button
+                  className={`treino-option ${tipoTransacao === "receita" ? "selected" : ""}`}
+                  onClick={() => selecionarTipo("receita")}
+                >
+                  💰 Receita
+                </button>
+
+                <button
+                  className={`treino-option ${tipoTransacao === "despesa" ? "selected" : ""}`}
+                  onClick={() => selecionarTipo("despesa")}
+                >
+                  💸 Despesa
+                </button>
+              </div>
+            )}
+
+            {step === 2 && (
+              <div>
+                <label>Data</label>
+                <input
+                  type="date"
+                  value={data}
+                  onChange={(e) => setData(e.target.value)}
+                />
+
+                <label>Descrição</label>
+                <input
+                  value={descricao}
+                  onChange={(e) => setDescricao(e.target.value)}
+                  placeholder="Ex: Venda"
+                />
+
+                <label>Categoria</label>
+                <input
+                  value={categoria}
+                  onChange={(e) => setCategoria(e.target.value)}
+                  placeholder="Categoria"
+                />
+
+                <label>Valor</label>
+                <input
+                  type="number"
+                  value={valor}
+                  onChange={(e) => setValor(e.target.value)}
+                />
+              </div>
+            )}
+
+            {step === 3 && (
+              <div>
+                <h3>Confirmar transação</h3>
+                <p>Revise os dados antes de salvar</p>
+              </div>
+            )}
+
+            <div className="wizard-actions">
+              {step > 1 && <button onClick={() => setStep(step - 1)}>← Voltar</button>}
+
+              {step < 3 && (
+                <button
+                  disabled={step === 1 && !tipoTransacao}
+                  onClick={() => setStep(step + 1)}
+                >
+                  Continuar →
+                </button>
+              )}
+
+              {step === 3 && (
+                <button className="btn-primary" onClick={salvarTransacao}>
+                  Salvar Transação
+                </button>
+              )}
+
+              <button
+                onClick={() => {
+                  setOpenTransacaoModal(false);
+                  limparFormulario();
+                }}
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
         </div>
       )}
-
-      {etapa === "tipo" && (
-        <div className="card">
-          <h3>O que deseja registrar?</h3>
-
-          <button
-            onClick={() => {
-              setTipo("receita");
-              setEtapa("categoria");
-            }}
-            style={{ marginBottom: "10px", width: "100%", padding: "14px" }}
-          >
-            Receita 💰
-          </button>
-
-          <button
-            onClick={() => {
-              setTipo("despesa");
-              setEtapa("categoria");
-            }}
-            style={{ marginBottom: "10px", width: "100%", padding: "14px" }}
-          >
-            Despesa 💸
-          </button>
-
-          <button onClick={() => setEtapa("lista")} style={{ width: "100%" }}>
-            Cancelar
-          </button>
-        </div>
-      )}
-
-      {etapa === "categoria" && (
-        <div className="card">
-          <h3>Escolha a categoria</h3>
-
-          <select
-            value={categoria}
-            onChange={(e) => setCategoria(e.target.value)}
-            style={{
-              width: "100%",
-              padding: "12px",
-              marginBottom: "15px",
-            }}
-          >
-            <option value="">Selecione</option>
-
-            <option value="alimentacao">Alimentação</option>
-            <option value="transporte">Transporte</option>
-            <option value="casa">Casa</option>
-            <option value="lazer">Lazer</option>
-            <option value="outros">Outros</option>
-          </select>
-
-          <button onClick={() => setEtapa("valor")} style={{ width: "100%", marginBottom: "10px" }}>
-            Continuar
-          </button>
-
-          <button onClick={() => setEtapa("tipo")} style={{ width: "100%" }}>
-            Voltar
-          </button>
-        </div>
-      )}
-
-      {etapa === "valor" && (
-        <div className="card">
-          <h3>Digite o valor</h3>
-
-          <input
-            type="number"
-            value={valor}
-            onChange={(e) => setValor(e.target.value)}
-            placeholder="0.00"
-            style={{
-              width: "100%",
-              padding: "14px",
-              fontSize: "18px",
-              marginBottom: "15px",
-            }}
-          />
-
-          <button onClick={() => setEtapa("detalhes")} style={{ width: "100%", marginBottom: "10px" }}>
-            Continuar
-          </button>
-
-          <button onClick={() => setEtapa("categoria")} style={{ width: "100%" }}>
-            Voltar
-          </button>
-        </div>
-      )}
-
-      {etapa === "detalhes" && (
-        <div className="card">
-          <h3>Detalhes</h3>
-
-          <label>Data</label>
-
-          <input
-            type="date"
-            value={data}
-            onChange={(e) => setData(e.target.value)}
-            style={{ width: "100%", marginBottom: "10px" }}
-          />
-
-          <label>Descrição</label>
-
-          <input
-            value={descricao}
-            onChange={(e) => setDescricao(e.target.value)}
-            placeholder="Opcional"
-            style={{ width: "100%", marginBottom: "15px" }}
-          />
-
-          <button
-            onClick={async () => {
-              await adicionarTransacao();
-              setEtapa("lista");
-            }}
-            style={{ width: "100%", marginBottom: "10px" }}
-          >
-            Salvar Transação
-          </button>
-
-          <button onClick={() => setEtapa("valor")} style={{ width: "100%" }}>
-            Voltar
-          </button>
-        </div>
-      )}
-
-      {etapa !== "lista" && <div />}
 
       <hr />
 
@@ -211,7 +196,8 @@ export default function Transacoes() {
         <ul>
           {transacoes.map((item) => (
             <li key={item.id}>
-              {item.data} · {item.tipo} · {item.categoria || "sem categoria"} · R$ {Number(item.valor || 0).toFixed(2)}
+              {item.data} · {item.tipo} · {item.categoria || "sem categoria"} · R${" "}
+              {Number(item.valor || 0).toFixed(2)}
               {item.descricao ? ` · ${item.descricao}` : ""}
             </li>
           ))}
