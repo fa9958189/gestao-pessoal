@@ -1799,21 +1799,21 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
                       <div className="tipo-grid">
                         <button
                           type="button"
-                          className={`card ${tipoTreino === 'musculacao' ? 'active' : ''}`}
+                          className={`treino-option ${tipoTreino === 'musculacao' ? 'selected' : ''}`}
                           onClick={() => setTipoTreino('musculacao')}
                         >
                           💪 Musculação
                         </button>
                         <button
                           type="button"
-                          className={`card ${tipoTreino === 'esporte' ? 'active' : ''}`}
+                          className={`treino-option ${tipoTreino === 'esporte' ? 'selected' : ''}`}
                           onClick={() => setTipoTreino('esporte')}
                         >
                           🥊 Esporte
                         </button>
                         <button
                           type="button"
-                          className={`card ${tipoTreino === 'cardio' ? 'active' : ''}`}
+                          className={`treino-option ${tipoTreino === 'cardio' ? 'selected' : ''}`}
                           onClick={() => setTipoTreino('cardio')}
                         >
                           🏃 Cardio
