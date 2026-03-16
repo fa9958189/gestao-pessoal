@@ -44,7 +44,7 @@ export default function Agenda() {
 
       {openModal && (
         <div className="modal-overlay">
-          <div className="modal-card">
+          <div className="report-modal">
             <h2>Cadastrar evento</h2>
 
             <div className="wizard-progress">
