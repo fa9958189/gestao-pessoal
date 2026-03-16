@@ -679,8 +679,8 @@ const ViewWorkoutModal = ({
 const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushToast }) => {
   const [treinoTab, setTreinoTab] = useState('treinos');
   const [etapaTreino, setEtapaTreino] = useState('tipo');
-  const [isCreatingTreino, setIsCreatingTreino] = useState(false);
-  const [createStep, setCreateStep] = useState(1);
+  const [openTreinoModal, setOpenTreinoModal] = useState(false);
+  const [step, setStep] = useState(1);
   const [tipoTreino, setTipoTreino] = useState(null);
   const [selecionados, setSelecionados] = useState([]);
   const [nomeTreino, setNomeTreino] = useState('');
@@ -1226,28 +1226,22 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
   };
 
   const resetCreateFlow = () => {
-    setCreateStep(1);
+    setStep(1);
     setTipoTreino(null);
     setSelecionados([]);
     setNomeTreino('');
   };
-
-  const selectTipoTreino = (tipo) => {
-    setTipoTreino(tipo);
-    setSelecionados([]);
-    setCreateStep(2);
-  };
-
   const handleStartCreateTreino = () => {
     resetWorkoutForm();
-    setIsCreatingTreino(true);
+    setOpenTreinoModal(true);
+    setStep(1);
     resetCreateFlow();
     setEtapaTreino('tipo');
     setTreinoTab('treinos');
   };
 
   const handleCancelCreateTreino = () => {
-    setIsCreatingTreino(false);
+    setOpenTreinoModal(false);
     resetCreateFlow();
     resetWorkoutForm();
   };
@@ -1338,7 +1332,7 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
       }
 
       resetWorkoutForm();
-      setIsCreatingTreino(false);
+      setOpenTreinoModal(false);
       resetCreateFlow();
 
       setRoutines((prev) => {
@@ -1605,6 +1599,12 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
     setRestRunning(true);
   };
 
+  const canContinueStep = (
+    (step === 1 && Boolean(tipoTreino))
+    || (step === 2 && selecionados.length > 0)
+    || (step === 3 && Boolean(nomeTreino.trim()))
+  );
+
   const {
     daysTrained,
     daysInMonth,
@@ -1637,7 +1637,7 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
 
           <button
             onClick={handleStartCreateTreino}
-            disabled={isCreatingTreino}
+            disabled={openTreinoModal}
             style={{
               background: '#22c55e',
               color: '#fff',
@@ -1645,9 +1645,9 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
               padding: '10px 18px',
               borderRadius: '10px',
               fontWeight: '600',
-              cursor: isCreatingTreino ? 'not-allowed' : 'pointer',
-              opacity: isCreatingTreino ? 0.6 : 1,
-              display: isCreatingTreino ? 'none' : 'inline-flex'
+              cursor: openTreinoModal ? 'not-allowed' : 'pointer',
+              opacity: openTreinoModal ? 0.6 : 1,
+              display: openTreinoModal ? 'none' : 'inline-flex'
             }}
           >
             + Novo Treino
@@ -1694,7 +1694,7 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
         {/* Aba CONFIG – manter apenas "Novo Template de Treino" + "Treinos cadastrados" aqui */}
         {treinoTab === 'treinos' && etapaTreino === 'tipo' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-            {!isCreatingTreino && (
+            {!openTreinoModal && (
               <div>
                 <h4 className="title" style={{ marginBottom: 12 }}>Treinos cadastrados</h4>
                 {!routines.length && <div className="muted">Nenhum treino cadastrado.</div>}
@@ -1746,8 +1746,8 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
                               );
                               setSelecionados(normalizedMuscles.length ? normalizedMuscles : sportsActivities);
                               setNomeTreino(template.name || '');
-                              setIsCreatingTreino(true);
-                              setCreateStep(2);
+                              setOpenTreinoModal(true);
+                              setStep(2);
                             }}
                           >
                             Editar
@@ -1780,47 +1780,53 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
               </div>
             )}
 
-            {isCreatingTreino && (
-              <div className="workout-create-wizard">
-                {createStep === 1 && (
-                  <div className="workout-type-step-wrapper">
-                    <h4 className="title" style={{ marginBottom: 12 }}>Novo Template de Treino</h4>
-                    <h3>Qual tipo de treino você deseja montar?</h3>
-                    <div className="tipo-grid">
-                      <button
-                        type="button"
-                        className={`card ${tipoTreino === 'musculacao' ? 'active' : ''}`}
-                        onClick={() => selectTipoTreino('musculacao')}
-                      >
-                        💪 Musculação
-                      </button>
-                      <button
-                        type="button"
-                        className={`card ${tipoTreino === 'esporte' ? 'active' : ''}`}
-                        onClick={() => selectTipoTreino('esporte')}
-                      >
-                        🥊 Esporte
-                      </button>
-                      <button
-                        type="button"
-                        className={`card ${tipoTreino === 'cardio' ? 'active' : ''}`}
-                        onClick={() => selectTipoTreino('cardio')}
-                      >
-                        🏃 Cardio
-                      </button>
-                    </div>
-                    <div className="row" style={{ justifyContent: 'flex-end', marginTop: 12, gap: 8 }}>
-                      <button type="button" className="ghost" onClick={handleCancelCreateTreino}>Cancelar</button>
-                      <button type="button" className="primary" disabled={!tipoTreino} onClick={() => setCreateStep(2)}>Continuar</button>
-                    </div>
-                  </div>
-                )}
+            {openTreinoModal && (
+              <div className="modal-overlay">
+                <div className="report-modal">
+                  <h2>Novo treino</h2>
+                  <p>Passo {step} de 4</p>
 
-                {createStep === 2 && (
-                  <>
-                    {tipoTreino === 'musculacao' && (
-                      <>
-                        <h3>Selecione os grupos musculares</h3>
+                  <div className="progress-bar">
+                    <div
+                      className="progress-fill"
+                      style={{ width: `${(step / 4) * 100}%` }}
+                    />
+                  </div>
+
+                  {step === 1 && (
+                    <div>
+                      <h3>Qual tipo de treino?</h3>
+                      <div className="tipo-grid">
+                        <button
+                          type="button"
+                          className={`card ${tipoTreino === 'musculacao' ? 'active' : ''}`}
+                          onClick={() => setTipoTreino('musculacao')}
+                        >
+                          💪 Musculação
+                        </button>
+                        <button
+                          type="button"
+                          className={`card ${tipoTreino === 'esporte' ? 'active' : ''}`}
+                          onClick={() => setTipoTreino('esporte')}
+                        >
+                          🥊 Esporte
+                        </button>
+                        <button
+                          type="button"
+                          className={`card ${tipoTreino === 'cardio' ? 'active' : ''}`}
+                          onClick={() => setTipoTreino('cardio')}
+                        >
+                          🏃 Cardio
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {step === 2 && (
+                    <div>
+                      <h3>Escolher exercícios</h3>
+
+                      {tipoTreino === 'musculacao' && (
                         <div className="muscle-grid">
                           {MUSCLE_GROUPS.map((group) => (
                             <button
@@ -1836,12 +1842,9 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
                             </button>
                           ))}
                         </div>
-                      </>
-                    )}
+                      )}
 
-                    {tipoTreino === 'esporte' && (
-                      <>
-                        <h3>Selecione os esportes/atividades que farão parte do treino</h3>
+                      {tipoTreino === 'esporte' && (
                         <div className="muscle-grid">
                           {SPORTS.map((sport) => (
                             <button
@@ -1857,12 +1860,9 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
                             </button>
                           ))}
                         </div>
-                      </>
-                    )}
+                      )}
 
-                    {tipoTreino === 'cardio' && (
-                      <>
-                        <h3>Selecione as atividades cardio</h3>
+                      {tipoTreino === 'cardio' && (
                         <div className="muscle-grid">
                           {CARDIO_ACTIVITIES.map((cardio) => (
                             <button
@@ -1878,51 +1878,59 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
                             </button>
                           ))}
                         </div>
-                      </>
+                      )}
+                    </div>
+                  )}
+
+                  {step === 3 && (
+                    <div>
+                      <h3>Configuração do treino</h3>
+                      <input
+                        value={nomeTreino}
+                        onChange={(e) => setNomeTreino(e.target.value)}
+                        placeholder="Ex: Treino A - Peito e Tríceps"
+                      />
+                    </div>
+                  )}
+
+                  {step === 4 && (
+                    <div>
+                      <h3>Confirmar treino</h3>
+                      <p><strong>Tipo:</strong> {tipoTreino ? tipoTreino[0].toUpperCase() + tipoTreino.slice(1) : 'Não definido'}</p>
+                      <p><strong>Nome:</strong> {nomeTreino || 'Sem nome'}</p>
+                      <p><strong>Selecionados:</strong> {selecionados.length}</p>
+                    </div>
+                  )}
+
+                  <div className="wizard-actions">
+                    {step > 1 && (
+                      <button type="button" onClick={() => setStep(step - 1)}>
+                        ← Voltar
+                      </button>
                     )}
 
-                    <div className="row" style={{ justifyContent: 'space-between', marginTop: 12, gap: 8 }}>
-                      <div className="row" style={{ gap: 8 }}>
-                        <button type="button" className="ghost" onClick={() => setCreateStep(1)}>Voltar</button>
-                        <button type="button" className="ghost" onClick={handleCancelCreateTreino}>Cancelar</button>
-                      </div>
+                    {step < 4 && (
+                      <button type="button" onClick={() => setStep(step + 1)} disabled={!canContinueStep}>
+                        Continuar →
+                      </button>
+                    )}
+
+                    {step === 4 && (
                       <button
                         type="button"
                         className="btn-primary"
-                        disabled={selecionados.length === 0}
-                        onClick={() => setCreateStep(3)}
-                      >
-                        Continuar
-                      </button>
-                    </div>
-                    {selecionados.length === 0 && (
-                      <p style={{ marginTop: 8 }}>Selecione pelo menos 1 opção para continuar.</p>
-                    )}
-                  </>
-                )}
-
-                {createStep === 3 && (
-                  <>
-                    <h3>Digite o nome do treino</h3>
-                    <input
-                      value={nomeTreino}
-                      onChange={(e) => setNomeTreino(e.target.value)}
-                      placeholder="Ex: Treino A - Peito e Tríceps"
-                    />
-
-                    <div className="row" style={{ justifyContent: 'space-between', marginTop: 12, gap: 8 }}>
-                      <button type="button" className="ghost" onClick={() => setCreateStep(2)}>Voltar</button>
-                      <button
-                        type="button"
-                        className="primary"
                         disabled={!nomeTreino.trim() || loading}
                         onClick={() => salvarTreino(nomeTreino, selecionados, tipoTreino)}
                       >
                         {loading ? 'Salvando...' : 'Salvar Treino'}
                       </button>
-                    </div>
-                  </>
-                )}
+                    )}
+
+                    <button type="button" onClick={handleCancelCreateTreino}>
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
           </div>
