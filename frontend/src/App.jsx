@@ -1655,11 +1655,7 @@ function App() {
   const [eventFilters, setEventFilters] = useState(defaultEventFilters);
   const [activeTab, setActiveTab] = useState('form');
   const [activeView, setActiveView] = useState('transactions');
-  const wizardAberto =
-    activeView === 'transactions' &&
-    activeTab === 'form' &&
-    typeof etapaTx !== 'undefined' &&
-    etapaTx !== 'lista';
+  const [wizardAberto, setWizardAberto] = useState(false);
   const [generalReportGoals, setGeneralReportGoals] = useState(defaultGeneralReportGoals);
   const workoutApiBase = normalizeBaseUrl(
     window.APP_CONFIG?.apiBaseUrl ||
@@ -2176,6 +2172,17 @@ function App() {
   const salvarTransacao = handleSaveTransaction;
 
   const valorValido = txForm.amount && Number(txForm.amount) > 0;
+  const passoAtual = etapaTx === 'tipo'
+    ? 1
+    : etapaTx === 'detalhes'
+      ? 3
+      : 2;
+
+  useEffect(() => {
+    if (etapaTx === 'lista' || activeView !== 'transactions' || activeTab !== 'form') {
+      setWizardAberto(false);
+    }
+  }, [etapaTx, activeView, activeTab]);
 
   const proximoPasso = () => {
     if (!txForm.amount || Number(txForm.amount) <= 0) {
@@ -2859,6 +2866,7 @@ function App() {
               <button
                 onClick={() => {
                   setActiveTab('form');
+                  setWizardAberto(true);
                   setEtapaTx('tipo');
                 }}
                 style={{
@@ -2889,165 +2897,7 @@ function App() {
 
           {activeTab === 'form' && (
             <div id="tab-form">
-              {etapaTx === 'tipo' && (
-                <div
-                  style={{
-                    minHeight: '70vh',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center'
-                  }}
-                >
-                  <div className="card" style={{ width: '100%', maxWidth: '520px' }}>
-                    <h3>O que deseja registrar?</h3>
-
-                    <button
-                      onClick={() => {
-                        setTxForm({ ...txForm, type: 'income' });
-                        setEtapaTx('categoria');
-                      }}
-                      style={{ width: '100%', padding: '14px', marginBottom: '10px' }}
-                    >
-                      Receita 💰
-                    </button>
-
-                    <button
-                      onClick={() => {
-                        setTxForm({ ...txForm, type: 'expense' });
-                        setEtapaTx('categoria');
-                      }}
-                      style={{ width: '100%', padding: '14px', marginBottom: '10px' }}
-                    >
-                      Despesa 💸
-                    </button>
-
-                    <button onClick={() => setEtapaTx('lista')} style={{ width: '100%' }}>
-                      Cancelar
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {etapaTx === 'categoria' && (
-                <section className="card" style={{ marginBottom: '16px' }}>
-                  <h3>Escolha a categoria</h3>
-
-                  <select
-                    value={txForm.category}
-                    onChange={(e) => setTxForm({ ...txForm, category: e.target.value })}
-                    style={{
-                      width: '100%',
-                      padding: '12px',
-                      marginBottom: '15px'
-                    }}
-                  >
-                    <option value="">Selecione</option>
-
-                    {txForm.type === 'income' && (
-                      <>
-                        <option value="salario">Salário</option>
-                        <option value="vendas">Vendas</option>
-                        <option value="servicos">Serviços</option>
-                        <option value="investimentos">Investimentos</option>
-                        <option value="outros">Outros</option>
-                      </>
-                    )}
-
-                    {txForm.type === 'expense' && (
-                      <>
-                        <option value="alimentacao">Alimentação</option>
-                        <option value="transporte">Transporte</option>
-                        <option value="moradia">Moradia</option>
-                        <option value="lazer">Lazer</option>
-                        <option value="saude">Saúde</option>
-                        <option value="outros">Outros</option>
-                      </>
-                    )}
-                  </select>
-
-                  <button onClick={() => setEtapaTx('valor')} style={{ width: '100%', marginBottom: '10px' }}>
-                    Continuar
-                  </button>
-
-                  <button onClick={() => setEtapaTx('tipo')} style={{ width: '100%' }}>
-                    Voltar
-                  </button>
-                </section>
-              )}
-
-              {etapaTx === 'valor' && (
-                <section className="card" style={{ marginBottom: '16px' }}>
-                  <h3>Digite o valor</h3>
-
-                  <input
-                    type="number"
-                    value={txForm.amount}
-                    onChange={(e) => setTxForm({ ...txForm, amount: e.target.value })}
-                    style={{
-                      width: '100%',
-                      padding: '16px',
-                      fontSize: '18px',
-                      marginBottom: '15px'
-                    }}
-                  />
-
-                  <button
-                    onClick={proximoPasso}
-                    disabled={!valorValido}
-                    style={{
-                      width: '100%',
-                      marginBottom: '10px',
-                      opacity: valorValido ? 1 : 0.5,
-                      cursor: valorValido ? 'pointer' : 'not-allowed'
-                    }}
-                  >
-                    Continuar
-                  </button>
-
-                  <button onClick={() => setEtapaTx('categoria')} style={{ width: '100%' }}>
-                    Voltar
-                  </button>
-                </section>
-              )}
-
-              {etapaTx === 'detalhes' && (
-                <section className="card" style={{ marginBottom: '16px' }}>
-                  <h3>Finalizar lançamento</h3>
-
-                  <label>Data</label>
-
-                  <input
-                    type="date"
-                    value={txForm.date}
-                    onChange={(e) => setTxForm({ ...txForm, date: e.target.value })}
-                    style={{ width: '100%', marginBottom: '10px' }}
-                  />
-
-                  <label>Descrição</label>
-
-                  <input
-                    value={txForm.description}
-                    onChange={(e) => setTxForm({ ...txForm, description: e.target.value })}
-                    style={{ width: '100%', marginBottom: '15px' }}
-                  />
-
-                  <button
-                    onClick={async () => {
-                      await salvarTransacao();
-                      setEtapaTx('lista');
-                    }}
-                    style={{ width: '100%', marginBottom: '10px' }}
-                  >
-                    Salvar Transação
-                  </button>
-
-                  <button onClick={() => setEtapaTx('valor')} style={{ width: '100%' }}>
-                    Voltar
-                  </button>
-                </section>
-              )}
-
-              {etapaTx === 'lista' && (
+              {!wizardAberto && etapaTx === 'lista' && (
                 <>
                   <div className="card" style={{ padding: 14, marginTop: 14 }}>
                     <button
@@ -3119,12 +2969,178 @@ function App() {
                     items={filteredTransactions}
                     onEdit={(tx) => {
                       setTxForm(tx);
+                      setActiveTab('form');
+                      setWizardAberto(true);
                       setEtapaTx('detalhes');
                     }}
                     onDelete={handleDeleteTransaction}
                   />
                 </>
               )}
+            </div>
+          )}
+
+          {wizardAberto && activeTab === 'form' && (
+            <div className="modal-overlay">
+              <div className="report-modal">
+                <h2>Nova transação</h2>
+                <p>Passo {passoAtual} de 3</p>
+
+                <div className="progress-bar">
+                  <div
+                    className="progress-fill"
+                    style={{ width: `${(passoAtual / 3) * 100}%` }}
+                  />
+                </div>
+
+                {etapaTx === 'tipo' && (
+                  <div>
+                    <h3>O que deseja registrar?</h3>
+
+                    <button
+                      className={`treino-option ${txForm.type === 'income' ? 'selected' : ''}`}
+                      onClick={() => setTxForm({ ...txForm, type: 'income' })}
+                    >
+                      Receita 💰
+                    </button>
+
+                    <button
+                      className={`treino-option ${txForm.type === 'expense' ? 'selected' : ''}`}
+                      onClick={() => setTxForm({ ...txForm, type: 'expense' })}
+                    >
+                      Despesa 💸
+                    </button>
+                  </div>
+                )}
+
+                {etapaTx === 'categoria' && (
+                  <div>
+                    <h3>Escolha a categoria</h3>
+
+                    <select
+                      value={txForm.category}
+                      onChange={(e) => setTxForm({ ...txForm, category: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '12px',
+                        marginBottom: '15px'
+                      }}
+                    >
+                      <option value="">Selecione</option>
+
+                      {txForm.type === 'income' && (
+                        <>
+                          <option value="salario">Salário</option>
+                          <option value="vendas">Vendas</option>
+                          <option value="servicos">Serviços</option>
+                          <option value="investimentos">Investimentos</option>
+                          <option value="outros">Outros</option>
+                        </>
+                      )}
+
+                      {txForm.type === 'expense' && (
+                        <>
+                          <option value="alimentacao">Alimentação</option>
+                          <option value="transporte">Transporte</option>
+                          <option value="moradia">Moradia</option>
+                          <option value="lazer">Lazer</option>
+                          <option value="saude">Saúde</option>
+                          <option value="outros">Outros</option>
+                        </>
+                      )}
+                    </select>
+                  </div>
+                )}
+
+                {etapaTx === 'valor' && (
+                  <div>
+                    <h3>Digite o valor</h3>
+
+                    <input
+                      type="number"
+                      value={txForm.amount}
+                      onChange={(e) => setTxForm({ ...txForm, amount: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '16px',
+                        fontSize: '18px',
+                        marginBottom: '15px'
+                      }}
+                    />
+                  </div>
+                )}
+
+                {etapaTx === 'detalhes' && (
+                  <div>
+                    <h3>Finalizar lançamento</h3>
+
+                    <label>Data</label>
+
+                    <input
+                      type="date"
+                      value={txForm.date}
+                      onChange={(e) => setTxForm({ ...txForm, date: e.target.value })}
+                      style={{ width: '100%', marginBottom: '10px' }}
+                    />
+
+                    <label>Descrição</label>
+
+                    <input
+                      value={txForm.description}
+                      onChange={(e) => setTxForm({ ...txForm, description: e.target.value })}
+                      style={{ width: '100%', marginBottom: '15px' }}
+                    />
+                  </div>
+                )}
+
+                <div className="wizard-actions">
+                  {etapaTx !== 'tipo' && (
+                    <button
+                      onClick={() => {
+                        if (etapaTx === 'categoria') {
+                          setEtapaTx('tipo');
+                        } else if (etapaTx === 'valor') {
+                          setEtapaTx('categoria');
+                        } else {
+                          setEtapaTx('valor');
+                        }
+                      }}
+                    >
+                      ← Voltar
+                    </button>
+                  )}
+
+                  <button
+                    onClick={async () => {
+                      if (etapaTx === 'tipo') {
+                        setEtapaTx('categoria');
+                        return;
+                      }
+                      if (etapaTx === 'categoria') {
+                        setEtapaTx('valor');
+                        return;
+                      }
+                      if (etapaTx === 'valor') {
+                        proximoPasso();
+                        return;
+                      }
+                      await salvarTransacao();
+                      setWizardAberto(false);
+                      setEtapaTx('lista');
+                    }}
+                    disabled={(etapaTx === 'valor' && !valorValido) || (etapaTx === 'categoria' && !txForm.category)}
+                  >
+                    {etapaTx === 'detalhes' ? 'Salvar Transação' : 'Continuar →'}
+                  </button>
+
+                  <button onClick={() => {
+                    setWizardAberto(false);
+                    setEtapaTx('lista');
+                  }}>
+                    Cancelar
+                  </button>
+                </div>
+              </div>
             </div>
           )}
 
