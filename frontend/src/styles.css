@@ -2473,3 +2473,19 @@ canvas{ background:transparent; }
   opacity: 0.7;
   font-size: 13px;
 }
+
+.historico-container {
+  max-height: 400px;
+  overflow-y: auto;
+  margin-top: 15px;
+  padding-right: 5px;
+}
+
+.historico-container::-webkit-scrollbar {
+  width: 6px;
+}
+
+.historico-container::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+}

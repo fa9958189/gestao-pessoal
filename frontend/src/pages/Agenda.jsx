@@ -19,11 +19,21 @@ export default function Agenda() {
 
   const [showWizard, setShowWizard] = useState(false);
   const [showCalendar, setShowCalendar] = useState(false);
+  const [search, setSearch] = useState("");
   const [step, setStep] = useState(1);
 
   const eventosFuturos = eventos
     .filter((e) => e.date >= hoje)
     .sort((a, b) => a.date.localeCompare(b.date));
+
+  const eventosHistorico = eventos
+    .filter((e) => e.date < hoje)
+    .filter(
+      (e) =>
+        e.title.toLowerCase().includes(search.toLowerCase()) ||
+        (e.notes && e.notes.toLowerCase().includes(search.toLowerCase())),
+    )
+    .sort((a, b) => b.date.localeCompare(a.date));
 
   useEffect(() => {
     const fetchEventos = async () => {
@@ -246,10 +256,16 @@ export default function Agenda() {
           <div className="report-modal">
             <h2>📆 Histórico de Eventos</h2>
 
-            {eventos
-              .filter((e) => e.date < hoje)
-              .sort((a, b) => b.date.localeCompare(a.date))
-              .map((e) => (
+            <input
+              type="text"
+              placeholder="🔎 Buscar evento..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="input"
+            />
+
+            <div className="historico-container">
+              {eventosHistorico.map((e) => (
                 <div className="evento-item" key={e.id}>
                   <div className="evento-data">{e.date}</div>
                   <div className="evento-info">
@@ -258,6 +274,9 @@ export default function Agenda() {
                   </div>
                 </div>
               ))}
+            </div>
+
+            {eventosHistorico.length === 0 && <p style={{ opacity: 0.7 }}>Nenhum evento encontrado</p>}
 
             <button className="btn-secondary" onClick={() => setShowCalendar(false)}>
               Fechar
