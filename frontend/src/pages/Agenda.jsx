@@ -1,14 +1,18 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
+import { supabase } from "../supabaseClient";
 
 export default function Agenda() {
   const hoje = new Date().toISOString().split("T")[0];
 
   const [eventos, setEventos] = useState([]);
-  const [titulo, setTitulo] = useState("");
-  const [data, setData] = useState(hoje);
-  const [inicio, setInicio] = useState("");
-  const [fim, setFim] = useState("");
-  const [notas, setNotas] = useState("");
+  const [user, setUser] = useState(null);
+  const [form, setForm] = useState({
+    title: "",
+    date: hoje,
+    start: "",
+    end: "",
+    notes: "",
+  });
 
   const [dataDe, setDataDe] = useState(hoje);
   const [dataAte, setDataAte] = useState(hoje);
@@ -21,28 +25,92 @@ export default function Agenda() {
     .filter((e) => e.date >= hoje)
     .sort((a, b) => a.date.localeCompare(b.date));
 
-  function limpar() {
-    setTitulo("");
-    setData(hoje);
-    setInicio("");
-    setFim("");
-    setNotas("");
-  }
+  useEffect(() => {
+    const fetchEventos = async () => {
+      const {
+        data: { user: currentUser },
+      } = await supabase.auth.getUser();
 
-  function salvarEvento() {
-    const novoEvento = {
-      id: crypto.randomUUID(),
-      title: titulo,
-      date: data,
-      start: inicio,
-      end: fim,
-      notes: notas,
+      setUser(currentUser);
+
+      const { data, error } = await supabase
+        .from("events")
+        .select("*")
+        .order("date", { ascending: true });
+
+      if (error) {
+        console.error(error);
+        return;
+      }
+
+      setEventos(data || []);
     };
 
-    setEventos((prev) => [novoEvento, ...prev]);
-    limpar();
-    setStep(1);
-    setShowWizard(false);
+    fetchEventos();
+  }, []);
+
+  const salvarEvento = async () => {
+    if (!user?.id) {
+      alert("Usuário não autenticado");
+      return;
+    }
+
+    try {
+      console.log("Enviando evento:", form);
+
+      const { data, error } = await supabase
+        .from("events")
+        .insert([
+          {
+            user_id: user.id,
+            title: form.title,
+            date: form.date,
+            start: form.start,
+            end: form.end,
+            notes: form.notes,
+          },
+        ])
+        .select();
+
+      if (error) {
+        console.error("Erro ao salvar evento:", error);
+        alert("Erro ao salvar evento");
+        return;
+      }
+
+      console.log("Evento salvo com sucesso:", data);
+
+      setEventos((prev) => [
+        ...prev,
+        {
+          id: data[0].id,
+          ...form,
+        },
+      ]);
+
+      setForm({
+        title: "",
+        date: "",
+        start: "",
+        end: "",
+        notes: "",
+      });
+
+      setStep(1);
+      setShowWizard(false);
+    } catch (err) {
+      console.error("Erro inesperado:", err);
+    }
+  };
+
+  function limpar() {
+    setForm({
+      title: "",
+      date: hoje,
+      start: "",
+      end: "",
+      notes: "",
+    });
   }
 
   return (
@@ -74,8 +142,8 @@ export default function Agenda() {
                 <label>Título</label>
                 <input
                   type="text"
-                  value={titulo}
-                  onChange={(e) => setTitulo(e.target.value)}
+                  value={form.title}
+                  onChange={(e) => setForm((prev) => ({ ...prev, title: e.target.value }))}
                   placeholder="Reunião, médico..."
                 />
               </div>
@@ -86,8 +154,8 @@ export default function Agenda() {
                 <label>Data</label>
                 <input
                   type="date"
-                  value={data}
-                  onChange={(e) => setData(e.target.value)}
+                  value={form.date}
+                  onChange={(e) => setForm((prev) => ({ ...prev, date: e.target.value }))}
                 />
               </div>
             )}
@@ -97,12 +165,16 @@ export default function Agenda() {
                 <label>Horário início</label>
                 <input
                   type="time"
-                  value={inicio}
-                  onChange={(e) => setInicio(e.target.value)}
+                  value={form.start}
+                  onChange={(e) => setForm((prev) => ({ ...prev, start: e.target.value }))}
                 />
 
                 <label>Horário fim</label>
-                <input type="time" value={fim} onChange={(e) => setFim(e.target.value)} />
+                <input
+                  type="time"
+                  value={form.end}
+                  onChange={(e) => setForm((prev) => ({ ...prev, end: e.target.value }))}
+                />
               </div>
             )}
 
@@ -110,8 +182,8 @@ export default function Agenda() {
               <div>
                 <label>Notas</label>
                 <textarea
-                  value={notas}
-                  onChange={(e) => setNotas(e.target.value)}
+                  value={form.notes}
+                  onChange={(e) => setForm((prev) => ({ ...prev, notes: e.target.value }))}
                   placeholder="Observações..."
                 />
               </div>
