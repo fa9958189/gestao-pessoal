@@ -241,41 +241,13 @@ export function startMorningAgendaScheduler() {
 
         const now = getNowInSaoPaulo();
         const todayStr = formatDateOnlyInSaoPaulo(now);
-        const events = await fetchActiveEventsForDate(todayStr);
+        const eventsToday = await fetchActiveEventsForDate(todayStr);
+        const groupedEvents = groupEventsByUser(eventsToday);
 
-        console.log(`Eventos do dia encontrados: ${events.length}`);
+        console.log(`Eventos do dia encontrados: ${eventsToday.length}`);
 
-        if (!events.length) {
+        if (!eventsToday.length) {
           console.log("Nenhum evento encontrado para hoje");
-        }
-
-        const grouped = groupEventsByUser(events);
-
-        for (const [userId, userEvents] of grouped.entries()) {
-          const whatsapp = await fetchUserWhatsapp(userId);
-          const phone = normalizePhone(whatsapp);
-
-          if (!phone) {
-            console.warn(
-              "⚠️ WhatsApp não encontrado ou inválido para usuário:",
-              userId
-            );
-            continue;
-          }
-
-          console.log("Enviando WhatsApp (agenda do dia)");
-          const message = buildMorningAgendaMessage(userEvents);
-          const sendResult = await sendWhatsAppMessage({ phone, message });
-
-          if (!sendResult?.ok) {
-            console.error(
-              "❌ Falha ao enviar agenda do dia:",
-              sendResult?.status
-            );
-            continue;
-          }
-
-          console.log("Mensagem enviada com sucesso");
         }
 
         const plans = await fetchTodayWorkoutPlans();
@@ -293,7 +265,28 @@ export function startMorningAgendaScheduler() {
             continue;
           }
 
-          const message = buildDailyWorkoutReminderMessage(plan);
+          const userEvents = groupedEvents.get(plan.user_id) || [];
+
+          let agendaTexto = "";
+
+          if (userEvents.length > 0) {
+            agendaTexto += "\n📅 *Eventos de Hoje:*\n\n";
+
+            userEvents.forEach((event) => {
+              agendaTexto += `• ${event.title}\n`;
+              if (event.notes) {
+                agendaTexto += `  ${event.notes}\n`;
+              }
+              agendaTexto += "\n";
+            });
+          }
+
+          let message = buildDailyWorkoutReminderMessage(plan);
+
+          if (agendaTexto) {
+            message += agendaTexto;
+          }
+
           const sendResult = await sendWhatsAppMessage({ phone, message });
 
           if (!sendResult?.ok) {
