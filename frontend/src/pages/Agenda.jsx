@@ -14,9 +14,6 @@ export default function Agenda() {
     notes: "",
   });
 
-  const [dataDe, setDataDe] = useState(hoje);
-  const [dataAte, setDataAte] = useState(hoje);
-
   const [showWizard, setShowWizard] = useState(false);
   const [showCalendar, setShowCalendar] = useState(false);
   const [search, setSearch] = useState("");
@@ -220,14 +217,6 @@ export default function Agenda() {
 
       <hr />
 
-      <label>De</label>
-
-      <input type="date" value={dataDe} onChange={(e) => setDataDe(e.target.value)} />
-
-      <label>Até</label>
-
-      <input type="date" value={dataAte} onChange={(e) => setDataAte(e.target.value)} />
-
       <div className="card" style={{ marginTop: 20 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h3>📅 Próximos eventos</h3>
@@ -264,7 +253,7 @@ export default function Agenda() {
               className="input"
             />
 
-            <div className="historico-container">
+            <div className="historico-scroll">
               {eventosHistorico.map((e) => (
                 <div className="evento-item" key={e.id}>
                   <div className="evento-data">{e.date}</div>
@@ -274,9 +263,9 @@ export default function Agenda() {
                   </div>
                 </div>
               ))}
-            </div>
 
-            {eventosHistorico.length === 0 && <p style={{ opacity: 0.7 }}>Nenhum evento encontrado</p>}
+              {eventosHistorico.length === 0 && <p style={{ opacity: 0.6 }}>Nenhum evento encontrado</p>}
+            </div>
 
             <button className="btn-secondary" onClick={() => setShowCalendar(false)}>
               Fechar
