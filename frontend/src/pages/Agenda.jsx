@@ -19,17 +19,12 @@ export default function Agenda() {
   const [search, setSearch] = useState("");
   const [step, setStep] = useState(1);
 
-  const eventosFuturos = eventos
+  const proximosEventos = eventos
     .filter((e) => e.date >= hoje)
     .sort((a, b) => a.date.localeCompare(b.date));
 
   const eventosHistorico = eventos
     .filter((e) => e.date < hoje)
-    .filter(
-      (e) =>
-        e.title.toLowerCase().includes(search.toLowerCase()) ||
-        (e.notes && e.notes.toLowerCase().includes(search.toLowerCase())),
-    )
     .sort((a, b) => b.date.localeCompare(a.date));
 
   useEffect(() => {
@@ -226,9 +221,9 @@ export default function Agenda() {
           </button>
         </div>
 
-        {eventosFuturos.length === 0 && <p style={{ opacity: 0.7 }}>Nenhum evento agendado</p>}
+        {proximosEventos.length === 0 && <p style={{ opacity: 0.7 }}>Nenhum evento agendado</p>}
 
-        {eventosFuturos.map((evento) => (
+        {proximosEventos.map((evento) => (
           <div className="evento-item" key={evento.id}>
             <div className="evento-data">{evento.date}</div>
 

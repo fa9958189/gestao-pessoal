@@ -276,7 +276,6 @@ export function startMorningAgendaScheduler() {
           }
 
           console.log("Mensagem enviada com sucesso");
-          await deleteEventsByIds(userEvents.map((event) => event.id));
         }
 
         const plans = await fetchTodayWorkoutPlans();
