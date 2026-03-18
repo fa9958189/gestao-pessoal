@@ -19,12 +19,17 @@ export default function Agenda() {
   const [search, setSearch] = useState("");
   const [step, setStep] = useState(1);
 
+  function formatarDataBR(data) {
+    const [ano, mes, dia] = data.split("-");
+    return `${dia}/${mes}/${ano}`;
+  }
+
   const proximosEventos = eventos
-    .filter((e) => e.date >= hoje)
+    .filter((e) => e.date > hoje)
     .sort((a, b) => a.date.localeCompare(b.date));
 
   const eventosHistorico = eventos
-    .filter((e) => e.date < hoje)
+    .filter((e) => e.date <= hoje)
     .sort((a, b) => b.date.localeCompare(a.date));
 
   useEffect(() => {
@@ -225,7 +230,7 @@ export default function Agenda() {
 
         {proximosEventos.map((evento) => (
           <div className="evento-item" key={evento.id}>
-            <div className="evento-data">{evento.date}</div>
+            <div className="evento-data">{formatarDataBR(evento.date)}</div>
 
             <div className="evento-info">
               <strong>{evento.title}</strong>
@@ -251,7 +256,7 @@ export default function Agenda() {
             <div className="historico-scroll">
               {eventosHistorico.map((e) => (
                 <div className="evento-item" key={e.id}>
-                  <div className="evento-data">{e.date}</div>
+                  <div className="evento-data">{formatarDataBR(e.date)}</div>
                   <div className="evento-info">
                     <strong>{e.title}</strong>
                     {e.notes && <p>{e.notes}</p>}
