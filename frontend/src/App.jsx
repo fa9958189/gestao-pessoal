@@ -1611,6 +1611,7 @@ function App() {
   const [etapaTx, setEtapaTx] = useState('lista');
   const [eventForm, setEventForm] = useState(defaultEventForm);
   const [userForm, setUserForm] = useState(defaultUserForm);
+  const [step, setStep] = useState(1);
   const [broadcastOpen, setBroadcastOpen] = useState(false);
   const [broadcastMessage, setBroadcastMessage] = useState('');
   const [broadcastAudience, setBroadcastAudience] = useState('active');
@@ -2351,6 +2352,7 @@ function App() {
       setUserForm(defaultUserForm);
       setEditingUserId(null);
       setEditingUserOriginal(null);
+      setStep(1);
       loadRemoteData();
     } catch (err) {
       console.warn('Erro ao salvar usuário', err);
@@ -3228,66 +3230,102 @@ function App() {
               )}
             </div>
 
-            <div className="grid grid-2 admin-user-form">
-              <div>
-                <label>Nome</label>
-                <input value={userForm.name} onChange={(e) => setUserForm({ ...userForm, name: e.target.value })} placeholder="Nome completo (opcional)" />
+            <div className="admin-user-form-card">
+              <div className="steps" aria-label="Etapas do cadastro de usuário">
+                <span className={step === 1 ? 'active' : ''}>1</span>
+                <span className={step === 2 ? 'active' : ''}>2</span>
+                <span className={step === 3 ? 'active' : ''}>3</span>
               </div>
-              <div>
-                <label>Usuário</label>
-                <input value={userForm.username} onChange={(e) => setUserForm({ ...userForm, username: e.target.value })} placeholder="ex.: joaosilva" />
-              </div>
-              <div>
-                <label>Senha inicial</label>
-                <input type="password" value={userForm.password} onChange={(e) => setUserForm({ ...userForm, password: e.target.value })} placeholder="Mínimo de 4 caracteres" />
-              </div>
-              <div>
-                <label>WhatsApp</label>
-                <input value={userForm.whatsapp} onChange={(e) => setUserForm({ ...userForm, whatsapp: e.target.value })} placeholder="+5511999999999" />
-              </div>
-              {!editingUserId && (
-                <div>
-                  <label>Criado em</label>
-                  <input
-                    type="date"
-                    value={today}
-                    readOnly
-                    disabled
-                  />
+
+              <div className="grid grid-2 admin-user-form">
+                {step === 1 && (
+                  <>
+                    <div>
+                      <label>Nome</label>
+                      <input value={userForm.name} onChange={(e) => setUserForm({ ...userForm, name: e.target.value })} placeholder="Nome completo" />
+                    </div>
+                    <div>
+                      <label>Usuário</label>
+                      <input value={userForm.username} onChange={(e) => setUserForm({ ...userForm, username: e.target.value })} placeholder="ex.: joaosilva" />
+                    </div>
+                  </>
+                )}
+
+                {step === 2 && (
+                  <>
+                    <div>
+                      <label>{editingUserId ? 'Nova senha' : 'Senha inicial'}</label>
+                      <input type="password" value={userForm.password} onChange={(e) => setUserForm({ ...userForm, password: e.target.value })} placeholder="Mínimo de 4 caracteres" />
+                    </div>
+                    <div>
+                      <label>WhatsApp</label>
+                      <input value={userForm.whatsapp} onChange={(e) => setUserForm({ ...userForm, whatsapp: e.target.value })} placeholder="+5511999999999" />
+                    </div>
+                  </>
+                )}
+
+                {step === 3 && (
+                  <>
+                    {!editingUserId && (
+                      <div>
+                        <label>Criado em</label>
+                        <input
+                          type="date"
+                          value={today}
+                          readOnly
+                          disabled
+                        />
+                      </div>
+                    )}
+                    <div>
+                      <label>Perfil</label>
+                      <select value={userForm.role} onChange={(e) => setUserForm({ ...userForm, role: e.target.value })}>
+                        <option value="user">Usuário</option>
+                        <option value="admin">Admin</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label>Código do afiliado (opcional)</label>
+                      <input
+                        value={userForm.affiliateCode}
+                        onChange={(e) => setUserForm({ ...userForm, affiliateCode: e.target.value })}
+                        placeholder="ex: AFI-001"
+                      />
+                    </div>
+                    {!editingUserId && (
+                      <div className="checkbox-row">
+                        <label className="checkbox-label">
+                          <input
+                            type="checkbox"
+                            checked={userForm.applyTrial}
+                            onChange={(e) => setUserForm({ ...userForm, applyTrial: e.target.checked })}
+                          />
+                          <span>Aplicar 7 dias grátis</span>
+                        </label>
+                      </div>
+                    )}
+                  </>
+                )}
+
+                <div className="admin-user-actions admin-user-actions-step">
+                  {step > 1 && (
+                    <button className="ghost" onClick={() => setStep(step - 1)}>
+                      Voltar
+                    </button>
+                  )}
+
+                  {step < 3 ? (
+                    <button className="primary" onClick={() => setStep(step + 1)}>
+                      Próximo
+                    </button>
+                  ) : (
+                    <button className="primary" onClick={handleSaveUser}>
+                      {editingUserId ? 'Salvar alterações' : 'Criar usuário'}
+                    </button>
+                  )}
+
+                  <button className="ghost" onClick={() => { setUserForm(defaultUserForm); setEditingUserId(null); setEditingUserOriginal(null); setStep(1); }}>Limpar</button>
                 </div>
-              )}
-              <div>
-                <label>Perfil</label>
-                <select value={userForm.role} onChange={(e) => setUserForm({ ...userForm, role: e.target.value })}>
-                  <option value="user">Usuário</option>
-                  <option value="admin">Admin</option>
-                </select>
-              </div>
-              <div>
-                <label>Código do afiliado (opcional)</label>
-                <input
-                  value={userForm.affiliateCode}
-                  onChange={(e) => setUserForm({ ...userForm, affiliateCode: e.target.value })}
-                  placeholder="ex: AFI-001"
-                />
-              </div>
-              {!editingUserId && (
-                <div className="checkbox-row">
-                  <label className="checkbox-label">
-                    <input
-                      type="checkbox"
-                      checked={userForm.applyTrial}
-                      onChange={(e) => setUserForm({ ...userForm, applyTrial: e.target.checked })}
-                    />
-                    <span>Aplicar 7 dias grátis</span>
-                  </label>
-                </div>
-              )}
-              <div className="admin-user-actions">
-                <button className="primary" onClick={handleSaveUser}>
-                  {editingUserId ? 'Salvar alterações' : 'Adicionar usuário'}
-                </button>
-                <button className="ghost" onClick={() => { setUserForm(defaultUserForm); setEditingUserId(null); setEditingUserOriginal(null); }}>Limpar</button>
               </div>
             </div>
 
@@ -3305,6 +3343,7 @@ function App() {
                   affiliateCode: user.affiliate_code || '',
                   applyTrial: false
                 });
+                setStep(1);
               }}
               onDelete={handleDeleteUser}
               onBillingAction={handleBillingAction}
