@@ -207,6 +207,33 @@ h2.title, h3.title{ margin:0 0 10px; font-weight:600; }
   margin-left:auto;
   margin-right:auto;
 }
+
+.admin-user-form-card{
+  margin-top: 12px;
+}
+.admin-user-form-card .steps{
+  display:flex;
+  gap:10px;
+  margin-bottom:20px;
+}
+.admin-user-form-card .steps span{
+  width:30px;
+  height:30px;
+  border-radius:50%;
+  background:#222;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+.admin-user-form-card .steps .active{
+  background:#22c55e;
+}
+.admin-user-form-card .admin-user-form{
+  align-items:end;
+}
+.admin-user-actions-step{
+  margin-top: 4px;
+}
 .user-list-wrapper{ overflow:auto; }
 .user-empty.hidden{ display:none; }
 
