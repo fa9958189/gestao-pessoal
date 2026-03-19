@@ -81,6 +81,27 @@ app.get("/debug/zapi-test", async (req, res) => {
   }
 });
 
+app.delete("/events/:id", async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const { error } = await supabase
+      .from("events")
+      .delete()
+      .eq("id", id);
+
+    if (error) {
+      console.error("Erro ao excluir evento:", error);
+      return res.status(500).json({ success: false, error: error.message });
+    }
+
+    return res.json({ success: true });
+  } catch (error) {
+    console.error("Erro inesperado ao excluir evento:", error);
+    return res.status(500).json({ success: false, error: "Falha ao excluir evento" });
+  }
+});
+
 app.post("/debug/send-whatsapp", async (req, res) => {
   try {
     const phone = req.body?.phone;
