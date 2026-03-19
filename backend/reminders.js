@@ -114,9 +114,10 @@ function normalizePhone(phone) {
 async function fetchActiveEventsForDate(dateStr) {
   const { data, error } = await supabase
     .from("events")
-    .select("id, user_id, title, date, start, notes, is_active")
+    .select("id, user_id, title, date, start, notes, is_active, sent")
     .eq("date", dateStr)
-    .eq("is_active", true);
+    .eq("is_active", true)
+    .eq("sent", false);
 
   if (error) {
     throw new Error(`Erro ao buscar eventos ativos do dia: ${error.message}`);
@@ -267,6 +268,8 @@ export function startMorningAgendaScheduler() {
 
           const userEvents = groupedEvents.get(plan.user_id) || [];
 
+          console.log("Eventos encontrados para hoje:", userEvents.length);
+
           let agendaTexto = "";
 
           if (userEvents.length > 0) {
@@ -294,6 +297,18 @@ export function startMorningAgendaScheduler() {
               "❌ Falha ao enviar lembrete diário de treino:",
               sendResult?.status
             );
+            continue;
+          }
+
+          if (userEvents.length > 0) {
+            const { error: markSentError } = await supabase
+              .from("events")
+              .update({ sent: true })
+              .in("id", userEvents.map((e) => e.id));
+
+            if (markSentError) {
+              console.error("❌ Erro ao marcar eventos como enviados:", markSentError);
+            }
           }
         }
       } catch (err) {
