@@ -1,8 +1,14 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { supabase } from "../supabaseClient";
 
 export default function Agenda() {
   const hoje = new Date().toISOString().split("T")[0];
+  const apiBaseUrl = (
+    import.meta.env.VITE_API_BASE_URL ||
+    import.meta.env.VITE_API_URL ||
+    import.meta.env.VITE_BACKEND_URL ||
+    ""
+  ).replace(/\/$/, "");
 
   const [eventos, setEventos] = useState([]);
   const [user, setUser] = useState(null);
@@ -19,6 +25,30 @@ export default function Agenda() {
   const [search, setSearch] = useState("");
   const [step, setStep] = useState(1);
 
+  const fetchEvents = useCallback(async () => {
+    const {
+      data: { user: currentUser },
+    } = await supabase.auth.getUser();
+
+    setUser(currentUser);
+
+    const query = supabase
+      .from("events")
+      .select("*")
+      .order("date", { ascending: true });
+
+    const { data, error } = currentUser
+      ? await query.eq("user_id", currentUser.id)
+      : await query;
+
+    if (error) {
+      console.error(error);
+      return;
+    }
+
+    setEventos(data || []);
+  }, []);
+
   function formatarDataBR(data) {
     const [ano, mes, dia] = data.split("-");
     return `${dia}/${mes}/${ano}`;
@@ -32,29 +62,17 @@ export default function Agenda() {
     .filter((e) => e.date <= hoje)
     .sort((a, b) => b.date.localeCompare(a.date));
 
+  const eventosHistoricoFiltrados = eventosHistorico.filter((e) =>
+    !search.trim()
+      ? true
+      : `${e.title} ${e.notes || ""}`
+          .toLowerCase()
+          .includes(search.trim().toLowerCase())
+  );
+
   useEffect(() => {
-    const fetchEventos = async () => {
-      const {
-        data: { user: currentUser },
-      } = await supabase.auth.getUser();
-
-      setUser(currentUser);
-
-      const { data, error } = await supabase
-        .from("events")
-        .select("*")
-        .order("date", { ascending: true });
-
-      if (error) {
-        console.error(error);
-        return;
-      }
-
-      setEventos(data || []);
-    };
-
-    fetchEventos();
-  }, []);
+    fetchEvents();
+  }, [fetchEvents]);
 
   const salvarEvento = async () => {
     if (!user?.id) {
@@ -107,6 +125,26 @@ export default function Agenda() {
       setShowWizard(false);
     } catch (err) {
       console.error("Erro inesperado:", err);
+    }
+  };
+
+  const handleDelete = async (id) => {
+    const confirmDelete = window.confirm("Deseja excluir este evento?");
+    if (!confirmDelete) return;
+
+    try {
+      const response = await fetch(`${apiBaseUrl}/events/${id}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        throw new Error("Erro ao excluir evento");
+      }
+
+      await fetchEvents();
+    } catch (err) {
+      console.error("Erro ao excluir evento:", err);
+      alert("Não foi possível excluir o evento.");
     }
   };
 
@@ -236,6 +274,16 @@ export default function Agenda() {
               <strong>{evento.title}</strong>
               {evento.notes && <p>{evento.notes}</p>}
             </div>
+
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => handleDelete(evento.id)}
+              aria-label={`Excluir evento ${evento.title}`}
+              title="Excluir evento"
+            >
+              🗑️
+            </button>
           </div>
         ))}
       </div>
@@ -254,17 +302,29 @@ export default function Agenda() {
             />
 
             <div className="historico-scroll">
-              {eventosHistorico.map((e) => (
+              {eventosHistoricoFiltrados.map((e) => (
                 <div className="evento-item" key={e.id}>
                   <div className="evento-data">{formatarDataBR(e.date)}</div>
                   <div className="evento-info">
                     <strong>{e.title}</strong>
                     {e.notes && <p>{e.notes}</p>}
                   </div>
+
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={() => handleDelete(e.id)}
+                    aria-label={`Excluir evento ${e.title}`}
+                    title="Excluir evento"
+                  >
+                    🗑️
+                  </button>
                 </div>
               ))}
 
-              {eventosHistorico.length === 0 && <p style={{ opacity: 0.6 }}>Nenhum evento encontrado</p>}
+              {eventosHistoricoFiltrados.length === 0 && (
+                <p style={{ opacity: 0.6 }}>Nenhum evento encontrado</p>
+              )}
             </div>
 
             <button className="btn-secondary" onClick={() => setShowCalendar(false)}>
