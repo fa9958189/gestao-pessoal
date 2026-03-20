@@ -184,6 +184,52 @@ function groupEventsByUser(events) {
   }, new Map());
 }
 
+async function sendAgendaEvents(date = getNowInSaoPaulo()) {
+  const todayStr = formatDateOnlyInSaoPaulo(date);
+  const eventsToday = await fetchActiveEventsForDate(todayStr);
+  const groupedEvents = groupEventsByUser(eventsToday);
+
+  console.log(`Eventos do dia encontrados: ${eventsToday.length}`);
+
+  if (!eventsToday.length) {
+    console.log("Nenhum evento encontrado para hoje");
+    console.log("Disparo de agenda executado");
+    return;
+  }
+
+  for (const [userId, userEvents] of groupedEvents.entries()) {
+    const whatsapp = await fetchUserWhatsapp(userId);
+    const phone = normalizePhone(whatsapp);
+
+    if (!phone) {
+      console.warn(
+        "⚠️ WhatsApp não encontrado ou inválido para usuário da agenda:",
+        userId
+      );
+      continue;
+    }
+
+    const message = buildMorningAgendaMessage(userEvents);
+    const sendResult = await sendWhatsAppMessage({ phone, message });
+
+    if (!sendResult?.ok) {
+      console.error("❌ Falha ao enviar agenda diária:", sendResult?.status);
+      continue;
+    }
+
+    const { error: markSentError } = await supabase
+      .from("events")
+      .update({ sent: true })
+      .in("id", userEvents.map((event) => event.id));
+
+    if (markSentError) {
+      console.error("❌ Erro ao marcar eventos como enviados:", markSentError);
+    }
+  }
+
+  console.log("Disparo de agenda executado");
+}
+
 /**
  * Busca o WhatsApp do usuário na tabela profiles.
  * Aqui usamos o userId que vem do campo user_id da tabela events.
@@ -241,15 +287,8 @@ export function startMorningAgendaScheduler() {
         console.log("Scheduler de agenda matinal iniciado (07:00)");
 
         const now = getNowInSaoPaulo();
-        const todayStr = formatDateOnlyInSaoPaulo(now);
-        const eventsToday = await fetchActiveEventsForDate(todayStr);
-        const groupedEvents = groupEventsByUser(eventsToday);
 
-        console.log(`Eventos do dia encontrados: ${eventsToday.length}`);
-
-        if (!eventsToday.length) {
-          console.log("Nenhum evento encontrado para hoje");
-        }
+        await sendAgendaEvents(now);
 
         const plans = await fetchTodayWorkoutPlans();
         console.log(`Planejamentos de treino ativos para hoje: ${plans.length}`);
@@ -266,30 +305,7 @@ export function startMorningAgendaScheduler() {
             continue;
           }
 
-          const userEvents = groupedEvents.get(plan.user_id) || [];
-
-          console.log("Eventos encontrados para hoje:", userEvents.length);
-
-          let agendaTexto = "";
-
-          if (userEvents.length > 0) {
-            agendaTexto += "\n📅 *Eventos de Hoje:*\n\n";
-
-            userEvents.forEach((event) => {
-              agendaTexto += `• ${event.title}\n`;
-              if (event.notes) {
-                agendaTexto += `  ${event.notes}\n`;
-              }
-              agendaTexto += "\n";
-            });
-          }
-
-          let message = buildDailyWorkoutReminderMessage(plan);
-
-          if (agendaTexto) {
-            message += agendaTexto;
-          }
-
+          const message = buildDailyWorkoutReminderMessage(plan);
           const sendResult = await sendWhatsAppMessage({ phone, message });
 
           if (!sendResult?.ok) {
@@ -297,18 +313,6 @@ export function startMorningAgendaScheduler() {
               "❌ Falha ao enviar lembrete diário de treino:",
               sendResult?.status
             );
-            continue;
-          }
-
-          if (userEvents.length > 0) {
-            const { error: markSentError } = await supabase
-              .from("events")
-              .update({ sent: true })
-              .in("id", userEvents.map((e) => e.id));
-
-            if (markSentError) {
-              console.error("❌ Erro ao marcar eventos como enviados:", markSentError);
-            }
           }
         }
       } catch (err) {
