@@ -133,7 +133,7 @@ export default function Agenda() {
     if (!confirmDelete) return;
 
     try {
-      const response = await fetch(`${apiBaseUrl}/events/${id}`, {
+      const response = await fetch(`${apiBaseUrl}/api/events/${id}`, {
         method: "DELETE",
       });
 
