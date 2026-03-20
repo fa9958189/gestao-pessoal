@@ -3,12 +3,6 @@ import { supabase } from "../supabaseClient";
 
 export default function Agenda() {
   const hoje = new Date().toISOString().split("T")[0];
-  const apiBaseUrl = (
-    import.meta.env.VITE_API_BASE_URL ||
-    import.meta.env.VITE_API_URL ||
-    import.meta.env.VITE_BACKEND_URL ||
-    ""
-  ).replace(/\/$/, "");
 
   const [eventos, setEventos] = useState([]);
   const [user, setUser] = useState(null);
@@ -133,12 +127,21 @@ export default function Agenda() {
     if (!confirmDelete) return;
 
     try {
-      const response = await fetch(`${apiBaseUrl}/api/events/${id}`, {
-        method: "DELETE",
-      });
+      const {
+        data: { user: currentUser },
+      } = await supabase.auth.getUser();
 
-      if (!response.ok) {
-        throw new Error("Erro ao excluir evento");
+      const query = supabase
+        .from("events")
+        .delete()
+        .eq("id", id);
+
+      const { error } = currentUser
+        ? await query.eq("user_id", currentUser.id)
+        : await query;
+
+      if (error) {
+        throw error;
       }
 
       await fetchEvents();
