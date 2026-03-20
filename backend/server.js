@@ -9,6 +9,7 @@ import multer from "multer";
 import foodsRouter from "./routes/foods.js";
 import eventsRoutes from "./routes/events.js";
 import treinosRoutes from "./routes/treinos.js";
+import { supabase } from "./supabase.js";
 import {
   sendWhatsAppMessage,
   startMorningAgendaScheduler,
@@ -2211,6 +2212,11 @@ app.put("/api/food-diary/state", async (req, res) => {
       .status(500)
       .json({ error: "Erro interno ao salvar diário alimentar" });
   }
+});
+
+app.use((err, req, res, next) => {
+  console.error("ERRO GLOBAL:", err);
+  res.status(500).json({ error: "Erro interno" });
 });
 
 app.listen(3001, () => {
