@@ -6,8 +6,8 @@ import path from "path";
 import { createRequire } from "module";
 import { fileURLToPath } from "url";
 import multer from "multer";
-import { supabase } from "./supabase.js";
 import foodsRouter from "./routes/foods.js";
+import eventsRoutes from "./routes/events.js";
 import {
   sendWhatsAppMessage,
   startMorningAgendaScheduler,
@@ -40,6 +40,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 app.use("/api/foods", foodsRouter);
+app.use("/events", eventsRoutes);
 
 const BILLING_DEFAULT_DUE_DAY = 20;
 const AFFILIATE_COMMISSION_CENTS = 2000;
@@ -78,27 +79,6 @@ app.get("/debug/zapi-test", async (req, res) => {
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ ok: false, error: e.message });
-  }
-});
-
-app.delete("/events/:id", async (req, res) => {
-  const { id } = req.params;
-
-  try {
-    const { error } = await supabase
-      .from("events")
-      .delete()
-      .eq("id", id);
-
-    if (error) {
-      console.error("Erro ao excluir evento:", error);
-      return res.status(500).json({ success: false, error: error.message });
-    }
-
-    return res.json({ success: true });
-  } catch (error) {
-    console.error("Erro inesperado ao excluir evento:", error);
-    return res.status(500).json({ success: false, error: "Falha ao excluir evento" });
   }
 });
 
