@@ -4,9 +4,9 @@ import { supabase } from "../supabase.js";
 const router = express.Router();
 
 router.delete("/:id", async (req, res) => {
-  const { id } = req.params;
-
   try {
+    const { id } = req.params;
+
     const { error } = await supabase
       .from("events")
       .delete()
@@ -18,7 +18,8 @@ router.delete("/:id", async (req, res) => {
 
     return res.status(200).json({ message: "Evento excluído com sucesso" });
   } catch (err) {
-    return res.status(500).json({ error: "Erro interno" });
+    console.error("Erro ao excluir evento:", err);
+    return res.status(500).json({ error: "Erro interno no servidor" });
   }
 });
 
