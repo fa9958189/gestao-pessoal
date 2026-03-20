@@ -8,6 +8,7 @@ import { fileURLToPath } from "url";
 import multer from "multer";
 import foodsRouter from "./routes/foods.js";
 import eventsRoutes from "./routes/events.js";
+import treinosRoutes from "./routes/treinos.js";
 import {
   sendWhatsAppMessage,
   startMorningAgendaScheduler,
@@ -41,6 +42,7 @@ app.use(cors());
 app.use(express.json());
 app.use("/api/foods", foodsRouter);
 app.use("/events", eventsRoutes);
+app.use("/treinos", treinosRoutes);
 
 const BILLING_DEFAULT_DUE_DAY = 20;
 const AFFILIATE_COMMISSION_CENTS = 2000;
