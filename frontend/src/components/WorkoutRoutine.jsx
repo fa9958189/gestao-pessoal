@@ -336,27 +336,6 @@ const formatExerciseResume = (exercise) => {
   return `${base}${weightPart}`;
 };
 
-const formatSessionDate = (rawDate) => {
-  if (!rawDate) return '';
-
-  const value = String(rawDate);
-
-  // Pega só YYYY-MM-DD (formato do Supabase)
-  const isoDate = value.slice(0, 10);
-  if (/^\d{4}-\d{2}-\d{2}$/.test(isoDate)) {
-    const [year, month, day] = isoDate.split('-');
-    return `${day}/${month}/${year}`;
-  }
-
-  // Fallback para Date normal
-  const d = new Date(value);
-  if (!Number.isNaN(d.getTime())) {
-    return d.toLocaleDateString('pt-BR');
-  }
-
-  return value;
-};
-
 const WorkoutRestTimer = ({
   restDuration,
   restCountdown,
@@ -1617,6 +1596,25 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
     bestWeekdayCount,
   } = progressStats;
 
+  const treinosHistorico = sessions.map((session) => {
+    const muscles = (session.muscleGroups || [])
+      .map((group) => muscleMap[group]?.label || group)
+      .join(', ');
+    const sportsActivities = Array.isArray(session.sportsActivities)
+      ? session.sportsActivities
+          .map((sport) => sportsMap[sport]?.label || sport)
+          .join(', ')
+      : '';
+    const exerciseResume = (session.exercises || []).map(formatExerciseResume).join('; ');
+
+    return {
+      id: session.id,
+      date: session.date || session.performed_at,
+      muscles: muscles || session.name || 'Treino realizado',
+      activities: [sportsActivities, exerciseResume].filter(Boolean).join(' • '),
+    };
+  });
+
   return (
     <div className="workout-routine">
       {/* COLUNA ESQUERDA – Rotina de Treino (aba + config + histórico + progresso) */}
@@ -1960,44 +1958,44 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
 
             {!sessions.length && <div className="muted">Nenhum treino registrado no período.</div>}
             {sessions.length > 0 && (
-              <div className="treino-list workout-history-scroll">
-                {sessions.map((session) => {
-                  const muscleGroups = (session.muscleGroups || [])
-                    .map((group) => muscleMap[group]?.label || group)
-                    .join(', ');
-                  const sportsActivities = Array.isArray(session.sportsActivities)
-                    ? session.sportsActivities
-                        .map((sport) => sportsMap[sport]?.label || sport)
-                        .join(', ')
-                    : '';
-                  const exerciseResume = (session.exercises || []).map(formatExerciseResume).join('; ');
-                  const description = muscleGroups || session.name || 'Treino realizado';
-                  const extraInfo = [sportsActivities, exerciseResume].filter(Boolean).join(' • ');
+              <div>
+                {treinosHistorico.map((treino) => (
+                  <div key={treino.id} className="event-card">
 
-                  return (
-                    <div key={session.id} className="event-card">
-                      <div className="event-date">{formatSessionDate(session.date || session.performed_at)}</div>
-
-                      <div className="event-content">
-                        <div className="event-title">Treino realizado</div>
-                        <div className="event-subtitle">{description}</div>
-                        {extraInfo && <div className="event-subtitle">{extraInfo}</div>}
-                      </div>
-
-                      <div className="event-actions">
-                        <button
-                          type="button"
-                          className="btn-delete"
-                          onClick={() => handleDeleteSession(session.id)}
-                          aria-label={`Excluir treino de ${formatSessionDate(session.date || session.performed_at)}`}
-                          title="Excluir treino"
-                        >
-                          🗑️
-                        </button>
-                      </div>
+                    <div className="event-date">
+                      {new Date(treino.date).toLocaleDateString('pt-BR')}
                     </div>
-                  );
-                })}
+
+                    <div className="event-content">
+                      <div className="event-title">
+                        💪 Treino realizado
+                      </div>
+
+                      <div className="event-subtitle">
+                        {treino.muscles}
+                      </div>
+
+                      {treino.activities && (
+                        <div className="event-subtitle">
+                          {treino.activities}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="event-actions">
+                      <button
+                        type="button"
+                        className="btn-delete"
+                        onClick={() => handleDeleteSession(treino.id)}
+                        aria-label={`Excluir treino de ${new Date(treino.date).toLocaleDateString('pt-BR')}`}
+                        title="Excluir treino"
+                      >
+                        🗑️
+                      </button>
+                    </div>
+
+                  </div>
+                ))}
               </div>
             )}
           </div>
