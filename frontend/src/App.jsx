@@ -566,7 +566,7 @@ const UsersTable = ({ items, onEdit, onDelete }) => (
           const daysLeft = getDaysLeft(trialEnd);
 
           return (
-            <div key={user.id} className={`event-card user-event-card ${user._editing ? 'is-editing' : ''}`}>
+            <div key={user.id} className={`event-card user-event-card card-ui ${user._editing ? 'is-editing' : ''}`}>
               <div className="event-date user-event-email">
                 {user.email || user.username || '-'}
               </div>
@@ -593,11 +593,11 @@ const UsersTable = ({ items, onEdit, onDelete }) => (
               </div>
 
               <div className="event-actions">
-                <button className="btn-edit" onClick={() => onEdit(user)} title="Editar usuário">
+                <button className="btn-edit btn-ui" onClick={() => onEdit(user)} title="Editar usuário">
                   ✏️
                 </button>
 
-                <button className="btn-delete" onClick={() => onDelete(user)} title="Excluir usuário">
+                <button className="btn-delete btn-ui" onClick={() => onDelete(user)} title="Excluir usuário">
                   🗑️
                 </button>
               </div>
@@ -621,7 +621,7 @@ const AffiliateCards = ({ items, onViewUsers, onMarkPaid, payoutLoadingId }) => 
           const paymentStatus = item.payout_status === 'PAGO';
 
           return (
-            <div key={item.id} className="event-card user-event-card">
+            <div key={item.id} className="event-card user-event-card card-ui">
               <div className="event-date user-event-email">
                 {item.email || item.code || '-'}
               </div>
@@ -649,11 +649,11 @@ const AffiliateCards = ({ items, onViewUsers, onMarkPaid, payoutLoadingId }) => 
               </div>
 
               <div className="event-actions">
-                <button className="btn-edit" onClick={() => onViewUsers(item)} title="Ver clientes">
+                <button className="btn-edit btn-ui" onClick={() => onViewUsers(item)} title="Ver clientes">
                   ✏️
                 </button>
                 <button
-                  className="btn-delete"
+                  className="btn-delete btn-ui"
                   onClick={() => onMarkPaid(item)}
                   title="Marcar pago (mês atual)"
                   disabled={payoutLoadingId === item.id}
@@ -3135,7 +3135,7 @@ function App() {
               </div>
 
               <button
-                className="btn-primary"
+                className="btn-primary btn-ui"
                 onClick={() => {
                   resetUserWizard();
                   setOpenUserModal(true);
@@ -3146,9 +3146,9 @@ function App() {
               </button>
             </div>
 
-            <div className="card" style={{ marginBottom: 20, padding: 14 }}>
+            <div className="card card-ui" style={{ marginBottom: 20, padding: 14 }}>
               <button
-                className="btn-secondary"
+                className="btn-secondary btn-ui"
                 onClick={() => setBroadcastOpen((v) => !v)}
                 style={{ width: '100%' }}
               >
@@ -3183,7 +3183,7 @@ function App() {
 
                   <div className="row" style={{ justifyContent: 'flex-end', gap: 10, marginTop: 10 }}>
                     <button
-                      className="ghost"
+                      className="ghost btn-ui"
                       onClick={() => {
                         setBroadcastMessage('');
                         setBroadcastResult(null);
@@ -3194,7 +3194,7 @@ function App() {
                     </button>
 
                     <button
-                      className="primary"
+                      className="primary btn-ui"
                       onClick={handleBroadcastWhatsapp}
                       disabled={broadcastSending}
                     >
@@ -3334,22 +3334,23 @@ function App() {
 
                   <div className="wizard-actions">
                     {step > 1 && (
-                      <button onClick={() => setStep(step - 1)}>
+                      <button className="btn-ui" onClick={() => setStep(step - 1)}>
                         ← Voltar
                       </button>
                     )}
 
                     {step < 3 ? (
-                      <button className="btn-primary" onClick={() => setStep(step + 1)}>
+                      <button className="btn-primary btn-ui" onClick={() => setStep(step + 1)}>
                         Continuar →
                       </button>
                     ) : (
-                      <button className="btn-primary" onClick={handleSaveUser}>
+                      <button className="btn-primary btn-ui" onClick={handleSaveUser}>
                         {editingUserId ? 'Salvar alterações' : 'Criar usuário'}
                       </button>
                     )}
 
                     <button
+                      className="btn-ui"
                       onClick={() => {
                         resetUserWizard({ closeModal: true });
                       }}
@@ -3378,7 +3379,7 @@ function App() {
                   resetAffiliateWizard();
                   setShowForm(true);
                 }}
-                className="btn-primary"
+                className="btn-primary btn-ui"
               >
                 + Novo Afiliado
               </button>
@@ -3452,23 +3453,24 @@ function App() {
 
                   <div className="wizard-actions">
                     {step > 1 && (
-                      <button type="button" onClick={() => setStep(step - 1)}>
+                      <button type="button" className="btn-ui" onClick={() => setStep(step - 1)}>
                         ← Voltar
                       </button>
                     )}
 
                     {step < 3 ? (
-                      <button type="button" className="btn-primary" onClick={() => setStep(step + 1)}>
+                      <button type="button" className="btn-primary btn-ui" onClick={() => setStep(step + 1)}>
                         Continuar →
                       </button>
                     ) : (
-                      <button type="button" className="btn-primary" onClick={handleSaveAffiliate}>
+                      <button type="button" className="btn-primary btn-ui" onClick={handleSaveAffiliate}>
                         Criar afiliado
                       </button>
                     )}
 
                     <button
                       type="button"
+                      className="btn-ui"
                       onClick={() => {
                         resetAffiliateWizard({ closeModal: true });
                       }}
