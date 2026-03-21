@@ -157,7 +157,7 @@ function HydrationCard({ userId, supabase, notify, selectedDate, onStateChange }
   };
 
   return (
-    <div className="food-diary-summary-card hydration-card">
+    <div className="food-diary-summary-card hydration-card card-padrao">
       <h5 className="title" style={{ margin: 0, fontSize: 14 }}>
         Água
       </h5>
