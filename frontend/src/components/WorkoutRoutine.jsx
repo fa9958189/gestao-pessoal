@@ -1975,24 +1975,26 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
                   const extraInfo = [sportsActivities, exerciseResume].filter(Boolean).join(' • ');
 
                   return (
-                    <div key={session.id} className="treino-card">
-                      <div className="treino-data">{formatSessionDate(session.date || session.performed_at)}</div>
+                    <div key={session.id} className="event-card">
+                      <div className="event-date">{formatSessionDate(session.date || session.performed_at)}</div>
 
-                      <div className="treino-info">
-                        <div className="treino-titulo">Treino realizado</div>
-                        <div className="treino-desc">{description}</div>
-                        {extraInfo && <div className="treino-extra">{extraInfo}</div>}
+                      <div className="event-content">
+                        <div className="event-title">Treino realizado</div>
+                        <div className="event-subtitle">{description}</div>
+                        {extraInfo && <div className="event-subtitle">{extraInfo}</div>}
                       </div>
 
-                      <button
-                        type="button"
-                        className="btn-delete"
-                        onClick={() => handleDeleteSession(session.id)}
-                        aria-label={`Excluir treino de ${formatSessionDate(session.date || session.performed_at)}`}
-                        title="Excluir treino"
-                      >
-                        🗑️
-                      </button>
+                      <div className="event-actions">
+                        <button
+                          type="button"
+                          className="btn-delete"
+                          onClick={() => handleDeleteSession(session.id)}
+                          aria-label={`Excluir treino de ${formatSessionDate(session.date || session.performed_at)}`}
+                          title="Excluir treino"
+                        >
+                          🗑️
+                        </button>
+                      </div>
                     </div>
                   );
                 })}

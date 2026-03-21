@@ -2475,7 +2475,7 @@ canvas{ background:transparent; }
   gap: 12px;
 }
 
-.treino-card {
+.event-card {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -2487,31 +2487,37 @@ canvas{ background:transparent; }
   gap: 12px;
 }
 
-.treino-data {
+.event-date {
   color: #60a5fa;
   font-weight: bold;
   min-width: 110px;
 }
 
-.treino-info {
+.event-content {
   flex: 1;
   margin-left: 16px;
   min-width: 0;
 }
 
-.treino-titulo {
+.event-title {
   font-weight: 600;
   color: #fff;
 }
 
-.treino-desc {
+.event-subtitle {
   color: #94a3b8;
 }
 
-.treino-extra {
+.event-subtitle + .event-subtitle {
   color: #64748b;
   font-size: 13px;
   margin-top: 4px;
+}
+
+.event-actions {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
 }
 
 .btn-delete {
@@ -2530,16 +2536,16 @@ canvas{ background:transparent; }
 }
 
 @media (max-width: 640px) {
-  .treino-card {
+  .event-card {
     flex-wrap: wrap;
   }
 
-  .treino-info {
+  .event-content {
     margin-left: 0;
     width: 100%;
   }
 
-  .treino-data {
+  .event-date {
     min-width: auto;
   }
 }
