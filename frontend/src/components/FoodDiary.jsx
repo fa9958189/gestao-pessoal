@@ -37,6 +37,7 @@ const defaultGoals = {
 const defaultBody = {
   heightCm: null,
   weightKg: null,
+  goalWeightKg: null,
 };
 
 const defaultWeightHistory = [];
@@ -69,6 +70,44 @@ const getLocalDateString = () => {
   const now = new Date();
   const offsetMs = now.getTimezoneOffset() * 60 * 1000;
   return new Date(now.getTime() - offsetMs).toISOString().slice(0, 10);
+};
+
+const getGoalWeightStorageKey = (userId) => `food-diary-goal-weight:${userId}`;
+
+const getVariationIndicator = (variation) => {
+  if (!Number.isFinite(variation)) {
+    return {
+      icon: '➖',
+      label: 'Sem comparação',
+      text: '—',
+      className: 'neutral',
+    };
+  }
+
+  if (variation < 0) {
+    return {
+      icon: '🔽',
+      label: 'Diminuiu',
+      text: `${formatNumber(variation, 1)} kg`,
+      className: 'down',
+    };
+  }
+
+  if (variation > 0) {
+    return {
+      icon: '🔼',
+      label: 'Aumentou',
+      text: `+${formatNumber(variation, 1)} kg`,
+      className: 'up',
+    };
+  }
+
+  return {
+    icon: '➖',
+    label: 'Estável',
+    text: '0,0 kg',
+    className: 'neutral',
+  };
 };
 
 function FoodDiary({ userId, supabase, notify, refreshToken }) {
@@ -249,6 +288,10 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
           normalizedProfile?.weightKg != null && normalizedProfile.weightKg !== ''
             ? String(normalizedProfile.weightKg)
             : null;
+        const savedGoalWeight =
+          typeof window !== 'undefined'
+            ? window.localStorage.getItem(getGoalWeightStorageKey(userId))
+            : null;
         const nextBody = {
           heightCm:
             normalizedProfile?.heightCm != null && normalizedProfile.heightCm !== ''
@@ -256,6 +299,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
               : null,
           weightKg:
             todayWeightValue ?? profileWeightValue,
+          goalWeightKg: savedGoalWeight,
         };
 
         setBody(nextBody);
@@ -283,6 +327,30 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
       isMounted = false;
     };
   }, [userId, supabase, refreshToken]);
+
+  useEffect(() => {
+    if (!userId || typeof window === 'undefined') return;
+
+    const savedGoalWeight = window.localStorage.getItem(getGoalWeightStorageKey(userId));
+    if (savedGoalWeight == null) return;
+
+    setBody((prev) => ({
+      ...prev,
+      goalWeightKg: savedGoalWeight,
+    }));
+  }, [userId]);
+
+  useEffect(() => {
+    if (!userId || typeof window === 'undefined') return;
+
+    const storageKey = getGoalWeightStorageKey(userId);
+    if (!body.goalWeightKg) {
+      window.localStorage.removeItem(storageKey);
+      return;
+    }
+
+    window.localStorage.setItem(storageKey, body.goalWeightKg);
+  }, [body.goalWeightKg, userId]);
 
   const persistDailyGoals = async (nextGoals) => {
     const waterGoal = Number(nextGoals.water || 0);
@@ -425,6 +493,54 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
         })),
     [weightHistory]
   );
+
+  const weightHistoryWithVariation = useMemo(() => {
+    const sorted = weightHistory
+      .slice()
+      .sort((a, b) => b.date.localeCompare(a.date));
+
+    return sorted.map((item, index) => {
+      const previousEntry = sorted[index + 1];
+      const currentWeight = Number(item.weightKg);
+      const previousWeight = Number(previousEntry?.weightKg);
+      const variation =
+        Number.isFinite(currentWeight) && Number.isFinite(previousWeight)
+          ? currentWeight - previousWeight
+          : null;
+
+      return {
+        ...item,
+        variation,
+        variationMeta: getVariationIndicator(variation),
+      };
+    });
+  }, [weightHistory]);
+
+  const currentBodyVariation = useMemo(() => {
+    const currentWeight = parseNumberInput(body.weightKg);
+    if (!Number.isFinite(currentWeight)) return null;
+
+    const today = getLocalDateString();
+    const latestEntry = weightHistoryWithVariation[0];
+    const referenceEntry =
+      latestEntry?.date === today
+        ? weightHistoryWithVariation[1] || null
+        : latestEntry || null;
+
+    if (!referenceEntry) return null;
+
+    const referenceWeight = Number(referenceEntry.weightKg);
+    if (!Number.isFinite(referenceWeight)) return null;
+
+    const variation = currentWeight - referenceWeight;
+
+    return {
+      referenceDate: referenceEntry.date,
+      referenceWeight,
+      variation,
+      ...getVariationIndicator(variation),
+    };
+  }, [body.weightKg, weightHistoryWithVariation]);
 
   const handleChangeForm = (field, value) => {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -1360,63 +1476,110 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
   );
 
   const BodyInfoCard = () => (
-    <div className="food-diary-summary-card">
+    <div className="food-diary-summary-card card-body">
       <h5 className="title" style={{ margin: 0, fontSize: 14 }}>
-        Altura e peso
+        Seu corpo hoje
       </h5>
-      <div className="field">
-        <label>Altura (cm)</label>
-        <input
-          type="number"
-          min="0"
-          value={body.heightCm ?? ''}
-          onChange={(e) =>
-            handleBodyChange('heightCm', e.target.value)
-          }
-        />
+
+      <div className="body-card-highlights">
+        <div className="body-highlight">
+          <span className="body-highlight-label">Peso atual</span>
+          <strong>{body.weightKg ? `${formatNumber(body.weightKg, 1)} kg` : '—'}</strong>
+        </div>
+        <div className="body-highlight">
+          <span className="body-highlight-label">Meta</span>
+          <strong>{body.goalWeightKg ? `${formatNumber(body.goalWeightKg, 1)} kg` : 'Opcional'}</strong>
+        </div>
+        <div className={`body-highlight variation ${currentBodyVariation?.className || 'neutral'}`}>
+          <span className="body-highlight-label">Variação</span>
+          {currentBodyVariation ? (
+            <strong>
+              {currentBodyVariation.icon} {currentBodyVariation.text}
+            </strong>
+          ) : (
+            <strong>➖ Sem histórico</strong>
+          )}
+        </div>
       </div>
-      <div className="field">
-        <label>Peso atual (kg)</label>
-        <input
-          type="number"
-          min="0"
-          step="0.1"
-          value={body.weightKg ?? ''}
-          onChange={(e) =>
-            handleBodyChange('weightKg', e.target.value)
-          }
-        />
+
+      <div className="body-card-grid">
+        <div className="field">
+          <label>Peso atual (kg)</label>
+          <input
+            type="number"
+            min="0"
+            step="0.1"
+            inputMode="decimal"
+            value={body.weightKg ?? ''}
+            onChange={(e) =>
+              handleBodyChange('weightKg', e.target.value)
+            }
+          />
+        </div>
+        <div className="field">
+          <label>Altura (cm)</label>
+          <input
+            type="number"
+            min="0"
+            step="0.1"
+            inputMode="decimal"
+            value={body.heightCm ?? ''}
+            onChange={(e) =>
+              handleBodyChange('heightCm', e.target.value)
+            }
+          />
+        </div>
+        <div className="field">
+          <label>Meta de peso (kg)</label>
+          <input
+            type="number"
+            min="0"
+            step="0.1"
+            inputMode="decimal"
+            value={body.goalWeightKg ?? ''}
+            onChange={(e) =>
+              handleBodyChange('goalWeightKg', e.target.value)
+            }
+          />
+        </div>
       </div>
+
       <button
         type="button"
         className="primary"
         style={{ marginTop: 10 }}
         onClick={() => handleSaveWeight()}
       >
-        Salvar peso
+        Registrar hoje
       </button>
 
-      {weightHistory.length > 0 && (
-        <div className="muted" style={{ fontSize: 12, marginTop: 6 }}>
-          <div>Histórico de peso (recentes):</div>
+      {currentBodyVariation?.referenceDate && (
+        <div className="muted" style={{ fontSize: 12 }}>
+          Comparado com {new Date(currentBodyVariation.referenceDate).toLocaleDateString('pt-BR')} ({formatNumber(currentBodyVariation.referenceWeight, 1)} kg).
+        </div>
+      )}
+
+      {weightHistoryWithVariation.length > 0 && (
+        <div className="weight-history-card">
+          <div className="weight-history-title">Histórico de peso</div>
           <div className="weight-history-scroll">
-            {weightHistory
-              .slice()
-              .sort((a, b) => b.date.localeCompare(a.date))
-              .slice(0, 5)
-              .map((item) => (
+            <div className="weight-history-table">
+              <div className="weight-history-header">
+                <span>Data</span>
+                <span>Peso</span>
+                <span>Variação</span>
+                <span aria-hidden="true"></span>
+              </div>
+
+              {weightHistoryWithVariation.slice(0, 5).map((item) => (
                 <div
                   key={`${item.date}-${item.recordedAt}`}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: 8,
-                    marginTop: 2,
-                  }}
+                  className="weight-history-row"
                 >
-                  <span>
-                    {new Date(item.date).toLocaleDateString('pt-BR')} – {formatNumber(item.weightKg, 1)} kg
+                  <span>{new Date(item.date).toLocaleDateString('pt-BR')}</span>
+                  <span>{formatNumber(item.weightKg, 1)} kg</span>
+                  <span className={`weight-variation-badge ${item.variationMeta.className}`}>
+                    {item.variationMeta.icon} {item.variationMeta.text}
                   </span>
                   <div className="table-actions">
                     <button
@@ -1438,6 +1601,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
                   </div>
                 </div>
               ))}
+            </div>
           </div>
         </div>
       )}
