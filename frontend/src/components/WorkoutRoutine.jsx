@@ -1701,10 +1701,10 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
                     {routines.map((template) => (
                       <div
                         key={template.id || template.name}
-                        className="workout-template-item table-row treino-item"
+                        className="workout-template-item table-row treino-item rounded-2xl border border-blue-500/20 bg-gradient-to-b from-[#0f172a] to-[#020617] p-4 shadow-md hover:border-blue-400 transition"
                       >
                         <div className="workout-template-header">
-                          <strong>{template.name}</strong>
+                          <strong className="text-blue-400 font-semibold">{template.name}</strong>
                           <div className="workout-template-subtitle">
                             {Array.isArray(template.muscleGroups) && template.muscleGroups.length > 0 && (
                               <span>
@@ -1719,7 +1719,7 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
                         <div className="workout-template-actions">
                           <button
                             type="button"
-                            className="ghost"
+                            className="ghost px-3 py-1 rounded-lg border border-blue-500/20 hover:bg-blue-500/10 transition"
                             onClick={() => {
                               const sportsActivities = syncSportsFromTemplate(
                                 template.sportsActivities,
@@ -1752,7 +1752,7 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
                           </button>
                           <button
                             type="button"
-                            className="ghost"
+                            className="ghost px-3 py-1 rounded-lg border border-blue-500/20 hover:bg-blue-500/10 transition"
                             onClick={() => handleOpenViewWorkout({
                               ...template,
                               sportsActivities: syncSportsFromTemplate(
@@ -1765,7 +1765,7 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
                           </button>
                           <button
                             type="button"
-                            className="ghost small btn-danger-outline"
+                            className="px-3 py-1 rounded-lg border border-blue-500/20 hover:bg-blue-500/10 transition"
                             onClick={() => handleDeleteRoutine(template.id)}
                           >
                             Excluir
