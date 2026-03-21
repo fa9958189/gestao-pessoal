@@ -1112,6 +1112,115 @@ canvas{ background:transparent; }
   gap: 8px;
 }
 
+.card-body {
+  background: linear-gradient(145deg, #0f172a, #020617);
+  border: 1px solid rgba(59, 130, 246, 0.25);
+  border-radius: 16px;
+  padding: 20px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.card-body:hover {
+  border-color: rgba(59, 130, 246, 0.55);
+  box-shadow: 0 14px 32px rgba(15, 23, 42, 0.32);
+}
+
+.body-card-highlights {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.body-highlight {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.55);
+  border: 1px solid rgba(148, 163, 184, 0.16);
+}
+
+.body-highlight.variation.down {
+  border-color: rgba(74, 222, 128, 0.35);
+}
+
+.body-highlight.variation.up {
+  border-color: rgba(248, 113, 113, 0.35);
+}
+
+.body-highlight-label {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.body-card-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.weight-history-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.weight-history-title {
+  font-size: 12px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.weight-history-table {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.weight-history-header,
+.weight-history-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr) minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.weight-history-header {
+  padding: 0 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.weight-history-row {
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.55);
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  font-size: 13px;
+}
+
+.weight-variation-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+}
+
+.weight-variation-badge.down {
+  color: #86efac;
+}
+
+.weight-variation-badge.up {
+  color: #fca5a5;
+}
+
+.weight-variation-badge.neutral {
+  color: #cbd5e1;
+}
+
 .gridDashboard {
   display: grid;
   grid-template-columns: 1fr;
@@ -2037,6 +2146,13 @@ canvas{ background:transparent; }
 
 @media (max-width: 900px) {
   .food-diary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .body-card-highlights,
+  .body-card-grid,
+  .weight-history-header,
+  .weight-history-row {
     grid-template-columns: 1fr;
   }
 }
