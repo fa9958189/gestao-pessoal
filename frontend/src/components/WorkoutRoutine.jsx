@@ -1701,7 +1701,7 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
                     {routines.map((template) => (
                       <div
                         key={template.id || template.name}
-                        className="workout-template-item table-row treino-item rounded-2xl border border-blue-500/20 bg-gradient-to-b from-[#0f172a] to-[#020617] p-4 shadow-md hover:border-blue-400 transition"
+                        className="workout-template-item table-row treino-item card-padrao"
                       >
                         <div className="workout-template-header">
                           <strong className="text-blue-400 font-semibold">{template.name}</strong>
@@ -1719,7 +1719,7 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
                         <div className="workout-template-actions">
                           <button
                             type="button"
-                            className="ghost px-3 py-1 rounded-lg border border-blue-500/20 hover:bg-blue-500/10 transition"
+                            className="ghost btn-acao"
                             onClick={() => {
                               const sportsActivities = syncSportsFromTemplate(
                                 template.sportsActivities,
@@ -1752,7 +1752,7 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
                           </button>
                           <button
                             type="button"
-                            className="ghost px-3 py-1 rounded-lg border border-blue-500/20 hover:bg-blue-500/10 transition"
+                            className="ghost btn-acao"
                             onClick={() => handleOpenViewWorkout({
                               ...template,
                               sportsActivities: syncSportsFromTemplate(
@@ -1765,7 +1765,7 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
                           </button>
                           <button
                             type="button"
-                            className="px-3 py-1 rounded-lg border border-blue-500/20 hover:bg-blue-500/10 transition"
+                            className="btn-acao"
                             onClick={() => handleDeleteRoutine(template.id)}
                           >
                             Excluir
@@ -1960,7 +1960,7 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
             {sessions.length > 0 && (
               <div className="treinos-scroll-container">
                 {treinosHistorico.map((treino) => (
-                  <div key={treino.id} className="event-card">
+                  <div key={treino.id} className="event-card card-padrao">
 
                     <div className="event-date">
                       {new Date(treino.date).toLocaleDateString('pt-BR')}
@@ -1985,7 +1985,7 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
                     <div className="event-actions">
                       <button
                         type="button"
-                        className="btn-delete"
+                        className="btn-delete btn-acao"
                         onClick={() => handleDeleteSession(treino.id)}
                         aria-label={`Excluir treino de ${new Date(treino.date).toLocaleDateString('pt-BR')}`}
                         title="Excluir treino"
@@ -2018,11 +2018,8 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
             >
               {/* Card – Dias treinados vs dias do mês */}
               <div
+                className="card-padrao"
                 style={{
-                  borderRadius: 12,
-                  background: '#131722',
-                  padding: 16,
-                  border: '1px solid rgba(255,255,255,0.08)',
                   display: 'flex',
                   flexDirection: 'column',
                   gap: 8,
@@ -2076,11 +2073,8 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
 
               {/* Card – Treino mais realizado + músculo mais trabalhado */}
               <div
+                className="card-padrao"
                 style={{
-                  borderRadius: 12,
-                  background: '#131722',
-                  padding: 16,
-                  border: '1px solid rgba(255,255,255,0.08)',
                   display: 'flex',
                   flexDirection: 'column',
                   gap: 6,
@@ -2114,11 +2108,8 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
 
             {/* Evolução semanal + melhor dia da semana */}
             <div
+              className="card-padrao"
               style={{
-                borderRadius: 12,
-                background: '#131722',
-                padding: 16,
-                border: '1px solid rgba(255,255,255,0.08)',
                 display: 'flex',
                 flexDirection: 'column',
                 gap: 10,
@@ -2198,8 +2189,8 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
                                 100
                               )}%`,
                               height: '100%',
-                              background: '#50be78',
                             }}
+                            className="progress-evolucao"
                           ></div>
                         </div>
                       </div>
@@ -2212,7 +2203,7 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
             {/* Progresso por grupo muscular (bloco original, mantido) */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {Object.entries(progress.byMuscleGroup || {}).map(([muscle, count]) => (
-                <div key={muscle}>
+                <div key={muscle} className="card-padrao" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   <div className="row" style={{ justifyContent: 'space-between', fontSize: 13 }}>
                     <span>{muscleMap[muscle]?.label || muscle}</span>
                     <span className="muted">{count} treino(s)</span>
@@ -2232,8 +2223,8 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
                           100
                         )}%`,
                         height: '100%',
-                        background: '#50be78',
                       }}
+                      className="progress-evolucao"
                     ></div>
                   </div>
                 </div>
@@ -2247,17 +2238,13 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
       </div>
 
       {treinoTab === 'planejamento' && (
-        <section className="card" style={{ marginTop: 16 }}>
+        <section className="card card-padrao" style={{ marginTop: 16 }}>
           <h4 className="title" style={{ marginBottom: 12 }}>Semana de Treino</h4>
 
           <div
-            className="next-workout-card"
+            className="next-workout-card card-padrao"
             style={{
-              border: '1px solid rgba(255,255,255,0.08)',
-              borderRadius: 12,
-              padding: 14,
               marginBottom: 16,
-              background: 'linear-gradient(120deg, rgba(80, 190, 120, 0.12), rgba(15, 19, 28, 0.75))',
             }}
           >
             <h3 style={{ margin: '0 0 6px 0' }}>📅 Próximo Treino</h3>
@@ -2284,12 +2271,9 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
             {schedule.map((slot) => (
               <div
                 key={slot.day}
+                className="card-padrao"
                 style={{
-                  borderRadius: 12,
-                  background: '#131722',
-                  padding: 16,
                   boxShadow: '0 12px 30px rgba(0, 0, 0, 0.15)',
-                  border: '1px solid rgba(255,255,255,0.08)',
                   display: 'flex',
                   flexDirection: 'column',
                   gap: 12,
@@ -2527,7 +2511,7 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
       )}
 
       {treinoTab === 'evolucao' && (
-        <section className="card" style={{ marginTop: 16 }}>
+        <section className="card card-padrao" style={{ marginTop: 16 }}>
           <h4 className="title" style={{ marginBottom: 12 }}>Visão analítica</h4>
           <div className="grid" style={{ gap: 16 }}>
             <div className="row" style={{ gap: 16, flexWrap: 'wrap' }}>

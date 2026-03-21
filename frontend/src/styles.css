@@ -183,6 +183,18 @@ h2.title, h3.title{ margin:0 0 10px; font-weight:600; }
   box-shadow:0 0 0 1px rgba(0,0,0,.2), 0 12px 32px rgba(0,0,0,.25);
 }
 
+.card-padrao{
+  background: linear-gradient(145deg, #0f172a, #020617);
+  border: 1px solid rgba(59,130,246,0.25);
+  border-radius: 16px;
+  padding: 16px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card-padrao:hover{
+  border-color: rgba(59,130,246,0.6);
+}
+
 .admin-user-form .admin-user-actions{
   display:flex;
   gap:8px;
@@ -439,6 +451,16 @@ button.btn-primary,
 }
 button.danger{ background:var(--danger); color:#fff; border:none; }
 button.ghost{ background:transparent; border:1px solid #38425b; }
+.btn-acao{
+  border: 1px solid rgba(59,130,246,0.3);
+  color: #93c5fd;
+  background: transparent;
+}
+.btn-acao:hover{
+  background: rgba(59,130,246,0.15);
+  border-color: #3b82f6;
+  color: #fff;
+}
 
 .modal-overlay{
   position:fixed;
@@ -478,6 +500,11 @@ button.ghost{ background:transparent; border:1px solid #38425b; }
 );
   border-radius:4px;
   transition:width .4s;
+}
+
+.progress-evolucao{
+  background: linear-gradient(90deg, #22c55e, #3b82f6);
+  box-shadow: 0 0 8px rgba(59,130,246,0.4);
 }
 
 .wizard-actions{
@@ -2396,11 +2423,14 @@ canvas{ background:transparent; }
 
 /* Gráficos e analytics */
 .chart-card{
-  background:var(--card-2);
-  border:1px solid var(--border);
-  border-radius:14px;
-  padding:12px 14px;
+  background: linear-gradient(145deg, #0f172a, #020617);
+  border: 1px solid rgba(59,130,246,0.25);
+  border-radius:16px;
+  padding:16px;
   box-shadow:0 10px 30px rgba(0,0,0,.28);
+}
+.chart-card:hover{
+  border-color: rgba(59,130,246,0.6);
 }
 .chart-title{
   font-weight:600;
@@ -2433,8 +2463,8 @@ canvas{ background:transparent; }
 }
 .goal-bar-fill{
   height:100%;
-  background:linear-gradient(90deg, #50be78, #facc15);
-  box-shadow:0 6px 18px rgba(80, 190, 120, 0.35);
+  background: linear-gradient(90deg, #22c55e, #3b82f6);
+  box-shadow: 0 0 8px rgba(59,130,246,0.4);
 }
 .goal-bar-footer{ display:flex; justify-content:space-between; align-items:center; font-size:13px; }
 .goal-bar-highlight{ font-weight:700; color:#7df59c; }
@@ -2452,7 +2482,8 @@ canvas{ background:transparent; }
 .heatmap-cell{ width:100%; padding-top:100%; border-radius:6px; background:rgba(255,255,255,0.05); box-shadow:inset 0 0 0 1px rgba(0,0,0,0.2); }
 
 .mini-stats-grid{ display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:10px; }
-.mini-stat-card{ background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.06); border-radius:12px; padding:10px 12px; display:flex; flex-direction:column; gap:4px; }
+.mini-stat-card{ background: linear-gradient(145deg, #0f172a, #020617); border: 1px solid rgba(59,130,246,0.25); border-radius:16px; padding:16px; display:flex; flex-direction:column; gap:4px; transition:border-color 0.2s ease, box-shadow 0.2s ease; }
+.mini-stat-card:hover{ border-color: rgba(59,130,246,0.6); }
 .mini-stat-label{ font-size:12px; color:var(--muted); }
 .mini-stat-value{ font-weight:700; font-size:16px; }
 .mini-stat-helper{ font-size:12px; color:var(--muted); }
@@ -2683,26 +2714,23 @@ canvas{ background:transparent; }
 }
 
 .workout-template-item.treino-item {
-  padding: 16px 0;
-  border-bottom: 1px solid rgba(255,255,255,0.05);
-  transition: background 0.2s ease;
+  padding: 16px;
+  margin-bottom: 12px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .workout-template-item.treino-item:hover {
-  background: rgba(255,255,255,0.02);
+  box-shadow: 0 12px 32px rgba(2, 6, 23, 0.32);
 }
 
 .workout-template-item.treino-item:last-child {
-  border-bottom: none;
+  margin-bottom: 0;
 }
 
 .event-card {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: #0f172a;
-  border: 1px solid #1e293b;
-  border-radius: 12px;
   padding: 16px;
   margin-bottom: 12px;
   gap: 12px;
@@ -2743,7 +2771,6 @@ canvas{ background:transparent; }
 
 .btn-delete {
   background: transparent;
-  border: 1px solid #334155;
   border-radius: 10px;
   padding: 8px;
   cursor: pointer;
