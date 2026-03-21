@@ -662,6 +662,7 @@ canvas{ background:transparent; }
   }
 
   /* rolagem horizontal só na área da tabela (não na página toda) */
+  .transacoes-scroll-container,
   .transactions-scroll,
   .agenda-scroll,
   .events-table-container,
@@ -672,6 +673,7 @@ canvas{ background:transparent; }
   }
 
   /* mantém a tabela “legível” mas sem estourar a tela */
+  .transacoes-scroll-container table,
   .transactions-scroll table,
   .agenda-scroll table,
   .events-table-container table,
@@ -2097,22 +2099,24 @@ canvas{ background:transparent; }
   color: var(--muted);
 }
 
-.transactions-scroll {
-  max-height: 350px;
+.transacoes-scroll-container {
+  max-height: 400px;
   overflow-y: auto;
+  overflow-x: auto;
   padding-right: 8px;
 }
 
-.transactions-scroll::-webkit-scrollbar {
+.transacoes-scroll-container::-webkit-scrollbar {
   width: 8px;
+  height: 8px;
 }
 
-.transactions-scroll::-webkit-scrollbar-thumb {
+.transacoes-scroll-container::-webkit-scrollbar-thumb {
   background-color: #555;
   border-radius: 10px;
 }
 
-.transactions-scroll::-webkit-scrollbar-track {
+.transacoes-scroll-container::-webkit-scrollbar-track {
   background: #2a2a2a;
 }
 
