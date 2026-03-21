@@ -445,15 +445,15 @@ const DashboardHeader = ({ apiUrl, profile, onLogout }) => (
 
 const SummaryKpis = ({ totals }) => (
   <div className="summary">
-    <div className="kpi">
+    <div className="kpi card-resumo">
       <small>Total Receitas</small>
       <strong id="kpiIncome">{formatCurrency(totals.income)}</strong>
     </div>
-    <div className="kpi">
+    <div className="kpi card-resumo">
       <small>Total Despesas</small>
       <strong id="kpiExpense">{formatCurrency(totals.expense)}</strong>
     </div>
-    <div className="kpi">
+    <div className="kpi card-resumo">
       <small>Saldo</small>
       <strong id="kpiBalance">{formatCurrency(totals.balance)}</strong>
     </div>
@@ -462,7 +462,7 @@ const SummaryKpis = ({ totals }) => (
 
 const TransactionsTable = ({ items, onEdit, onDelete }) => (
   <div className="transacoes-scroll-container">
-    <table>
+    <table className="transactions-table">
       <thead>
         <tr>
           <th>Data</th>
@@ -482,16 +482,16 @@ const TransactionsTable = ({ items, onEdit, onDelete }) => (
           </tr>
         )}
         {items.map((tx) => (
-          <tr key={tx.id}>
+          <tr key={tx.id} className="transacao-item">
             <td>{formatDate(tx.date)}</td>
             <td>
-              <span className={`badge badge-${tx.type}`}>
-                {tx.type === 'income' ? 'Receita' : 'Despesa'}
+              <span className={`badge badge-${tx.type} ${tx.type === 'income' ? 'receita' : 'despesa'}`}>
+                {tx.type === 'income' ? '💵 Receita' : '💸 Despesa'}
               </span>
             </td>
             <td>{tx.description}</td>
             <td>{tx.category || '-'}</td>
-            <td className="right">{formatCurrency(tx.amount)}</td>
+            <td className={`right ${tx.type === 'income' ? 'receita' : 'despesa'}`}>{formatCurrency(tx.amount)}</td>
             <td className="right">
               <div className="table-actions">
                 <button className="icon-button" onClick={() => onEdit(tx)} title="Editar">
@@ -1571,7 +1571,7 @@ const Reports = ({ transactions }) => {
                       </span>
                     </div>
                     <div className={`pill ${tx.type}`}>
-                      {tx.type === 'income' ? 'Receita' : 'Despesa'} •{' '}
+                      {tx.type === 'income' ? '💵 Receita' : '💸 Despesa'} •{' '}
                       {formatCurrency(tx.amount)}
                     </div>
                   </div>
@@ -2829,7 +2829,7 @@ function App() {
               }}
             >
               <h2 style={{ margin: 0 }}>
-                Transações
+                💰 Transações
               </h2>
 
               <button
@@ -2856,10 +2856,10 @@ function App() {
             {!wizardAberto && (
               <div className="tabs">
                 <button className={activeTab === 'form' ? 'tab active' : 'tab'} onClick={() => setActiveTab('form')}>
-                  Cadastro
+                  📋 Cadastro
                 </button>
                 <button className={activeTab === 'reports' ? 'tab active' : 'tab'} onClick={() => setActiveTab('reports')}>
-                  Relatórios
+                  📊 Relatórios
                 </button>
               </div>
             )}
@@ -2874,7 +2874,7 @@ function App() {
                       onClick={() => setTxAdvancedOpen((v) => !v)}
                       style={{ width: '100%' }}
                     >
-                      Abrir pesquisa avançada (De/Até)
+                      🔎 Abrir pesquisa avançada (De/Até)
                     </button>
 
                     {txAdvancedOpen && (
@@ -2970,14 +2970,14 @@ function App() {
                       className={`treino-option ${txForm.type === 'income' ? 'selected' : ''}`}
                       onClick={() => setTxForm({ ...txForm, type: 'income' })}
                     >
-                      Receita 💰
+                      💵 Receita
                     </button>
 
                     <button
                       className={`treino-option ${txForm.type === 'expense' ? 'selected' : ''}`}
                       onClick={() => setTxForm({ ...txForm, type: 'expense' })}
                     >
-                      Despesa 💸
+                      💸 Despesa
                     </button>
                   </div>
                 )}
