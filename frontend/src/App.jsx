@@ -2255,6 +2255,20 @@ function App() {
     }
   };
 
+  const resetAffiliateWizard = ({ closeModal = false } = {}) => {
+    setAffiliateForm({
+      code: '',
+      name: '',
+      whatsapp: '',
+      email: '',
+      pix_key: '',
+    });
+    setStep(1);
+    if (closeModal) {
+      setShowForm(false);
+    }
+  };
+
   const handleSaveUser = async () => {
     if (!client || profile?.role !== 'admin') {
       pushToast('Somente administradores podem gerenciar usuários.', 'warning');
@@ -2589,14 +2603,7 @@ function App() {
       }
 
       pushToast('Afiliado criado.', 'success');
-      setAffiliateForm({
-        code: '',
-        name: '',
-        whatsapp: '',
-        email: '',
-        pix_key: '',
-      });
-      setShowForm(false);
+      resetAffiliateWizard({ closeModal: true });
       loadAffiliates();
     } catch (err) {
       console.warn('Erro ao salvar afiliado', err);
@@ -3350,7 +3357,10 @@ function App() {
               </div>
 
               <button
-                onClick={() => setShowForm(true)}
+                onClick={() => {
+                  resetAffiliateWizard();
+                  setShowForm(true);
+                }}
                 className="btn-primary"
               >
                 + Novo Afiliado
@@ -3358,75 +3368,97 @@ function App() {
             </div>
 
             {showForm && (
-              <div className="card admin-user-form-card" style={{ marginBottom: 20 }}>
-                <div className="grid grid-2 admin-user-form">
-                  <div>
-                    <label>Código</label>
-                    <input
-                      value={affiliateForm.code}
-                      onChange={(e) => setAffiliateForm({ ...affiliateForm, code: e.target.value })}
-                      placeholder="AFI-001"
-                    />
-                  </div>
-                  <div>
-                    <label>Nome</label>
-                    <input
-                      value={affiliateForm.name}
-                      onChange={(e) => setAffiliateForm({ ...affiliateForm, name: e.target.value })}
-                      placeholder="Nome do afiliado"
-                    />
-                  </div>
-                  <div>
-                    <label>WhatsApp</label>
-                    <input
-                      value={affiliateForm.whatsapp}
-                      onChange={(e) => setAffiliateForm({ ...affiliateForm, whatsapp: e.target.value })}
-                      placeholder="+5511999999999"
-                    />
-                  </div>
-                  <div>
-                    <label>E-mail</label>
-                    <input
-                      value={affiliateForm.email}
-                      onChange={(e) => setAffiliateForm({ ...affiliateForm, email: e.target.value })}
-                      placeholder="contato@exemplo.com"
-                    />
-                  </div>
-                  <div>
-                    <label>Chave PIX</label>
-                    <input
-                      value={affiliateForm.pix_key}
-                      onChange={(e) => setAffiliateForm({ ...affiliateForm, pix_key: e.target.value })}
-                      placeholder="CPF, e-mail ou aleatória"
-                    />
-                  </div>
-                </div>
+              <div className="modal-overlay">
+                <div className="modal-card">
+                  <h2>Novo Afiliado</h2>
+                  <p>Passo {step} de 3</p>
 
-                <div style={{ display: 'flex', gap: '10px', marginTop: '20px', flexWrap: 'wrap' }}>
-                  <button
-                    type="button"
-                    onClick={handleSaveAffiliate}
-                    className="btn-primary"
-                  >
-                    Criar afiliado
-                  </button>
+                  <div className="progress-bar">
+                    <div
+                      className="progress-fill"
+                      style={{ width: `${(step / 3) * 100}%` }}
+                    />
+                  </div>
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowForm(false);
-                      setAffiliateForm({
-                        code: '',
-                        name: '',
-                        whatsapp: '',
-                        email: '',
-                        pix_key: '',
-                      });
-                    }}
-                    className="btn-secondary"
-                  >
-                    Cancelar
-                  </button>
+                  {step === 1 && (
+                    <>
+                      <h3>Dados básicos</h3>
+
+                      <label>Nome</label>
+                      <input
+                        value={affiliateForm.name}
+                        onChange={(e) => setAffiliateForm({ ...affiliateForm, name: e.target.value })}
+                        placeholder="Nome do afiliado"
+                      />
+
+                      <label>Código</label>
+                      <input
+                        value={affiliateForm.code}
+                        onChange={(e) => setAffiliateForm({ ...affiliateForm, code: e.target.value })}
+                        placeholder="Código"
+                      />
+                    </>
+                  )}
+
+                  {step === 2 && (
+                    <>
+                      <h3>Contato</h3>
+
+                      <label>WhatsApp</label>
+                      <input
+                        value={affiliateForm.whatsapp}
+                        onChange={(e) => setAffiliateForm({ ...affiliateForm, whatsapp: e.target.value })}
+                        placeholder="WhatsApp"
+                      />
+
+                      <label>E-mail</label>
+                      <input
+                        value={affiliateForm.email}
+                        onChange={(e) => setAffiliateForm({ ...affiliateForm, email: e.target.value })}
+                        placeholder="E-mail"
+                      />
+                    </>
+                  )}
+
+                  {step === 3 && (
+                    <>
+                      <h3>Financeiro</h3>
+
+                      <label>Chave PIX</label>
+                      <input
+                        value={affiliateForm.pix_key}
+                        onChange={(e) => setAffiliateForm({ ...affiliateForm, pix_key: e.target.value })}
+                        placeholder="Chave PIX"
+                      />
+                    </>
+                  )}
+
+                  <div className="wizard-actions">
+                    {step > 1 && (
+                      <button type="button" onClick={() => setStep(step - 1)}>
+                        ← Voltar
+                      </button>
+                    )}
+
+                    {step < 3 ? (
+                      <button type="button" className="btn-primary" onClick={() => setStep(step + 1)}>
+                        Continuar →
+                      </button>
+                    ) : (
+                      <button type="button" className="btn-primary" onClick={handleSaveAffiliate}>
+                        Criar afiliado
+                      </button>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        resetAffiliateWizard({ closeModal: true });
+                      }}
+                    >
+                      Cancelar
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
