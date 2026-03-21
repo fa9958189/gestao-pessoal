@@ -1314,7 +1314,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
   }, [dayEntries]);
 
   const renderSummaryCard = () => (
-    <div className="food-diary-summary-card rounded-2xl border border-blue-500/20 bg-gradient-to-b from-[#0f172a] to-[#020617] p-4 shadow-md">
+    <div className="food-diary-summary-card card-padrao">
       <h5 className="title" style={{ margin: 0, fontSize: 14 }}>
         Resumo do dia
       </h5>
@@ -1374,7 +1374,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
   );
 
   const DailyGoalsCard = () => (
-    <div className="food-diary-summary-card">
+    <div className="food-diary-summary-card card-padrao">
       <div style={{ marginBottom: 16 }}>
         <h5 className="title" style={{ margin: 0, fontSize: 14 }}>
           Objetivo
@@ -1391,17 +1391,8 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
             <button
               key={option.value}
               type="button"
+              className={`objetivo-btn ${goalType === option.value ? 'active' : ''}`}
               onClick={() => handleGoalTypeChange(option.value)}
-              style={{
-                border: goalType === option.value ? '1px solid #7c3aed' : '1px solid #d1d5db',
-                background: goalType === option.value ? '#f5f3ff' : '#fff',
-                color: goalType === option.value ? '#5b21b6' : '#374151',
-                borderRadius: 999,
-                padding: '6px 12px',
-                fontSize: 12,
-                fontWeight: 600,
-                cursor: 'pointer',
-              }}
             >
               {option.label}
             </button>
@@ -1450,7 +1441,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
   );
 
   const GoalsSummaryCard = () => (
-    <div className="food-diary-summary-card">
+    <div className="food-diary-summary-card card-padrao">
       <h5 className="title" style={{ margin: 0, fontSize: 14 }}>
         Resumo das metas
       </h5>
@@ -1834,7 +1825,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
             {mealsOfDay.map((meal) => {
               const isExpanded = Boolean(expandedMeals[meal.mealType]);
               return (
-                <div key={meal.mealType} className="food-diary-entry rounded-xl border border-blue-500/10 p-3 hover:border-blue-400 transition">
+                <div key={meal.mealType} className="food-diary-entry">
                   <div className="food-diary-entry-header">
                     <span>
                       <strong>{mealIcons[meal.mealType] || '🍽'} {meal.mealType}</strong>
