@@ -552,117 +552,60 @@ const EventsTable = ({ items, onEdit, onDelete }) => (
   </div>
 );
 
-const UsersTable = ({ items, onEdit, onDelete, onBillingAction }) => (
+const UsersTable = ({ items, onEdit, onDelete }) => (
   <div className="user-list-wrapper">
-    <div className="users-table-container">
-      <div className="usuarios-scroll">
-        <table className="users-table">
-          <thead>
-            <tr>
-              <th>Usuário</th>
-              <th>Nome</th>
-              <th>WhatsApp</th>
-              <th>Perfil</th>
-              <th>Status</th>
-              <th>Pagamento</th>
-              <th>Vencimento</th>
-              <th>Último pagamento</th>
-              <th>Criado em</th>
-              <th>Teste</th>
-              <th className="right">Ações</th>
-            </tr>
-          </thead>
-          <tbody id="userTableBody">
-            {items.length === 0 && (
-              <tr>
-                <td colSpan="11" className="muted user-empty">
-                  Nenhum usuário cadastrado além de você.
-                </td>
-              </tr>
-            )}
-            {items.map((user) => (
-              <tr key={user.id} className={user._editing ? 'is-editing' : ''}>
-                <td>{user.username}</td>
-                <td>{user.name || '-'}</td>
-                <td>{user.whatsapp || '-'}</td>
-                <td>{user.role}</td>
-                <td>
-                  <div className="row" style={{ gap: 6, alignItems: 'center' }}>
-                    {(() => {
-                      const status = user.derived_status || user.subscription_status || 'active';
-                      const labelMap = { active: 'ATIVO', pending: 'PENDENTE', inactive: 'INATIVO' };
-                      return (
-                        <>
-                          <span className={`badge badge-${status}`}>
-                            {labelMap[status] || status.toUpperCase()}
-                          </span>
-                          {status === 'pending' && (
-                            <small className="muted">Pendente (venc. dia {user.due_day || BILLING_DUE_DAY})</small>
-                          )}
-                        </>
-                      );
-                    })()}
-                  </div>
-                </td>
-                <td>
-                  <div className="row" style={{ gap: 6, alignItems: 'center' }}>
-                    {(() => {
-                      const paid = user.payment_status === 'paid';
-                      return (
-                        <span className={`badge ${paid ? 'badge-paid' : 'badge-payment-pending'}`}>
-                          {paid ? 'PAGO' : 'PENDENTE'}
-                        </span>
-                      );
-                    })()}
-                  </div>
-                </td>
-                <td>dia {user.due_day || BILLING_DUE_DAY}</td>
-                <td>{formatDate(user.last_payment_at || user.last_paid_at)}</td>
-                <td>{formatDate(user.created_at)}</td>
-                <td>
-                  {(() => {
-                    const trialEnd = getTrialEnd(user);
-                    const daysLeft = getDaysLeft(trialEnd);
-                    return formatTrialLabel(daysLeft);
-                  })()}
-                </td>
-                <td className="right">
-                  <div className="table-actions">
-                    <button className="icon-button" onClick={() => onEdit(user)} title="Editar">
-                      ✏️
-                    </button>
-                    <button className="icon-button" onClick={() => onDelete(user)} title="Excluir">
-                      🗑️
-                    </button>
-                    <button
-                      className="icon-button"
-                      onClick={() => onBillingAction(user, 'activate')}
-                      title="Ativar"
-                    >
-                      Ativar
-                    </button>
-                    <button
-                      className="icon-button"
-                      onClick={() => onBillingAction(user, 'inactivate')}
-                      title="Inativar"
-                    >
-                      Inativar
-                    </button>
-                    <button
-                      className="icon-button"
-                      onClick={() => onBillingAction(user, 'markPaid')}
-                      title="Marcar pago"
-                    >
-                      Marcar pago
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+    {items.length === 0 ? (
+      <div className="muted user-empty">Nenhum usuário cadastrado além de você.</div>
+    ) : (
+      <div className="usuarios-scroll-container">
+        {items.map((user) => {
+          const status = user.derived_status || user.subscription_status || 'active';
+          const labelMap = { active: 'ATIVO', pending: 'PENDENTE', inactive: 'INATIVO' };
+          const paid = user.payment_status === 'paid';
+          const trialEnd = getTrialEnd(user);
+          const daysLeft = getDaysLeft(trialEnd);
+
+          return (
+            <div key={user.id} className={`event-card user-event-card ${user._editing ? 'is-editing' : ''}`}>
+              <div className="event-date user-event-email">
+                {user.email || user.username || '-'}
+              </div>
+
+              <div className="event-content">
+                <div className="event-title">{user.name || user.username || 'Sem nome'}</div>
+
+                <div className="event-subtitle">{user.whatsapp || 'WhatsApp não informado'}</div>
+                <div className="event-subtitle user-event-meta">
+                  <span className="badge">{user.role}</span>
+                  <span className={`badge badge-${status}`}>
+                    {labelMap[status] || status.toUpperCase()}
+                  </span>
+                  <span className={`badge ${paid ? 'badge-paid' : 'badge-payment-pending'}`}>
+                    {paid ? 'PAGO' : 'PENDENTE'}
+                  </span>
+                </div>
+                <div className="event-subtitle user-event-details">
+                  <span>Vencimento: dia {user.due_day || BILLING_DUE_DAY}</span>
+                  <span>Último pagamento: {formatDate(user.last_payment_at || user.last_paid_at)}</span>
+                  <span>Criado em: {formatDate(user.created_at)}</span>
+                  <span>Teste: {formatTrialLabel(daysLeft)}</span>
+                </div>
+              </div>
+
+              <div className="event-actions">
+                <button className="btn-edit" onClick={() => onEdit(user)} title="Editar usuário">
+                  ✏️
+                </button>
+
+                <button className="btn-delete" onClick={() => onDelete(user)} title="Excluir usuário">
+                  🗑️
+                </button>
+              </div>
+            </div>
+          );
+        })}
       </div>
-    </div>
+    )}
   </div>
 );
 
@@ -2485,60 +2428,7 @@ function App() {
     }
   };
 
-  const handleBillingAction = async (user, action) => {
-    if (!client || profile?.role !== 'admin') {
-      pushToast('Somente administradores podem gerenciar cobrança.', 'warning');
-      return;
-    }
 
-    const today = new Date().toISOString().slice(0, 10);
-    const nowIso = new Date().toISOString();
-    const targetId = user.id || user.auth_id;
-    const payload = {};
-
-    if (action === 'activate') {
-      payload.billing_status = 'active';
-      payload.subscription_status = 'active';
-      payload.last_payment_at = nowIso;
-      payload.trial_status = 'expired';
-      payload.trial_end_at = nowIso;
-    } else if (action === 'inactivate') {
-      payload.subscription_status = 'inactive';
-    } else if (action === 'markPaid') {
-      payload.subscription_status = 'active';
-      payload.last_payment_at = today;
-    } else {
-      return;
-    }
-
-    try {
-      const { error } = await client
-        .from('profiles_auth')
-        .update(payload)
-        .eq('id', targetId);
-
-      if (error) throw error;
-
-      pushToast('Status de assinatura atualizado.', 'success');
-      setUsers((prev) => prev.map((item) => {
-        const matchId = item.auth_id || item.id;
-        if (matchId !== targetId) return item;
-
-        return {
-          ...item,
-          ...payload,
-          payment_status: action === 'markPaid' ? 'paid' : item.payment_status,
-          last_payment_at: action === 'markPaid' ? today : item.last_payment_at,
-          derived_status: computeEffectiveSubscriptionStatus({ ...item, ...payload, last_payment_at: today }, new Date()),
-        };
-      }));
-      loadRemoteData();
-      loadAffiliates();
-    } catch (err) {
-      console.warn('Erro ao atualizar status de assinatura', err);
-      pushToast(err.message || 'Erro ao atualizar assinatura.', 'danger');
-    }
-  };
 
   const normalizeAffiliateStats = (item) => ({
     ...item,
@@ -3271,7 +3161,6 @@ function App() {
                 setStep(1);
               }}
               onDelete={handleDeleteUser}
-              onBillingAction={handleBillingAction}
             />
 
             {openUserModal && (

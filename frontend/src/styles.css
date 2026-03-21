@@ -183,14 +183,6 @@ h2.title, h3.title{ margin:0 0 10px; font-weight:600; }
   box-shadow:0 0 0 1px rgba(0,0,0,.2), 0 12px 32px rgba(0,0,0,.25);
 }
 
-/* área de administração de usuários */
-.admin-card .user-empty{ text-align:center; margin-top:12px; }
-.admin-card table{ margin-top:4px; min-width:420px; }
-.users-table-container {
-  max-height: 220px;
-  overflow-y: auto;
-  padding-right: 4px;
-}
 .admin-user-form .admin-user-actions{
   display:flex;
   gap:8px;
@@ -236,42 +228,83 @@ h2.title, h3.title{ margin:0 0 10px; font-weight:600; }
 }
 .user-list-wrapper{ overflow:auto; }
 .user-empty.hidden{ display:none; }
-
-/* ===== Fix desktop: Cadastro de Usuários não estourar largura ===== */
-.users-table-container{
-  overflow-x: auto;              /* rolagem horizontal dentro do container */
-  -webkit-overflow-scrolling: touch;
-  max-width: 100%;
+.admin-card .user-empty{ text-align:center; margin-top:12px; }
+.user-list-wrapper{ min-width:0; }
+.usuarios-scroll-container {
+  max-height: 400px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-right: 4px;
 }
 
-.usuarios-scroll{
-  overflow-x: auto;              /* garante rolagem também no desktop */
-  -webkit-overflow-scrolling: touch;
-  max-width: 100%;
+.usuarios-scroll-container::-webkit-scrollbar {
+  width: 6px;
 }
 
-/* a tabela pode ser larga, mas deve rolar dentro do card */
-.usuarios-scroll table,
-.users-table{
-  min-width: 950px;              /* parecido com padrão das outras tabelas */
-  width: 100%;
+.usuarios-scroll-container::-webkit-scrollbar-thumb {
+  background: #ffffff33;
+  border-radius: 10px;
 }
 
-/* impede “vazamento” de grid/flex por conteúdo grande */
-.admin-card,
-.user-list-wrapper,
-.users-table-container,
-.usuarios-scroll{
-  min-width: 0;
+.usuarios-scroll-container::-webkit-scrollbar-track {
+  background: transparent;
 }
 
-.admin-card th.right,
-.admin-card td.actions{
-  text-align:right;
+.user-event-card {
+  margin-bottom: 0;
 }
 
-.admin-card tr.is-editing{
-  background:rgba(137,180,255,.08);
+.user-event-card.is-editing {
+  border-color: rgba(96, 165, 250, 0.7);
+  box-shadow: 0 0 0 1px rgba(96, 165, 250, 0.25);
+}
+
+.user-event-email {
+  min-width: 180px;
+  overflow-wrap: anywhere;
+}
+
+.user-event-meta,
+.user-event-details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.user-event-details span {
+  color: #cbd5e1;
+}
+
+.btn-edit,
+.btn-delete {
+  background: transparent;
+  border: 1px solid #334155;
+  border-radius: 10px;
+  padding: 8px;
+  cursor: pointer;
+  transition: 0.2s;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.btn-edit:hover,
+.btn-delete:hover {
+  background: #1e293b;
+}
+
+@media (max-width: 640px) {
+  .user-event-email {
+    min-width: auto;
+    width: 100%;
+  }
+
+  .user-event-details {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 }
 
 .icon-button{
@@ -665,9 +698,7 @@ canvas{ background:transparent; }
   .transacoes-scroll-container,
   .transactions-scroll,
   .agenda-scroll,
-  .events-table-container,
-  .users-table-container,
-  .usuarios-scroll{
+  .events-table-container{
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
   }
@@ -676,9 +707,7 @@ canvas{ background:transparent; }
   .transacoes-scroll-container table,
   .transactions-scroll table,
   .agenda-scroll table,
-  .events-table-container table,
-  .users-table-container table,
-  .usuarios-scroll table{
+  .events-table-container table{
     min-width: 650px;
   }
 }
@@ -716,14 +745,6 @@ canvas{ background:transparent; }
   }
 }
 
-/* ===== Responsivo: Cadastro de Usuários (mobile) ===== */
-
-/* A tabela precisa rolar DENTRO do container no mobile */
-.users-table-container{
-  overflow-x: auto;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-}
 
 /* Garante que o card single não fique “apertado” ou empurrado */
 .container.single-card{
@@ -2165,24 +2186,6 @@ canvas{ background:transparent; }
   background: #2a2a2a;
 }
 
-.usuarios-scroll {
-  max-height: 250px;   /* altura da área visível */
-  overflow-y: auto;    /* ativa a barra de rolagem */
-}
-
-/* Estiliza a barra de rolagem para combinar com o design */
-.usuarios-scroll::-webkit-scrollbar {
-  width: 6px;
-}
-
-.usuarios-scroll::-webkit-scrollbar-thumb {
-  background: #ffffff33;
-  border-radius: 10px;
-}
-
-.usuarios-scroll::-webkit-scrollbar-track {
-  background: transparent;
-}
 
 /* Gráficos e analytics */
 .chart-card{
