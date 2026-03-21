@@ -1198,7 +1198,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
   }, [dayEntries]);
 
   const renderSummaryCard = () => (
-    <div className="food-diary-summary-card">
+    <div className="food-diary-summary-card rounded-2xl border border-blue-500/20 bg-gradient-to-b from-[#0f172a] to-[#020617] p-4 shadow-md">
       <h5 className="title" style={{ margin: 0, fontSize: 14 }}>
         Resumo do dia
       </h5>
@@ -1670,7 +1670,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
             {mealsOfDay.map((meal) => {
               const isExpanded = Boolean(expandedMeals[meal.mealType]);
               return (
-                <div key={meal.mealType} className="food-diary-entry">
+                <div key={meal.mealType} className="food-diary-entry rounded-xl border border-blue-500/10 p-3 hover:border-blue-400 transition">
                   <div className="food-diary-entry-header">
                     <span>
                       <strong>{mealIcons[meal.mealType] || '🍽'} {meal.mealType}</strong>
@@ -1694,7 +1694,11 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
                   </div>
 
                   {isExpanded && meal.items.map((item) => (
-                    <div key={item.id} style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                    <div
+                      key={item.id}
+                      className="border-b border-blue-500/10 pb-2 mb-2"
+                      style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid rgba(255,255,255,0.06)' }}
+                    >
                       <div className="food-diary-entry-header">
                         <span>
                           {item.food || 'Alimento sem nome'}
@@ -1708,7 +1712,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
                       <div className="table-actions" style={{ justifyContent: 'flex-end', marginTop: 6 }}>
                         <button
                           type="button"
-                          className="icon-button"
+                          className="icon-button p-2 rounded-lg border border-blue-500/20 hover:bg-blue-500/10 transition"
                           onClick={() => handleEditEntry(item)}
                           title="Editar refeição"
                         >
@@ -1716,7 +1720,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
                         </button>
                         <button
                           type="button"
-                          className="icon-button"
+                          className="icon-button p-2 rounded-lg border border-blue-500/20 hover:bg-blue-500/10 transition"
                           onClick={() => handleDeleteEntry(item.id)}
                           title="Excluir refeição"
                         >
