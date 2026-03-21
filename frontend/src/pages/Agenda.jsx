@@ -267,28 +267,40 @@ export default function Agenda() {
           </button>
         </div>
 
-        {proximosEventos.length === 0 && <p style={{ opacity: 0.7 }}>Nenhum evento agendado</p>}
+        {proximosEventos.length === 0 ? (
+          <p style={{ opacity: 0.7 }}>Nenhum evento agendado</p>
+        ) : (
+          <div className="agenda-scroll-container">
+            {proximosEventos.map((evento) => (
+              <div key={evento.id} className="event-card">
+                <div className="event-date">{formatarDataBR(evento.date)}</div>
 
-        {proximosEventos.map((evento) => (
-          <div className="evento-item" key={evento.id}>
-            <div className="evento-data">{formatarDataBR(evento.date)}</div>
+                <div className="event-content">
+                  <div className="event-title">{evento.title}</div>
+                  {evento.notes && <div className="event-subtitle">{evento.notes}</div>}
+                  {(evento.start || evento.end) && (
+                    <div className="event-subtitle">
+                      {evento.start || "--:--"}
+                      {evento.end ? ` até ${evento.end}` : ""}
+                    </div>
+                  )}
+                </div>
 
-            <div className="evento-info">
-              <strong>{evento.title}</strong>
-              {evento.notes && <p>{evento.notes}</p>}
-            </div>
-
-            <button
-              type="button"
-              className="btn-secondary"
-              onClick={() => handleDelete(evento.id)}
-              aria-label={`Excluir evento ${evento.title}`}
-              title="Excluir evento"
-            >
-              🗑️
-            </button>
+                <div className="event-actions">
+                  <button
+                    type="button"
+                    className="btn-delete"
+                    onClick={() => handleDelete(evento.id)}
+                    aria-label={`Excluir evento ${evento.title}`}
+                    title="Excluir evento"
+                  >
+                    🗑️
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
-        ))}
+        )}
       </div>
 
       {showCalendar && (
@@ -304,31 +316,39 @@ export default function Agenda() {
               className="input"
             />
 
-            <div className="historico-scroll">
-              {eventosHistoricoFiltrados.map((e) => (
-                <div className="evento-item" key={e.id}>
-                  <div className="evento-data">{formatarDataBR(e.date)}</div>
-                  <div className="evento-info">
-                    <strong>{e.title}</strong>
-                    {e.notes && <p>{e.notes}</p>}
+            {eventosHistoricoFiltrados.length === 0 ? (
+              <p style={{ opacity: 0.6 }}>Nenhum evento encontrado</p>
+            ) : (
+              <div className="agenda-scroll-container" style={{ marginTop: 10 }}>
+                {eventosHistoricoFiltrados.map((e) => (
+                  <div className="event-card" key={e.id}>
+                    <div className="event-date">{formatarDataBR(e.date)}</div>
+                    <div className="event-content">
+                      <div className="event-title">{e.title}</div>
+                      {e.notes && <div className="event-subtitle">{e.notes}</div>}
+                      {(e.start || e.end) && (
+                        <div className="event-subtitle">
+                          {e.start || "--:--"}
+                          {e.end ? ` até ${e.end}` : ""}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="event-actions">
+                      <button
+                        type="button"
+                        className="btn-delete"
+                        onClick={() => handleDelete(e.id)}
+                        aria-label={`Excluir evento ${e.title}`}
+                        title="Excluir evento"
+                      >
+                        🗑️
+                      </button>
+                    </div>
                   </div>
-
-                  <button
-                    type="button"
-                    className="btn-secondary"
-                    onClick={() => handleDelete(e.id)}
-                    aria-label={`Excluir evento ${e.title}`}
-                    title="Excluir evento"
-                  >
-                    🗑️
-                  </button>
-                </div>
-              ))}
-
-              {eventosHistoricoFiltrados.length === 0 && (
-                <p style={{ opacity: 0.6 }}>Nenhum evento encontrado</p>
-              )}
-            </div>
+                ))}
+              </div>
+            )}
 
             <button className="btn-secondary" onClick={() => setShowCalendar(false)}>
               Fechar
