@@ -2463,18 +2463,6 @@ canvas{ background:transparent; }
   border-bottom: none;
 }
 
-.workout-history-scroll {
-  max-height: 260px;
-  overflow-y: auto;
-  padding-right: 4px;
-}
-
-.treino-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
 .event-card {
   display: flex;
   align-items: center;
