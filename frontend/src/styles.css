@@ -2469,6 +2469,81 @@ canvas{ background:transparent; }
   padding-right: 4px;
 }
 
+.treino-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.treino-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #0f172a;
+  border: 1px solid #1e293b;
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 12px;
+  gap: 12px;
+}
+
+.treino-data {
+  color: #60a5fa;
+  font-weight: bold;
+  min-width: 110px;
+}
+
+.treino-info {
+  flex: 1;
+  margin-left: 16px;
+  min-width: 0;
+}
+
+.treino-titulo {
+  font-weight: 600;
+  color: #fff;
+}
+
+.treino-desc {
+  color: #94a3b8;
+}
+
+.treino-extra {
+  color: #64748b;
+  font-size: 13px;
+  margin-top: 4px;
+}
+
+.btn-delete {
+  background: transparent;
+  border: 1px solid #334155;
+  border-radius: 10px;
+  padding: 8px;
+  cursor: pointer;
+  transition: 0.2s;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.btn-delete:hover {
+  background: #1e293b;
+}
+
+@media (max-width: 640px) {
+  .treino-card {
+    flex-wrap: wrap;
+  }
+
+  .treino-info {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .treino-data {
+    min-width: auto;
+  }
+}
+
 .header-actions{
   display:flex;
   justify-content:space-between;
