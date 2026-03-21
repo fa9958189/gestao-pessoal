@@ -609,6 +609,49 @@ const UsersTable = ({ items, onEdit, onDelete }) => (
   </div>
 );
 
+
+const AffiliateCards = ({ items, onViewUsers, onMarkPaid, payoutLoadingId }) => (
+  <div className="affiliate-list-wrapper">
+    {items.length === 0 ? (
+      <div className="muted user-empty">Nenhum afiliado cadastrado.</div>
+    ) : (
+      <div className="affiliate-scroll-container card">
+        {items.map((item) => (
+          <div className="card-item affiliate-card-item" key={item.id}>
+            <div className="affiliate-card-main">
+              <strong>{item.name}</strong>
+              <p>{item.email || 'E-mail não informado'}</p>
+              <p>{item.whatsapp || 'WhatsApp não informado'}</p>
+              <p>Código: {item.code}</p>
+              <p>PIX: {item.pix_key || 'Não informado'}</p>
+              <p>Status: {item.is_active ? 'Ativo' : 'Inativo'}</p>
+              <p>Clientes ativos: {item.active_clients_count ?? item.active_users ?? 0}</p>
+              <p>Clientes inativos: {item.inactive_clients_count ?? item.inactive_users ?? 0}</p>
+              <p>Pagamento: {item.payout_status === 'PAGO' ? 'PAGO' : 'PENDENTE'}</p>
+              <p>Ref.: {item.payout_ref || item.current_payout_label || '-'}</p>
+              <p>Comissão mês: {formatCurrency((item.commission_month_cents || 0) / 100)}</p>
+            </div>
+
+            <div className="actions affiliate-card-actions">
+              <button className="btn-edit" onClick={() => onViewUsers(item)} title="Ver clientes">
+                ✏️
+              </button>
+              <button
+                className="btn-delete"
+                onClick={() => onMarkPaid(item)}
+                title="Marcar pago (mês atual)"
+                disabled={payoutLoadingId === item.id}
+              >
+                {payoutLoadingId === item.id ? '…' : '🗑️'}
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+    )}
+  </div>
+);
+
 const useChart = (canvasId, config) => {
   const chartRef = useRef(null);
   useEffect(() => {
@@ -1564,6 +1607,7 @@ function App() {
   const [editingUserId, setEditingUserId] = useState(null);
   const [editingUserOriginal, setEditingUserOriginal] = useState(null);
   const [affiliates, setAffiliates] = useState([]);
+  const [showForm, setShowForm] = useState(false);
   const [affiliateForm, setAffiliateForm] = useState({
     code: '',
     name: '',
@@ -2552,6 +2596,7 @@ function App() {
         email: '',
         pix_key: '',
       });
+      setShowForm(false);
       loadAffiliates();
     } catch (err) {
       console.warn('Erro ao salvar afiliado', err);
@@ -3296,121 +3341,105 @@ function App() {
       )}
 
       {activeView === 'affiliates' && isAdmin && (
-        <div className="container single-card">
+        <div className="container single-card admin-users-container">
           <section className="card admin-card" id="adminAffiliatesSection">
-            <h2 className="title">Afiliados</h2>
-            <p className="muted">Gerencie parceiros e visualize seus clientes.</p>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
+              <div>
+                <h2 className="title" style={{ marginBottom: 4 }}>Afiliados</h2>
+                <p className="muted">Gerencie parceiros e visualize seus clientes.</p>
+              </div>
 
-            <div className="grid grid-2 admin-user-form">
-              <div>
-                <label>Código</label>
-                <input
-                  value={affiliateForm.code}
-                  onChange={(e) => setAffiliateForm({ ...affiliateForm, code: e.target.value })}
-                  placeholder="AFI-001"
-                />
-              </div>
-              <div>
-                <label>Nome</label>
-                <input
-                  value={affiliateForm.name}
-                  onChange={(e) => setAffiliateForm({ ...affiliateForm, name: e.target.value })}
-                  placeholder="Nome do afiliado"
-                />
-              </div>
-              <div>
-                <label>WhatsApp</label>
-                <input
-                  value={affiliateForm.whatsapp}
-                  onChange={(e) => setAffiliateForm({ ...affiliateForm, whatsapp: e.target.value })}
-                  placeholder="+5511999999999"
-                />
-              </div>
-              <div>
-                <label>E-mail</label>
-                <input
-                  value={affiliateForm.email}
-                  onChange={(e) => setAffiliateForm({ ...affiliateForm, email: e.target.value })}
-                  placeholder="contato@exemplo.com"
-                />
-              </div>
-              <div>
-                <label>Chave PIX</label>
-                <input
-                  value={affiliateForm.pix_key}
-                  onChange={(e) => setAffiliateForm({ ...affiliateForm, pix_key: e.target.value })}
-                  placeholder="CPF, e-mail ou aleatória"
-                />
-              </div>
-              <div className="admin-user-actions">
-                <button className="primary" onClick={handleSaveAffiliate}>Criar afiliado</button>
-                <button
-                  className="ghost"
-                  onClick={() =>
-                    setAffiliateForm({
-                      code: '',
-                      name: '',
-                      whatsapp: '',
-                      email: '',
-                      pix_key: '',
-                    })
-                  }
-                >
-                  Limpar
-                </button>
-              </div>
+              <button
+                onClick={() => setShowForm(true)}
+                className="btn-primary"
+              >
+                + Novo Afiliado
+              </button>
             </div>
 
-            <div className="users-table-container" style={{ marginTop: 12 }}>
-              <table>
-                <thead>
-                  <tr>
-                    <th>Código</th>
-                    <th>Nome</th>
-                    <th>Status</th>
-                    <th>Ativos</th>
-                    <th>Inativos</th>
-                    <th>Pagamento</th>
-                    <th>Comissão mês</th>
-                    <th>Ações</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(affiliates || []).map((item) => (
-                    <tr key={item.id}>
-                      <td>{item.code}</td>
-                      <td>{item.name}</td>
-                      <td>{item.is_active ? 'Ativo' : 'Inativo'}</td>
-                      <td>{item.active_clients_count ?? item.active_users ?? 0}</td>
-                      <td>{item.inactive_clients_count ?? item.inactive_users ?? 0}</td>
-                      <td>
-                        <div className="column" style={{ gap: 4, alignItems: 'flex-start' }}>
-                          <span className={`badge ${item.payout_status === 'PAGO' ? 'badge-paid' : 'badge-payment-pending'}`}>
-                            {item.payout_status === 'PAGO' ? 'PAGO' : 'PENDENTE'}
-                          </span>
-                          <small className="muted">Ref.: {item.payout_ref || item.current_payout_label || '-'}</small>
-                        </div>
-                      </td>
-                      <td>{formatCurrency((item.commission_month_cents || 0) / 100)}</td>
-                      <td className="table-actions">
-                        <button className="ghost" onClick={() => handleViewAffiliateUsers(item)}>Ver clientes</button>
-                        <button
-                          className="ghost"
-                          onClick={() => handleMarkAffiliatePaid(item)}
-                          disabled={affiliatePayoutLoadingId === item.id}
-                        >
-                          {affiliatePayoutLoadingId === item.id ? 'Marcando...' : 'Marcar pago (mês atual)'}
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              {affiliatesLoading && <p className="muted">Carregando afiliados...</p>}
-              {!affiliatesLoading && !(affiliates || []).length && (
-                <p className="muted">Nenhum afiliado cadastrado.</p>
-              )}
-            </div>
+            {showForm && (
+              <div className="card admin-user-form-card" style={{ marginBottom: 20 }}>
+                <div className="grid grid-2 admin-user-form">
+                  <div>
+                    <label>Código</label>
+                    <input
+                      value={affiliateForm.code}
+                      onChange={(e) => setAffiliateForm({ ...affiliateForm, code: e.target.value })}
+                      placeholder="AFI-001"
+                    />
+                  </div>
+                  <div>
+                    <label>Nome</label>
+                    <input
+                      value={affiliateForm.name}
+                      onChange={(e) => setAffiliateForm({ ...affiliateForm, name: e.target.value })}
+                      placeholder="Nome do afiliado"
+                    />
+                  </div>
+                  <div>
+                    <label>WhatsApp</label>
+                    <input
+                      value={affiliateForm.whatsapp}
+                      onChange={(e) => setAffiliateForm({ ...affiliateForm, whatsapp: e.target.value })}
+                      placeholder="+5511999999999"
+                    />
+                  </div>
+                  <div>
+                    <label>E-mail</label>
+                    <input
+                      value={affiliateForm.email}
+                      onChange={(e) => setAffiliateForm({ ...affiliateForm, email: e.target.value })}
+                      placeholder="contato@exemplo.com"
+                    />
+                  </div>
+                  <div>
+                    <label>Chave PIX</label>
+                    <input
+                      value={affiliateForm.pix_key}
+                      onChange={(e) => setAffiliateForm({ ...affiliateForm, pix_key: e.target.value })}
+                      placeholder="CPF, e-mail ou aleatória"
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: '10px', marginTop: '20px', flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    onClick={handleSaveAffiliate}
+                    className="btn-primary"
+                  >
+                    Criar afiliado
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowForm(false);
+                      setAffiliateForm({
+                        code: '',
+                        name: '',
+                        whatsapp: '',
+                        email: '',
+                        pix_key: '',
+                      });
+                    }}
+                    className="btn-secondary"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {affiliatesLoading && <p className="muted">Carregando afiliados...</p>}
+            {!affiliatesLoading && (
+              <AffiliateCards
+                items={affiliates || []}
+                onViewUsers={handleViewAffiliateUsers}
+                onMarkPaid={handleMarkAffiliatePaid}
+                payoutLoadingId={affiliatePayoutLoadingId}
+              />
+            )}
           </section>
         </div>
       )}

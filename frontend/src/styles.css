@@ -252,6 +252,52 @@ h2.title, h3.title{ margin:0 0 10px; font-weight:600; }
   background: transparent;
 }
 
+.card-item {
+  padding: 15px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+
+.actions {
+  display: flex;
+  gap: 10px;
+}
+
+.affiliate-list-wrapper{ min-width:0; }
+
+.affiliate-scroll-container{
+  max-height:500px;
+  overflow-y:auto;
+  display:flex;
+  flex-direction:column;
+  gap:0;
+  padding-right:4px;
+}
+
+.affiliate-card-item{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:16px;
+}
+
+.affiliate-card-item:last-child{ border-bottom:none; }
+
+.affiliate-card-main{
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+}
+
+.affiliate-card-main p{
+  margin:0;
+  color:var(--muted);
+}
+
+.affiliate-card-actions{
+  align-items:flex-start;
+  flex-wrap:wrap;
+}
+
 .user-event-card {
   margin-bottom: 0;
 }
@@ -2613,4 +2659,15 @@ canvas{ background:transparent; }
   margin: 0;
   opacity: 0.7;
   font-size: 13px;
+}
+
+@media (max-width: 700px){
+  .affiliate-card-item{
+    flex-direction:column;
+  }
+
+  .affiliate-card-actions{
+    width:100%;
+    justify-content:flex-end;
+  }
 }
