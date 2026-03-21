@@ -611,42 +611,59 @@ const UsersTable = ({ items, onEdit, onDelete }) => (
 
 
 const AffiliateCards = ({ items, onViewUsers, onMarkPaid, payoutLoadingId }) => (
-  <div className="affiliate-list-wrapper">
+  <div className="user-list-wrapper">
     {items.length === 0 ? (
       <div className="muted user-empty">Nenhum afiliado cadastrado.</div>
     ) : (
-      <div className="affiliate-scroll-container card">
-        {items.map((item) => (
-          <div className="card-item affiliate-card-item" key={item.id}>
-            <div className="affiliate-card-main">
-              <strong>{item.name}</strong>
-              <p>{item.email || 'E-mail não informado'}</p>
-              <p>{item.whatsapp || 'WhatsApp não informado'}</p>
-              <p>Código: {item.code}</p>
-              <p>PIX: {item.pix_key || 'Não informado'}</p>
-              <p>Status: {item.is_active ? 'Ativo' : 'Inativo'}</p>
-              <p>Clientes ativos: {item.active_clients_count ?? item.active_users ?? 0}</p>
-              <p>Clientes inativos: {item.inactive_clients_count ?? item.inactive_users ?? 0}</p>
-              <p>Pagamento: {item.payout_status === 'PAGO' ? 'PAGO' : 'PENDENTE'}</p>
-              <p>Ref.: {item.payout_ref || item.current_payout_label || '-'}</p>
-              <p>Comissão mês: {formatCurrency((item.commission_month_cents || 0) / 100)}</p>
-            </div>
+      <div className="usuarios-scroll-container">
+        {items.map((item) => {
+          const status = item.is_active ? 'active' : 'inactive';
+          const paymentStatus = item.payout_status === 'PAGO';
 
-            <div className="actions affiliate-card-actions">
-              <button className="btn-edit" onClick={() => onViewUsers(item)} title="Ver clientes">
-                ✏️
-              </button>
-              <button
-                className="btn-delete"
-                onClick={() => onMarkPaid(item)}
-                title="Marcar pago (mês atual)"
-                disabled={payoutLoadingId === item.id}
-              >
-                {payoutLoadingId === item.id ? '…' : '🗑️'}
-              </button>
+          return (
+            <div key={item.id} className="event-card user-event-card">
+              <div className="event-date user-event-email">
+                {item.email || item.code || '-'}
+              </div>
+
+              <div className="event-content">
+                <div className="event-title">{item.name || 'Sem nome'}</div>
+
+                <div className="event-subtitle">{item.whatsapp || 'WhatsApp não informado'}</div>
+                <div className="event-subtitle user-event-meta">
+                  <span className={`badge badge-${status}`}>
+                    {item.is_active ? 'ATIVO' : 'INATIVO'}
+                  </span>
+                  <span className={`badge ${paymentStatus ? 'badge-paid' : 'badge-payment-pending'}`}>
+                    {paymentStatus ? 'PAGO' : 'PENDENTE'}
+                  </span>
+                </div>
+                <div className="event-subtitle user-event-details">
+                  <span>Código: {item.code}</span>
+                  <span>PIX: {item.pix_key || 'Não informado'}</span>
+                  <span>Clientes ativos: {item.active_clients_count ?? item.active_users ?? 0}</span>
+                  <span>Clientes inativos: {item.inactive_clients_count ?? item.inactive_users ?? 0}</span>
+                  <span>Ref.: {item.payout_ref || item.current_payout_label || '-'}</span>
+                  <span>Comissão mês: {formatCurrency((item.commission_month_cents || 0) / 100)}</span>
+                </div>
+              </div>
+
+              <div className="event-actions">
+                <button className="btn-edit" onClick={() => onViewUsers(item)} title="Ver clientes">
+                  ✏️
+                </button>
+                <button
+                  className="btn-delete"
+                  onClick={() => onMarkPaid(item)}
+                  title="Marcar pago (mês atual)"
+                  disabled={payoutLoadingId === item.id}
+                >
+                  {payoutLoadingId === item.id ? '…' : '🗑️'}
+                </button>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     )}
   </div>
