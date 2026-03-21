@@ -1960,77 +1960,42 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
 
             {!sessions.length && <div className="muted">Nenhum treino registrado no período.</div>}
             {sessions.length > 0 && (
-              <div className="table history-list workout-history-scroll">
-                {sessions.map((session) => (
-                  <details key={session.id} className="table-row" open>
-                    <summary style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 4 }}>
-                      <div
-                        className="row"
-                        style={{ justifyContent: 'space-between', gap: 8, alignItems: 'center' }}
+              <div className="treino-list workout-history-scroll">
+                {sessions.map((session) => {
+                  const muscleGroups = (session.muscleGroups || [])
+                    .map((group) => muscleMap[group]?.label || group)
+                    .join(', ');
+                  const sportsActivities = Array.isArray(session.sportsActivities)
+                    ? session.sportsActivities
+                        .map((sport) => sportsMap[sport]?.label || sport)
+                        .join(', ')
+                    : '';
+                  const exerciseResume = (session.exercises || []).map(formatExerciseResume).join('; ');
+                  const description = muscleGroups || session.name || 'Treino realizado';
+                  const extraInfo = [sportsActivities, exerciseResume].filter(Boolean).join(' • ');
+
+                  return (
+                    <div key={session.id} className="treino-card">
+                      <div className="treino-data">{formatSessionDate(session.date || session.performed_at)}</div>
+
+                      <div className="treino-info">
+                        <div className="treino-titulo">Treino realizado</div>
+                        <div className="treino-desc">{description}</div>
+                        {extraInfo && <div className="treino-extra">{extraInfo}</div>}
+                      </div>
+
+                      <button
+                        type="button"
+                        className="btn-delete"
+                        onClick={() => handleDeleteSession(session.id)}
+                        aria-label={`Excluir treino de ${formatSessionDate(session.date || session.performed_at)}`}
+                        title="Excluir treino"
                       >
-                        <div style={{ fontWeight: 600 }}>{session.name}</div>
-                        <div className="row" style={{ gap: 10, alignItems: 'center' }}>
-                          <span className="muted" style={{ fontSize: 13 }}>
-                            {formatSessionDate(session.date || session.performed_at)}
-                          </span>
-                          <button
-                            type="button"
-                            className="ghost small btn-danger-outline"
-                            onClick={(event) => {
-                              event.preventDefault();
-                              event.stopPropagation();
-                              handleDeleteSession(session.id);
-                            }}
-                          >
-                            Excluir
-                          </button>
-                        </div>
-                      </div>
-                      <div className="muted" style={{ fontSize: 13 }}>
-                        {(session.muscleGroups || []).map((g) => muscleMap[g]?.label || g).join(', ')}
-                      </div>
-                      {Array.isArray(session.sportsActivities) && session.sportsActivities.length > 0 && (
-                        <div className="muted" style={{ fontSize: 13 }}>
-                          Esportes/atividades:{' '}
-                          {session.sportsActivities
-                            .map((sport) => sportsMap[sport]?.label || sport)
-                            .join(', ')}
-                        </div>
-                      )}
-                      <div className="muted" style={{ fontSize: 12 }}>
-                        {(session.exercises || []).map(formatExerciseResume).join('; ')}
-                      </div>
-                    </summary>
-                    <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 12 }}>
-                      {(session.exercises || []).map((ex) => (
-                        <div
-                          key={ex.id}
-                          style={{
-                            border: '1px solid rgba(255,255,255,0.08)',
-                            padding: 12,
-                            borderRadius: 10,
-                            background: '#0f131c',
-                          }}
-                        >
-                          <div className="row" style={{ justifyContent: 'space-between' }}>
-                            <strong>{ex.name}</strong>
-                            <span className="muted" style={{ fontSize: 12 }}>
-                              {muscleMap[ex.muscleGroupId]?.label || ex.muscleGroupId}
-                            </span>
-                          </div>
-                          <div className="muted" style={{ fontSize: 13 }}>
-                            Séries: {ex.sets} · Repetições: {ex.reps} · Peso: {ex.weight || '--'}kg · Descanso: {ex.restSeconds}s
-                          </div>
-                          {ex.notes && (
-                            <div style={{ marginTop: 6, fontSize: 13 }}>
-                              <strong>Anotações:</strong> {ex.notes}
-                            </div>
-                          )}
-                        </div>
-                      ))}
+                        🗑️
+                      </button>
                     </div>
-                  </details>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
