@@ -1958,7 +1958,7 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
 
             {!sessions.length && <div className="muted">Nenhum treino registrado no período.</div>}
             {sessions.length > 0 && (
-              <div>
+              <div className="treinos-scroll-container">
                 {treinosHistorico.map((treino) => (
                   <div key={treino.id} className="event-card">
 

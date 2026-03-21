@@ -2449,6 +2449,25 @@ canvas{ background:transparent; }
   background: rgba(255,255,255,0.35);
 }
 
+.treinos-scroll-container {
+  max-height: 400px;
+  overflow-y: auto;
+  padding-right: 5px;
+}
+
+.treinos-scroll-container::-webkit-scrollbar {
+  width: 6px;
+}
+
+.treinos-scroll-container::-webkit-scrollbar-thumb {
+  background: #3b82f6;
+  border-radius: 10px;
+}
+
+.treinos-scroll-container::-webkit-scrollbar-track {
+  background: transparent;
+}
+
 .workout-template-item.treino-item {
   padding: 16px 0;
   border-bottom: 1px solid rgba(255,255,255,0.05);
