@@ -183,6 +183,7 @@ h2.title, h3.title{ margin:0 0 10px; font-weight:600; }
   box-shadow:0 0 0 1px rgba(0,0,0,.2), 0 12px 32px rgba(0,0,0,.25);
 }
 
+.card-ui,
 .card-padrao{
   background: linear-gradient(145deg, #0f172a, #020617);
   border: 1px solid rgba(59,130,246,0.25);
@@ -191,6 +192,7 @@ h2.title, h3.title{ margin:0 0 10px; font-weight:600; }
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
+.card-ui:hover,
 .card-padrao:hover{
   border-color: rgba(59,130,246,0.6);
 }
@@ -451,11 +453,13 @@ button.btn-primary,
 }
 button.danger{ background:var(--danger); color:#fff; border:none; }
 button.ghost{ background:transparent; border:1px solid #38425b; }
+.btn-ui,
 .btn-acao{
   border: 1px solid rgba(59,130,246,0.3);
   color: #93c5fd;
   background: transparent;
 }
+.btn-ui:hover,
 .btn-acao:hover{
   background: rgba(59,130,246,0.15);
   border-color: #3b82f6;

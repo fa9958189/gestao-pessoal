@@ -166,7 +166,7 @@ export default function Agenda() {
       <div className="header-actions">
         <h2>Agenda</h2>
 
-        <button className="btn-primary" onClick={() => setShowWizard(true)}>
+        <button className="btn-primary btn-ui" onClick={() => setShowWizard(true)}>
           + Novo Evento
         </button>
       </div>
@@ -238,19 +238,19 @@ export default function Agenda() {
             )}
 
             <div className="wizard-actions">
-              {step > 1 && <button onClick={() => setStep(step - 1)}>← Voltar</button>}
+              {step > 1 && <button className="btn-ui" onClick={() => setStep(step - 1)}>← Voltar</button>}
 
-              {step < 4 && <button onClick={() => setStep(step + 1)}>Continuar →</button>}
+              {step < 4 && <button className="btn-ui" onClick={() => setStep(step + 1)}>Continuar →</button>}
 
               {step === 4 && (
-                <button className="btn-primary" onClick={salvarEvento}>
+                <button className="btn-primary btn-ui" onClick={salvarEvento}>
                   Salvar Evento
                 </button>
               )}
 
-              <button onClick={() => setShowWizard(false)}>Cancelar</button>
+              <button className="btn-ui" onClick={() => setShowWizard(false)}>Cancelar</button>
 
-              <button onClick={limpar}>Limpar</button>
+              <button className="btn-ui" onClick={limpar}>Limpar</button>
             </div>
           </div>
         </div>
@@ -258,11 +258,11 @@ export default function Agenda() {
 
       <hr />
 
-      <div className="card" style={{ marginTop: 20 }}>
+      <div className="card-ui" style={{ marginTop: 20 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h3>📅 Próximos eventos</h3>
 
-          <button className="btn-secondary" onClick={() => setShowCalendar(true)}>
+          <button className="btn-secondary btn-ui" onClick={() => setShowCalendar(true)}>
             📆 Histórico
           </button>
         </div>
@@ -272,7 +272,7 @@ export default function Agenda() {
         ) : (
           <div className="agenda-scroll-container">
             {proximosEventos.map((evento) => (
-              <div key={evento.id} className="event-card">
+              <div key={evento.id} className="event-card card-ui">
                 <div className="event-date">{formatarDataBR(evento.date)}</div>
 
                 <div className="event-content">
@@ -289,7 +289,7 @@ export default function Agenda() {
                 <div className="event-actions">
                   <button
                     type="button"
-                    className="btn-delete"
+                    className="btn-delete btn-ui"
                     onClick={() => handleDelete(evento.id)}
                     aria-label={`Excluir evento ${evento.title}`}
                     title="Excluir evento"
@@ -321,7 +321,7 @@ export default function Agenda() {
             ) : (
               <div className="agenda-scroll-container" style={{ marginTop: 10 }}>
                 {eventosHistoricoFiltrados.map((e) => (
-                  <div className="event-card" key={e.id}>
+                  <div className="event-card card-ui" key={e.id}>
                     <div className="event-date">{formatarDataBR(e.date)}</div>
                     <div className="event-content">
                       <div className="event-title">{e.title}</div>
@@ -337,7 +337,7 @@ export default function Agenda() {
                     <div className="event-actions">
                       <button
                         type="button"
-                        className="btn-delete"
+                        className="btn-delete btn-ui"
                         onClick={() => handleDelete(e.id)}
                         aria-label={`Excluir evento ${e.title}`}
                         title="Excluir evento"
@@ -350,7 +350,7 @@ export default function Agenda() {
               </div>
             )}
 
-            <button className="btn-secondary" onClick={() => setShowCalendar(false)}>
+            <button className="btn-secondary btn-ui" onClick={() => setShowCalendar(false)}>
               Fechar
             </button>
           </div>
