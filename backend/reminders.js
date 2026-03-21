@@ -1,18 +1,6 @@
 import "dotenv/config";
 import cron from "node-cron";
-import { createClient } from "@supabase/supabase-js";
-
-const SUPABASE_URL =
-  process.env.SUPABASE_URL || "https://gklpjwjzluqsnavwhwxf.supabase.co";
-const SUPABASE_SERVICE_ROLE_KEY =
-  process.env.SUPABASE_SERVICE_ROLE_KEY ||
-  process.env.SUPABASE_SERVICE_ROLE ||
-  process.env.SUPABASE_KEY ||
-  process.env.SUPABASE_ANON_KEY;
-
-const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
-  auth: { persistSession: false },
-});
+import { supabase } from "./supabase.js";
 
 const WHATSAPP_API_TOKEN = process.env.WHATSAPP_API_TOKEN;
 
