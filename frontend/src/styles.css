@@ -1438,10 +1438,16 @@ canvas{ background:transparent; }
   gap: 24px;
 }
 
+.gridBodySingle {
+  display: block;
+  width: 100%;
+}
+
 .corpo-grid {
   display: grid;
   gap: 20px;
-  grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+  width: 100%;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
 }
 
 .card-corpo,
@@ -1453,7 +1459,7 @@ canvas{ background:transparent; }
 }
 
 .card-grafico {
-  min-height: 300px;
+  min-height: 320px;
   overflow: hidden;
 }
 
@@ -2416,8 +2422,8 @@ canvas{ background:transparent; }
 
 @media (min-width: 1400px) {
   .corpo-grid {
-    grid-template-columns: 1.2fr 1fr 1.4fr;
-    align-items: stretch;
+    grid-template-columns: minmax(360px, 1.1fr) minmax(280px, 0.9fr) minmax(420px, 1.5fr);
+    align-items: start;
   }
 }
 
