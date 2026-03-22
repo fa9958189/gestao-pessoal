@@ -1440,14 +1440,21 @@ canvas{ background:transparent; }
 
 .corpo-grid {
   display: grid;
-  grid-template-columns: 1fr;
   gap: 20px;
+  grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
 }
 
 .card-corpo,
 .card-imc,
 .card-grafico {
+  width: 100%;
+  min-width: 0;
   height: 100%;
+}
+
+.card-grafico {
+  min-height: 300px;
+  overflow: hidden;
 }
 
 .hydration-card {
@@ -2394,7 +2401,8 @@ canvas{ background:transparent; }
 }
 
 @media (max-width: 900px) {
-  .food-diary-grid {
+  .food-diary-grid,
+  .corpo-grid {
     grid-template-columns: 1fr;
   }
 
@@ -2406,9 +2414,9 @@ canvas{ background:transparent; }
   }
 }
 
-@media (min-width: 1024px) {
+@media (min-width: 1400px) {
   .corpo-grid {
-    grid-template-columns: 1.2fr 1fr 1.5fr;
+    grid-template-columns: 1.2fr 1fr 1.4fr;
     align-items: stretch;
   }
 }
@@ -2585,8 +2593,9 @@ canvas{ background:transparent; }
 }
 
 /* Scroll para a área de histórico de peso no Diário Alimentar */
-.weight-history-scroll {
-  max-height: 40vh;
+.weight-history-scroll,
+.historico-peso {
+  max-height: 280px;
   overflow-y: auto;
   padding-right: 6px;
 }
