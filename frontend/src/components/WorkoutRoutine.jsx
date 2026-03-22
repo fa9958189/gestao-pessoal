@@ -1634,15 +1634,10 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
           </h2>
 
           <button
+            className="btn-primary"
             onClick={handleStartCreateTreino}
             disabled={openTreinoModal}
             style={{
-              background: '#22c55e',
-              color: '#fff',
-              border: 'none',
-              padding: '10px 18px',
-              borderRadius: '10px',
-              fontWeight: '600',
               cursor: openTreinoModal ? 'not-allowed' : 'pointer',
               opacity: openTreinoModal ? 0.6 : 1,
               display: openTreinoModal ? 'none' : 'inline-flex'

@@ -166,7 +166,7 @@ export default function Agenda() {
       <div className="header-actions">
         <h2>Agenda</h2>
 
-        <button className="btn-primary btn-ui" onClick={() => setShowWizard(true)}>
+        <button className="btn-primary" onClick={() => setShowWizard(true)}>
           + Novo Evento
         </button>
       </div>
@@ -243,7 +243,7 @@ export default function Agenda() {
               {step < 4 && <button className="btn-ui" onClick={() => setStep(step + 1)}>Continuar →</button>}
 
               {step === 4 && (
-                <button className="btn-primary btn-ui" onClick={salvarEvento}>
+                <button className="btn-primary" onClick={salvarEvento}>
                   Salvar Evento
                 </button>
               )}

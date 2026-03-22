@@ -1755,15 +1755,9 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
 
         <button
           type="button"
+          className="btn-primary"
           onClick={openAddMealModal}
           style={{
-            background: '#22c55e',
-            color: '#fff',
-            border: 'none',
-            padding: '10px 18px',
-            borderRadius: '10px',
-            fontWeight: '600',
-            cursor: 'pointer',
             display: 'inline-flex',
           }}
         >

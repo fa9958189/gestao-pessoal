@@ -2843,21 +2843,13 @@ function App() {
               </h2>
 
               <button
+                className="btn-primary"
                 onClick={() => {
                   setActiveTab('form');
                   setWizardAberto(true);
                   setEtapaTx('tipo');
                 }}
-                style={{
-                  background: '#22c55e',
-                  color: 'white',
-                  border: 'none',
-                  padding: '10px 18px',
-                  borderRadius: '10px',
-                  fontWeight: '600',
-                  cursor: 'pointer',
-                  fontSize: '15px'
-                }}
+                style={{ fontSize: '15px' }}
               >
                 + Nova Transação
               </button>
@@ -3145,7 +3137,7 @@ function App() {
               </div>
 
               <button
-                className="btn-primary btn-ui"
+                className="btn-primary"
                 onClick={() => {
                   resetUserWizard();
                   setOpenUserModal(true);
@@ -3389,7 +3381,7 @@ function App() {
                   resetAffiliateWizard();
                   setShowForm(true);
                 }}
-                className="btn-primary btn-ui"
+                className="btn-primary"
               >
                 + Novo Afiliado
               </button>
