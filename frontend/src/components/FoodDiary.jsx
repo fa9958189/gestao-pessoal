@@ -2143,7 +2143,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
       )}
 
       {activeSubTab === 'corpo' && (
-        <div className="gridBody">
+        <div className="gridBodySingle">
           <div className="corpo-grid">
             <BodyInfoCard />
             <BmiCard />
