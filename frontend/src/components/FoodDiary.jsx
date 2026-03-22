@@ -35,9 +35,9 @@ const defaultGoals = {
 };
 
 const defaultBody = {
-  heightCm: null,
-  weightKg: null,
-  goalWeightKg: null,
+  heightCm: '',
+  weightKg: '',
+  goalWeightKg: '',
 };
 
 const defaultWeightHistory = [];
@@ -60,11 +60,20 @@ const formatNumber = (value, decimals = 0) => {
 };
 
 const parseNumberInput = (value) => {
-  if (value == null || value === '') return null;
+  if (value == null) return null;
+
   const normalized = String(value).trim().replace(/\s/g, '').replace(',', '.');
+  if (normalized === '') return null;
+
+  if (!/^\d*\.?\d*$/.test(normalized)) {
+    return null;
+  }
+
   const numeric = Number(normalized);
   return Number.isFinite(numeric) ? numeric : null;
 };
+
+const isValidDecimalInput = (value) => /^\d*([.,]\d*)?$/.test(value);
 
 const getLocalDateString = () => {
   const now = new Date();
@@ -283,22 +292,22 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
         const todayWeightValue =
           todayWeight?.weight_kg != null && todayWeight.weight_kg !== ''
             ? String(todayWeight.weight_kg)
-            : null;
+            : '';
         const profileWeightValue =
           normalizedProfile?.weightKg != null && normalizedProfile.weightKg !== ''
             ? String(normalizedProfile.weightKg)
-            : null;
+            : '';
         const savedGoalWeight =
           typeof window !== 'undefined'
-            ? window.localStorage.getItem(getGoalWeightStorageKey(userId))
-            : null;
+            ? window.localStorage.getItem(getGoalWeightStorageKey(userId)) || ''
+            : '';
         const nextBody = {
           heightCm:
             normalizedProfile?.heightCm != null && normalizedProfile.heightCm !== ''
               ? String(normalizedProfile.heightCm)
-              : null,
+              : '',
           weightKg:
-            todayWeightValue ?? profileWeightValue,
+            todayWeightValue || profileWeightValue,
           goalWeightKg: savedGoalWeight,
         };
 
@@ -1102,12 +1111,15 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
   };
 
   const handleBodyChange = (field, value) => {
+    if (!isValidDecimalInput(value)) {
+      return;
+    }
+
     const nextBody = {
       ...body,
       [field]: value,
     };
 
-    // Apenas atualizar o estado local.
     setBody(nextBody);
 
     if (field !== 'weightKg') {
@@ -1497,11 +1509,9 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
         <div className="field">
           <label>Peso atual (kg)</label>
           <input
-            type="number"
-            min="0"
-            step="0.1"
+            type="text"
             inputMode="decimal"
-            value={body.weightKg ?? ''}
+            value={body.weightKg}
             onChange={(e) =>
               handleBodyChange('weightKg', e.target.value)
             }
@@ -1510,11 +1520,9 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
         <div className="field">
           <label>Altura (cm)</label>
           <input
-            type="number"
-            min="0"
-            step="0.1"
+            type="text"
             inputMode="decimal"
-            value={body.heightCm ?? ''}
+            value={body.heightCm}
             onChange={(e) =>
               handleBodyChange('heightCm', e.target.value)
             }
@@ -1523,11 +1531,9 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
         <div className="field">
           <label>Meta de peso (kg)</label>
           <input
-            type="number"
-            min="0"
-            step="0.1"
+            type="text"
             inputMode="decimal"
-            value={body.goalWeightKg ?? ''}
+            value={body.goalWeightKg}
             onChange={(e) =>
               handleBodyChange('goalWeightKg', e.target.value)
             }
