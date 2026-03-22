@@ -1661,6 +1661,7 @@ function App() {
   const [eventFilters, setEventFilters] = useState(defaultEventFilters);
   const [activeTab, setActiveTab] = useState('form');
   const [activeView, setActiveView] = useState('transactions');
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [wizardAberto, setWizardAberto] = useState(false);
   const [generalReportGoals, setGeneralReportGoals] = useState(defaultGeneralReportGoals);
   const workoutApiBase = normalizeBaseUrl(
@@ -1952,6 +1953,10 @@ function App() {
       loadAffiliates();
     }
   }, [activeView, isAdmin]);
+
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [activeView]);
 
   const filteredTransactions = useMemo(() => {
     return transactions.filter((tx) => {
@@ -2743,6 +2748,28 @@ function App() {
     }
   };
 
+  const toggleSidebar = () => {
+    setSidebarOpen((current) => !current);
+  };
+
+  const handleSidebarNavigation = (view) => {
+    setActiveView(view);
+  };
+
+  const sidebarItems = [
+    { key: 'transactions', label: '💰 Transações' },
+    { key: 'agenda', label: '📅 Agenda' },
+    ...(isAdmin
+      ? [
+          { key: 'users', label: '👤 Usuários' },
+          { key: 'affiliates', label: '🤝 Afiliados' },
+        ]
+      : []),
+    { key: 'workout', label: '🏋️ Treino' },
+    { key: 'foodDiary', label: '🍽 Alimentação' },
+    { key: 'generalReport', label: '📊 Relatório Geral' },
+  ];
+
   if (!session) {
     return (
       <>
@@ -2762,60 +2789,43 @@ function App() {
   return (
     <>
       <Toast toast={toast} onClose={() => setToast(null)} />
-      <DashboardHeader apiUrl={window.APP_CONFIG?.supabaseUrl} profile={profile} onLogout={handleLogout} />
-      {!wizardAberto && (
-        <div className="page-nav tabs">
-          <button
-            className={activeView === 'transactions' ? 'tab active' : 'tab'}
-            onClick={() => setActiveView('transactions')}
-          >
-            💰 Transações
-          </button>
-          <button
-            className={activeView === 'agenda' ? 'tab active' : 'tab'}
-            onClick={() => setActiveView('agenda')}
-          >
-            📅 Agenda
-          </button>
-          {isAdmin && (
-            <>
-              <button
-                className={activeView === 'users' ? 'tab active' : 'tab'}
-                onClick={() => setActiveView('users')}
-              >
-                👤 Usuários
-              </button>
-              <button
-                className={activeView === 'affiliates' ? 'tab active' : 'tab'}
-                onClick={() => setActiveView('affiliates')}
-              >
-                🤝 Afiliados
-              </button>
-            </>
-          )}
-          <button
-            className={activeView === 'workout' ? 'tab active' : 'tab'}
-            onClick={() => setActiveView('workout')}
-          >
-            🏋️ Treino
-          </button>
+      <button
+        className="menu-toggle"
+        onClick={toggleSidebar}
+        aria-label={sidebarOpen ? 'Fechar menu lateral' : 'Abrir menu lateral'}
+        aria-expanded={sidebarOpen}
+        type="button"
+      >
+        ☰
+      </button>
 
-          <button
-            className={activeView === 'foodDiary' ? 'tab active' : 'tab'}
-            onClick={() => setActiveView('foodDiary')}
-          >
-            🥗 Alimentação
-          </button>
-          <button
-            className={activeView === 'generalReport' ? 'tab active' : 'tab'}
-            onClick={() => setActiveView('generalReport')}
-          >
-            📊 Relatório Geral
-          </button>
+      <div
+        id="overlay"
+        className={`overlay ${sidebarOpen ? 'active' : ''}`}
+        onClick={toggleSidebar}
+      />
+
+      <div id="sidebar" className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
+        <div className="sidebar-header">
+          Gestão Pessoal
         </div>
-      )}
 
-      {activeView === 'transactions' && (
+        {sidebarItems.map((item) => (
+          <button
+            key={item.key}
+            type="button"
+            className={`sidebar-item ${activeView === item.key ? 'active' : ''}`}
+            onClick={() => handleSidebarNavigation(item.key)}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="main-content">
+        <DashboardHeader apiUrl={window.APP_CONFIG?.supabaseUrl} profile={profile} onLogout={handleLogout} />
+
+        {activeView === 'transactions' && (
         <div className="container single-card">
           <section className="card dashboard-card">
             <div
@@ -3594,6 +3604,7 @@ function App() {
           </div>
         </div>
       )}
+      </div>
     </>
   );
 }
