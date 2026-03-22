@@ -1467,7 +1467,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
   );
 
   const BodyInfoCard = () => (
-    <div className="food-diary-summary-card card-body">
+    <div className="food-diary-summary-card card-body card-corpo">
       <h5 className="title" style={{ margin: 0, fontSize: 14 }}>
         Seu corpo hoje
       </h5>
@@ -1600,7 +1600,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
   );
 
   const BmiCard = () => (
-    <div className="food-diary-summary-card">
+    <div className="food-diary-summary-card card-imc">
       <h5 className="title" style={{ margin: 0, fontSize: 14 }}>IMC e classificação</h5>
 
       {bmi ? (
@@ -1632,7 +1632,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
   );
 
   const WeightEvolutionCard = () => (
-    <div className="food-diary-summary-card">
+    <div className="food-diary-summary-card card-grafico">
       <h5 className="title" style={{ margin: 0, fontSize: 14 }}>Evolução do peso</h5>
       {weightChartData.length > 0 ? (
         <div style={{ width: '100%', height: 260 }}>
@@ -2144,9 +2144,11 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
 
       {activeSubTab === 'corpo' && (
         <div className="gridBody">
-          <BodyInfoCard />
-          <BmiCard />
-          <WeightEvolutionCard />
+          <div className="corpo-grid">
+            <BodyInfoCard />
+            <BmiCard />
+            <WeightEvolutionCard />
+          </div>
         </div>
       )}
 
