@@ -1792,7 +1792,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
           <button
             key={subTab.key}
             type="button"
-            className={activeSubTab === subTab.key ? 'active' : ''}
+            className={activeSubTab === subTab.key ? 'subtab active' : 'subtab'}
             onClick={() => setActiveSubTab(subTab.key)}
           >
             {subTab.label}

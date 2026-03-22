@@ -1665,25 +1665,25 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
         >
           <button
             onClick={() => setTreinoTab('treinos')}
-            className={treinoTab === 'treinos' ? 'active' : ''}
+            className={treinoTab === 'treinos' ? 'subtab active' : 'subtab'}
           >
             📋 Treinos
           </button>
           <button
             onClick={() => setTreinoTab('planejamento')}
-            className={treinoTab === 'planejamento' ? 'active' : ''}
+            className={treinoTab === 'planejamento' ? 'subtab active' : 'subtab'}
           >
             📅 Planejamento
           </button>
           <button
             onClick={() => setTreinoTab('evolucao')}
-            className={treinoTab === 'evolucao' ? 'active' : ''}
+            className={treinoTab === 'evolucao' ? 'subtab active' : 'subtab'}
           >
             📊 Evolução
           </button>
           <button
             onClick={() => setTreinoTab('historico')}
-            className={treinoTab === 'historico' ? 'active' : ''}
+            className={treinoTab === 'historico' ? 'subtab active' : 'subtab'}
           >
             🕓 Histórico
           </button>
