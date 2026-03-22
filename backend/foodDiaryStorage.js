@@ -9,6 +9,7 @@ const DEFAULT_GOALS = {
 const DEFAULT_BODY = {
   heightCm: "",
   weightKg: "",
+  goalWeightKg: "",
 };
 
 const DEFAULT_WATER_GOAL_L = DEFAULT_GOALS.water;
@@ -56,6 +57,10 @@ const mapBodyFromProfile = (profile) => ({
     profile?.weight_kg != null && profile.weight_kg !== ""
       ? profile.weight_kg
       : DEFAULT_BODY.weightKg,
+  goalWeightKg:
+    profile?.target_weight_kg != null && profile.target_weight_kg !== ""
+      ? profile.target_weight_kg
+      : DEFAULT_BODY.goalWeightKg,
 });
 
 const toNumberOrNull = (value) => {
@@ -279,7 +284,9 @@ export const getFoodDiaryState = async (userId, { dayDate } = {}) => {
 
   const { data: profile, error: profileError } = await supabase
     .from("food_diary_profile")
-    .select("calorie_goal, protein_goal, water_goal_l, height_cm, weight_kg")
+    .select(
+      "calorie_goal, protein_goal, water_goal_l, height_cm, weight_kg, target_weight_kg"
+    )
     .eq("user_id", userId)
     .maybeSingle();
 
@@ -340,6 +347,7 @@ export const saveFoodDiaryState = async (userId, state = {}) => {
       goals.water != null ? Number(goals.water) : DEFAULT_GOALS.water,
     height_cm: body.heightCm !== "" ? body.heightCm : null,
     weight_kg: body.weightKg !== "" ? body.weightKg : null,
+    target_weight_kg: body.goalWeightKg !== "" ? body.goalWeightKg : null,
   };
 
   const { error: profileError } = await supabase

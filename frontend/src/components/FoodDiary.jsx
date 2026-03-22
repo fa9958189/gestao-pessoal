@@ -81,8 +81,6 @@ const getLocalDateString = () => {
   return new Date(now.getTime() - offsetMs).toISOString().slice(0, 10);
 };
 
-const getGoalWeightStorageKey = (userId) => `food-diary-goal-weight:${userId}`;
-
 const getVariationIndicator = (variation) => {
   if (!Number.isFinite(variation)) {
     return {
@@ -297,10 +295,6 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
           normalizedProfile?.weightKg != null && normalizedProfile.weightKg !== ''
             ? String(normalizedProfile.weightKg)
             : '';
-        const savedGoalWeight =
-          typeof window !== 'undefined'
-            ? window.localStorage.getItem(getGoalWeightStorageKey(userId)) || ''
-            : '';
         const nextBody = {
           heightCm:
             normalizedProfile?.heightCm != null && normalizedProfile.heightCm !== ''
@@ -308,7 +302,11 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
               : '',
           weightKg:
             todayWeightValue || profileWeightValue,
-          goalWeightKg: savedGoalWeight,
+          goalWeightKg:
+            normalizedProfile?.goalWeightKg != null &&
+            normalizedProfile.goalWeightKg !== ''
+              ? String(normalizedProfile.goalWeightKg)
+              : '',
         };
 
         setBody(nextBody);
@@ -336,30 +334,6 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
       isMounted = false;
     };
   }, [userId, supabase, refreshToken]);
-
-  useEffect(() => {
-    if (!userId || typeof window === 'undefined') return;
-
-    const savedGoalWeight = window.localStorage.getItem(getGoalWeightStorageKey(userId));
-    if (savedGoalWeight == null) return;
-
-    setBody((prev) => ({
-      ...prev,
-      goalWeightKg: savedGoalWeight,
-    }));
-  }, [userId]);
-
-  useEffect(() => {
-    if (!userId || typeof window === 'undefined') return;
-
-    const storageKey = getGoalWeightStorageKey(userId);
-    if (!body.goalWeightKg) {
-      window.localStorage.removeItem(storageKey);
-      return;
-    }
-
-    window.localStorage.setItem(storageKey, body.goalWeightKg);
-  }, [body.goalWeightKg, userId]);
 
   const persistDailyGoals = async (nextGoals) => {
     const waterGoal = Number(nextGoals.water || 0);
@@ -1135,13 +1109,14 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
     return {
       heightCm: normalizeNumber(values.heightCm),
       weightKg: normalizeNumber(values.weightKg),
+      goalWeightKg: normalizeNumber(values.goalWeightKg),
     };
   };
 
   const buildProfilePayload = (currentValues, initialValues) => {
     const normalizedCurrent = normalizeBodyValues(currentValues);
     const normalizedInitial = normalizeBodyValues(initialValues);
-    const fieldsToCheck = ['heightCm'];
+    const fieldsToCheck = ['heightCm', 'goalWeightKg'];
     const payload = fieldsToCheck.reduce((acc, key) => {
       if (!Object.is(normalizedCurrent[key], normalizedInitial[key])) {
         acc[key] = normalizedCurrent[key];
@@ -1185,6 +1160,10 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
           cleanedPayload.heightCm != null
             ? String(cleanedPayload.heightCm)
             : nextBody.heightCm,
+        goalWeightKg:
+          cleanedPayload.goalWeightKg != null
+            ? String(cleanedPayload.goalWeightKg)
+            : nextBody.goalWeightKg,
       };
 
       setBody(refreshedBody);
@@ -1194,6 +1173,10 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
           normalizedCurrent.heightCm != null
             ? String(normalizedCurrent.heightCm)
             : initialBodyRef.current.heightCm,
+        goalWeightKg:
+          normalizedCurrent.goalWeightKg != null
+            ? String(normalizedCurrent.goalWeightKg)
+            : '',
       };
     } catch (error) {
       console.error('Falha ao salvar perfil', error);
@@ -1532,7 +1515,8 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
           <label>Meta de peso (kg)</label>
           <input
             type="text"
-            inputMode="decimal"
+            inputMode="numeric"
+            placeholder="Ex: 90"
             value={body.goalWeightKg}
             onChange={(e) =>
               handleBodyChange('goalWeightKg', e.target.value)

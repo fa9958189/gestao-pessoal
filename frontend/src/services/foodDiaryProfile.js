@@ -102,6 +102,8 @@ const normalizeProfileRow = (row) => {
   return {
     heightCm: heightValue != null ? Number(heightValue) : null,
     weightKg: weightValue != null ? Number(weightValue) : null,
+    goalWeightKg:
+      row.target_weight_kg != null ? Number(row.target_weight_kg) : null,
     sex: normalizeSexForStorage(row.sex ?? row.sexo ?? null),
     age: ageValue != null ? Number.parseInt(ageValue, 10) : null,
     activityLevel: normalizeActivityForStorage(
@@ -147,6 +149,7 @@ export async function saveProfile({
   supabase,
   userId,
   weightKg,
+  goalWeightKg,
   heightCm,
   sex,
   age,
@@ -163,6 +166,8 @@ export async function saveProfile({
     heightCm != null && heightCm !== '' ? Number(heightCm) : null;
   const normalizedWeight =
     weightKg != null && weightKg !== '' ? Number(weightKg) : null;
+  const normalizedGoalWeight =
+    goalWeightKg != null && goalWeightKg !== '' ? Number(goalWeightKg) : null;
 
   // ✅ Novo: grava também em profiles_auth (sem quebrar o que já existe)
   await updateProfileAuth({
@@ -179,6 +184,9 @@ export async function saveProfile({
     user_id: userId,
     ...(heightCm !== undefined ? { height_cm: normalizedHeight } : {}),
     ...(weightKg !== undefined ? { current_weight_kg: normalizedWeight } : {}),
+    ...(goalWeightKg !== undefined
+      ? { target_weight_kg: normalizedGoalWeight }
+      : {}),
     ...(sex !== undefined ? { sex: normalizedSex } : {}),
     ...(age !== undefined ? { age: normalizedAge } : {}),
     ...(activityLevel !== undefined
@@ -204,6 +212,9 @@ export async function saveProfile({
   const legacyPayload = {
     ...(heightCm !== undefined ? { altura_cm: normalizedHeight } : {}),
     ...(weightKg !== undefined ? { weight_kg: normalizedWeight } : {}),
+    ...(goalWeightKg !== undefined
+      ? { target_weight_kg: normalizedGoalWeight }
+      : {}),
     ...(sex !== undefined ? { sexo: normalizedSex } : {}),
     ...(age !== undefined ? { idade: normalizedAge } : {}),
     ...(activityLevel !== undefined
