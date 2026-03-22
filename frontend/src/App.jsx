@@ -2865,10 +2865,10 @@ function App() {
 
             {!wizardAberto && (
               <div className="tabs">
-                <button className={activeTab === 'form' ? 'tab active' : 'tab'} onClick={() => setActiveTab('form')}>
+                <button className={activeTab === 'form' ? 'subtab active' : 'subtab'} onClick={() => setActiveTab('form')}>
                   📋 Cadastro
                 </button>
-                <button className={activeTab === 'reports' ? 'tab active' : 'tab'} onClick={() => setActiveTab('reports')}>
+                <button className={activeTab === 'reports' ? 'subtab active' : 'subtab'} onClick={() => setActiveTab('reports')}>
                   📊 Relatórios
                 </button>
               </div>
