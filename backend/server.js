@@ -61,8 +61,10 @@ const getCurrentPeriodMonth = (today = new Date()) =>
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-const generateAffiliateCode = () =>
-  `AF${Math.floor(1000 + Math.random() * 9000)}`;
+const generateAffiliateCode = () => {
+  const code = "AF" + Math.floor(1000 + Math.random() * 9000);
+  return code;
+};
 
 const normalizeAffiliateStatus = (affiliate = {}) => {
   const rawStatus = String(
@@ -864,23 +866,6 @@ app.get("/admin/affiliates", async (req, res) => {
       return res.status(400).json({ error: affiliatesError.message });
     }
 
-    const currentPeriodMonth = getCurrentPeriodMonth();
-    let payoutMap = new Map();
-    try {
-      const { data: payoutRows, error: payoutErr } = await supabase
-        .from("affiliate_payouts")
-        .select("affiliate_id, period_month, paid_at, amount_cents")
-        .eq("period_month", currentPeriodMonth);
-
-      if (payoutErr && payoutErr.code !== "42P01") {
-        throw payoutErr;
-      }
-
-      payoutMap = new Map((payoutRows || []).map((row) => [row.affiliate_id, row]));
-    } catch (err) {
-      console.error("Erro ao buscar pagamentos de afiliados:", err);
-    }
-
     let profiles = [];
     try {
       const { data: profileRows, error: profileErr } = await supabase
@@ -933,10 +918,6 @@ app.get("/admin/affiliates", async (req, res) => {
       const totalClients = stat.totalClients || 0;
 
       const commissionMonthCents = activeClients * AFFILIATE_COMMISSION_CENTS;
-      const payoutRow = payoutMap.get(affiliate.id) || null;
-      const payoutStatus = payoutRow?.paid_at ? "PAGO" : "PENDENTE";
-      const currentPayoutStatus = payoutRow?.paid_at ? "paid" : "pending";
-      const payoutPeriod = payoutRow?.period_month || currentPeriodMonth;
 
       return {
         ...affiliate,
@@ -948,14 +929,7 @@ app.get("/admin/affiliates", async (req, res) => {
         active_clients_count: activeClients,
         inactive_clients_count: inactiveClients,
         active_paid_clients_count: activeClients,
-        pending_users: inactiveClients,
         commission_month_cents: commissionMonthCents,
-        current_payout_status: currentPayoutStatus,
-        current_payout_period: payoutPeriod,
-        current_payout_paid_at: payoutRow?.paid_at || null,
-        payout_status_month_current: currentPayoutStatus,
-        payout_ref: payoutPeriod.slice(0, 7),
-        payout_status: payoutStatus,
       };
     });
 
@@ -971,15 +945,15 @@ app.post("/admin/affiliates", async (req, res) => {
     const authData = await authenticateRequest(req, res, { requireAdmin: true });
     if (!authData) return;
 
-    const { code, name, whatsapp, email, pix_key, commission_cents } = req.body || {};
-    const generatedCode = String(code || generateAffiliateCode()).trim();
+    const { name, whatsapp, email, pix_key, commission_cents } = req.body || {};
+    const code = generateAffiliateCode();
 
     if (!name) {
       return res.status(400).json({ error: "name é obrigatório" });
     }
 
     const payload = {
-      code: generatedCode,
+      code,
       name: String(name).trim(),
       whatsapp: whatsapp || null,
       email: email || null,
@@ -1115,7 +1089,6 @@ app.get("/admin/affiliates/:id/users", async (req, res) => {
 
       return {
         ...user,
-        billing_status: normalizedStatus,
         status: normalizedStatus,
         is_active: normalizedStatus === "active",
       };
