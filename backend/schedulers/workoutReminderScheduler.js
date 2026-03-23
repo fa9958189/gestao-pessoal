@@ -30,6 +30,91 @@ const normalizePhone = (phone) => {
   return digits.startsWith("55") ? digits : `55${digits}`;
 };
 
+const buildAgendaSection = (events) => {
+  if (!events?.length) {
+    return "";
+  }
+
+  const sortedEvents = [...events].sort((a, b) =>
+    String(a.start || "").localeCompare(String(b.start || ""))
+  );
+
+  const lines = ["", "📅 Compromissos de hoje", ""];
+
+  for (const event of sortedEvents) {
+    lines.push(`• ${event.title || "Evento"}`);
+    lines.push(`  ⏰ Início: ${event.start || "-"}`);
+
+    const notes = String(event.notes || "").trim();
+    if (notes) {
+      lines.push(`  📝 Observações: ${notes}`);
+    }
+
+    lines.push("");
+  }
+
+  while (lines.length && !lines[lines.length - 1]) {
+    lines.pop();
+  }
+
+  return lines.join("\n");
+};
+
+const fetchTodayAgendaEvents = async (userId, referenceDate = new Date()) => {
+  const today = new Date(referenceDate);
+  const dateStr = formatDateOnlyInSaoPaulo(today);
+
+  console.log("📅 Buscando eventos para:", dateStr);
+
+  const { data: eventsToday, error } = await supabase
+    .from("events")
+    .select("*")
+    .gte("date", `${dateStr}T00:00:00`)
+    .lte("date", `${dateStr}T23:59:59`)
+    .eq("user_id", userId);
+
+  if (error) {
+    console.error("❌ Erro ao buscar eventos:", error);
+    return [];
+  }
+
+  let normalizedEvents = eventsToday || [];
+
+  if (!normalizedEvents.length) {
+    const { data: dateOnlyEvents, error: dateOnlyError } = await supabase
+      .from("events")
+      .select("*")
+      .eq("date", dateStr)
+      .eq("user_id", userId);
+
+    if (dateOnlyError) {
+      console.error("❌ Erro ao buscar eventos em formato date:", dateOnlyError);
+      return [];
+    }
+
+    normalizedEvents = dateOnlyEvents || [];
+  }
+
+  console.log("📦 Eventos encontrados:", normalizedEvents);
+  return normalizedEvents.filter((event) => event?.is_active !== false);
+};
+
+const markAgendaEventsAsSent = async (events) => {
+  const eventIds = (events || []).map((event) => event?.id).filter(Boolean);
+  if (!eventIds.length) {
+    return;
+  }
+
+  const { error } = await supabase
+    .from("events")
+    .update({ sent: true })
+    .in("id", eventIds);
+
+  if (error) {
+    console.error("❌ Erro ao marcar eventos como enviados no disparo matinal:", error);
+  }
+};
+
 const sendWhatsApp = async (userId, message) => {
   const { data: profile, error } = await supabase
     .from("profiles_auth")
@@ -114,6 +199,8 @@ export function startWorkoutReminderScheduler() {
         const workoutName = workout?.name || "Treino";
         const workoutTime = schedule?.time || "Não definido";
         const quote = await getRandomMotivationalQuote();
+        const eventsToday = await fetchTodayAgendaEvents(schedule.user_id);
+        const agendaSection = buildAgendaSection(eventsToday);
 
         const message = `
 ☀️ Bom dia!
@@ -123,11 +210,12 @@ export function startWorkoutReminderScheduler() {
 💪 Treino de hoje
 ${workoutName}
 
-⏰ Horário: ${workoutTime}
+⏰ Horário: ${workoutTime}${agendaSection}
 `;
 
         try {
           await sendWhatsApp(schedule.user_id, message);
+          await markAgendaEventsAsSent(eventsToday);
 
           await supabase.from("workout_schedule_reminder_logs").insert({
             user_id: schedule.user_id,
