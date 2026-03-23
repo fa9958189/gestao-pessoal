@@ -83,10 +83,7 @@ const defaultUserForm = {
   applyTrial: false
 };
 
-const generateAffiliateCode = () => `AF${Math.floor(1000 + Math.random() * 9000)}`;
-
 const createDefaultAffiliateForm = () => ({
-  code: generateAffiliateCode(),
   name: '',
   whatsapp: '',
   email: '',
@@ -620,15 +617,13 @@ const UsersTable = ({ items, onEdit, onDelete }) => (
 );
 
 
-const AffiliateCards = ({ items, onViewUsers, onMarkPaid, onToggleStatus, payoutLoadingId, statusLoadingId }) => (
+const AffiliateCards = ({ items, onViewUsers, onToggleStatus, statusLoadingId }) => (
   <div className="user-list-wrapper">
     {items.length === 0 ? (
       <div className="muted user-empty">Nenhum afiliado cadastrado.</div>
     ) : (
       <div className="usuarios-scroll-container">
         {items.map((item) => {
-          const paymentStatus = item.payout_status === 'PAGO';
-
           return (
             <div key={item.id} className="event-card user-event-card card-ui">
               <div className="event-date user-event-email">
@@ -643,22 +638,18 @@ const AffiliateCards = ({ items, onViewUsers, onMarkPaid, onToggleStatus, payout
                   <button
                     type="button"
                     className={`badge-status-button ${item.is_active ? 'badge-green' : 'badge-red'}`}
-                    onClick={() => onToggleStatus(item.id, item.is_active)}
+                    onClick={() => onToggleStatus(item.id, item.is_active ? 'active' : 'inactive')}
                     disabled={statusLoadingId === item.id}
                     title={item.is_active ? 'Desativar afiliado' : 'Ativar afiliado'}
                   >
                     {statusLoadingId === item.id ? '...' : (item.is_active ? 'ATIVO' : 'INATIVO')}
                   </button>
-                  <span className={`badge ${paymentStatus ? 'badge-paid' : 'badge-payment-open'}`}>
-                    {paymentStatus ? 'PAGO' : 'EM ABERTO'}
-                  </span>
                 </div>
                 <div className="event-subtitle user-event-details">
                   <span>Código: {item.code}</span>
                   <span>PIX: {item.pix_key || 'Não informado'}</span>
                   <span>Clientes ativos: {item.active_clients_count ?? item.active_users ?? 0}</span>
                   <span>Clientes inativos: {item.inactive_clients_count ?? item.inactive_users ?? 0}</span>
-                  <span>Ref.: {item.payout_ref || item.current_payout_label || '-'}</span>
                   <span>Comissão mês: {formatCurrency((item.commission_month_cents || 0) / 100)}</span>
                 </div>
               </div>
@@ -666,14 +657,6 @@ const AffiliateCards = ({ items, onViewUsers, onMarkPaid, onToggleStatus, payout
               <div className="event-actions">
                 <button className="btn-edit btn-ui" onClick={() => onViewUsers(item)} title="Ver clientes">
                   ✏️
-                </button>
-                <button
-                  className="btn-delete btn-ui"
-                  onClick={() => onMarkPaid(item)}
-                  title="Marcar pago (mês atual)"
-                  disabled={payoutLoadingId === item.id}
-                >
-                  {payoutLoadingId === item.id ? '…' : '🗑️'}
                 </button>
               </div>
             </div>
@@ -1643,7 +1626,6 @@ function App() {
   const [showForm, setShowForm] = useState(false);
   const [affiliateForm, setAffiliateForm] = useState(createDefaultAffiliateForm);
   const [affiliatesLoading, setAffiliatesLoading] = useState(false);
-  const [affiliatePayoutLoadingId, setAffiliatePayoutLoadingId] = useState(null);
   const [affiliateStatusLoadingId, setAffiliateStatusLoadingId] = useState(null);
   const [affiliateUsers, setAffiliateUsers] = useState([]);
   const [affiliateUsersLoading, setAffiliateUsersLoading] = useState(false);
@@ -1651,12 +1633,10 @@ function App() {
   const [affiliateUsersCommissionCents, setAffiliateUsersCommissionCents] = useState(0);
   const affiliateUsersList = affiliateUsers || [];
   const affiliateUsersComputed = affiliateUsersList.map((user) => {
-    const billing = (user.billing_status || user.status || "").toLowerCase();
-    const normalizedStatus = billing === "inactive" ? "inactive" : "active";
+    const normalizedStatus = (user.status || "").toLowerCase() === "inactive" ? "inactive" : "active";
     const isActive = user.is_active ?? normalizedStatus === "active";
     return {
       ...user,
-      billing_status: normalizedStatus,
       status: normalizedStatus,
       is_active: isActive,
     };
@@ -2520,21 +2500,6 @@ function App() {
     is_active: item?.is_active ?? item?.status !== 'inactive',
     active_clients_count: item?.active_clients_count ?? item?.active_users ?? 0,
     inactive_clients_count: item?.inactive_clients_count ?? item?.inactive_users ?? 0,
-    current_payout_period: item?.current_payout_period || item?.period_month || getCurrentPeriodMonth(),
-    current_payout_label: (item?.payout_ref || item?.current_payout_period || item?.period_month || getCurrentPeriodMonth()).slice(0, 7),
-    current_payout_status: item?.current_payout_paid_at || item?.paid_at
-      ? 'paid'
-      : (item?.payout_status_month_current || item?.current_payout_status || 'open'),
-    current_payout_paid_at: item?.current_payout_paid_at || item?.paid_at || null,
-    payout_ref: item?.payout_ref || (item?.current_payout_period || item?.period_month)?.slice(0, 7) || null,
-    payout_status_month_current: item?.current_payout_paid_at || item?.paid_at
-      ? 'paid'
-      : (item?.payout_status_month_current || item?.current_payout_status || 'open'),
-    payout_status: (() => {
-      const raw = (item?.payout_status_month_current || item?.payout_status || '').toString().toUpperCase();
-      if (raw === 'PAID' || raw === 'PAGO') return 'PAGO';
-      return 'EM ABERTO';
-    })(),
   });
 
   const fetchAffiliates = async () => {
@@ -2590,16 +2555,39 @@ function App() {
   };
 
   const toggleAffiliateStatus = async (id, currentStatus) => {
-    const { error } = await supabase
-      .from("affiliates")
-      .update({ is_active: !currentStatus })
-      .eq("id", id);
-
-    if (error) {
-      throw error;
+    if (!workoutApiBase || !/^https?:\/\//i.test(workoutApiBase)) {
+      throw new Error('Backend não configurado para afiliados.');
     }
 
-    await fetchAffiliates();
+    const accessToken = await getAccessToken();
+    if (!accessToken) {
+      throw new Error('Sessão expirada. Faça login novamente.');
+    }
+
+    const response = await fetch(`${workoutApiBase}/admin/affiliates/${id}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`
+      },
+      body: JSON.stringify({
+        toggle_status: true,
+        currentStatus,
+      })
+    });
+
+    const body = await response.json().catch(() => ({}));
+
+    if (response.status === 403) {
+      handleApiForbidden();
+      throw new Error(body?.error || 'Acesso negado.');
+    }
+
+    if (!response.ok) {
+      throw new Error(body?.error || 'Não foi possível atualizar o afiliado.');
+    }
+
+    return body;
   };
 
   const handleSaveAffiliate = async () => {
@@ -2625,15 +2613,12 @@ function App() {
         return;
       }
 
-      const code = affiliateForm.code.trim() || generateAffiliateCode();
       const payload = {
-        code,
         name: affiliateForm.name.trim(),
         whatsapp: affiliateForm.whatsapp || undefined,
         email: affiliateForm.email || undefined,
         pix_key: affiliateForm.pix_key || undefined,
         commission_cents: FIXED_COMMISSION_CENTS,
-        status: 'active',
       };
 
       const response = await fetch(`${workoutApiBase}/admin/affiliates`, {
@@ -2698,12 +2683,10 @@ function App() {
       const responseUsers = Array.isArray(body) ? body : Array.isArray(body?.users) ? body.users : [];
 
       const parsedUsers = responseUsers.map((user) => {
-        const rawStatus = (user.status || user.billing_status || '').toLowerCase();
-        const normalized = rawStatus === 'inactive' ? 'inactive' : 'active';
+        const normalized = (user.status || '').toLowerCase() === 'inactive' ? 'inactive' : 'active';
         return {
           ...user,
           status: normalized,
-          billing_status: normalized,
           is_active: user.is_active ?? normalized === 'active',
         };
       });
@@ -2728,18 +2711,21 @@ function App() {
       return;
     }
 
-    if (!supabase) {
-      pushToast('Supabase não configurado para afiliados.', 'warning');
-      return;
-    }
-
     setAffiliateStatusLoadingId(id);
 
     try {
-      await toggleAffiliateStatus(id, currentStatus);
+      const updatedAffiliate = await toggleAffiliateStatus(id, currentStatus);
+
+      setAffiliates((prev) => prev.map((item) => (
+        item.id === id ? normalizeAffiliateStats(updatedAffiliate) : item
+      )));
+
+      setSelectedAffiliate((current) => (
+        current?.id === id ? normalizeAffiliateStats(updatedAffiliate) : current
+      ));
 
       pushToast(
-        !currentStatus
+        updatedAffiliate?.is_active
           ? 'Afiliado ativado com sucesso.'
           : 'Afiliado desativado com sucesso.',
         'success'
@@ -2752,63 +2738,7 @@ function App() {
     }
   };
 
-  const handleMarkAffiliatePaid = async (affiliate) => {
-    if (!client || profile?.role !== 'admin') return;
-    if (!workoutApiBase || !/^https?:\/\//i.test(workoutApiBase)) return;
 
-    const monthStart = getCurrentPeriodMonth();
-    setAffiliatePayoutLoadingId(affiliate.id);
-
-    try {
-      const accessToken = await getAccessToken();
-      if (!accessToken) return;
-
-      const response = await fetch(`${workoutApiBase}/admin/affiliates/${affiliate.id}/payouts/mark-paid`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${accessToken}`
-        },
-        body: JSON.stringify({ period_month: monthStart })
-      });
-
-      const body = await response.json().catch(() => ({}));
-
-      if (response.status === 403) {
-        handleApiForbidden();
-        return;
-      }
-
-      if (!response.ok) {
-        throw new Error(body?.error || 'Erro ao registrar pagamento.');
-      }
-
-      pushToast('Pagamento do mês marcado como pago.', 'success');
-      const payout = body?.payout;
-      const payoutRef = body?.payout_ref || (payout?.period_month || monthStart).slice(0, 7);
-      const payoutStatus = body?.payout_status || 'PAGO';
-      const payoutStatusValue = body?.payout_status_month_current || 'paid';
-      setAffiliates((prev) => prev.map((item) =>
-        item.id === affiliate.id
-          ? {
-              ...item,
-              payout_status: payoutStatus,
-              payout_ref: payoutRef,
-              current_payout_status: payoutStatusValue,
-              payout_status_month_current: payoutStatusValue,
-              current_payout_period: payout?.period_month || monthStart,
-              current_payout_label: payoutRef || (payout?.period_month || monthStart).slice(0, 7),
-              current_payout_paid_at: payout?.paid_at || new Date().toISOString(),
-            }
-          : item
-      ));
-    } catch (err) {
-      console.warn('Erro ao registrar pagamento de afiliado', err);
-      pushToast(err?.message || 'Não foi possível marcar como pago.', 'warning');
-    } finally {
-      setAffiliatePayoutLoadingId(null);
-    }
-  };
 
   const toggleSidebar = () => {
     setSidebarOpen((current) => !current);
@@ -3473,14 +3403,8 @@ function App() {
                         placeholder="Nome do afiliado"
                       />
 
-                      <label>Código</label>
-                      <input
-                        value={affiliateForm.code}
-                        readOnly
-                        placeholder="Código gerado automaticamente"
-                      />
                       <p className="muted" style={{ marginTop: 8 }}>
-                        Código gerado automaticamente no padrão do afiliado.
+                        O código será gerado automaticamente no cadastro.
                       </p>
                     </>
                   )}
@@ -3554,9 +3478,7 @@ function App() {
               <AffiliateCards
                 items={affiliates || []}
                 onViewUsers={handleViewAffiliateUsers}
-                onMarkPaid={handleMarkAffiliatePaid}
                 onToggleStatus={handleToggleAffiliateStatus}
-                payoutLoadingId={affiliatePayoutLoadingId}
                 statusLoadingId={affiliateStatusLoadingId}
               />
             )}
