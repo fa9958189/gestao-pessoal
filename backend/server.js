@@ -61,6 +61,35 @@ const getCurrentPeriodMonth = (today = new Date()) =>
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+const generateAffiliateCode = () =>
+  `AF${Math.floor(1000 + Math.random() * 9000)}`;
+
+const normalizeAffiliateStatus = (affiliate = {}) => {
+  const rawStatus = String(
+    affiliate.status ?? (affiliate.is_active === false ? "inactive" : "active")
+  ).toLowerCase();
+
+  return rawStatus === "inactive" ? "inactive" : "active";
+};
+
+const toggleAffiliateStatus = async (id, currentStatus) => {
+  const newStatus = currentStatus === "active" ? "inactive" : "active";
+
+  const { data, error } = await supabase
+    .from("affiliates")
+    .update({
+      status: newStatus,
+      is_active: newStatus === "active",
+    })
+    .eq("id", id)
+    .select("*")
+    .maybeSingle();
+
+  if (error) throw error;
+
+  return data;
+};
+
 const ENABLE_MORNING_AGENDA = process.env.ENABLE_MORNING_AGENDA === "true";
 const ENABLE_DAILY_GOALS_REMINDER =
   process.env.ENABLE_DAILY_GOALS_REMINDER !== "false";
@@ -211,9 +240,9 @@ app.post("/create-user", async (req, res) => {
     if (trimmedAffiliateCode) {
       const { data: affiliateRow, error: affiliateError } = await supabase
         .from("affiliates")
-        .select("id, code, is_active")
+        .select("id, code, status, is_active")
         .eq("code", trimmedAffiliateCode)
-        .eq("is_active", true)
+        .eq("status", "active")
         .maybeSingle();
 
       if (affiliateError) {
@@ -894,6 +923,7 @@ app.get("/admin/affiliates", async (req, res) => {
     }, new Map());
 
     const response = (affiliates || []).map((affiliate) => {
+      const normalizedStatus = normalizeAffiliateStatus(affiliate);
       const stat =
         counts.get(affiliate.id) ||
         { totalClients: 0, activeClients: 0, inactiveClients: 0 };
@@ -910,6 +940,8 @@ app.get("/admin/affiliates", async (req, res) => {
 
       return {
         ...affiliate,
+        status: normalizedStatus,
+        is_active: normalizedStatus === "active",
         total_users: totalClients,
         active_users: activeClients,
         inactive_users: inactiveClients,
@@ -940,17 +972,20 @@ app.post("/admin/affiliates", async (req, res) => {
     if (!authData) return;
 
     const { code, name, whatsapp, email, pix_key, commission_cents } = req.body || {};
+    const generatedCode = String(code || generateAffiliateCode()).trim();
 
-    if (!code || !name) {
-      return res.status(400).json({ error: "code e name são obrigatórios" });
+    if (!name) {
+      return res.status(400).json({ error: "name é obrigatório" });
     }
 
     const payload = {
-      code: String(code).trim(),
+      code: generatedCode,
       name: String(name).trim(),
       whatsapp: whatsapp || null,
       email: email || null,
       pix_key: pix_key || null,
+      status: "active",
+      is_active: true,
     };
 
     if (commission_cents !== undefined && commission_cents !== null && commission_cents !== "") {
@@ -985,6 +1020,20 @@ app.patch("/admin/affiliates/:id", async (req, res) => {
     const { id } = req.params;
     if (!id) return res.status(400).json({ error: "id é obrigatório" });
 
+    if (req.body?.toggle_status) {
+      const currentStatus = normalizeAffiliateStatus({
+        status: req.body?.currentStatus,
+        is_active: req.body?.is_active,
+      });
+      const data = await toggleAffiliateStatus(id, currentStatus);
+      const normalizedStatus = normalizeAffiliateStatus(data);
+      return res.json({
+        ...data,
+        status: normalizedStatus,
+        is_active: normalizedStatus === "active",
+      });
+    }
+
     const allowedFields = [
       "code",
       "name",
@@ -992,6 +1041,7 @@ app.patch("/admin/affiliates/:id", async (req, res) => {
       "email",
       "pix_key",
       "commission_cents",
+      "status",
       "is_active",
     ];
 
@@ -1001,6 +1051,13 @@ app.patch("/admin/affiliates/:id", async (req, res) => {
         updates[field] = req.body[field];
       }
     });
+
+    if (updates.status !== undefined) {
+      updates.status = normalizeAffiliateStatus({ status: updates.status });
+      updates.is_active = updates.status === "active";
+    } else if (updates.is_active !== undefined) {
+      updates.status = updates.is_active ? "active" : "inactive";
+    }
 
     if (!Object.keys(updates).length) {
       return res.status(400).json({ error: "Nenhuma atualização enviada" });
@@ -1018,7 +1075,13 @@ app.patch("/admin/affiliates/:id", async (req, res) => {
       return res.status(400).json({ error: error.message });
     }
 
-    return res.json(data);
+    const normalizedStatus = normalizeAffiliateStatus(data);
+
+    return res.json({
+      ...data,
+      status: normalizedStatus,
+      is_active: normalizedStatus === "active",
+    });
   } catch (err) {
     console.error("Erro inesperado em PATCH /admin/affiliates/:id:", err);
     return res.status(500).json({ error: "Erro interno ao atualizar afiliado." });
@@ -1164,8 +1227,9 @@ app.post("/public/affiliate/apply", async (req, res) => {
 
     const { data: affiliate, error: affiliateError } = await supabase
       .from("affiliates")
-      .select("id, code, is_active")
+      .select("id, code, status, is_active")
       .eq("code", affiliate_code)
+      .eq("status", "active")
       .maybeSingle();
 
     if (affiliateError) {
@@ -1173,7 +1237,7 @@ app.post("/public/affiliate/apply", async (req, res) => {
       return res.status(400).json({ error: affiliateError.message });
     }
 
-    if (!affiliate || affiliate.is_active === false) {
+    if (!affiliate || normalizeAffiliateStatus(affiliate) !== "active") {
       return res.status(400).json({ error: "Código de afiliado inválido ou inativo." });
     }
 

@@ -83,6 +83,16 @@ const defaultUserForm = {
   applyTrial: false
 };
 
+const generateAffiliateCode = () => `AF${Math.floor(1000 + Math.random() * 9000)}`;
+
+const createDefaultAffiliateForm = () => ({
+  code: generateAffiliateCode(),
+  name: '',
+  whatsapp: '',
+  email: '',
+  pix_key: '',
+});
+
 const normalizeBaseUrl = (value) => {
   if (!value) return '';
   return String(value).trim().replace(/\/+$/, '');
@@ -610,14 +620,14 @@ const UsersTable = ({ items, onEdit, onDelete }) => (
 );
 
 
-const AffiliateCards = ({ items, onViewUsers, onMarkPaid, payoutLoadingId }) => (
+const AffiliateCards = ({ items, onViewUsers, onMarkPaid, onToggleStatus, payoutLoadingId, statusLoadingId }) => (
   <div className="user-list-wrapper">
     {items.length === 0 ? (
       <div className="muted user-empty">Nenhum afiliado cadastrado.</div>
     ) : (
       <div className="usuarios-scroll-container">
         {items.map((item) => {
-          const status = item.is_active ? 'active' : 'inactive';
+          const status = item.status === 'inactive' ? 'inactive' : 'active';
           const paymentStatus = item.payout_status === 'PAGO';
 
           return (
@@ -631,9 +641,15 @@ const AffiliateCards = ({ items, onViewUsers, onMarkPaid, payoutLoadingId }) => 
 
                 <div className="event-subtitle">{item.whatsapp || 'WhatsApp não informado'}</div>
                 <div className="event-subtitle user-event-meta">
-                  <span className={`badge badge-${status}`}>
-                    {item.is_active ? 'ATIVO' : 'INATIVO'}
-                  </span>
+                  <button
+                    type="button"
+                    className={status === 'active' ? 'badge-status-button badge-green' : 'badge-status-button badge-red'}
+                    onClick={() => onToggleStatus(item)}
+                    disabled={statusLoadingId === item.id}
+                    title={status === 'active' ? 'Desativar afiliado' : 'Ativar afiliado'}
+                  >
+                    {statusLoadingId === item.id ? '...' : (status === 'active' ? 'ATIVO' : 'INATIVO')}
+                  </button>
                   <span className={`badge ${paymentStatus ? 'badge-paid' : 'badge-payment-pending'}`}>
                     {paymentStatus ? 'PAGO' : 'PENDENTE'}
                   </span>
@@ -1625,15 +1641,10 @@ function App() {
   const [editingUserOriginal, setEditingUserOriginal] = useState(null);
   const [affiliates, setAffiliates] = useState([]);
   const [showForm, setShowForm] = useState(false);
-  const [affiliateForm, setAffiliateForm] = useState({
-    code: '',
-    name: '',
-    whatsapp: '',
-    email: '',
-    pix_key: '',
-  });
+  const [affiliateForm, setAffiliateForm] = useState(createDefaultAffiliateForm);
   const [affiliatesLoading, setAffiliatesLoading] = useState(false);
   const [affiliatePayoutLoadingId, setAffiliatePayoutLoadingId] = useState(null);
+  const [affiliateStatusLoadingId, setAffiliateStatusLoadingId] = useState(null);
   const [affiliateUsers, setAffiliateUsers] = useState([]);
   const [affiliateUsersLoading, setAffiliateUsersLoading] = useState(false);
   const [selectedAffiliate, setSelectedAffiliate] = useState(null);
@@ -2278,13 +2289,7 @@ function App() {
   };
 
   const resetAffiliateWizard = ({ closeModal = false } = {}) => {
-    setAffiliateForm({
-      code: '',
-      name: '',
-      whatsapp: '',
-      email: '',
-      pix_key: '',
-    });
+    setAffiliateForm(createDefaultAffiliateForm());
     setStep(1);
     if (closeModal) {
       setShowForm(false);
@@ -2512,6 +2517,8 @@ function App() {
 
   const normalizeAffiliateStats = (item) => ({
     ...item,
+    status: item?.status === 'inactive' ? 'inactive' : 'active',
+    is_active: item?.status ? item.status === 'active' : item?.is_active !== false,
     active_clients_count: item?.active_clients_count ?? item?.active_users ?? 0,
     inactive_clients_count: item?.inactive_clients_count ?? item?.inactive_users ?? item?.pending_users ?? 0,
     current_payout_period: item?.current_payout_period || item?.period_month || getCurrentPeriodMonth(),
@@ -2583,8 +2590,8 @@ function App() {
       return;
     }
 
-    if (!affiliateForm.code.trim() || !affiliateForm.name.trim()) {
-      pushToast('Informe código e nome do afiliado.', 'warning');
+    if (!affiliateForm.name.trim()) {
+      pushToast('Informe o nome do afiliado.', 'warning');
       return;
     }
 
@@ -2595,13 +2602,15 @@ function App() {
         return;
       }
 
+      const code = affiliateForm.code.trim() || generateAffiliateCode();
       const payload = {
-        code: affiliateForm.code.trim(),
+        code,
         name: affiliateForm.name.trim(),
         whatsapp: affiliateForm.whatsapp || undefined,
         email: affiliateForm.email || undefined,
         pix_key: affiliateForm.pix_key || undefined,
         commission_cents: FIXED_COMMISSION_CENTS,
+        status: 'active',
       };
 
       const response = await fetch(`${workoutApiBase}/admin/affiliates`, {
@@ -2687,6 +2696,72 @@ function App() {
       pushToast('Não foi possível carregar os clientes desse afiliado.', 'warning');
     } finally {
       setAffiliateUsersLoading(false);
+    }
+  };
+
+  const handleToggleAffiliateStatus = async (affiliate) => {
+    if (!client || profile?.role !== 'admin') {
+      pushToast('Somente administradores podem alterar afiliados.', 'warning');
+      return;
+    }
+
+    if (!workoutApiBase || !/^https?:\/\//i.test(workoutApiBase)) {
+      pushToast('Backend não configurado para afiliados.', 'warning');
+      return;
+    }
+
+    setAffiliateStatusLoadingId(affiliate.id);
+
+    try {
+      const accessToken = await getAccessToken();
+      if (!accessToken) {
+        pushToast('Sessão expirada. Faça login novamente.', 'warning');
+        return;
+      }
+
+      const response = await fetch(`${workoutApiBase}/admin/affiliates/${affiliate.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`
+        },
+        body: JSON.stringify({
+          toggle_status: true,
+          currentStatus: affiliate.status,
+        })
+      });
+
+      const body = await response.json().catch(() => ({}));
+
+      if (response.status === 403) {
+        handleApiForbidden();
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error(body?.error || 'Erro ao atualizar status do afiliado.');
+      }
+
+      const updatedAffiliate = normalizeAffiliateStats(body);
+      setAffiliates((current) => current.map((item) => (
+        item.id === affiliate.id ? { ...item, ...updatedAffiliate } : item
+      )));
+
+      if (selectedAffiliate?.id === affiliate.id) {
+        setSelectedAffiliate((current) => (current ? { ...current, ...updatedAffiliate } : current));
+      }
+
+      pushToast(
+        updatedAffiliate.status === 'active'
+          ? 'Afiliado ativado com sucesso.'
+          : 'Afiliado desativado com sucesso.',
+        'success'
+      );
+    } catch (err) {
+      console.warn('Erro ao alternar status do afiliado', err);
+      pushToast(err?.message || 'Não foi possível atualizar o afiliado.', 'danger');
+    } finally {
+      setAffiliateStatusLoadingId(null);
     }
   };
 
@@ -3414,9 +3489,12 @@ function App() {
                       <label>Código</label>
                       <input
                         value={affiliateForm.code}
-                        onChange={(e) => setAffiliateForm({ ...affiliateForm, code: e.target.value })}
-                        placeholder="Código"
+                        readOnly
+                        placeholder="Código gerado automaticamente"
                       />
+                      <p className="muted" style={{ marginTop: 8 }}>
+                        Código gerado automaticamente no padrão do afiliado.
+                      </p>
                     </>
                   )}
 
@@ -3490,7 +3568,9 @@ function App() {
                 items={affiliates || []}
                 onViewUsers={handleViewAffiliateUsers}
                 onMarkPaid={handleMarkAffiliatePaid}
+                onToggleStatus={handleToggleAffiliateStatus}
                 payoutLoadingId={affiliatePayoutLoadingId}
+                statusLoadingId={affiliateStatusLoadingId}
               />
             )}
           </section>
