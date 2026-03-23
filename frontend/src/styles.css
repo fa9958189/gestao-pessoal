@@ -1051,6 +1051,7 @@ canvas{ background:transparent; }
 .badge-red{ background:rgba(239,68,68,.16); color:#ff9ea3; }
 .badge-paid{ background:rgba(74,222,128,.16); color:#b5f8c7; }
 .badge-payment-pending{ background:rgba(251,191,36,.15); color:#facc15; }
+.badge-payment-open{ background:rgba(251,191,36,.15); color:#facc15; }
 .badge-status-button{
   border:none;
   border-radius:999px;
