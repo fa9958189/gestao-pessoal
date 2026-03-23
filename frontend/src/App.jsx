@@ -627,7 +627,6 @@ const AffiliateCards = ({ items, onViewUsers, onMarkPaid, onToggleStatus, payout
     ) : (
       <div className="usuarios-scroll-container">
         {items.map((item) => {
-          const status = item.status === 'inactive' ? 'inactive' : 'active';
           const paymentStatus = item.payout_status === 'PAGO';
 
           return (
@@ -643,15 +642,15 @@ const AffiliateCards = ({ items, onViewUsers, onMarkPaid, onToggleStatus, payout
                 <div className="event-subtitle user-event-meta">
                   <button
                     type="button"
-                    className={status === 'active' ? 'badge-status-button badge-green' : 'badge-status-button badge-red'}
-                    onClick={() => onToggleStatus(item)}
+                    className={`badge-status-button ${item.is_active ? 'badge-green' : 'badge-red'}`}
+                    onClick={() => onToggleStatus(item.id, item.is_active)}
                     disabled={statusLoadingId === item.id}
-                    title={status === 'active' ? 'Desativar afiliado' : 'Ativar afiliado'}
+                    title={item.is_active ? 'Desativar afiliado' : 'Ativar afiliado'}
                   >
-                    {statusLoadingId === item.id ? '...' : (status === 'active' ? 'ATIVO' : 'INATIVO')}
+                    {statusLoadingId === item.id ? '...' : (item.is_active ? 'ATIVO' : 'INATIVO')}
                   </button>
-                  <span className={`badge ${paymentStatus ? 'badge-paid' : 'badge-payment-pending'}`}>
-                    {paymentStatus ? 'PAGO' : 'PENDENTE'}
+                  <span className={`badge ${paymentStatus ? 'badge-paid' : 'badge-payment-open'}`}>
+                    {paymentStatus ? 'PAGO' : 'EM ABERTO'}
                   </span>
                 </div>
                 <div className="event-subtitle user-event-details">
@@ -1604,6 +1603,7 @@ const Reports = ({ transactions }) => {
 function App() {
   const { client, configError } = useSupabaseClient();
   const { session, profile, loadingSession, setSession, setProfile } = useAuth(client);
+  const supabase = client;
 
   const isAdmin = profile?.role === 'admin';
 
@@ -1961,7 +1961,7 @@ function App() {
 
   useEffect(() => {
     if (activeView === 'affiliates' && isAdmin) {
-      loadAffiliates();
+      fetchAffiliates();
     }
   }, [activeView, isAdmin]);
 
@@ -2517,24 +2517,27 @@ function App() {
 
   const normalizeAffiliateStats = (item) => ({
     ...item,
-    status: item?.status === 'inactive' ? 'inactive' : 'active',
-    is_active: item?.status ? item.status === 'active' : item?.is_active !== false,
+    is_active: item?.is_active ?? item?.status !== 'inactive',
     active_clients_count: item?.active_clients_count ?? item?.active_users ?? 0,
-    inactive_clients_count: item?.inactive_clients_count ?? item?.inactive_users ?? item?.pending_users ?? 0,
+    inactive_clients_count: item?.inactive_clients_count ?? item?.inactive_users ?? 0,
     current_payout_period: item?.current_payout_period || item?.period_month || getCurrentPeriodMonth(),
     current_payout_label: (item?.payout_ref || item?.current_payout_period || item?.period_month || getCurrentPeriodMonth()).slice(0, 7),
-    current_payout_status: item?.payout_status_month_current || item?.current_payout_status || (item?.current_payout_paid_at || item?.paid_at ? 'paid' : 'pending'),
+    current_payout_status: item?.current_payout_paid_at || item?.paid_at
+      ? 'paid'
+      : (item?.payout_status_month_current || item?.current_payout_status || 'open'),
     current_payout_paid_at: item?.current_payout_paid_at || item?.paid_at || null,
     payout_ref: item?.payout_ref || (item?.current_payout_period || item?.period_month)?.slice(0, 7) || null,
-    payout_status_month_current: item?.payout_status_month_current || item?.current_payout_status || (item?.current_payout_paid_at || item?.paid_at ? 'paid' : 'pending'),
+    payout_status_month_current: item?.current_payout_paid_at || item?.paid_at
+      ? 'paid'
+      : (item?.payout_status_month_current || item?.current_payout_status || 'open'),
     payout_status: (() => {
       const raw = (item?.payout_status_month_current || item?.payout_status || '').toString().toUpperCase();
       if (raw === 'PAID' || raw === 'PAGO') return 'PAGO';
-      return 'PENDENTE';
+      return 'EM ABERTO';
     })(),
   });
 
-  const loadAffiliates = async () => {
+  const fetchAffiliates = async () => {
     if (!client || profile?.role !== 'admin') return;
 
     if (!workoutApiBase || !/^https?:\/\//i.test(workoutApiBase)) {
@@ -2570,6 +2573,13 @@ function App() {
 
       const parsed = Array.isArray(body) ? body.map(normalizeAffiliateStats) : [];
       setAffiliates(parsed);
+
+      if (selectedAffiliate?.id) {
+        const refreshedAffiliate = parsed.find((affiliate) => affiliate.id === selectedAffiliate.id);
+        if (refreshedAffiliate) {
+          setSelectedAffiliate(refreshedAffiliate);
+        }
+      }
     } catch (err) {
       console.warn('Erro ao carregar afiliados', err);
       setAffiliates([]);
@@ -2577,6 +2587,19 @@ function App() {
     } finally {
       setAffiliatesLoading(false);
     }
+  };
+
+  const toggleAffiliateStatus = async (id, currentStatus) => {
+    const { error } = await supabase
+      .from("affiliates")
+      .update({ is_active: !currentStatus })
+      .eq("id", id);
+
+    if (error) {
+      throw error;
+    }
+
+    await fetchAffiliates();
   };
 
   const handleSaveAffiliate = async () => {
@@ -2635,7 +2658,7 @@ function App() {
 
       pushToast('Afiliado criado.', 'success');
       resetAffiliateWizard({ closeModal: true });
-      loadAffiliates();
+      fetchAffiliates();
     } catch (err) {
       console.warn('Erro ao salvar afiliado', err);
       pushToast(err?.message || 'Erro ao salvar afiliado.', 'danger');
@@ -2699,60 +2722,24 @@ function App() {
     }
   };
 
-  const handleToggleAffiliateStatus = async (affiliate) => {
+  const handleToggleAffiliateStatus = async (id, currentStatus) => {
     if (!client || profile?.role !== 'admin') {
       pushToast('Somente administradores podem alterar afiliados.', 'warning');
       return;
     }
 
-    if (!workoutApiBase || !/^https?:\/\//i.test(workoutApiBase)) {
-      pushToast('Backend não configurado para afiliados.', 'warning');
+    if (!supabase) {
+      pushToast('Supabase não configurado para afiliados.', 'warning');
       return;
     }
 
-    setAffiliateStatusLoadingId(affiliate.id);
+    setAffiliateStatusLoadingId(id);
 
     try {
-      const accessToken = await getAccessToken();
-      if (!accessToken) {
-        pushToast('Sessão expirada. Faça login novamente.', 'warning');
-        return;
-      }
-
-      const response = await fetch(`${workoutApiBase}/admin/affiliates/${affiliate.id}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${accessToken}`
-        },
-        body: JSON.stringify({
-          toggle_status: true,
-          currentStatus: affiliate.status,
-        })
-      });
-
-      const body = await response.json().catch(() => ({}));
-
-      if (response.status === 403) {
-        handleApiForbidden();
-        return;
-      }
-
-      if (!response.ok) {
-        throw new Error(body?.error || 'Erro ao atualizar status do afiliado.');
-      }
-
-      const updatedAffiliate = normalizeAffiliateStats(body);
-      setAffiliates((current) => current.map((item) => (
-        item.id === affiliate.id ? { ...item, ...updatedAffiliate } : item
-      )));
-
-      if (selectedAffiliate?.id === affiliate.id) {
-        setSelectedAffiliate((current) => (current ? { ...current, ...updatedAffiliate } : current));
-      }
+      await toggleAffiliateStatus(id, currentStatus);
 
       pushToast(
-        updatedAffiliate.status === 'active'
+        !currentStatus
           ? 'Afiliado ativado com sucesso.'
           : 'Afiliado desativado com sucesso.',
         'success'
