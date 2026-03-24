@@ -601,6 +601,105 @@ app.put("/admin/users/:userId", async (req, res) => {
   }
 });
 
+app.patch("/admin/users/:userId", async (req, res) => {
+  try {
+    const authData = await authenticateRequest(req, res, { requireAdmin: true });
+    if (!authData) return;
+
+    const { userId } = req.params;
+    if (!userId) {
+      return res.status(400).json({ error: "userId é obrigatório" });
+    }
+
+    const { name, email, whatsapp, affiliate_id } = req.body || {};
+    const trimmedEmail = typeof email === "string" ? email.trim() : "";
+    const trimmedName = typeof name === "string" ? name.trim() : "";
+    const affiliateId =
+      typeof affiliate_id === "string" && affiliate_id.trim().length
+        ? affiliate_id.trim()
+        : null;
+
+    if (!trimmedName) {
+      return res.status(400).json({ error: "name é obrigatório" });
+    }
+
+    if (!trimmedEmail) {
+      return res.status(400).json({ error: "email é obrigatório" });
+    }
+
+    let affiliateCode = null;
+    if (affiliateId) {
+      const { data: affiliate, error: affiliateError } = await supabase
+        .from("affiliates")
+        .select("id, code")
+        .eq("id", affiliateId)
+        .maybeSingle();
+
+      if (affiliateError) {
+        console.error("Erro ao buscar afiliado:", affiliateError);
+        return res.status(400).json({ error: affiliateError.message });
+      }
+
+      if (!affiliate?.id) {
+        return res.status(400).json({ error: "affiliate_id inválido" });
+      }
+
+      affiliateCode = affiliate.code || null;
+    }
+
+    const authUpdatePayload = {
+      name: trimmedName,
+      username: trimmedEmail,
+      email: trimmedEmail,
+      whatsapp: typeof whatsapp === "string" ? whatsapp : null,
+      affiliate_id: affiliateId,
+      affiliate_code: affiliateCode,
+    };
+
+    const { error: upAuthErr } = await supabase
+      .from("profiles_auth")
+      .update(authUpdatePayload)
+      .or(`auth_id.eq.${userId},id.eq.${userId}`);
+
+    if (upAuthErr && upAuthErr.code !== "42P01") {
+      console.error("Erro ao atualizar profiles_auth:", upAuthErr);
+      return res.status(400).json({ error: upAuthErr.message });
+    }
+
+    const { error: upProfileErr } = await supabase
+      .from("profiles")
+      .update({
+        name: trimmedName,
+        username: trimmedEmail,
+        whatsapp: typeof whatsapp === "string" ? whatsapp : null,
+      })
+      .eq("id", userId);
+
+    if (upProfileErr) {
+      console.error("Erro ao atualizar profiles:", upProfileErr);
+      return res.status(400).json({ error: upProfileErr.message });
+    }
+
+    const { error: authError } = await supabase.auth.admin.updateUserById(userId, {
+      email: trimmedEmail,
+      user_metadata: {
+        display_name: trimmedName,
+        full_name: trimmedName,
+      },
+    });
+
+    if (authError) {
+      console.error("Erro ao atualizar e-mail no Auth:", authError);
+      return res.status(400).json({ error: authError.message });
+    }
+
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error("Erro inesperado em PATCH /admin/users/:userId:", err);
+    return res.status(500).json({ error: "Erro interno ao editar usuário." });
+  }
+});
+
 app.patch("/admin/users/:authId/billing", async (req, res) => {
   try {
     const authData = await authenticateRequest(req, res, { requireAdmin: true });
