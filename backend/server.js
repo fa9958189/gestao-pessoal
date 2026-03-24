@@ -938,30 +938,16 @@ app.patch("/admin/affiliates/:id", async (req, res) => {
 
     const { id } = req.params;
     if (!id) return res.status(400).json({ error: "id é obrigatório" });
-
-    const allowedFields = [
-      "code",
-      "name",
-      "whatsapp",
-      "email",
-      "pix_key",
-      "is_active",
-    ];
-
-    const updates = {};
-    allowedFields.forEach((field) => {
-      if (req.body?.[field] !== undefined) {
-        updates[field] = req.body[field];
-      }
-    });
-
-    if (!Object.keys(updates).length) {
-      return res.status(400).json({ error: "Nenhuma atualização enviada" });
-    }
+    const { name, email, whatsapp, pix_key } = req.body || {};
 
     const { data, error } = await supabase
       .from("affiliates")
-      .update(updates)
+      .update({
+        name,
+        email,
+        whatsapp,
+        pix_key
+      })
       .eq("id", id)
       .select("*")
       .maybeSingle();
@@ -975,6 +961,31 @@ app.patch("/admin/affiliates/:id", async (req, res) => {
   } catch (err) {
     console.error("Erro inesperado em PATCH /admin/affiliates/:id:", err);
     return res.status(500).json({ error: "Erro interno ao atualizar afiliado." });
+  }
+});
+
+app.delete("/admin/affiliates/:id", async (req, res) => {
+  try {
+    const authData = await authenticateRequest(req, res, { requireAdmin: true });
+    if (!authData) return;
+
+    const { id } = req.params;
+    if (!id) return res.status(400).json({ error: "id é obrigatório" });
+
+    const { error } = await supabase
+      .from("affiliates")
+      .delete()
+      .eq("id", id);
+
+    if (error) {
+      console.error("Erro ao excluir affiliate:", error);
+      return res.status(400).json({ error: error.message });
+    }
+
+    return res.json({ success: true });
+  } catch (err) {
+    console.error("Erro inesperado em DELETE /admin/affiliates/:id:", err);
+    return res.status(500).json({ error: "Erro interno ao excluir afiliado." });
   }
 });
 
