@@ -2445,19 +2445,29 @@ function App() {
           return;
         }
 
+        const { data: sessionData } = await client.auth.getSession();
+        const accessToken = sessionData?.session?.access_token;
+
+        if (!accessToken) {
+          pushToast('Sessão expirada. Faça login novamente.', 'warning');
+          return;
+        }
+
         const createUserPayload = {
           name: userForm.name,
-          username: userForm.username,
-          password: userForm.password,
+          email: userForm.username,
           whatsapp: userForm.whatsapp,
-          role: userForm.role,
+          role: userForm.role || 'user',
           affiliate_id: userForm.affiliate_id,
-          plan_type: userForm.plan_type,
+          plan_type: String(userForm.plan_type || '').trim().toLowerCase(),
         };
 
         const response = await fetch(`${workoutApiBase}/create-user`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${accessToken}`
+          },
           body: JSON.stringify(createUserPayload)
         });
 

@@ -276,8 +276,11 @@ app.post("/scan-food", scanFoodUpload, async (req, res) => {
 
 app.post("/create-user", async (req, res) => {
   try {
+    console.log("BODY:", req.body);
+
     const {
       name,
+      email,
       username,
       password,
       whatsapp,
@@ -288,13 +291,27 @@ app.post("/create-user", async (req, res) => {
       apply_trial: applyTrial,
     } = req.body;
 
-    if (!name || !username || !password) {
-      return res
-        .status(400)
-        .json({ error: "Nome, usuário e senha são obrigatórios." });
+    if (!name || !email || !whatsapp || !affiliate_id || !plan_type) {
+      return res.status(400).json({
+        error: "name, email, whatsapp, affiliate_id e plan_type são obrigatórios.",
+      });
     }
 
-    const rawUsername = username.trim();
+    const rawEmail = String(email || "").trim().toLowerCase();
+    const rawUsername = String(username || rawEmail).trim();
+    const normalizedRole = String(role || "user").trim().toLowerCase() || "user";
+
+    const isUuid =
+      typeof affiliate_id === "string" &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+        affiliate_id.trim()
+      );
+
+    if (!isUuid) {
+      return res.status(400).json({
+        error: "affiliate_id deve ser um UUID válido.",
+      });
+    }
 
     const normalizedPlanType = String(plan_type || "").trim().toLowerCase();
     const fallbackPlanType = applyTrial ? USER_PLAN_TYPES.TRIAL : "";
@@ -342,32 +359,22 @@ app.post("/create-user", async (req, res) => {
         ? `${planEndDate}T00:00:00.000Z`
         : null;
 
-    // Se o "username" já for um e-mail válido, usa ele direto.
-    // Senão, gera um e-mail fake tipo fulano@example.com
-    let email;
-    if (rawUsername.includes("@") && rawUsername.includes(".")) {
-      email = rawUsername.toLowerCase();
-    } else {
-      const cleanUsername = rawUsername
-        .toLowerCase()
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .replace(/[^a-z0-9]/g, "");
-
-      if (!cleanUsername) {
-        return res.status(400).json({ error: "Usuário inválido." });
-      }
-
-      email = `${cleanUsername}@example.com`;
+    if (!rawEmail.includes("@") || !rawEmail.includes(".")) {
+      return res.status(400).json({ error: "email inválido." });
     }
+
+    const generatedPassword =
+      typeof password === "string" && password.trim().length >= 6
+        ? password.trim()
+        : `Tmp#${Math.random().toString(36).slice(-10)}aA1`;
 
     // 1) Cria usuário no Auth (Supabase)
     const { data: authUser, error: authError } =
       await supabase.auth.admin.createUser({
-        email,
-        password,
+        email: rawEmail,
+        password: generatedPassword,
         email_confirm: true,
-        user_metadata: { full_name: name, role }
+        user_metadata: { full_name: name, role: normalizedRole }
       });
 
     if (authError) {
@@ -384,8 +391,9 @@ app.post("/create-user", async (req, res) => {
         id: userId,
         name,
         username: rawUsername,
+        email: rawEmail,
         whatsapp,
-        role,
+        role: normalizedRole,
         billing_status: "active",
         billing_due_day: BILLING_DEFAULT_DUE_DAY,
       });
@@ -401,8 +409,8 @@ app.post("/create-user", async (req, res) => {
       .insert({
         auth_id: userId,
         name,
-        role,
-        email,
+        role: normalizedRole,
+        email: rawEmail,
         username: rawUsername,
         whatsapp,
         billing_status: "active",
