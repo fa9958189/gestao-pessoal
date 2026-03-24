@@ -6,61 +6,6 @@ const ensureSupabase = (supabase, context) => {
   }
 };
 
-const selectProfileAuth = async ({ supabase, userId }) => {
-  try {
-    const { data, error } = await supabase
-      .from('profiles_auth')
-      .select('height_cm, sex, age, activity_level, goal_type')
-      .or(`auth_id.eq.${userId},id.eq.${userId}`)
-      .maybeSingle();
-
-    if (error) throw error;
-    return data ?? null;
-  } catch (err) {
-    // Se der erro por permissão/RLS ou tabela/coluna, não quebra o app
-    console.warn(
-      '⚠️ Falha ao ler profiles_auth (ok, usando fallback):',
-      err?.message || err,
-    );
-    return null;
-  }
-};
-
-const updateProfileAuth = async ({
-  supabase,
-  userId,
-  heightCm,
-  sex,
-  age,
-  activityLevel,
-  goalType,
-}) => {
-  try {
-    const payload = {};
-
-    if (heightCm !== undefined) payload.height_cm = heightCm;
-    if (sex !== undefined) payload.sex = sex;
-    if (age !== undefined) payload.age = age;
-    if (activityLevel !== undefined) payload.activity_level = activityLevel;
-    if (goalType !== undefined) payload.goal_type = goalType;
-
-    if (Object.keys(payload).length === 0) return;
-
-    const { error } = await supabase
-      .from('profiles_auth')
-      .update(payload)
-      .or(`auth_id.eq.${userId},id.eq.${userId}`);
-
-    if (error) throw error;
-  } catch (err) {
-    console.warn(
-      '⚠️ Falha ao atualizar profiles_auth (ok, mantendo fallback):',
-      err?.message || err,
-    );
-  }
-};
-
-
 const normalizeSexForStorage = (value) => {
   if (value == null || value === '') return null;
   const normalized = String(value).trim().toLowerCase();
@@ -154,7 +99,6 @@ export async function saveProfile({
   sex,
   age,
   activityLevel,
-  goalType,
 }) {
   ensureSupabase(supabase, 'salvar perfil');
 
@@ -168,17 +112,6 @@ export async function saveProfile({
     weightKg != null && weightKg !== '' ? Number(weightKg) : null;
   const normalizedGoalWeight =
     goalWeightKg != null && goalWeightKg !== '' ? Number(goalWeightKg) : null;
-
-  // ✅ Novo: grava também em profiles_auth (sem quebrar o que já existe)
-  await updateProfileAuth({
-    supabase,
-    userId,
-    heightCm: heightCm !== undefined ? normalizedHeight : undefined,
-    sex: sex !== undefined ? normalizedSex : undefined,
-    age: age !== undefined ? normalizedAge : undefined,
-    activityLevel: activityLevel !== undefined ? normalizedActivity : undefined,
-    goalType,
-  });
 
   const profilePayload = {
     user_id: userId,
@@ -328,15 +261,11 @@ export async function loadGoals({ supabase, userId }) {
 export async function loadProfile({ supabase, userId }) {
   ensureSupabase(supabase, 'carregar perfil');
 
-  // 1) Busca em paralelo: food_diary_profile (como hoje) + profiles_auth (novo)
-  const [authRow, diaryRowResult] = await Promise.all([
-    selectProfileAuth({ supabase, userId }),
-    supabase
-      .from('food_diary_profile')
-      .select('*')
-      .eq('user_id', userId)
-      .maybeSingle(),
-  ]);
+  const diaryRowResult = await supabase
+    .from('food_diary_profile')
+    .select('*')
+    .eq('user_id', userId)
+    .maybeSingle();
 
   if (diaryRowResult.error) {
     throw diaryRowResult.error;
@@ -344,25 +273,10 @@ export async function loadProfile({ supabase, userId }) {
 
   const diaryNormalized = normalizeProfileRow(diaryRowResult.data ?? null);
 
-  // 2) Se existir profiles_auth, ele manda nos campos “persistentes” do perfil
-  const merged = {
+  return {
     ...diaryNormalized,
     goalType: 'maintain',
   };
-
-  if (authRow) {
-    if (authRow.height_cm != null) merged.heightCm = Number(authRow.height_cm);
-    if (authRow.sex != null) merged.sex = normalizeSexForStorage(authRow.sex);
-    if (authRow.age != null) merged.age = Number.parseInt(authRow.age, 10);
-    if (authRow.activity_level != null) {
-      merged.activityLevel = normalizeActivityForStorage(
-        authRow.activity_level,
-      );
-    }
-    merged.goalType = authRow.goal_type || 'maintain';
-  }
-
-  return merged;
 }
 
 export async function loadTodayWeight({ supabase, userId, entryDate = todayString() }) {
