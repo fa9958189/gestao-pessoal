@@ -1068,6 +1068,15 @@ canvas{ background:transparent; }
   transform: scale(1.02);
 }
 .table-actions{ display:inline-flex; gap:6px; justify-content:flex-end; }
+.table-actions button{
+  cursor:pointer;
+  margin-left:6px;
+  font-size:16px;
+  transition:transform .2s ease;
+}
+.table-actions button:hover{
+  transform:scale(1.1);
+}
 .toast{
   position:fixed;
   top:16px;
