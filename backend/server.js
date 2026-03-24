@@ -454,36 +454,36 @@ const authenticateRequest = async (req, res, { requireAdmin = false } = {}) => {
 
   let requesterProfile = null;
   try {
-    const { data: profileData, error: roleError } = await supabase
-      .from("profiles")
+    const { data: profileAuth, error: profileAuthError } = await supabase
+      .from("profiles_auth")
       .select("role, billing_status")
-      .eq("id", requesterId)
+      .or(`auth_id.eq.${requesterId},id.eq.${requesterId}`)
       .maybeSingle();
 
-    if (roleError && roleError.code !== "42P01") {
-      throw roleError;
+    if (profileAuthError && profileAuthError.code !== "42P01") {
+      throw profileAuthError;
     }
 
-    requesterProfile = profileData || null;
+    requesterProfile = profileAuth || null;
   } catch (err) {
-    console.error("Erro ao validar perfil do solicitante:", err);
+    console.error("Erro ao validar perfil do solicitante (profiles_auth):", err);
   }
 
   if (!requesterProfile) {
     try {
-      const { data: profileAuth, error: profileAuthError } = await supabase
-        .from("profiles_auth")
+      const { data: profileData, error: roleError } = await supabase
+        .from("profiles")
         .select("role, billing_status")
-        .or(`auth_id.eq.${requesterId},id.eq.${requesterId}`)
+        .eq("id", requesterId)
         .maybeSingle();
 
-      if (profileAuthError && profileAuthError.code !== "42P01") {
-        throw profileAuthError;
+      if (roleError && roleError.code !== "42P01") {
+        throw roleError;
       }
 
-      requesterProfile = profileAuth || null;
+      requesterProfile = profileData || null;
     } catch (err) {
-      console.error("Erro ao validar perfil do solicitante (profiles_auth):", err);
+      console.error("Erro ao validar perfil do solicitante:", err);
     }
   }
 
@@ -497,7 +497,7 @@ const authenticateRequest = async (req, res, { requireAdmin = false } = {}) => {
     return null;
   }
 
-  return { userId: requesterId, profile: requesterProfile };
+  return { userId: requesterId, profile: requesterProfile, user: requesterData.user };
 };
 
 const fetchProfileWithBilling = async (userId) => {
@@ -565,6 +565,36 @@ app.get("/auth/profile", async (req, res) => {
   } catch (err) {
     console.error("Erro inesperado em GET /auth/profile:", err);
     return res.status(500).json({ error: "Erro interno no servidor" });
+  }
+});
+
+app.get("/admin/users", async (req, res) => {
+  try {
+    const authData = await authenticateRequest(req, res, { requireAdmin: false });
+    if (!authData) return;
+
+    console.log("USER:", authData.user);
+
+    const profile = authData.profile;
+    if (!profile || profile.role !== "admin") {
+      return res.status(403).json({
+        error: "Sem permissão para listar usuários (admin).",
+      });
+    }
+
+    const { data: users, error } = await supabase
+      .from("profiles_auth")
+      .select("*");
+
+    if (error) {
+      console.error("Erro ao listar usuários em GET /admin/users:", error);
+      return res.status(400).json({ error: error.message });
+    }
+
+    return res.json(users || []);
+  } catch (err) {
+    console.error("Erro inesperado em GET /admin/users:", err);
+    return res.status(500).json({ error: "Erro interno ao listar usuários." });
   }
 });
 
