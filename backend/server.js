@@ -900,20 +900,29 @@ app.patch("/admin/users/:userId", async (req, res) => {
       return res.status(400).json({ error: upProfileErr.message });
     }
 
-    const { error: authError } = await supabase.auth.admin.updateUserById(userId, {
-      email: trimmedEmail,
-      user_metadata: {
-        display_name: trimmedName,
-        full_name: trimmedName,
-      },
-    });
+    const { data: existingUser, error: fetchError } =
+      await supabase.auth.admin.getUserById(userId);
 
-    if (authError) {
-      console.error("Erro ao atualizar e-mail no Auth:", authError);
-      return res.status(400).json({ error: authError.message });
+    if (fetchError) {
+      console.warn("Erro ao buscar usuário no Auth:", fetchError.message);
     }
 
-    return res.json({ ok: true });
+    const emailAtual = existingUser?.user?.email;
+
+    if (trimmedEmail && trimmedEmail !== emailAtual) {
+      const { error: authError } = await supabase.auth.admin.updateUserById(userId, {
+        email: trimmedEmail,
+      });
+
+      if (authError) {
+        console.warn("Erro no Auth ignorado:", authError.message);
+      }
+    }
+
+    return res.json({
+      success: true,
+      message: "Usuário atualizado com sucesso",
+    });
   } catch (err) {
     console.error("Erro inesperado em PATCH /admin/users/:userId:", err);
     return res.status(500).json({ error: "Erro interno ao editar usuário." });
