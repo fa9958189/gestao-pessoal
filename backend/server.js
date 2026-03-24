@@ -570,21 +570,13 @@ app.get("/auth/profile", async (req, res) => {
 
 app.get("/admin/users", async (req, res) => {
   try {
-    const authData = await authenticateRequest(req, res, { requireAdmin: false });
+    const authData = await authenticateRequest(req, res, { requireAdmin: true });
     if (!authData) return;
-
-    console.log("USER:", authData.user);
-
-    const profile = authData.profile;
-    if (!profile || profile.role !== "admin") {
-      return res.status(403).json({
-        error: "Sem permissão para listar usuários (admin).",
-      });
-    }
 
     const { data: users, error } = await supabase
       .from("profiles_auth")
-      .select("*");
+      .select("*")
+      .order("name", { ascending: true });
 
     if (error) {
       console.error("Erro ao listar usuários em GET /admin/users:", error);
