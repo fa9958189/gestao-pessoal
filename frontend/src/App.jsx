@@ -2477,6 +2477,15 @@ function App() {
           return;
         }
         if (!response.ok) {
+          const backendError = String(body?.error || '');
+          const normalizedError = backendError.toLowerCase();
+          if (
+            normalizedError === 'email_exists' ||
+            normalizedError.includes('email_exists') ||
+            normalizedError.includes('already been registered')
+          ) {
+            throw new Error('Esse email já está cadastrado.');
+          }
           throw new Error(body.error || 'Erro ao criar usuário.');
         }
       }

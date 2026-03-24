@@ -368,6 +368,9 @@ app.post("/create-user", async (req, res) => {
         ? password.trim()
         : `Tmp#${Math.random().toString(36).slice(-10)}aA1`;
 
+    let userId = null;
+    let createdNewAuthUser = false;
+
     // 1) Cria usuário no Auth (Supabase)
     const { data: authUser, error: authError } =
       await supabase.auth.admin.createUser({
@@ -378,16 +381,51 @@ app.post("/create-user", async (req, res) => {
       });
 
     if (authError) {
-      console.error("Erro ao criar usuário no Auth:", authError);
-      return res.status(400).json({ error: authError.message });
+      const authErrorCode = String(authError?.code || "").toLowerCase();
+      const authErrorMessage = String(authError?.message || "").toLowerCase();
+      const isEmailExistsError =
+        authErrorCode === "email_exists" ||
+        authErrorMessage.includes("email_exists") ||
+        authErrorMessage.includes("already been registered");
+
+      if (isEmailExistsError) {
+        console.warn("Usuário já existe no Auth, reutilizando:", rawEmail);
+
+        const { data: listData, error: listError } = await supabase.auth.admin.listUsers();
+
+        if (listError) {
+          console.error("Erro ao listar usuários no Auth:", listError);
+          return res.status(400).json({ error: listError.message });
+        }
+
+        const existingUser = (listData?.users || []).find(
+          (u) => String(u?.email || "").toLowerCase() === rawEmail
+        );
+
+        if (!existingUser?.id) {
+          return res.status(400).json({
+            error: "Email já cadastrado, mas não encontrado no Auth."
+          });
+        }
+
+        userId = existingUser.id;
+      } else {
+        console.error("Erro ao criar usuário no Auth:", authError);
+        return res.status(400).json({ error: authError.message });
+      }
+    } else {
+      userId = authUser?.user?.id || null;
+      createdNewAuthUser = Boolean(userId);
     }
 
-    const userId = authUser.user.id;
+    if (!userId) {
+      return res.status(400).json({ error: "Não foi possível definir o usuário no Auth." });
+    }
 
     // 2) Grava em profiles
     const { error: profileError } = await supabase
       .from("profiles")
-      .insert({
+      .upsert({
         id: userId,
         name,
         username: rawUsername,
@@ -396,17 +434,24 @@ app.post("/create-user", async (req, res) => {
         role: normalizedRole,
         billing_status: "active",
         billing_due_day: BILLING_DEFAULT_DUE_DAY,
-      });
+      }, { onConflict: "id" });
 
     if (profileError) {
       console.error("Erro ao gravar em profiles:", profileError);
+      if (createdNewAuthUser) {
+        try {
+          await supabase.auth.admin.deleteUser(userId);
+        } catch (cleanupError) {
+          console.error("Falha ao fazer rollback no Auth após erro em profiles:", cleanupError);
+        }
+      }
       return res.status(400).json({ error: profileError.message });
     }
 
     // 3) Grava em profiles_auth
     const { error: authTableError } = await supabase
       .from("profiles_auth")
-      .insert({
+      .upsert({
         auth_id: userId,
         name,
         role: normalizedRole,
@@ -425,10 +470,20 @@ app.post("/create-user", async (req, res) => {
         trial_status: finalPlanType === USER_PLAN_TYPES.TRIAL ? "trial" : null,
         trial_notified_at: null,
         subscription_status: "active",
-      });
+      }, { onConflict: "auth_id" });
 
     if (authTableError) {
       console.error("Erro ao gravar em profiles_auth:", authTableError);
+      if (createdNewAuthUser) {
+        try {
+          await supabase.auth.admin.deleteUser(userId);
+        } catch (cleanupError) {
+          console.error(
+            "Falha ao fazer rollback no Auth após erro em profiles_auth:",
+            cleanupError,
+          );
+        }
+      }
       return res.status(400).json({ error: authTableError.message });
     }
 
@@ -591,7 +646,23 @@ app.get("/admin/users", async (req, res) => {
       return res.status(400).json({ error: error.message });
     }
 
-    return res.json(users || []);
+    if (Array.isArray(users) && users.length > 0) {
+      return res.json(users);
+    }
+
+    console.warn("profiles_auth vazio em GET /admin/users, usando fallback em profiles.");
+
+    const { data: profileUsers, error: profileUsersError } = await supabase
+      .from("profiles")
+      .select("*")
+      .order("name", { ascending: true });
+
+    if (profileUsersError) {
+      console.error("Erro ao listar fallback de usuários em profiles:", profileUsersError);
+      return res.status(400).json({ error: profileUsersError.message });
+    }
+
+    return res.json(profileUsers || []);
   } catch (err) {
     console.error("Erro inesperado em GET /admin/users:", err);
     return res.status(500).json({ error: "Erro interno ao listar usuários." });
