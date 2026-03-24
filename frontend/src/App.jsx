@@ -310,18 +310,28 @@ const useAuth = (client) => {
     }
 
     let isMounted = true;
+    const apiBase = normalizeBaseUrl(
+      window.APP_CONFIG?.apiBaseUrl ||
+      import.meta.env.VITE_API_BASE_URL ||
+      import.meta.env.VITE_API_URL ||
+      import.meta.env.VITE_BACKEND_URL
+    );
 
     const buildSessionFromSupabase = async (supabaseSession) => {
       if (!supabaseSession?.user) return null;
 
       let profileRow = null;
       try {
-        const { data } = await client
-          .from('profiles_auth')
-          .select('id, name, email, role')
-          .or(`auth_id.eq.${supabaseSession.user.id},id.eq.${supabaseSession.user.id}`)
-          .maybeSingle();
-        profileRow = data || null;
+        const accessToken = supabaseSession?.access_token;
+        if (accessToken && apiBase && /^https?:\/\//i.test(apiBase)) {
+          const response = await fetch(`${apiBase}/auth/profile`, {
+            headers: { Authorization: `Bearer ${accessToken}` },
+          });
+          if (response.ok) {
+            const payload = await response.json();
+            profileRow = payload?.profile || null;
+          }
+        }
       } catch (err) {
         console.warn('Erro ao restaurar perfil do Supabase', err);
       }
@@ -1718,27 +1728,33 @@ function App() {
 
     try {
       try {
-        const { data: profileRow } = await client
-          .from('profiles_auth')
-          .select('id, auth_id, name, username, whatsapp, role, email, subscription_status, due_day, last_payment_at, last_paid_at, trial_status, trial_start_at, trial_end_at')
-          .eq('auth_id', session.user.id)
-          .single();
+        const { data: sessionData } = await client.auth.getSession();
+        const accessToken = sessionData?.session?.access_token;
+        if (accessToken && workoutApiBase && /^https?:\/\//i.test(workoutApiBase)) {
+          const response = await fetch(`${workoutApiBase}/auth/profile`, {
+            headers: { Authorization: `Bearer ${accessToken}` },
+          });
+          if (response.ok) {
+            const payload = await response.json();
+            const profileRow = payload?.profile;
 
-        if (profileRow) {
-          setProfileDetails(profileRow);
+            if (profileRow) {
+              setProfileDetails(profileRow);
 
-          const effectiveStatus = computeEffectiveSubscriptionStatus(profileRow, new Date());
-          if (profile?.role !== 'admin' && profileRow.role !== 'admin' && effectiveStatus !== 'active') {
-            const message = effectiveStatus === 'pending'
-              ? 'Assinatura pendente. Fale com o administrador.'
-              : 'Acesso inativo. Fale com o administrador.';
-            pushToast(message, 'danger');
-            await client.auth.signOut();
-            setSession(null);
-            setProfile(null);
-            setProfileDetails(null);
-            window.localStorage.removeItem('gp-session');
-            return;
+              const effectiveStatus = computeEffectiveSubscriptionStatus(profileRow, new Date());
+              if (profile?.role !== 'admin' && profileRow.role !== 'admin' && effectiveStatus !== 'active') {
+                const message = effectiveStatus === 'pending'
+                  ? 'Assinatura pendente. Fale com o administrador.'
+                  : 'Acesso inativo. Fale com o administrador.';
+                pushToast(message, 'danger');
+                await client.auth.signOut();
+                setSession(null);
+                setProfile(null);
+                setProfileDetails(null);
+                window.localStorage.removeItem('gp-session');
+                return;
+              }
+            }
           }
         }
       } catch (err) {
@@ -1797,12 +1813,23 @@ function App() {
       let userData = [];
       if (profile?.role === 'admin') {
         try {
-          const { data, error } = await client
-            .from('profiles_auth')
-            .select('id, auth_id, name, username, whatsapp, role, email, created_at, subscription_status, due_day, last_payment_at, last_paid_at, affiliate_id, affiliate_code, plan_type, plan_start_date, plan_end_date')
-            .order('name', { ascending: true });
+          const { data: sessionData } = await client.auth.getSession();
+          const token = sessionData?.session?.access_token;
+          if (!token || !workoutApiBase || !/^https?:\/\//i.test(workoutApiBase)) {
+            throw new Error('Token/admin API indisponível para listar usuários.');
+          }
 
-          if (error) throw error;
+          const response = await fetch(`${workoutApiBase}/admin/users`, {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          });
+          const data = await response.json();
+
+          if (!response.ok) {
+            throw new Error(data?.error || 'Erro ao carregar lista de usuários (admin).');
+          }
+
           userData = (data || []).map((item) => ({
             ...item,
             payment_status: isUserPaidForCurrentCycle(item, new Date()) ? 'paid' : 'pending',
@@ -2095,18 +2122,20 @@ function App() {
 
                     const accessToken = signInData?.session?.access_token;
 
-                    // 2) Buscar o registro correspondente em profiles_auth pelo auth_id
-                    const { data: authProfile, error: authProfileError } = await client
-                      .from('profiles_auth')
-                      .select('id, name, role, auth_id, email')
-                      .eq('auth_id', authUser.id)
-                      .single();
+                    if (!accessToken || !workoutApiBase || !/^https?:\/\//i.test(workoutApiBase)) {
+                      throw new Error('Não foi possível validar o perfil no backend.');
+                    }
 
-                    console.log('authProfile:', authProfile);
-                    console.log('authProfileError:', authProfileError);
+                    const authProfileResponse = await fetch(`${workoutApiBase}/auth/profile`, {
+                      headers: {
+                        Authorization: `Bearer ${accessToken}`,
+                      },
+                    });
+                    const authProfilePayload = await authProfileResponse.json().catch(() => ({}));
+                    const authProfile = authProfilePayload?.profile;
 
-                    if (authProfileError || !authProfile) {
-                      throw new Error('Perfil de autenticação não encontrado em profiles_auth.');
+                    if (!authProfileResponse.ok || !authProfile) {
+                      throw new Error(authProfilePayload?.error || 'Perfil de autenticação não encontrado.');
                     }
 
                     if (
@@ -2131,7 +2160,7 @@ function App() {
 
                     // 3) Guardar sessão no localStorage
                     //    user.id = authUser.id  (id da tabela auth.users)
-                    //    user.profile_id = authProfile.id  (id da tabela profiles_auth)
+                    //    user.profile_id = authProfile.id  (id do perfil retornado pelo backend)
                     window.localStorage.setItem(
                       'gp-session',
                       JSON.stringify({
@@ -2216,7 +2245,7 @@ function App() {
                               .from('transactions')
                               .upsert({
                                 id: payload.id,
-                                user_id: session.user.id,      // <- mesmo id gravado em profiles_auth.id
+                                user_id: session.user.id,      // <- mesmo id do usuário autenticado
                                 type: payload.type,
                                 amount: payload.amount,
                                 description: payload.description,
