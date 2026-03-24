@@ -47,7 +47,6 @@ app.use("/events", eventsRoutes);
 app.use("/treinos", treinosRoutes);
 
 const BILLING_DEFAULT_DUE_DAY = 20;
-const AFFILIATE_COMMISSION_CENTS = 2000;
 let schedulerStarted = false;
 
 function parseBoolean(value) {
@@ -56,41 +55,7 @@ function parseBoolean(value) {
   return false;
 }
 
-const getCurrentPeriodMonth = (today = new Date()) =>
-  new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10);
-
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-const generateAffiliateCode = () => {
-  const code = "AF" + Math.floor(1000 + Math.random() * 9000);
-  return code;
-};
-
-const normalizeAffiliateStatus = (affiliate = {}) => {
-  const rawStatus = String(
-    affiliate.status ?? (affiliate.is_active === false ? "inactive" : "active")
-  ).toLowerCase();
-
-  return rawStatus === "inactive" ? "inactive" : "active";
-};
-
-const toggleAffiliateStatus = async (id, currentStatus) => {
-  const newStatus = currentStatus === "active" ? "inactive" : "active";
-
-  const { data, error } = await supabase
-    .from("affiliates")
-    .update({
-      status: newStatus,
-      is_active: newStatus === "active",
-    })
-    .eq("id", id)
-    .select("*")
-    .maybeSingle();
-
-  if (error) throw error;
-
-  return data;
-};
 
 const ENABLE_MORNING_AGENDA = process.env.ENABLE_MORNING_AGENDA === "true";
 const ENABLE_DAILY_GOALS_REMINDER =
@@ -242,9 +207,9 @@ app.post("/create-user", async (req, res) => {
     if (trimmedAffiliateCode) {
       const { data: affiliateRow, error: affiliateError } = await supabase
         .from("affiliates")
-        .select("id, code, status, is_active")
+        .select("id, code, is_active")
         .eq("code", trimmedAffiliateCode)
-        .eq("status", "active")
+        .eq("is_active", true)
         .maybeSingle();
 
       if (affiliateError) {
@@ -855,85 +820,18 @@ app.get("/admin/affiliates", async (req, res) => {
     const authData = await authenticateRequest(req, res, { requireAdmin: true });
     if (!authData) return;
 
-    const { data: affiliates, error: affiliatesError } = await supabase
+    const { data: affiliates, error } = await supabase
       .from("affiliates")
       .select("*")
       .order("created_at", { ascending: false });
 
-    if (affiliatesError) {
-      if (affiliatesError.code === "42P01") return res.json([]);
-      console.error("Erro ao listar affiliates:", affiliatesError);
-      return res.status(400).json({ error: affiliatesError.message });
+    if (error) {
+      if (error.code === "42P01") return res.json([]);
+      console.error("Erro ao listar affiliates:", error);
+      return res.status(400).json({ error: error.message });
     }
 
-    let profiles = [];
-    try {
-      const { data: profileRows, error: profileErr } = await supabase
-        .from("profiles_auth")
-        .select("affiliate_id, subscription_status, billing_status")
-        .not("affiliate_id", "is", null);
-
-      if (profileErr && profileErr.code !== "42P01") {
-        throw profileErr;
-      }
-
-      profiles = profileRows || [];
-    } catch (err) {
-      console.error("Erro ao buscar perfis de afiliados:", err);
-    }
-
-    const counts = profiles.reduce((acc, row) => {
-      if (!row.affiliate_id) return acc;
-
-      const sub = (row.subscription_status || "").toLowerCase();
-      const bill = (row.billing_status || "").toLowerCase();
-      const status = sub || bill;
-      const isActive = status !== "inactive";
-
-      const current = acc.get(row.affiliate_id) || {
-        totalClients: 0,
-        activeClients: 0,
-        inactiveClients: 0,
-      };
-
-      current.totalClients += 1;
-      if (isActive) {
-        current.activeClients += 1;
-      } else {
-        current.inactiveClients += 1;
-      }
-
-      acc.set(row.affiliate_id, current);
-      return acc;
-    }, new Map());
-
-    const response = (affiliates || []).map((affiliate) => {
-      const normalizedStatus = normalizeAffiliateStatus(affiliate);
-      const stat =
-        counts.get(affiliate.id) ||
-        { totalClients: 0, activeClients: 0, inactiveClients: 0 };
-
-      const activeClients = stat.activeClients || 0;
-      const inactiveClients = stat.inactiveClients || 0;
-      const totalClients = stat.totalClients || 0;
-
-      const commissionMonthCents = activeClients * AFFILIATE_COMMISSION_CENTS;
-
-      return {
-        ...affiliate,
-        status: normalizedStatus,
-        is_active: normalizedStatus === "active",
-        total_users: totalClients,
-        active_users: activeClients,
-        inactive_users: inactiveClients,
-        active_clients_count: activeClients,
-        inactive_clients_count: inactiveClients,
-        active_paid_clients_count: activeClients,
-        commission_month_cents: commissionMonthCents,
-      };
-    });
-
-    return res.json(response);
+    return res.json(affiliates || []);
   } catch (err) {
     console.error("Erro inesperado em GET /admin/affiliates:", err);
     return res.status(500).json({ error: "Erro interno ao listar afiliados." });
@@ -945,44 +843,89 @@ app.post("/admin/affiliates", async (req, res) => {
     const authData = await authenticateRequest(req, res, { requireAdmin: true });
     if (!authData) return;
 
-    const { name, whatsapp, email, pix_key, commission_cents } = req.body || {};
-    const code = generateAffiliateCode();
+    const { name, email, whatsapp, pix_key } = req.body;
 
-    if (!name) {
-      return res.status(400).json({ error: "name é obrigatório" });
+    if (!name || !email) {
+      return res.status(400).json({
+        error: "Nome e email são obrigatórios"
+      });
     }
 
-    const payload = {
-      code,
-      name: String(name).trim(),
-      whatsapp: whatsapp || null,
-      email: email || null,
-      pix_key: pix_key || null,
-      status: "active",
-      is_active: true,
-    };
-
-    if (commission_cents !== undefined && commission_cents !== null && commission_cents !== "") {
-      payload.commission_cents = Number(commission_cents);
-    } else {
-      payload.commission_cents = 2000;
-    }
+    const code = "AF" + Math.floor(1000 + Math.random() * 9000);
 
     const { data, error } = await supabase
       .from("affiliates")
-      .insert(payload)
-      .select("*")
+      .insert([
+        {
+          name,
+          email,
+          whatsapp: whatsapp || null,
+          pix_key: pix_key || null,
+          code,
+          is_active: true
+        }
+      ])
+      .select()
       .single();
 
     if (error) {
-      console.error("Erro ao criar affiliate:", error);
-      return res.status(400).json({ error: error.message });
+      console.error("❌ Erro ao criar afiliado:", error);
+      return res.status(400).json({
+        error: error.message || "Erro ao criar afiliado"
+      });
     }
 
-    return res.json(data);
+    return res.status(201).json(data);
   } catch (err) {
-    console.error("Erro inesperado em POST /admin/affiliates:", err);
-    return res.status(500).json({ error: "Erro interno ao criar afiliado." });
+    console.error("❌ Erro interno ao criar afiliado:", err);
+    return res.status(500).json({
+      error: err.message || "Erro interno do servidor"
+    });
+  }
+});
+
+app.put("/admin/affiliates/:id/toggle", async (req, res) => {
+  try {
+    const authData = await authenticateRequest(req, res, { requireAdmin: true });
+    if (!authData) return;
+
+    const { id } = req.params;
+
+    const { data: affiliate, error: fetchError } = await supabase
+      .from("affiliates")
+      .select("id, is_active")
+      .eq("id", id)
+      .single();
+
+    if (fetchError || !affiliate) {
+      console.error("❌ Erro ao buscar afiliado para alternar status:", fetchError);
+      return res.status(404).json({
+        error: "Afiliado não encontrado"
+      });
+    }
+
+    const { data, error: updateError } = await supabase
+      .from("affiliates")
+      .update({
+        is_active: !affiliate.is_active
+      })
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (updateError) {
+      console.error("❌ Erro ao alternar status do afiliado:", updateError);
+      return res.status(400).json({
+        error: updateError.message || "Erro ao atualizar status do afiliado"
+      });
+    }
+
+    return res.status(200).json(data);
+  } catch (err) {
+    console.error("❌ Erro interno ao alternar status do afiliado:", err);
+    return res.status(500).json({
+      error: err.message || "Erro interno do servidor"
+    });
   }
 });
 
@@ -994,28 +937,12 @@ app.patch("/admin/affiliates/:id", async (req, res) => {
     const { id } = req.params;
     if (!id) return res.status(400).json({ error: "id é obrigatório" });
 
-    if (req.body?.toggle_status) {
-      const currentStatus = normalizeAffiliateStatus({
-        status: req.body?.currentStatus,
-        is_active: req.body?.is_active,
-      });
-      const data = await toggleAffiliateStatus(id, currentStatus);
-      const normalizedStatus = normalizeAffiliateStatus(data);
-      return res.json({
-        ...data,
-        status: normalizedStatus,
-        is_active: normalizedStatus === "active",
-      });
-    }
-
     const allowedFields = [
       "code",
       "name",
       "whatsapp",
       "email",
       "pix_key",
-      "commission_cents",
-      "status",
       "is_active",
     ];
 
@@ -1025,13 +952,6 @@ app.patch("/admin/affiliates/:id", async (req, res) => {
         updates[field] = req.body[field];
       }
     });
-
-    if (updates.status !== undefined) {
-      updates.status = normalizeAffiliateStatus({ status: updates.status });
-      updates.is_active = updates.status === "active";
-    } else if (updates.is_active !== undefined) {
-      updates.status = updates.is_active ? "active" : "inactive";
-    }
 
     if (!Object.keys(updates).length) {
       return res.status(400).json({ error: "Nenhuma atualização enviada" });
@@ -1049,13 +969,7 @@ app.patch("/admin/affiliates/:id", async (req, res) => {
       return res.status(400).json({ error: error.message });
     }
 
-    const normalizedStatus = normalizeAffiliateStatus(data);
-
-    return res.json({
-      ...data,
-      status: normalizedStatus,
-      is_active: normalizedStatus === "active",
-    });
+    return res.json(data);
   } catch (err) {
     console.error("Erro inesperado em PATCH /admin/affiliates/:id:", err);
     return res.status(500).json({ error: "Erro interno ao atualizar afiliado." });
@@ -1089,97 +1003,14 @@ app.get("/admin/affiliates/:id/users", async (req, res) => {
 
       return {
         ...user,
-        status: normalizedStatus,
         is_active: normalizedStatus === "active",
       };
     });
 
-    const totalCommissionCents = normalizedUsers.filter((user) => user.is_active).length * AFFILIATE_COMMISSION_CENTS;
-
-    return res.json({ users: normalizedUsers, total_commission_cents: totalCommissionCents });
+    return res.json({ users: normalizedUsers });
   } catch (err) {
     console.error("Erro inesperado em GET /admin/affiliates/:id/users:", err);
     return res.status(500).json({ error: "Erro interno ao listar usuários do afiliado." });
-  }
-});
-
-app.post("/admin/affiliates/:id/payouts/mark-paid", async (req, res) => {
-  try {
-    const authData = await authenticateRequest(req, res, { requireAdmin: true });
-    if (!authData) return;
-
-    const { id } = req.params;
-
-    if (!id) {
-      return res.status(400).json({ error: "id é obrigatório" });
-    }
-
-    const monthStart = getCurrentPeriodMonth();
-
-    const { data: affiliate, error: affiliateError } = await supabase
-      .from("affiliates")
-      .select("id, commission_cents")
-      .eq("id", id)
-      .maybeSingle();
-
-    if (affiliateError) {
-      console.error("Erro ao buscar afiliado:", affiliateError);
-      return res.status(400).json({ error: affiliateError.message });
-    }
-
-    if (!affiliate) {
-      return res.status(404).json({ error: "Afiliado não encontrado" });
-    }
-
-    const { data: affiliateUsers, error: usersError } = await supabase
-      .from("profiles_auth")
-      .select("billing_status")
-      .eq("affiliate_id", id);
-
-    if (usersError && usersError.code !== "42P01") {
-      console.error("Erro ao contar usuários do afiliado:", usersError);
-      return res.status(400).json({ error: usersError.message });
-    }
-
-    const activeUsers = (affiliateUsers || []).filter(
-      (user) => (user.billing_status || "").toLowerCase() !== "inactive"
-    ).length;
-
-    const amountCents = activeUsers * AFFILIATE_COMMISSION_CENTS;
-    const paidAt = new Date().toISOString();
-
-    const { data, error } = await supabase
-      .from("affiliate_payouts")
-      .upsert(
-        {
-          affiliate_id: id,
-          period_month: monthStart,
-          amount_cents: amountCents,
-          paid_at: paidAt,
-        },
-        { onConflict: "affiliate_id,period_month" }
-      )
-      .select("*")
-      .maybeSingle();
-
-    if (error) {
-      console.error("Erro ao registrar pagamento de afiliado:", error);
-      return res.status(400).json({ error: error.message });
-    }
-
-    const payoutRef = (data?.period_month || monthStart).slice(0, 7);
-
-    return res.json({
-      ok: true,
-      payout: data,
-      payout_status: "PAGO",
-      payout_ref: payoutRef,
-      payout_status_month_current: "paid",
-      current_period_month: monthStart,
-    });
-  } catch (err) {
-    console.error("Erro inesperado em POST /admin/affiliates/:id/payouts/mark-paid:", err);
-    return res.status(500).json({ error: "Erro interno ao registrar pagamento." });
   }
 });
 
@@ -1200,9 +1031,9 @@ app.post("/public/affiliate/apply", async (req, res) => {
 
     const { data: affiliate, error: affiliateError } = await supabase
       .from("affiliates")
-      .select("id, code, status, is_active")
+      .select("id, code, is_active")
       .eq("code", affiliate_code)
-      .eq("status", "active")
+      .eq("is_active", true)
       .maybeSingle();
 
     if (affiliateError) {
@@ -1210,7 +1041,7 @@ app.post("/public/affiliate/apply", async (req, res) => {
       return res.status(400).json({ error: affiliateError.message });
     }
 
-    if (!affiliate || normalizeAffiliateStatus(affiliate) !== "active") {
+    if (!affiliate || affiliate.is_active !== true) {
       return res.status(400).json({ error: "Código de afiliado inválido ou inativo." });
     }
 

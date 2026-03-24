@@ -172,7 +172,6 @@ const formatTimeRange = (start, end) => {
 };
 
 const BILLING_DUE_DAY = 20;
-const FIXED_COMMISSION_CENTS = 2000;
 
 const getCurrentCycleStart = (today = new Date()) => {
   const cursor = new Date(today);
@@ -617,45 +616,41 @@ const UsersTable = ({ items, onEdit, onDelete }) => (
 );
 
 
-const AffiliateCards = ({ items, onViewUsers, onToggleStatus, statusLoadingId }) => (
+const AffiliateCards = ({ items, onViewUsers, onToggleStatus }) => (
   <div className="user-list-wrapper">
     {items.length === 0 ? (
       <div className="muted user-empty">Nenhum afiliado cadastrado.</div>
     ) : (
       <div className="usuarios-scroll-container">
-        {items.map((item) => {
+        {items.map((affiliate) => {
           return (
-            <div key={item.id} className="event-card user-event-card card-ui">
+            <div key={affiliate.id} className="event-card user-event-card card-ui">
               <div className="event-date user-event-email">
-                {item.email || item.code || '-'}
+                {affiliate.email || affiliate.code || '-'}
               </div>
 
               <div className="event-content">
-                <div className="event-title">{item.name || 'Sem nome'}</div>
+                <div className="event-title">{affiliate.name || 'Sem nome'}</div>
 
-                <div className="event-subtitle">{item.whatsapp || 'WhatsApp não informado'}</div>
+                <div className="event-subtitle">{affiliate.whatsapp || 'WhatsApp não informado'}</div>
                 <div className="event-subtitle user-event-meta">
                   <button
                     type="button"
-                    className={`badge-status-button ${item.is_active ? 'badge-green' : 'badge-red'}`}
-                    onClick={() => onToggleStatus(item.id, item.is_active ? 'active' : 'inactive')}
-                    disabled={statusLoadingId === item.id}
-                    title={item.is_active ? 'Desativar afiliado' : 'Ativar afiliado'}
+                    className={affiliate.is_active ? "badge-green affiliate-status-button" : "badge-red affiliate-status-button"}
+                    onClick={() => onToggleStatus(affiliate.id)}
                   >
-                    {statusLoadingId === item.id ? '...' : (item.is_active ? 'ATIVO' : 'INATIVO')}
+                    {affiliate.is_active ? "ATIVO" : "INATIVO"}
                   </button>
                 </div>
                 <div className="event-subtitle user-event-details">
-                  <span>Código: {item.code}</span>
-                  <span>PIX: {item.pix_key || 'Não informado'}</span>
-                  <span>Clientes ativos: {item.active_clients_count ?? item.active_users ?? 0}</span>
-                  <span>Clientes inativos: {item.inactive_clients_count ?? item.inactive_users ?? 0}</span>
-                  <span>Comissão mês: {formatCurrency((item.commission_month_cents || 0) / 100)}</span>
+                  <span>Código: {affiliate.code}</span>
+                  <span>PIX: {affiliate.pix_key || 'Não informado'}</span>
+                  <span>Clientes vinculados: {affiliate.total_users ?? 0}</span>
                 </div>
               </div>
 
               <div className="event-actions">
-                <button className="btn-edit btn-ui" onClick={() => onViewUsers(item)} title="Ver clientes">
+                <button className="btn-edit btn-ui" onClick={() => onViewUsers(affiliate)} title="Ver clientes">
                   ✏️
                 </button>
               </div>
@@ -1626,25 +1621,14 @@ function App() {
   const [showForm, setShowForm] = useState(false);
   const [affiliateForm, setAffiliateForm] = useState(createDefaultAffiliateForm);
   const [affiliatesLoading, setAffiliatesLoading] = useState(false);
-  const [affiliateStatusLoadingId, setAffiliateStatusLoadingId] = useState(null);
   const [affiliateUsers, setAffiliateUsers] = useState([]);
   const [affiliateUsersLoading, setAffiliateUsersLoading] = useState(false);
   const [selectedAffiliate, setSelectedAffiliate] = useState(null);
-  const [affiliateUsersCommissionCents, setAffiliateUsersCommissionCents] = useState(0);
   const affiliateUsersList = affiliateUsers || [];
-  const affiliateUsersComputed = affiliateUsersList.map((user) => {
-    const normalizedStatus = (user.status || "").toLowerCase() === "inactive" ? "inactive" : "active";
-    const isActive = user.is_active ?? normalizedStatus === "active";
-    return {
-      ...user,
-      status: normalizedStatus,
-      is_active: isActive,
-    };
-  });
-  const fixedCommissionBRL = formatCurrency(FIXED_COMMISSION_CENTS / 100);
-  const affiliateCommissionCents = affiliateUsersCommissionCents
-    || (affiliateUsersComputed.filter((user) => user.is_active).length * FIXED_COMMISSION_CENTS);
-  const affiliateClientsTotal = formatCurrency(affiliateCommissionCents / 100);
+  const affiliateUsersComputed = affiliateUsersList.map((user) => ({
+    ...user,
+    is_active: user.is_active === true,
+  }));
 
   const [txFilters, setTxFilters] = useState(defaultTxFilters);
   const [txMonth, setTxMonth] = useState(getTodayMonth());
@@ -2497,9 +2481,7 @@ function App() {
 
   const normalizeAffiliateStats = (item) => ({
     ...item,
-    is_active: item?.is_active ?? item?.status !== 'inactive',
-    active_clients_count: item?.active_clients_count ?? item?.active_users ?? 0,
-    inactive_clients_count: item?.inactive_clients_count ?? item?.inactive_users ?? 0,
+    is_active: item?.is_active === true,
   });
 
   const fetchAffiliates = async () => {
@@ -2554,40 +2536,37 @@ function App() {
     }
   };
 
-  const toggleAffiliateStatus = async (id, currentStatus) => {
-    if (!workoutApiBase || !/^https?:\/\//i.test(workoutApiBase)) {
-      throw new Error('Backend não configurado para afiliados.');
+  const toggleAffiliateStatus = async (id) => {
+    try {
+      const accessToken = await getAccessToken();
+      if (!accessToken) {
+        throw new Error('Sessão expirada. Faça login novamente.');
+      }
+
+      const response = await fetch(`${workoutApiBase}/admin/affiliates/${id}/toggle`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`
+        }
+      });
+
+      const data = await response.json();
+
+      if (response.status === 403) {
+        handleApiForbidden();
+      }
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Erro ao alternar status do afiliado');
+      }
+
+      await fetchAffiliates();
+    } catch (error) {
+      console.error('❌ Erro ao alternar status do afiliado:', error);
+      alert(error.message || 'Erro ao alternar status do afiliado');
+      throw error;
     }
-
-    const accessToken = await getAccessToken();
-    if (!accessToken) {
-      throw new Error('Sessão expirada. Faça login novamente.');
-    }
-
-    const response = await fetch(`${workoutApiBase}/admin/affiliates/${id}`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${accessToken}`
-      },
-      body: JSON.stringify({
-        toggle_status: true,
-        currentStatus,
-      })
-    });
-
-    const body = await response.json().catch(() => ({}));
-
-    if (response.status === 403) {
-      handleApiForbidden();
-      throw new Error(body?.error || 'Acesso negado.');
-    }
-
-    if (!response.ok) {
-      throw new Error(body?.error || 'Não foi possível atualizar o afiliado.');
-    }
-
-    return body;
   };
 
   const handleSaveAffiliate = async () => {
@@ -2601,8 +2580,8 @@ function App() {
       return;
     }
 
-    if (!affiliateForm.name.trim()) {
-      pushToast('Informe o nome do afiliado.', 'warning');
+    if (!affiliateForm.name.trim() || !affiliateForm.email.trim()) {
+      pushToast('Informe nome e e-mail do afiliado.', 'warning');
       return;
     }
 
@@ -2616,9 +2595,8 @@ function App() {
       const payload = {
         name: affiliateForm.name.trim(),
         whatsapp: affiliateForm.whatsapp || undefined,
-        email: affiliateForm.email || undefined,
+        email: affiliateForm.email.trim(),
         pix_key: affiliateForm.pix_key || undefined,
-        commission_cents: FIXED_COMMISSION_CENTS,
       };
 
       const response = await fetch(`${workoutApiBase}/admin/affiliates`, {
@@ -2657,7 +2635,6 @@ function App() {
     setSelectedAffiliate(affiliate);
     setAffiliateUsers([]);
     setAffiliateUsersLoading(true);
-    setAffiliateUsersCommissionCents(0);
 
     try {
       const accessToken = await getAccessToken();
@@ -2682,21 +2659,12 @@ function App() {
 
       const responseUsers = Array.isArray(body) ? body : Array.isArray(body?.users) ? body.users : [];
 
-      const parsedUsers = responseUsers.map((user) => {
-        const normalized = (user.status || '').toLowerCase() === 'inactive' ? 'inactive' : 'active';
-        return {
-          ...user,
-          status: normalized,
-          is_active: user.is_active ?? normalized === 'active',
-        };
-      });
-
-      const commissionCents = Number.isFinite(body?.total_commission_cents)
-        ? Number(body.total_commission_cents)
-        : parsedUsers.filter((user) => user.is_active).length * FIXED_COMMISSION_CENTS;
+      const parsedUsers = responseUsers.map((user) => ({
+        ...user,
+        is_active: user.is_active === true,
+      }));
 
       setAffiliateUsers(parsedUsers);
-      setAffiliateUsersCommissionCents(commissionCents);
     } catch (err) {
       console.warn('Erro ao listar clientes do afiliado', err);
       pushToast('Não foi possível carregar os clientes desse afiliado.', 'warning');
@@ -2705,39 +2673,20 @@ function App() {
     }
   };
 
-  const handleToggleAffiliateStatus = async (id, currentStatus) => {
+  const handleToggleAffiliateStatus = async (id) => {
     if (!client || profile?.role !== 'admin') {
       pushToast('Somente administradores podem alterar afiliados.', 'warning');
       return;
     }
 
-    setAffiliateStatusLoadingId(id);
-
     try {
-      const updatedAffiliate = await toggleAffiliateStatus(id, currentStatus);
-
-      setAffiliates((prev) => prev.map((item) => (
-        item.id === id ? normalizeAffiliateStats(updatedAffiliate) : item
-      )));
-
-      setSelectedAffiliate((current) => (
-        current?.id === id ? normalizeAffiliateStats(updatedAffiliate) : current
-      ));
-
-      pushToast(
-        updatedAffiliate?.is_active
-          ? 'Afiliado ativado com sucesso.'
-          : 'Afiliado desativado com sucesso.',
-        'success'
-      );
+      await toggleAffiliateStatus(id);
+      pushToast('Status do afiliado atualizado com sucesso.', 'success');
     } catch (err) {
       console.warn('Erro ao alternar status do afiliado', err);
       pushToast(err?.message || 'Não foi possível atualizar o afiliado.', 'danger');
-    } finally {
-      setAffiliateStatusLoadingId(null);
     }
   };
-
 
 
   const toggleSidebar = () => {
@@ -3431,7 +3380,7 @@ function App() {
 
                   {step === 3 && (
                     <>
-                      <h3>Financeiro</h3>
+                      <h3>Dados adicionais</h3>
 
                       <label>Chave PIX</label>
                       <input
@@ -3479,7 +3428,6 @@ function App() {
                 items={affiliates || []}
                 onViewUsers={handleViewAffiliateUsers}
                 onToggleStatus={handleToggleAffiliateStatus}
-                statusLoadingId={affiliateStatusLoadingId}
               />
             )}
           </section>
@@ -3527,7 +3475,6 @@ function App() {
           onClick={() => {
             setSelectedAffiliate(null);
             setAffiliateUsers([]);
-            setAffiliateUsersCommissionCents(0);
           }}
         >
           <div className="affiliate-modal" onClick={(e) => e.stopPropagation()}>
@@ -3541,7 +3488,6 @@ function App() {
                 onClick={() => {
                   setSelectedAffiliate(null);
                   setAffiliateUsers([]);
-                  setAffiliateUsersCommissionCents(0);
                 }}
               >
                 Fechar
@@ -3559,7 +3505,6 @@ function App() {
                     <tr>
                       <th>Nome</th>
                       <th>E-mail</th>
-                      <th>Valor</th>
                       <th>Status</th>
                     </tr>
                   </thead>
@@ -3568,20 +3513,13 @@ function App() {
                       <tr key={user.id || user.auth_id}>
                         <td>{user.name || '-'}</td>
                         <td>{user.email || '-'}</td>
-                        <td>{formatCurrency((user.is_active ? FIXED_COMMISSION_CENTS : 0) / 100)}</td>
-                        <td>{(user.status === 'inactive' ? 'INATIVO' : 'ATIVO')}</td>
+                        <td>{user.is_active ? 'ATIVO' : 'INATIVO'}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               )}
             </div>
-            {!affiliateUsersLoading && affiliateUsersList.length > 0 && (
-              <div className="affiliate-modal-total">
-                <span>TOTAL:</span>
-                <strong>{affiliateClientsTotal}</strong>
-              </div>
-            )}
           </div>
         </div>
       )}

@@ -1052,18 +1052,21 @@ canvas{ background:transparent; }
 .badge-paid{ background:rgba(74,222,128,.16); color:#b5f8c7; }
 .badge-payment-pending{ background:rgba(251,191,36,.15); color:#facc15; }
 .badge-payment-open{ background:rgba(251,191,36,.15); color:#facc15; }
-.badge-status-button{
-  border:none;
+.affiliate-status-button{
+  border: none;
   border-radius:999px;
   padding:6px 10px;
   font-size:11px;
   font-weight:800;
   letter-spacing:.08em;
-  cursor:pointer;
-  transition:transform .15s ease, opacity .15s ease;
+  cursor: pointer;
+  transition: opacity 0.2s ease, transform 0.2s ease;
 }
-.badge-status-button:hover:not(:disabled){ transform:translateY(-1px); }
-.badge-status-button:disabled{ cursor:wait; opacity:.7; }
+
+.affiliate-status-button:hover {
+  opacity: 0.9;
+  transform: scale(1.02);
+}
 .table-actions{ display:inline-flex; gap:6px; justify-content:flex-end; }
 .toast{
   position:fixed;
