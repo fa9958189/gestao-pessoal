@@ -79,8 +79,8 @@ const defaultUserForm = {
   password: '',
   whatsapp: '',
   role: 'user',
-  affiliateCode: '',
-  applyTrial: false
+  affiliate_id: '',
+  plan_type: ''
 };
 
 const defaultEditUserForm = {
@@ -88,6 +88,7 @@ const defaultEditUserForm = {
   email: '',
   whatsapp: '',
   affiliate_id: '',
+  plan_type: '',
 };
 
 const createDefaultAffiliateForm = () => ({
@@ -179,6 +180,28 @@ const formatTimeRange = (start, end) => {
 };
 
 const BILLING_DUE_DAY = 20;
+const USER_PLAN_TYPES = Object.freeze({
+  TRIAL: 'trial',
+  NORMAL: 'normal',
+  PROMO: 'promo',
+});
+
+const USER_PLAN_OPTIONS = [
+  { value: USER_PLAN_TYPES.TRIAL, label: '🟢 Teste grátis (30 dias)' },
+  { value: USER_PLAN_TYPES.NORMAL, label: '🔵 Plano normal — R$120/mês' },
+  { value: USER_PLAN_TYPES.PROMO, label: '🟣 Plano promocional — R$80/mês (fidelidade de 4 meses)' },
+];
+
+const getPlanVisual = (planType) => {
+  const normalized = String(planType || '').toLowerCase();
+  if (normalized === USER_PLAN_TYPES.TRIAL) {
+    return { label: 'TESTE', className: 'badge-plan-trial' };
+  }
+  if (normalized === USER_PLAN_TYPES.PROMO) {
+    return { label: 'PROMO', className: 'badge-plan-promo' };
+  }
+  return { label: 'NORMAL', className: 'badge-plan-normal' };
+};
 
 const getCurrentCycleStart = (today = new Date()) => {
   const cursor = new Date(today);
@@ -565,7 +588,7 @@ const EventsTable = ({ items, onEdit, onDelete }) => (
   </div>
 );
 
-const UsersTable = ({ items, onEdit, onDelete }) => (
+const UsersTable = ({ items, onEdit, onDelete, affiliateNameById }) => (
   <div className="user-list-wrapper">
     {items.length === 0 ? (
       <div className="muted user-empty">Nenhum usuário cadastrado além de você.</div>
@@ -577,6 +600,8 @@ const UsersTable = ({ items, onEdit, onDelete }) => (
           const paid = user.payment_status === 'paid';
           const trialEnd = getTrialEnd(user);
           const daysLeft = getDaysLeft(trialEnd);
+          const planVisual = getPlanVisual(user.plan_type);
+          const affiliateName = affiliateNameById?.[user.affiliate_id] || user.affiliate_name || '-';
 
           return (
             <div key={user.id} className={`event-card user-event-card card-ui ${user._editing ? 'is-editing' : ''}`}>
@@ -598,6 +623,10 @@ const UsersTable = ({ items, onEdit, onDelete }) => (
                   </span>
                 </div>
                 <div className="event-subtitle user-event-details">
+                  <span>
+                    Plano: <span className={`badge ${planVisual.className}`}>{planVisual.label}</span>
+                  </span>
+                  <span>Afiliado: {affiliateName}</span>
                   <span>Vencimento: dia {user.due_day || BILLING_DUE_DAY}</span>
                   <span>Último pagamento: {formatDate(user.last_payment_at || user.last_paid_at)}</span>
                   <span>Criado em: {formatDate(user.created_at)}</span>
@@ -1638,6 +1667,16 @@ function App() {
   const [isAffiliateUsersModalOpen, setIsAffiliateUsersModalOpen] = useState(false);
   const [isEditAffiliateModalOpen, setIsEditAffiliateModalOpen] = useState(false);
   const [editAffiliateForm, setEditAffiliateForm] = useState(createDefaultAffiliateForm);
+  const activeAffiliates = useMemo(
+    () => (affiliates || []).filter((affiliate) => affiliate?.is_active === true),
+    [affiliates]
+  );
+  const affiliateNameById = useMemo(() => {
+    return activeAffiliates.reduce((acc, affiliate) => {
+      acc[affiliate.id] = affiliate.name || affiliate.code || 'Afiliado';
+      return acc;
+    }, {});
+  }, [activeAffiliates]);
   const affiliateUsersList = affiliateUsers || [];
   const affiliateUsersComputed = affiliateUsersList.map((user) => ({
     ...user,
@@ -1760,7 +1799,7 @@ function App() {
         try {
           const { data, error } = await client
             .from('profiles_auth')
-            .select('id, auth_id, name, username, whatsapp, role, email, created_at, subscription_status, due_day, last_payment_at, last_paid_at, affiliate_id, affiliate_code')
+            .select('id, auth_id, name, username, whatsapp, role, email, created_at, subscription_status, due_day, last_payment_at, last_paid_at, affiliate_id, affiliate_code, plan_type, plan_start_date, plan_end_date')
             .order('name', { ascending: true });
 
           if (error) throw error;
@@ -1970,7 +2009,7 @@ function App() {
   }, [isAdmin, activeView]);
 
   useEffect(() => {
-    if (activeView === 'affiliates' && isAdmin) {
+    if ((activeView === 'affiliates' || activeView === 'users') && isAdmin) {
       fetchAffiliates();
     }
   }, [activeView, isAdmin]);
@@ -2367,21 +2406,25 @@ function App() {
         }
 
         // Criar usuário via backend
-        const trimmedAffiliateCode = (userForm.affiliateCode || '').trim();
+        if (!userForm.affiliate_id) {
+          pushToast('Selecione um afiliado para continuar.', 'warning');
+          return;
+        }
+
+        if (!userForm.plan_type) {
+          pushToast('Selecione um plano para continuar.', 'warning');
+          return;
+        }
+
         const createUserPayload = {
           name: userForm.name,
           username: userForm.username,
           password: userForm.password,
           whatsapp: userForm.whatsapp,
           role: userForm.role,
+          affiliate_id: userForm.affiliate_id,
+          plan_type: userForm.plan_type,
         };
-
-        if (trimmedAffiliateCode) {
-          createUserPayload.affiliateCode = trimmedAffiliateCode;
-        }
-        if (userForm.applyTrial) {
-          createUserPayload.apply_trial = true;
-        }
 
         const response = await fetch(`${workoutApiBase}/create-user`, {
           method: 'POST',
@@ -2427,6 +2470,16 @@ function App() {
         return;
       }
 
+      if (!editUserForm.affiliate_id) {
+        pushToast('Selecione um afiliado para salvar a edição.', 'warning');
+        return;
+      }
+
+      if (!editUserForm.plan_type) {
+        pushToast('Selecione um plano para salvar a edição.', 'warning');
+        return;
+      }
+
       const response = await fetch(`${workoutApiBase}/admin/users/${editingUserId}`, {
         method: 'PATCH',
         headers: {
@@ -2438,6 +2491,7 @@ function App() {
           email: editUserForm.email,
           whatsapp: editUserForm.whatsapp,
           affiliate_id: editUserForm.affiliate_id || null,
+          plan_type: editUserForm.plan_type,
         })
       });
 
@@ -3308,6 +3362,7 @@ function App() {
 
             <UsersTable
               items={users.map((user) => ({ ...user, _editing: (user.auth_id || user.id) === editingUserId }))}
+              affiliateNameById={affiliateNameById}
               onEdit={(user) => {
                 setEditingUserId(user.auth_id || user.id);
                 setEditingUserOriginal(user);
@@ -3316,6 +3371,7 @@ function App() {
                   email: user.email || user.username || '',
                   whatsapp: user.whatsapp || '',
                   affiliate_id: user.affiliate_id || '',
+                  plan_type: user.plan_type || '',
                 });
                 setOpenUserModal(true);
               }}
@@ -3353,10 +3409,23 @@ function App() {
                     value={editUserForm.affiliate_id}
                     onChange={(e) => setEditUserForm((prev) => ({ ...prev, affiliate_id: e.target.value }))}
                   >
-                    <option value="">Sem afiliado</option>
-                    {affiliates.map((affiliate) => (
+                    <option value="">Selecione um afiliado</option>
+                    {activeAffiliates.map((affiliate) => (
                       <option key={affiliate.id} value={affiliate.id}>
-                        {affiliate.name}
+                        {affiliate.name}{affiliate.code ? ` (${affiliate.code})` : ''}
+                      </option>
+                    ))}
+                  </select>
+
+                  <label>Plano</label>
+                  <select
+                    value={editUserForm.plan_type}
+                    onChange={(e) => setEditUserForm((prev) => ({ ...prev, plan_type: e.target.value }))}
+                  >
+                    <option value="">Selecione um plano</option>
+                    {USER_PLAN_OPTIONS.map((plan) => (
+                      <option key={plan.value} value={plan.value}>
+                        {plan.label}
                       </option>
                     ))}
                   </select>
@@ -3448,22 +3517,31 @@ function App() {
                         <option value="admin">Admin</option>
                       </select>
 
-                      <label>Código do afiliado (opcional)</label>
-                      <input
-                        value={userForm.affiliateCode}
-                        onChange={(e) => setUserForm({ ...userForm, affiliateCode: e.target.value })}
-                        placeholder="ex: AFI-001"
-                      />
+                      <label>Afiliado *</label>
+                      <select
+                        value={userForm.affiliate_id}
+                        onChange={(e) => setUserForm({ ...userForm, affiliate_id: e.target.value })}
+                      >
+                        <option value="">Selecione um afiliado</option>
+                        {activeAffiliates.map((affiliate) => (
+                          <option key={affiliate.id} value={affiliate.id}>
+                            {affiliate.name}{affiliate.code ? ` (${affiliate.code})` : ''}
+                          </option>
+                        ))}
+                      </select>
 
-                      <label style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 12 }}>
-                        <input
-                          type="checkbox"
-                          checked={userForm.applyTrial}
-                          onChange={(e) => setUserForm({ ...userForm, applyTrial: e.target.checked })}
-                          style={{ width: 'auto' }}
-                        />
-                        Aplicar 7 dias grátis
-                      </label>
+                      <label>Plano *</label>
+                      <select
+                        value={userForm.plan_type}
+                        onChange={(e) => setUserForm({ ...userForm, plan_type: e.target.value })}
+                      >
+                        <option value="">Selecione um plano</option>
+                        {USER_PLAN_OPTIONS.map((plan) => (
+                          <option key={plan.value} value={plan.value}>
+                            {plan.label}
+                          </option>
+                        ))}
+                      </select>
                     </div>
                   )}
 
