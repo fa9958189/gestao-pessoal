@@ -83,6 +83,13 @@ const defaultUserForm = {
   applyTrial: false
 };
 
+const defaultEditUserForm = {
+  name: '',
+  email: '',
+  whatsapp: '',
+  affiliate_id: '',
+};
+
 const createDefaultAffiliateForm = () => ({
   name: '',
   whatsapp: '',
@@ -1611,6 +1618,7 @@ function App() {
   const [etapaTx, setEtapaTx] = useState('lista');
   const [eventForm, setEventForm] = useState(defaultEventForm);
   const [userForm, setUserForm] = useState(defaultUserForm);
+  const [editUserForm, setEditUserForm] = useState(defaultEditUserForm);
   const [openUserModal, setOpenUserModal] = useState(false);
   const [step, setStep] = useState(1);
   const [broadcastOpen, setBroadcastOpen] = useState(false);
@@ -2282,6 +2290,7 @@ function App() {
 
   const resetUserWizard = ({ closeModal = false } = {}) => {
     setUserForm(defaultUserForm);
+    setEditUserForm(defaultEditUserForm);
     setEditingUserId(null);
     setEditingUserOriginal(null);
     setStep(1);
@@ -2395,6 +2404,58 @@ function App() {
     } catch (err) {
       console.warn('Erro ao salvar usuário', err);
       pushToast(`Não foi possível salvar o usuário: ${err?.message || 'erro desconhecido'}`, 'danger');
+    }
+  };
+
+  const updateUser = async () => {
+    if (!client || profile?.role !== 'admin' || !editingUserId) {
+      pushToast('Somente administradores podem editar usuários.', 'warning');
+      return;
+    }
+
+    try {
+      const { data: sessionData } = await client.auth.getSession();
+      const accessToken = sessionData?.session?.access_token;
+
+      if (!accessToken) {
+        pushToast('Sessão expirada. Faça login novamente.', 'warning');
+        return;
+      }
+
+      if (!workoutApiBase || !/^https?:\/\//i.test(workoutApiBase)) {
+        pushToast('Backend não configurado. Não é possível editar usuário.', 'warning');
+        return;
+      }
+
+      const response = await fetch(`${workoutApiBase}/admin/users/${editingUserId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`
+        },
+        body: JSON.stringify({
+          name: editUserForm.name,
+          email: editUserForm.email,
+          whatsapp: editUserForm.whatsapp,
+          affiliate_id: editUserForm.affiliate_id || null,
+        })
+      });
+
+      const body = await response.json().catch(() => ({}));
+      if (response.status === 403) {
+        handleApiForbidden();
+        return;
+      }
+      if (!response.ok) {
+        throw new Error(body.error || 'Erro ao atualizar usuário.');
+      }
+
+      pushToast('Usuário atualizado com sucesso.', 'success');
+      resetUserWizard({ closeModal: true });
+      loadRemoteData();
+    } catch (err) {
+      console.warn('Erro ao atualizar usuário', err);
+      pushToast(`Não foi possível atualizar o usuário: ${err?.message || 'erro desconhecido'}`, 'danger');
     }
   };
 
@@ -3250,25 +3311,72 @@ function App() {
               onEdit={(user) => {
                 setEditingUserId(user.auth_id || user.id);
                 setEditingUserOriginal(user);
-                setUserForm({
-                  name: user.name,
-                  username: user.username,
-                  whatsapp: user.whatsapp,
-                  role: user.role,
-                  password: '',
-                  affiliateCode: user.affiliate_code || '',
-                  applyTrial: false
+                setEditUserForm({
+                  name: user.name || '',
+                  email: user.email || user.username || '',
+                  whatsapp: user.whatsapp || '',
+                  affiliate_id: user.affiliate_id || '',
                 });
                 setOpenUserModal(true);
-                setStep(1);
               }}
               onDelete={handleDeleteUser}
             />
 
-            {openUserModal && (
+            {openUserModal && editingUserId && (
+              <div className="affiliate-modal-backdrop" onClick={() => resetUserWizard({ closeModal: true })}>
+                <div className="affiliate-modal" onClick={(e) => e.stopPropagation()}>
+                  <h3>Editar usuário</h3>
+
+                  <label>Nome</label>
+                  <input
+                    value={editUserForm.name}
+                    onChange={(e) => setEditUserForm((prev) => ({ ...prev, name: e.target.value }))}
+                    placeholder="Nome"
+                  />
+
+                  <label>Email</label>
+                  <input
+                    value={editUserForm.email}
+                    onChange={(e) => setEditUserForm((prev) => ({ ...prev, email: e.target.value }))}
+                    placeholder="Email"
+                  />
+
+                  <label>WhatsApp</label>
+                  <input
+                    value={editUserForm.whatsapp}
+                    onChange={(e) => setEditUserForm((prev) => ({ ...prev, whatsapp: e.target.value }))}
+                    placeholder="WhatsApp"
+                  />
+
+                  <label>Afiliado</label>
+                  <select
+                    value={editUserForm.affiliate_id}
+                    onChange={(e) => setEditUserForm((prev) => ({ ...prev, affiliate_id: e.target.value }))}
+                  >
+                    <option value="">Sem afiliado</option>
+                    {affiliates.map((affiliate) => (
+                      <option key={affiliate.id} value={affiliate.id}>
+                        {affiliate.name}
+                      </option>
+                    ))}
+                  </select>
+
+                  <div className="wizard-actions" style={{ marginTop: 16 }}>
+                    <button type="button" className="btn-primary btn-ui" onClick={updateUser}>
+                      Salvar
+                    </button>
+                    <button type="button" className="btn-ui" onClick={() => resetUserWizard({ closeModal: true })}>
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {openUserModal && !editingUserId && (
               <div className="modal-overlay">
                 <div className="report-modal">
-                  <h2>{editingUserId ? 'Editar usuário' : 'Novo usuário'}</h2>
+                  <h2>Novo usuário</h2>
                   <p>Passo {step} de 3</p>
 
                   <div className="progress-bar">
@@ -3302,7 +3410,7 @@ function App() {
                     <div>
                       <h3>Acesso</h3>
 
-                      <label>{editingUserId ? 'Nova senha' : 'Senha inicial'}</label>
+                      <label>Senha inicial</label>
                       <input
                         type="password"
                         value={userForm.password}
@@ -3323,17 +3431,13 @@ function App() {
                     <div>
                       <h3>Configuração</h3>
 
-                      {!editingUserId && (
-                        <>
-                          <label>Criado em</label>
-                          <input
-                            type="date"
-                            value={today}
-                            readOnly
-                            disabled
-                          />
-                        </>
-                      )}
+                      <label>Criado em</label>
+                      <input
+                        type="date"
+                        value={today}
+                        readOnly
+                        disabled
+                      />
 
                       <label>Perfil</label>
                       <select
@@ -3351,17 +3455,15 @@ function App() {
                         placeholder="ex: AFI-001"
                       />
 
-                      {!editingUserId && (
-                        <label style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 12 }}>
-                          <input
-                            type="checkbox"
-                            checked={userForm.applyTrial}
-                            onChange={(e) => setUserForm({ ...userForm, applyTrial: e.target.checked })}
-                            style={{ width: 'auto' }}
-                          />
-                          Aplicar 7 dias grátis
-                        </label>
-                      )}
+                      <label style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 12 }}>
+                        <input
+                          type="checkbox"
+                          checked={userForm.applyTrial}
+                          onChange={(e) => setUserForm({ ...userForm, applyTrial: e.target.checked })}
+                          style={{ width: 'auto' }}
+                        />
+                        Aplicar 7 dias grátis
+                      </label>
                     </div>
                   )}
 
@@ -3378,7 +3480,7 @@ function App() {
                       </button>
                     ) : (
                       <button className="btn-primary btn-ui" onClick={handleSaveUser}>
-                        {editingUserId ? 'Salvar alterações' : 'Criar usuário'}
+                        Criar usuário
                       </button>
                     )}
 
