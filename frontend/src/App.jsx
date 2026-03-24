@@ -288,9 +288,9 @@ const useAuth = (client) => {
       try {
         const { data } = await client
           .from('profiles_auth')
-          .select('id, name, role, email')
-          .eq('auth_id', supabaseSession.user.id)
-          .single();
+          .select('id, name, email, role')
+          .or(`auth_id.eq.${supabaseSession.user.id},id.eq.${supabaseSession.user.id}`)
+          .maybeSingle();
         profileRow = data || null;
       } catch (err) {
         console.warn('Erro ao restaurar perfil do Supabase', err);
@@ -1583,7 +1583,8 @@ function App() {
   const { session, profile, loadingSession, setSession, setProfile } = useAuth(client);
   const supabase = client;
 
-  const isAdmin = profile?.role === 'admin';
+  const currentUserRole = profile?.role || session?.user?.role || 'user';
+  const isAdmin = currentUserRole === 'admin';
 
   const affiliateRef = useMemo(() => {
     try {
@@ -1852,6 +1853,38 @@ function App() {
 
         if (response.status === 403) {
           handleApiForbidden();
+          return;
+        }
+
+        if (!response.ok) {
+          return;
+        }
+
+        const body = await response.json();
+        const backendRole = body?.profile?.role;
+
+        if (typeof backendRole === 'string' && backendRole !== (profile?.role || session?.user?.role)) {
+          setProfile((current) => ({
+            ...(current || {}),
+            id: current?.id || session?.user?.profile_id || session?.user?.id,
+            name: current?.name || session?.user?.name || 'Usuário',
+            role: backendRole,
+          }));
+
+          setSession((current) => {
+            if (!current?.user) return current;
+
+            const nextSession = {
+              ...current,
+              user: {
+                ...current.user,
+                role: backendRole,
+              },
+            };
+
+            window.localStorage.setItem('gp-session', JSON.stringify(nextSession));
+            return nextSession;
+          });
         }
       } catch (err) {
         console.warn('Falha ao validar billing_status', err);
@@ -1859,7 +1892,7 @@ function App() {
     };
 
     validateBillingAccess();
-  }, [client, session, workoutApiBase]);
+  }, [client, profile?.role, session, setProfile, setSession, workoutApiBase]);
 
   useEffect(() => {
     if (!session) return;
