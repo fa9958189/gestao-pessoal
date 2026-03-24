@@ -47,6 +47,12 @@ app.use("/events", eventsRoutes);
 app.use("/treinos", treinosRoutes);
 
 const BILLING_DEFAULT_DUE_DAY = 20;
+const USER_PLAN_TYPES = Object.freeze({
+  TRIAL: "trial",
+  NORMAL: "normal",
+  PROMO: "promo",
+});
+const ALLOWED_USER_PLAN_TYPES = new Set(Object.values(USER_PLAN_TYPES));
 let schedulerStarted = false;
 
 function parseBoolean(value) {
@@ -56,6 +62,93 @@ function parseBoolean(value) {
 }
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const formatDateOnly = (date) => date.toISOString().split("T")[0];
+
+const computePlanDates = (planType) => {
+  const today = new Date();
+  const planStartDate = formatDateOnly(today);
+  let planEndDate = null;
+
+  if (planType === USER_PLAN_TYPES.TRIAL) {
+    const end = new Date(today);
+    end.setDate(end.getDate() + 30);
+    planEndDate = formatDateOnly(end);
+  }
+
+  if (planType === USER_PLAN_TYPES.PROMO) {
+    const end = new Date(today);
+    end.setMonth(end.getMonth() + 4);
+    planEndDate = formatDateOnly(end);
+  }
+
+  return { planStartDate, planEndDate };
+};
+
+const findMainAffiliateFallback = async () => {
+  const { data: byFelipeName, error: byNameError } = await supabase
+    .from("affiliates")
+    .select("id, code, name, email, is_active")
+    .eq("is_active", true)
+    .ilike("name", "%felipe%")
+    .limit(1)
+    .maybeSingle();
+
+  if (byNameError && byNameError.code !== "PGRST116") {
+    console.error("Erro ao buscar afiliado principal por nome:", byNameError);
+  }
+  if (byFelipeName?.id) return byFelipeName;
+
+  const { data: byFelipeEmail, error: byEmailError } = await supabase
+    .from("affiliates")
+    .select("id, code, name, email, is_active")
+    .eq("is_active", true)
+    .ilike("email", "%felipe%")
+    .limit(1)
+    .maybeSingle();
+
+  if (byEmailError && byEmailError.code !== "PGRST116") {
+    console.error("Erro ao buscar afiliado principal por email:", byEmailError);
+  }
+  if (byFelipeEmail?.id) return byFelipeEmail;
+
+  return null;
+};
+
+const resolveAffiliate = async (affiliateId) => {
+  const normalizedId =
+    typeof affiliateId === "string" && affiliateId.trim().length ? affiliateId.trim() : null;
+  let finalAffiliateId = normalizedId;
+
+  if (!finalAffiliateId) {
+    const mainAffiliate = await findMainAffiliateFallback();
+    if (!mainAffiliate?.id) {
+      return {
+        error:
+          "Afiliado obrigatório. Não foi possível encontrar afiliado principal de fallback.",
+      };
+    }
+    finalAffiliateId = mainAffiliate.id;
+  }
+
+  const { data: affiliate, error: affiliateError } = await supabase
+    .from("affiliates")
+    .select("id, code, name, email, is_active")
+    .eq("id", finalAffiliateId)
+    .eq("is_active", true)
+    .maybeSingle();
+
+  if (affiliateError) {
+    console.error("Erro ao buscar afiliado ativo:", affiliateError);
+    return { error: affiliateError.message || "Erro ao validar afiliado." };
+  }
+
+  if (!affiliate?.id) {
+    return { error: "Afiliado inválido ou inativo" };
+  }
+
+  return { affiliate };
+};
 
 const ENABLE_MORNING_AGENDA = process.env.ENABLE_MORNING_AGENDA === "true";
 const ENABLE_DAILY_GOALS_REMINDER =
@@ -190,6 +283,8 @@ app.post("/create-user", async (req, res) => {
       whatsapp,
       role,
       affiliateCode,
+      affiliate_id,
+      plan_type,
       apply_trial: applyTrial,
     } = req.body;
 
@@ -201,28 +296,51 @@ app.post("/create-user", async (req, res) => {
 
     const rawUsername = username.trim();
 
-    const trimmedAffiliateCode = (affiliateCode || "").trim();
-    let affiliate = null;
+    const normalizedPlanType = String(plan_type || "").trim().toLowerCase();
+    const fallbackPlanType = applyTrial ? USER_PLAN_TYPES.TRIAL : "";
+    const finalPlanType = normalizedPlanType || fallbackPlanType;
 
-    if (trimmedAffiliateCode) {
-      const { data: affiliateRow, error: affiliateError } = await supabase
+    if (!ALLOWED_USER_PLAN_TYPES.has(finalPlanType)) {
+      return res.status(400).json({
+        error: "plan_type obrigatório e deve ser trial, normal ou promo.",
+      });
+    }
+
+    const trimmedAffiliateCode = (affiliateCode || "").trim();
+    let incomingAffiliateId =
+      typeof affiliate_id === "string" && affiliate_id.trim().length ? affiliate_id.trim() : null;
+
+    if (!incomingAffiliateId && trimmedAffiliateCode) {
+      const { data: affiliateByCode, error: affiliateByCodeError } = await supabase
         .from("affiliates")
-        .select("id, code, is_active")
+        .select("id")
         .eq("code", trimmedAffiliateCode)
         .eq("is_active", true)
         .maybeSingle();
 
-      if (affiliateError) {
-        console.error("Erro ao buscar afiliado:", affiliateError);
-        return res.status(400).json({ error: affiliateError.message });
+      if (affiliateByCodeError) {
+        console.error("Erro ao buscar afiliado por código:", affiliateByCodeError);
+        return res.status(400).json({ error: affiliateByCodeError.message });
       }
 
-      if (!affiliateRow) {
-        return res.status(400).json({ error: "Código de afiliado inválido" });
+      if (affiliateByCode?.id) {
+        incomingAffiliateId = affiliateByCode.id;
       }
-
-      affiliate = affiliateRow;
     }
+
+    const { affiliate, error: affiliateResolveError } = await resolveAffiliate(incomingAffiliateId);
+    if (affiliateResolveError) {
+      return res.status(400).json({ error: affiliateResolveError });
+    }
+
+    const now = new Date();
+    const nowIso = now.toISOString();
+    const { planStartDate, planEndDate } = computePlanDates(finalPlanType);
+    const trialStartIso = finalPlanType === USER_PLAN_TYPES.TRIAL ? nowIso : null;
+    const trialEndIso =
+      finalPlanType === USER_PLAN_TYPES.TRIAL && planEndDate
+        ? `${planEndDate}T00:00:00.000Z`
+        : null;
 
     // Se o "username" já for um e-mail válido, usa ele direto.
     // Senão, gera um e-mail fake tipo fulano@example.com
@@ -278,9 +396,6 @@ app.post("/create-user", async (req, res) => {
     }
 
     // 3) Grava em profiles_auth
-    const nowIso = new Date().toISOString();
-    const trialEndIso = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
-
     const { error: authTableError } = await supabase
       .from("profiles_auth")
       .insert({
@@ -292,17 +407,16 @@ app.post("/create-user", async (req, res) => {
         whatsapp,
         billing_status: "active",
         billing_due_day: BILLING_DEFAULT_DUE_DAY,
-        affiliate_id: affiliate?.id || null,
-        affiliate_code: affiliate?.code || null,
-        ...(applyTrial
-          ? {
-              trial_start_at: nowIso,
-              trial_end_at: trialEndIso,
-              trial_status: "trial",
-              trial_notified_at: null,
-              subscription_status: "active",
-            }
-          : {}),
+        affiliate_id: affiliate.id,
+        affiliate_code: affiliate.code || null,
+        plan_type: finalPlanType,
+        plan_start_date: planStartDate,
+        plan_end_date: planEndDate,
+        trial_start_at: trialStartIso,
+        trial_end_at: trialEndIso,
+        trial_status: finalPlanType === USER_PLAN_TYPES.TRIAL ? "trial" : null,
+        trial_notified_at: null,
+        subscription_status: "active",
       });
 
     if (authTableError) {
@@ -611,13 +725,12 @@ app.patch("/admin/users/:userId", async (req, res) => {
       return res.status(400).json({ error: "userId é obrigatório" });
     }
 
-    const { name, email, whatsapp, affiliate_id } = req.body || {};
+    const { name, email, whatsapp, affiliate_id, plan_type } = req.body || {};
     const trimmedEmail = typeof email === "string" ? email.trim() : "";
     const trimmedName = typeof name === "string" ? name.trim() : "";
     const affiliateId =
-      typeof affiliate_id === "string" && affiliate_id.trim().length
-        ? affiliate_id.trim()
-        : null;
+      typeof affiliate_id === "string" && affiliate_id.trim().length ? affiliate_id.trim() : null;
+    const normalizedPlanType = String(plan_type || "").trim().toLowerCase();
 
     if (!trimmedName) {
       return res.status(400).json({ error: "name é obrigatório" });
@@ -627,33 +740,39 @@ app.patch("/admin/users/:userId", async (req, res) => {
       return res.status(400).json({ error: "email é obrigatório" });
     }
 
-    let affiliateCode = null;
-    if (affiliateId) {
-      const { data: affiliate, error: affiliateError } = await supabase
-        .from("affiliates")
-        .select("id, code")
-        .eq("id", affiliateId)
-        .maybeSingle();
-
-      if (affiliateError) {
-        console.error("Erro ao buscar afiliado:", affiliateError);
-        return res.status(400).json({ error: affiliateError.message });
-      }
-
-      if (!affiliate?.id) {
-        return res.status(400).json({ error: "affiliate_id inválido" });
-      }
-
-      affiliateCode = affiliate.code || null;
+    if (!ALLOWED_USER_PLAN_TYPES.has(normalizedPlanType)) {
+      return res.status(400).json({
+        error: "plan_type obrigatório e deve ser trial, normal ou promo.",
+      });
     }
+
+    const { affiliate, error: affiliateResolveError } = await resolveAffiliate(affiliateId);
+    if (affiliateResolveError) {
+      return res.status(400).json({ error: affiliateResolveError });
+    }
+
+    const now = new Date();
+    const nowIso = now.toISOString();
+    const { planStartDate, planEndDate } = computePlanDates(normalizedPlanType);
+    const trialStartIso = normalizedPlanType === USER_PLAN_TYPES.TRIAL ? nowIso : null;
+    const trialEndIso =
+      normalizedPlanType === USER_PLAN_TYPES.TRIAL && planEndDate
+        ? `${planEndDate}T00:00:00.000Z`
+        : null;
 
     const authUpdatePayload = {
       name: trimmedName,
       username: trimmedEmail,
       email: trimmedEmail,
       whatsapp: typeof whatsapp === "string" ? whatsapp : null,
-      affiliate_id: affiliateId,
-      affiliate_code: affiliateCode,
+      affiliate_id: affiliate.id,
+      affiliate_code: affiliate.code || null,
+      plan_type: normalizedPlanType,
+      plan_start_date: planStartDate,
+      plan_end_date: planEndDate,
+      trial_start_at: trialStartIso,
+      trial_end_at: trialEndIso,
+      trial_status: normalizedPlanType === USER_PLAN_TYPES.TRIAL ? "trial" : null,
     };
 
     const { error: upAuthErr } = await supabase
