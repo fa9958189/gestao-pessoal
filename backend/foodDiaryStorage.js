@@ -77,9 +77,9 @@ const mapWaterGoalFromAuth = (profile) => {
 
 const getWaterGoalL = async (supabaseClient, userId, fallbackProfile) => {
   const { data: authProfile, error: authError } = await supabaseClient
-    .from("profiles_auth")
+    .from("profiles")
     .select("water_goal_l, water_goal, water")
-    .eq("auth_id", userId)
+    .eq("id", userId)
     .maybeSingle();
 
   if (authError) throw authError;
@@ -232,9 +232,9 @@ export const updateWaterGoal = async ({
   }
 
   const { error: authError } = await supabaseClient
-    .from("profiles_auth")
+    .from("profiles")
     .update({ water_goal_l: parsedGoal })
-    .eq("auth_id", userId);
+    .eq("id", userId);
 
   if (authError) {
     return { ok: false, error: authError };

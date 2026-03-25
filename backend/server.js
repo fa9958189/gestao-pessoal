@@ -63,6 +63,38 @@ function parseBoolean(value) {
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+const normalizeErrorMessage = (error) => String(error?.message || "").toLowerCase();
+const normalizeErrorCode = (error) => String(error?.code || "").toLowerCase();
+const isDuplicateEmailError = (error) => {
+  const code = normalizeErrorCode(error);
+  const message = normalizeErrorMessage(error);
+  return (
+    code === "email_exists" ||
+    code === "23505" ||
+    message.includes("email_exists") ||
+    message.includes("already been registered") ||
+    message.includes("duplicate key")
+  );
+};
+const isPermissionError = (error) => {
+  const code = normalizeErrorCode(error);
+  const message = normalizeErrorMessage(error);
+  return (
+    code === "42501" ||
+    code === "401" ||
+    code === "403" ||
+    message.includes("permission denied") ||
+    message.includes("not authorized") ||
+    message.includes("jwt") ||
+    message.includes("forbidden")
+  );
+};
+const buildApiErrorMessage = (error) => {
+  if (isDuplicateEmailError(error)) return "Este email já está cadastrado";
+  if (isPermissionError(error)) return "Sem permissão";
+  return "Erro interno, tente novamente";
+};
+
 const formatDateOnly = (date) => date.toISOString().split("T")[0];
 
 const computePlanDates = (planType) => {
@@ -364,133 +396,58 @@ app.post("/create-user", async (req, res) => {
     }
 
     const generatedPassword =
-      typeof password === "string" && password.trim().length >= 6
-        ? password.trim()
-        : `Tmp#${Math.random().toString(36).slice(-10)}aA1`;
+      typeof password === "string" && password.trim().length >= 6 ? password.trim() : "123456";
 
-    let userId = null;
-    let createdNewAuthUser = false;
-
-    // 1) Cria usuário no Auth (Supabase)
-    const { data: authUser, error: authError } =
-      await supabase.auth.admin.createUser({
-        email: rawEmail,
-        password: generatedPassword,
-        email_confirm: true,
-        user_metadata: { full_name: name, role: normalizedRole }
-      });
+    const { data: authUser, error: authError } = await supabase.auth.admin.createUser({
+      email: rawEmail,
+      password: generatedPassword,
+      email_confirm: true,
+    });
 
     if (authError) {
-      const authErrorCode = String(authError?.code || "").toLowerCase();
-      const authErrorMessage = String(authError?.message || "").toLowerCase();
-      const isEmailExistsError =
-        authErrorCode === "email_exists" ||
-        authErrorMessage.includes("email_exists") ||
-        authErrorMessage.includes("already been registered");
-
-      if (isEmailExistsError) {
-        console.warn("Usuário já existe no Auth, reutilizando:", rawEmail);
-
-        const { data: listData, error: listError } = await supabase.auth.admin.listUsers();
-
-        if (listError) {
-          console.error("Erro ao listar usuários no Auth:", listError);
-          return res.status(400).json({ error: listError.message });
-        }
-
-        const existingUser = (listData?.users || []).find(
-          (u) => String(u?.email || "").toLowerCase() === rawEmail
-        );
-
-        if (!existingUser?.id) {
-          return res.status(400).json({
-            error: "Email já cadastrado, mas não encontrado no Auth."
-          });
-        }
-
-        userId = existingUser.id;
-      } else {
-        console.error("Erro ao criar usuário no Auth:", authError);
-        return res.status(400).json({ error: authError.message });
+      console.error("Erro ao criar usuário no Auth:", authError);
+      if (isDuplicateEmailError(authError)) {
+        return res.status(400).json({ error: "Este email já está cadastrado" });
       }
-    } else {
-      userId = authUser?.user?.id || null;
-      createdNewAuthUser = Boolean(userId);
+      return res.status(500).json({ error: buildApiErrorMessage(authError) });
     }
 
+    const userId = authUser?.user?.id;
     if (!userId) {
-      return res.status(400).json({ error: "Não foi possível definir o usuário no Auth." });
+      return res.status(500).json({ error: "Erro interno, tente novamente" });
     }
 
-    // 2) Grava em profiles
-    const { error: profileError } = await supabase
-      .from("profiles")
-      .upsert({
-        id: userId,
-        name,
-        username: rawUsername,
-        email: rawEmail,
-        whatsapp,
-        role: normalizedRole,
-        billing_status: "active",
-        billing_due_day: BILLING_DEFAULT_DUE_DAY,
-      }, { onConflict: "id" });
+    const { error: profileError } = await supabase.from("profiles").insert({
+      id: userId,
+      name,
+      username: rawUsername,
+      email: rawEmail,
+      whatsapp,
+      role: normalizedRole,
+      billing_status: "active",
+      billing_due_day: BILLING_DEFAULT_DUE_DAY,
+      affiliate_id: affiliate.id,
+      affiliate_code: affiliate.code || null,
+      plan_type: finalPlanType,
+      plan_start_date: planStartDate,
+      plan_end_date: planEndDate,
+      trial_start_at: trialStartIso,
+      trial_end_at: trialEndIso,
+      trial_status: finalPlanType === USER_PLAN_TYPES.TRIAL ? "trial" : null,
+      trial_notified_at: null,
+      subscription_status: "active",
+    });
 
     if (profileError) {
       console.error("Erro ao gravar em profiles:", profileError);
-      if (createdNewAuthUser) {
-        try {
-          await supabase.auth.admin.deleteUser(userId);
-        } catch (cleanupError) {
-          console.error("Falha ao fazer rollback no Auth após erro em profiles:", cleanupError);
-        }
-      }
-      return res.status(400).json({ error: profileError.message });
-    }
-
-    // 3) Grava em profiles_auth
-    const { error: authTableError } = await supabase
-      .from("profiles_auth")
-      .upsert({
-        auth_id: userId,
-        name,
-        role: normalizedRole,
-        email: rawEmail,
-        username: rawUsername,
-        whatsapp,
-        billing_status: "active",
-        billing_due_day: BILLING_DEFAULT_DUE_DAY,
-        affiliate_id: affiliate.id,
-        affiliate_code: affiliate.code || null,
-        plan_type: finalPlanType,
-        plan_start_date: planStartDate,
-        plan_end_date: planEndDate,
-        trial_start_at: trialStartIso,
-        trial_end_at: trialEndIso,
-        trial_status: finalPlanType === USER_PLAN_TYPES.TRIAL ? "trial" : null,
-        trial_notified_at: null,
-        subscription_status: "active",
-      }, { onConflict: "auth_id" });
-
-    if (authTableError) {
-      console.error("Erro ao gravar em profiles_auth:", authTableError);
-      if (createdNewAuthUser) {
-        try {
-          await supabase.auth.admin.deleteUser(userId);
-        } catch (cleanupError) {
-          console.error(
-            "Falha ao fazer rollback no Auth após erro em profiles_auth:",
-            cleanupError,
-          );
-        }
-      }
-      return res.status(400).json({ error: authTableError.message });
+      await supabase.auth.admin.deleteUser(userId);
+      return res.status(500).json({ error: buildApiErrorMessage(profileError) });
     }
 
     return res.json({ success: true, id: userId });
   } catch (err) {
     console.error("Erro inesperado em /create-user:", err);
-    return res.status(500).json({ error: "Erro interno no servidor" });
+    return res.status(isPermissionError(err) ? 403 : 500).json({ error: buildApiErrorMessage(err) });
   }
 });
 
@@ -518,9 +475,9 @@ const authenticateRequest = async (req, res, { requireAdmin = false } = {}) => {
   let requesterProfile = null;
   try {
     const { data: profileAuth, error: profileAuthError } = await supabase
-      .from("profiles_auth")
+      .from("profiles")
       .select("role, billing_status")
-      .or(`auth_id.eq.${requesterId},id.eq.${requesterId}`)
+      .eq("id", requesterId)
       .maybeSingle();
 
     if (profileAuthError && profileAuthError.code !== "42P01") {
@@ -529,7 +486,7 @@ const authenticateRequest = async (req, res, { requireAdmin = false } = {}) => {
 
     requesterProfile = profileAuth || null;
   } catch (err) {
-    console.error("Erro ao validar perfil do solicitante (profiles_auth):", err);
+    console.error("Erro ao validar perfil do solicitante (profiles):", err);
   }
 
   if (!requesterProfile) {
@@ -556,7 +513,7 @@ const authenticateRequest = async (req, res, { requireAdmin = false } = {}) => {
   }
 
   if (requireAdmin && requesterProfile?.role !== "admin") {
-    res.status(403).json({ error: "Apenas admins podem acessar." });
+    res.status(403).json({ error: "Sem permissão" });
     return null;
   }
 
@@ -565,11 +522,11 @@ const authenticateRequest = async (req, res, { requireAdmin = false } = {}) => {
 
 const fetchProfileWithBilling = async (userId) => {
   const { data: profileAuth, error: profileAuthError } = await supabase
-    .from("profiles_auth")
+    .from("profiles")
     .select(
-      "id, name, email, role, auth_id, billing_status, subscription_status, trial_end_at, trial_start_at, trial_status"
+      "id, name, email, role, billing_status, subscription_status, trial_end_at, trial_start_at, trial_status"
     )
-    .or(`auth_id.eq.${userId},id.eq.${userId}`)
+    .eq("id", userId)
     .maybeSingle();
 
   if (profileAuthError && profileAuthError.code !== "PGRST116" && profileAuthError.code !== "42P01") {
@@ -637,32 +594,16 @@ app.get("/admin/users", async (req, res) => {
     if (!authData) return;
 
     const { data: users, error } = await supabase
-      .from("profiles_auth")
+      .from("profiles")
       .select("*")
-      .order("name", { ascending: true });
+      .order("created_at", { ascending: false });
 
     if (error) {
       console.error("Erro ao listar usuários em GET /admin/users:", error);
-      return res.status(400).json({ error: error.message });
+      return res.status(500).json({ error: buildApiErrorMessage(error) });
     }
 
-    if (Array.isArray(users) && users.length > 0) {
-      return res.json(users);
-    }
-
-    console.warn("profiles_auth vazio em GET /admin/users, usando fallback em profiles.");
-
-    const { data: profileUsers, error: profileUsersError } = await supabase
-      .from("profiles")
-      .select("*")
-      .order("name", { ascending: true });
-
-    if (profileUsersError) {
-      console.error("Erro ao listar fallback de usuários em profiles:", profileUsersError);
-      return res.status(400).json({ error: profileUsersError.message });
-    }
-
-    return res.json(profileUsers || []);
+    return res.json(users || []);
   } catch (err) {
     console.error("Erro inesperado em GET /admin/users:", err);
     return res.status(500).json({ error: "Erro interno ao listar usuários." });
@@ -670,31 +611,9 @@ app.get("/admin/users", async (req, res) => {
 });
 
 const deleteUserFlow = async (userId) => {
-  // 1) Deletar no Auth
   const { error: authError } = await supabase.auth.admin.deleteUser(userId);
   if (authError) {
-    console.warn("Erro ao deletar no Auth:", authError.message);
-  }
-
-  // 2) Deletar no profiles_auth
-  try {
-    const { error: profileAuthError } = await supabase
-      .from("profiles_auth")
-      .delete()
-      .eq("auth_id", userId);
-
-    if (profileAuthError) {
-      console.warn("Erro ao deletar profiles_auth:", profileAuthError.message);
-    }
-  } catch (err) {
-    if (err?.code !== "42P01") throw err;
-    console.warn("Tabela profiles_auth não existe. Seguindo fluxo de exclusão.");
-  }
-
-  // 3) Deletar no profiles
-  const { error: profileError } = await supabase.from("profiles").delete().eq("id", userId);
-  if (profileError) {
-    console.warn("Erro ao deletar profiles:", profileError.message);
+    throw authError;
   }
 };
 
@@ -714,9 +633,7 @@ app.delete("/delete-user/:id", async (req, res) => {
     });
   } catch (err) {
     console.error("Erro geral:", err);
-    return res.status(500).json({
-      error: "Erro ao deletar usuário",
-    });
+    return res.status(isPermissionError(err) ? 403 : 500).json({ error: buildApiErrorMessage(err) });
   }
 });
 
@@ -736,9 +653,7 @@ app.delete("/admin/users/:userId", async (req, res) => {
     });
   } catch (err) {
     console.error("Erro geral:", err);
-    return res.status(500).json({
-      error: "Erro ao deletar usuário",
-    });
+    return res.status(isPermissionError(err) ? 403 : 500).json({ error: buildApiErrorMessage(err) });
   }
 });
 
@@ -752,9 +667,10 @@ app.put("/admin/users/:userId", async (req, res) => {
       return res.status(400).json({ error: "userId é obrigatório" });
     }
 
-    const { name, username, whatsapp, role, password } = req.body || {};
+    const { name, username, email, whatsapp, role, affiliate_id, plan_type, password } = req.body || {};
 
-    const trimmedUsername = typeof username === "string" ? username.trim() : "";
+    const incomingEmail = typeof email === "string" ? email.trim() : "";
+    const trimmedUsername = typeof username === "string" ? username.trim() : incomingEmail;
     const trimmedName = typeof name === "string" ? name.trim() : "";
     const trimmedPassword =
       typeof password === "string" && password.trim().length ? password.trim() : "";
@@ -764,48 +680,33 @@ app.put("/admin/users/:userId", async (req, res) => {
     }
 
     try {
-      const updateAuthPayload = {};
-
-      if (typeof name === "string") updateAuthPayload.name = name;
+      const updateProfilePayload = {};
+      if (typeof name === "string") updateProfilePayload.name = name;
       if (trimmedUsername) {
-        updateAuthPayload.username = trimmedUsername;
-        updateAuthPayload.email = trimmedUsername;
+        updateProfilePayload.username = trimmedUsername;
+        updateProfilePayload.email = trimmedUsername;
       }
-      if (typeof whatsapp === "string") updateAuthPayload.whatsapp = whatsapp;
-      if (typeof role === "string") updateAuthPayload.role = role;
+      if (typeof whatsapp === "string") updateProfilePayload.whatsapp = whatsapp;
+      if (typeof role === "string") updateProfilePayload.role = role;
+      if (affiliate_id !== undefined) updateProfilePayload.affiliate_id = affiliate_id || null;
+      if (plan_type !== undefined) updateProfilePayload.plan_type = plan_type || null;
 
-      if (Object.keys(updateAuthPayload).length) {
-        const { error: upAuthErr } = await supabase
-          .from("profiles_auth")
-          .update(updateAuthPayload)
-          .or(`auth_id.eq.${userId},id.eq.${userId}`);
+      const { error: upProfileErr } = await supabase
+        .from("profiles")
+        .update(updateProfilePayload)
+        .eq("id", userId);
 
-        if (upAuthErr && upAuthErr.code !== "42P01") {
-          console.error("Erro ao atualizar profiles_auth:", upAuthErr);
-          return res.status(400).json({ error: upAuthErr.message });
-        }
+      if (upProfileErr) {
+        console.error("Erro ao atualizar profiles:", upProfileErr);
+        return res.status(isPermissionError(upProfileErr) ? 403 : 500).json({
+          error: buildApiErrorMessage(upProfileErr),
+        });
       }
     } catch (tableError) {
-      if (tableError?.code !== "42P01") {
-        console.error("Erro inesperado ao atualizar profiles_auth:", tableError);
-        return res.status(400).json({ error: tableError.message });
-      }
-    }
-
-    const updateProfilePayload = {};
-    if (typeof name === "string") updateProfilePayload.name = name;
-    if (trimmedUsername) updateProfilePayload.username = trimmedUsername;
-    if (typeof whatsapp === "string") updateProfilePayload.whatsapp = whatsapp;
-    if (typeof role === "string") updateProfilePayload.role = role;
-
-    const { error: upProfileErr } = await supabase
-      .from("profiles")
-      .update(updateProfilePayload)
-      .eq("id", userId);
-
-    if (upProfileErr) {
-      console.error("Erro ao atualizar profiles:", upProfileErr);
-      return res.status(400).json({ error: upProfileErr.message });
+      console.error("Erro inesperado ao atualizar profiles:", tableError);
+      return res.status(isPermissionError(tableError) ? 403 : 500).json({
+        error: buildApiErrorMessage(tableError),
+      });
     }
 
     const authUpdatePayload = { email: trimmedUsername };
@@ -827,14 +728,13 @@ app.put("/admin/users/:userId", async (req, res) => {
     );
 
     if (authUpdateError) {
-      console.error("Erro ao atualizar usuário no Auth:", authUpdateError);
-      return res.status(400).json({ error: authUpdateError.message });
+      console.error("Erro ao atualizar usuário no Auth (ignorado):", authUpdateError);
     }
 
     return res.json({ ok: true });
   } catch (err) {
     console.error("Erro inesperado em PUT /admin/users/:userId:", err);
-    return res.status(500).json({ error: "Erro interno ao editar usuário." });
+    return res.status(isPermissionError(err) ? 403 : 500).json({ error: buildApiErrorMessage(err) });
   }
 });
 
@@ -848,7 +748,7 @@ app.patch("/admin/users/:userId", async (req, res) => {
       return res.status(400).json({ error: "userId é obrigatório" });
     }
 
-    const { name, email, whatsapp, affiliate_id, plan_type } = req.body || {};
+    const { name, email, whatsapp, role, affiliate_id, plan_type } = req.body || {};
     const trimmedEmail = typeof email === "string" ? email.trim() : "";
     const trimmedName = typeof name === "string" ? name.trim() : "";
     const affiliateId =
@@ -883,43 +783,30 @@ app.patch("/admin/users/:userId", async (req, res) => {
         ? `${planEndDate}T00:00:00.000Z`
         : null;
 
-    const authUpdatePayload = {
-      name: trimmedName,
-      username: trimmedEmail,
-      email: trimmedEmail,
-      whatsapp: typeof whatsapp === "string" ? whatsapp : null,
-      affiliate_id: affiliate.id,
-      affiliate_code: affiliate.code || null,
-      plan_type: normalizedPlanType,
-      plan_start_date: planStartDate,
-      plan_end_date: planEndDate,
-      trial_start_at: trialStartIso,
-      trial_end_at: trialEndIso,
-      trial_status: normalizedPlanType === USER_PLAN_TYPES.TRIAL ? "trial" : null,
-    };
-
-    const { error: upAuthErr } = await supabase
-      .from("profiles_auth")
-      .update(authUpdatePayload)
-      .or(`auth_id.eq.${userId},id.eq.${userId}`);
-
-    if (upAuthErr && upAuthErr.code !== "42P01") {
-      console.error("Erro ao atualizar profiles_auth:", upAuthErr);
-      return res.status(400).json({ error: upAuthErr.message });
-    }
-
     const { error: upProfileErr } = await supabase
       .from("profiles")
       .update({
         name: trimmedName,
+        email: trimmedEmail,
         username: trimmedEmail,
         whatsapp: typeof whatsapp === "string" ? whatsapp : null,
+        role: typeof role === "string" ? role : undefined,
+        affiliate_id: affiliate.id,
+        affiliate_code: affiliate.code || null,
+        plan_type: normalizedPlanType,
+        plan_start_date: planStartDate,
+        plan_end_date: planEndDate,
+        trial_start_at: trialStartIso,
+        trial_end_at: trialEndIso,
+        trial_status: normalizedPlanType === USER_PLAN_TYPES.TRIAL ? "trial" : null,
       })
       .eq("id", userId);
 
     if (upProfileErr) {
       console.error("Erro ao atualizar profiles:", upProfileErr);
-      return res.status(400).json({ error: upProfileErr.message });
+      return res.status(isPermissionError(upProfileErr) ? 403 : 500).json({
+        error: buildApiErrorMessage(upProfileErr),
+      });
     }
 
     const { data: existingUser, error: fetchError } =
@@ -947,7 +834,7 @@ app.patch("/admin/users/:userId", async (req, res) => {
     });
   } catch (err) {
     console.error("Erro inesperado em PATCH /admin/users/:userId:", err);
-    return res.status(500).json({ error: "Erro interno ao editar usuário." });
+    return res.status(isPermissionError(err) ? 403 : 500).json({ error: buildApiErrorMessage(err) });
   }
 });
 
@@ -1020,12 +907,12 @@ app.patch("/admin/users/:authId/billing", async (req, res) => {
     }
 
     const { error: authErr } = await supabase
-      .from("profiles_auth")
+      .from("profiles")
       .update(authUpdates)
-      .or(`auth_id.eq.${authId},id.eq.${authId}`);
+      .eq("id", authId);
 
     if (authErr && authErr.code !== "42P01") {
-      console.error("Erro ao atualizar billing em profiles_auth:", authErr);
+      console.error("Erro ao atualizar billing em profiles:", authErr);
       return res.status(400).json({ error: authErr.message });
     }
 
@@ -1062,7 +949,7 @@ app.post("/admin/broadcast-whatsapp", async (req, res) => {
 
     const buildQuery = (columns) => {
       let query = supabase
-        .from("profiles_auth")
+        .from("profiles")
         .select(columns)
         .not("whatsapp", "is", null);
 
@@ -1080,9 +967,9 @@ app.post("/admin/broadcast-whatsapp", async (req, res) => {
     };
 
     const queryAttempts = [
-      "auth_id, whatsapp, role, billing_status, trial_status, trial_end_at",
-      "auth_id, whatsapp, role",
-      "auth_id, whatsapp",
+      "id, whatsapp, role, billing_status, trial_status, trial_end_at",
+      "id, whatsapp, role",
+      "id, whatsapp",
     ];
 
     let data = null;
@@ -1137,7 +1024,7 @@ app.post("/admin/broadcast-whatsapp", async (req, res) => {
       } catch (err) {
         failed += 1;
         failures.push({
-          auth_id: user.auth_id,
+          id: user.id,
           whatsapp: user.whatsapp,
           error: err?.message || String(err),
         });
@@ -1348,9 +1235,9 @@ app.get("/admin/affiliates/:id/users", async (req, res) => {
     if (!id) return res.status(400).json({ error: "id é obrigatório" });
 
     const { data, error } = await supabase
-      .from("profiles_auth")
+      .from("profiles")
       .select(
-        "id, auth_id, name, username, email, whatsapp, subscription_status, billing_status, affiliate_id, affiliate_code, created_at"
+        "id, name, username, email, whatsapp, subscription_status, billing_status, affiliate_id, affiliate_code, created_at"
       )
       .eq("affiliate_id", id)
       .order("created_at", { ascending: false });
@@ -1409,9 +1296,9 @@ app.post("/public/affiliate/apply", async (req, res) => {
     }
 
     const { data: profileRow, error: profileErr } = await supabase
-      .from("profiles_auth")
-      .select("id, auth_id, affiliate_id")
-      .or(`auth_id.eq.${authData.userId},id.eq.${authData.userId}`)
+      .from("profiles")
+      .select("id, affiliate_id")
+      .eq("id", authData.userId)
       .maybeSingle();
 
     if (profileErr) {
@@ -1424,9 +1311,9 @@ app.post("/public/affiliate/apply", async (req, res) => {
     }
 
     const { error: updateErr } = await supabase
-      .from("profiles_auth")
+      .from("profiles")
       .update({ affiliate_id: affiliate.id, affiliate_code: affiliate.code })
-      .or(`auth_id.eq.${authData.userId},id.eq.${authData.userId}`);
+      .eq("id", authData.userId);
 
     if (updateErr) {
       console.error("Erro ao vincular afiliado:", updateErr);

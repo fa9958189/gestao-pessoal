@@ -117,9 +117,9 @@ const markAgendaEventsAsSent = async (events) => {
 
 const sendWhatsApp = async (userId, message) => {
   const { data: profile, error } = await supabase
-    .from("profiles_auth")
+    .from("profiles")
     .select("whatsapp")
-    .eq("auth_id", userId)
+    .eq("id", userId)
     .maybeSingle();
 
   if (error) {

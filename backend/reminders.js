@@ -226,13 +226,13 @@ async function sendAgendaEvents(date = getNowInSaoPaulo()) {
  */
 export async function fetchUserWhatsapp(userId) {
   const { data, error } = await supabase
-    .from("profiles_auth")
+    .from("profiles")
     .select("whatsapp")
-    .eq("auth_id", userId)
+    .eq("id", userId)
     .maybeSingle();
 
   if (error) {
-    console.error("❌ Erro buscando whatsapp em profiles_auth:", error);
+    console.error("❌ Erro buscando whatsapp em profiles:", error);
     return null;
   }
 

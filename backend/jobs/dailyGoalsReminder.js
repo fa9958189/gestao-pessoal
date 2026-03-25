@@ -56,7 +56,7 @@ const resolveLogTableFallback = (columns) => {
   return {
     tableName: LOG_TABLE_FALLBACK,
     columns: columnSet,
-    userColumn: pickColumn(columns, ["user_id", "auth_id"]) || "user_id",
+    userColumn: pickColumn(columns, ["user_id", "id"]) || "user_id",
     dateColumn: pickColumn(columns, ["entry_date", "day_date", "date"]) || "entry_date",
     typeColumn: pickColumn(columns, ["alert_type", "tipo", "type"]) || "alert_type",
     statusColumn: pickColumn(columns, ["status"]),
@@ -74,7 +74,7 @@ const resolveLogTable = async () => {
   const tableName = preferredColumns.length ? LOG_TABLE_PREFERRED : LOG_TABLE_FALLBACK;
 
   const columnSet = new Set(columns);
-  const userColumn = pickColumn(columns, ["user_id", "auth_id"]);
+  const userColumn = pickColumn(columns, ["user_id", "id"]);
   const dateColumn = pickColumn(columns, [
     "entry_date",
     "day_date",
@@ -177,8 +177,8 @@ const logNotification = async (config, payload) => {
 
 const fetchActiveUsers = async () => {
   const { data, error } = await supabase
-    .from("profiles_auth")
-    .select("id, auth_id, name, whatsapp, subscription_status, role, goal_type")
+    .from("profiles")
+    .select("id, name, whatsapp, subscription_status, role, goal_type")
     .not("whatsapp", "is", null)
     .neq("whatsapp", "")
     .neq("subscription_status", "inactive");
@@ -202,13 +202,13 @@ const fetchUserGoals = async (userId) => {
   }
 
   const { data: authProfile, error: authError } = await supabase
-    .from("profiles_auth")
+    .from("profiles")
     .select("water_goal_l, water_goal, water")
-    .eq("auth_id", userId)
+    .eq("id", userId)
     .maybeSingle();
 
   if (authError) {
-    console.warn("⚠️ Erro ao buscar meta de água em profiles_auth:", authError.message);
+    console.warn("⚠️ Erro ao buscar meta de água em profiles:", authError.message);
   }
 
   const authWaterGoal = Number(
@@ -319,7 +319,7 @@ const runDailyGoalsReminder = async () => {
   const users = await fetchActiveUsers();
 
   for (const user of users) {
-    const userId = user.auth_id || user.id;
+    const userId = user.id;
     if (!userId || !user.whatsapp) continue;
 
     try {
