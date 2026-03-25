@@ -611,10 +611,28 @@ app.get("/admin/users", async (req, res) => {
 });
 
 const deleteUserFlow = async (userId) => {
+  // Primeiro tenta excluir no Auth.
+  // Com a FK de profiles -> auth.users em ON DELETE CASCADE,
+  // isso já deve remover automaticamente o registro em profiles.
   const { error: authError } = await supabase.auth.admin.deleteUser(userId);
+
   if (authError) {
+    console.error("Erro ao deletar usuário no Auth:", authError);
+
+    // Mensagem mais clara para FK/cascade mal configurada
+    if (
+      authError.message?.toLowerCase().includes("database error deleting user") ||
+      authError.code === "unexpected_failure"
+    ) {
+      throw new Error(
+        "Não foi possível excluir o usuário porque a relação com a tabela profiles ainda está bloqueando a remoção. Verifique a foreign key com ON DELETE CASCADE."
+      );
+    }
+
     throw authError;
   }
+
+  return { success: true };
 };
 
 app.delete("/delete-user/:id", async (req, res) => {
@@ -632,8 +650,10 @@ app.delete("/delete-user/:id", async (req, res) => {
       message: "Usuário deletado com sucesso",
     });
   } catch (err) {
-    console.error("Erro geral:", err);
-    return res.status(isPermissionError(err) ? 403 : 500).json({ error: buildApiErrorMessage(err) });
+    console.error("Erro geral ao deletar usuário:", err);
+    return res.status(500).json({
+      error: err.message || "Erro ao deletar usuário",
+    });
   }
 });
 
@@ -652,8 +672,10 @@ app.delete("/admin/users/:userId", async (req, res) => {
       message: "Usuário deletado com sucesso",
     });
   } catch (err) {
-    console.error("Erro geral:", err);
-    return res.status(isPermissionError(err) ? 403 : 500).json({ error: buildApiErrorMessage(err) });
+    console.error("Erro geral ao deletar usuário:", err);
+    return res.status(500).json({
+      error: err.message || "Erro ao deletar usuário",
+    });
   }
 });
 
