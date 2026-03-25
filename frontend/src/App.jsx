@@ -2490,8 +2490,8 @@ function App() {
         }
       }
       pushToast('Usuário sincronizado com o Supabase.', 'success');
+      await loadRemoteData();
       resetUserWizard({ closeModal: true });
-      loadRemoteData();
     } catch (err) {
       console.warn('Erro ao salvar usuário', err);
       pushToast(`Não foi possível salvar o usuário: ${err?.message || 'erro desconhecido'}`, 'danger');
@@ -2553,8 +2553,8 @@ function App() {
       }
 
       pushToast('Usuário atualizado com sucesso.', 'success');
+      await loadRemoteData();
       resetUserWizard({ closeModal: true });
-      loadRemoteData();
     } catch (err) {
       console.warn('Erro ao atualizar usuário', err);
       pushToast(`Não foi possível atualizar o usuário: ${err?.message || 'erro desconhecido'}`, 'danger');
@@ -2652,7 +2652,7 @@ function App() {
         return;
       }
 
-      const targetId = user.auth_id || user.id;
+      const targetId = user.id;
 
       const response = await fetch(`${workoutApiBase}/admin/users/${targetId}`, {
         method: 'DELETE',
@@ -2670,8 +2670,9 @@ function App() {
         throw new Error(body.error || 'Erro ao excluir usuário.');
       }
 
+      setUsers((current) => current.filter((item) => item.id !== targetId));
       pushToast('Usuário removido.', 'success');
-      loadRemoteData();
+      await loadRemoteData();
     } catch (err) {
       console.warn('Erro ao remover usuário', err);
       pushToast('Configure permissões de delete na tabela profiles.', 'danger');
@@ -3409,10 +3410,10 @@ function App() {
             </div>
 
             <UsersTable
-              items={users.map((user) => ({ ...user, _editing: (user.auth_id || user.id) === editingUserId }))}
+              items={users.map((user) => ({ ...user, _editing: user.id === editingUserId }))}
               affiliateNameById={affiliateNameById}
               onEdit={(user) => {
-                setEditingUserId(user.auth_id || user.id);
+                setEditingUserId(user.id);
                 setEditingUserOriginal(user);
                 setEditUserForm({
                   name: user.name || '',
@@ -3831,7 +3832,7 @@ function App() {
                   </thead>
                   <tbody>
                     {affiliateUsersComputed.map((user) => (
-                      <tr key={user.id || user.auth_id}>
+                      <tr key={user.id}>
                         <td>{user.name || '-'}</td>
                         <td>{user.email || '-'}</td>
                         <td>ATIVO</td>
