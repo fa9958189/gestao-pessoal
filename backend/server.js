@@ -611,24 +611,36 @@ app.get("/admin/users", async (req, res) => {
 });
 
 const deleteUserFlow = async (userId) => {
-  // Primeiro tenta excluir no Auth.
-  // Com a FK de profiles -> auth.users em ON DELETE CASCADE,
-  // isso já deve remover automaticamente o registro em profiles.
-  const { error: authError } = await supabase.auth.admin.deleteUser(userId);
+  const deleteByUserId = async (tableName) => {
+    const { error } = await supabase.from(tableName).delete().eq("user_id", userId);
+    if (error) {
+      console.error(`Erro ao limpar dados em ${tableName}:`, error);
+      throw error;
+    }
+  };
 
+  // 1) Limpa dados relacionados antes de remover o usuário no Auth.
+  await deleteByUserId("workout_routines");
+  await deleteByUserId("workout_schedule");
+  await deleteByUserId("workout_sessions");
+  await deleteByUserId("workout_reminders");
+  await deleteByUserId("workout_schedule_reminder_logs");
+  await deleteByUserId("events");
+  await deleteByUserId("food_diary_entries");
+  await deleteByUserId("hydration_logs");
+  await deleteByUserId("transactions");
+
+  // 2) Remove profile (se existir).
+  const { error: profileError } = await supabase.from("profiles").delete().eq("id", userId);
+  if (profileError) {
+    console.error("Erro ao deletar profile do usuário:", profileError);
+    throw profileError;
+  }
+
+  // 3) Por fim, remove no Auth.
+  const { error: authError } = await supabase.auth.admin.deleteUser(userId);
   if (authError) {
     console.error("Erro ao deletar usuário no Auth:", authError);
-
-    // Mensagem mais clara para FK/cascade mal configurada
-    if (
-      authError.message?.toLowerCase().includes("database error deleting user") ||
-      authError.code === "unexpected_failure"
-    ) {
-      throw new Error(
-        "Não foi possível excluir o usuário porque a relação com a tabela profiles ainda está bloqueando a remoção. Verifique a foreign key com ON DELETE CASCADE."
-      );
-    }
-
     throw authError;
   }
 
