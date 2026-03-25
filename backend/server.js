@@ -669,54 +669,76 @@ app.get("/admin/users", async (req, res) => {
   }
 });
 
+const deleteUserFlow = async (userId) => {
+  // 1) Deletar no Auth
+  const { error: authError } = await supabase.auth.admin.deleteUser(userId);
+  if (authError) {
+    console.warn("Erro ao deletar no Auth:", authError.message);
+  }
+
+  // 2) Deletar no profiles_auth
+  try {
+    const { error: profileAuthError } = await supabase
+      .from("profiles_auth")
+      .delete()
+      .eq("auth_id", userId);
+
+    if (profileAuthError) {
+      console.warn("Erro ao deletar profiles_auth:", profileAuthError.message);
+    }
+  } catch (err) {
+    if (err?.code !== "42P01") throw err;
+    console.warn("Tabela profiles_auth não existe. Seguindo fluxo de exclusão.");
+  }
+
+  // 3) Deletar no profiles
+  const { error: profileError } = await supabase.from("profiles").delete().eq("id", userId);
+  if (profileError) {
+    console.warn("Erro ao deletar profiles:", profileError.message);
+  }
+};
+
+app.delete("/delete-user/:id", async (req, res) => {
+  try {
+    const authData = await authenticateRequest(req, res, { requireAdmin: true });
+    if (!authData) return;
+
+    const userId = req.params.id;
+    if (!userId) return res.status(400).json({ error: "id é obrigatório" });
+
+    await deleteUserFlow(userId);
+
+    return res.json({
+      success: true,
+      message: "Usuário deletado com sucesso",
+    });
+  } catch (err) {
+    console.error("Erro geral:", err);
+    return res.status(500).json({
+      error: "Erro ao deletar usuário",
+    });
+  }
+});
+
 app.delete("/admin/users/:userId", async (req, res) => {
   try {
     const authData = await authenticateRequest(req, res, { requireAdmin: true });
     if (!authData) return;
 
     const { userId } = req.params;
+    if (!userId) return res.status(400).json({ error: "userId é obrigatório" });
 
-    if (!userId) {
-      return res.status(400).json({ error: "userId é obrigatório" });
-    }
+    await deleteUserFlow(userId);
 
-    try {
-      const { error: deleteProfileAuthError } = await supabase
-        .from("profiles_auth")
-        .delete()
-        .or(`auth_id.eq.${userId},id.eq.${userId}`);
-
-      if (deleteProfileAuthError && deleteProfileAuthError.code !== "42P01") {
-        console.error("Erro ao remover profiles_auth:", deleteProfileAuthError);
-        return res.status(500).json({ error: "Falha ao excluir usuário." });
-      }
-    } catch (profileAuthTableError) {
-      if (profileAuthTableError?.code !== "42P01") {
-        console.error("Erro inesperado em profiles_auth:", profileAuthTableError);
-        return res.status(500).json({ error: "Falha ao excluir usuário." });
-      }
-    }
-
-    const { error: deleteProfileError } = await supabase
-      .from("profiles")
-      .delete()
-      .eq("id", userId);
-
-    if (deleteProfileError && deleteProfileError.code !== "PGRST116") {
-      console.error("Erro ao remover profiles:", deleteProfileError);
-      return res.status(500).json({ error: "Falha ao excluir usuário." });
-    }
-
-    try {
-      await supabase.auth.admin.deleteUser(userId);
-    } catch (adminError) {
-      console.warn("Não foi possível remover usuário do Supabase Auth:", adminError);
-    }
-
-    return res.json({ ok: true });
+    return res.json({
+      success: true,
+      message: "Usuário deletado com sucesso",
+    });
   } catch (err) {
-    console.error("Erro inesperado em /admin/users/:userId:", err);
-    return res.status(500).json({ error: "Erro interno no servidor" });
+    console.error("Erro geral:", err);
+    return res.status(500).json({
+      error: "Erro ao deletar usuário",
+    });
   }
 });
 
