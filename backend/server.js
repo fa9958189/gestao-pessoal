@@ -53,6 +53,7 @@ const USER_PLAN_TYPES = Object.freeze({
   PROMO: "promo",
 });
 const ALLOWED_USER_PLAN_TYPES = new Set(Object.values(USER_PLAN_TYPES));
+const SUPER_ADMIN_EMAIL = "gestaopessoaloficial@gmail.com";
 let schedulerStarted = false;
 
 function parseBoolean(value) {
@@ -610,7 +611,7 @@ app.get("/admin/users", async (req, res) => {
   }
 });
 
-const deleteUserFlow = async (userId) => {
+const deleteUserFlow = async (userId, authUserId) => {
   const deleteByUserId = async (tableName) => {
     const { error } = await supabase.from(tableName).delete().eq("user_id", userId);
     if (error) {
@@ -618,6 +619,32 @@ const deleteUserFlow = async (userId) => {
       throw error;
     }
   };
+
+  const { data: targetUser, error: targetUserError } = await supabase
+    .from("profiles")
+    .select("role, username")
+    .eq("id", userId)
+    .single();
+
+  if (targetUserError) {
+    console.error("Erro ao buscar usuário alvo para exclusão:", targetUserError);
+    throw targetUserError;
+  }
+
+  const { data: currentUser, error: currentUserError } = await supabase
+    .from("profiles")
+    .select("username")
+    .eq("id", authUserId)
+    .single();
+
+  if (currentUserError) {
+    console.error("Erro ao buscar solicitante da exclusão:", currentUserError);
+    throw currentUserError;
+  }
+
+  if (targetUser?.role === "admin" && currentUser?.username !== SUPER_ADMIN_EMAIL) {
+    throw new Error("ADMIN_DELETE_BLOCKED: Não é permitido excluir usuário admin");
+  }
 
   // 1) Limpa dados relacionados antes de remover o usuário no Auth.
   await deleteByUserId("workout_routines");
@@ -655,7 +682,7 @@ app.delete("/delete-user/:id", async (req, res) => {
     const userId = req.params.id;
     if (!userId) return res.status(400).json({ error: "id é obrigatório" });
 
-    await deleteUserFlow(userId);
+    await deleteUserFlow(userId, authData.userId);
 
     return res.json({
       success: true,
@@ -677,7 +704,7 @@ app.delete("/admin/users/:userId", async (req, res) => {
     const { userId } = req.params;
     if (!userId) return res.status(400).json({ error: "userId é obrigatório" });
 
-    await deleteUserFlow(userId);
+    await deleteUserFlow(userId, authData.userId);
 
     return res.json({
       success: true,
