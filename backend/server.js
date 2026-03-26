@@ -2432,45 +2432,52 @@ app.post("/api/hydration/undo", handleHydrationUndo);
 app.get("/api/hydration/state", handleHydrationState);
 app.get("/api/hydration", handleWaterState);
 
-app.post("/body", async (req, res) => {
+const handleBodyUpdate = async (req, res) => {
   try {
     const { user_id, weight_kg, height_cm, weight_goal, goal_type } = req.body || {};
 
-    console.log("Payload corpo:", req.body);
+    console.log("BODY RECEBIDO:", req.body);
+
+    if (!user_id || !Number.isFinite(Number(weight_kg))) {
+      return res.status(400).json({ error: "user_id e weight_kg são obrigatórios." });
+    }
 
     const { error: historyError } = await supabase
       .from("food_weight_history")
       .insert({
         user_id,
-        weight_kg,
-        height_cm,
+        weight_kg: Number(weight_kg),
+        height_cm: Number.isFinite(Number(height_cm)) ? Number(height_cm) : null,
         entry_date: new Date(),
       });
 
     if (historyError) {
-      console.error("Erro:", historyError);
+      console.error("Erro histórico:", historyError);
       return res.status(500).json({ error: historyError.message });
     }
 
     const { error: profileError } = await supabase
       .from("profiles")
       .update({
-        weight_goal,
-        goal_type,
+        weight_goal: Number.isFinite(Number(weight_goal)) ? Number(weight_goal) : null,
+        goal_type: goal_type || "maintain",
       })
       .eq("id", user_id);
 
     if (profileError) {
-      console.error("Erro:", profileError);
+      console.error("Erro profile:", profileError);
       return res.status(500).json({ error: profileError.message });
     }
 
     return res.json({ success: true });
   } catch (error) {
-    console.error("Erro:", error);
+    console.error("Erro geral:", error);
     return res.status(500).json({ error: error.message });
   }
-});
+};
+
+app.post("/body", handleBodyUpdate);
+app.post("/api/body", handleBodyUpdate);
 
 app.put("/api/food-diary/state", async (req, res) => {
   try {

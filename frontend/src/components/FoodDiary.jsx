@@ -84,6 +84,17 @@ const getLocalDateString = () => {
   return new Date(now.getTime() - offsetMs).toISOString().slice(0, 10);
 };
 
+const normalizeBaseUrl = (value) => {
+  if (typeof value !== 'string') return '';
+  return value.trim().replace(/\/+$/, '');
+};
+
+const buildApiUrl = (baseUrl, path) => {
+  const safePath = path.startsWith('/') ? path : `/${path}`;
+  if (!baseUrl) return safePath;
+  return `${normalizeBaseUrl(baseUrl)}${safePath}`;
+};
+
 const getVariationIndicator = (variation) => {
   if (!Number.isFinite(variation)) {
     return {
@@ -120,7 +131,7 @@ const getVariationIndicator = (variation) => {
   };
 };
 
-function FoodDiary({ userId, supabase, notify, refreshToken }) {
+function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
   const [entriesByDate, setEntriesByDate] = useState({});
   const [goals, setGoals] = useState(defaultGoals);
   const [goalType, setGoalType] = useState('maintain');
@@ -1146,7 +1157,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
       console.log('ENVIANDO:', data);
       console.log('Payload corpo:', data);
 
-      const response = await fetch('/body', {
+      const response = await fetch(buildApiUrl(apiBaseUrl, '/body'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
