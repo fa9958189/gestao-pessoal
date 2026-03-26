@@ -521,6 +521,77 @@ const authenticateRequest = async (req, res, { requireAdmin = false } = {}) => {
   return { userId: requesterId, profile: requesterProfile, user: requesterData.user };
 };
 
+app.post("/transactions", async (req, res) => {
+  try {
+    const authData = await authenticateRequest(req, res);
+    if (!authData) return;
+
+    const { type, amount, description, date } = req.body;
+
+    let transactionDate;
+
+    if (!date) {
+      transactionDate = new Date();
+    } else {
+      const parsed = new Date(date);
+
+      if (Number.isNaN(parsed.getTime()) || parsed > new Date()) {
+        transactionDate = new Date();
+      } else {
+        transactionDate = parsed;
+      }
+    }
+
+    const formattedDate = transactionDate.toISOString().split("T")[0];
+
+    const { data, error } = await supabase
+      .from("transactions")
+      .insert([
+        {
+          user_id: authData.userId,
+          type,
+          amount,
+          description,
+          date: formattedDate,
+        },
+      ])
+      .select();
+
+    if (error) {
+      console.error("Erro ao salvar transação:", error);
+      return res.status(500).json({ error: "Erro ao salvar transação" });
+    }
+
+    return res.json(data?.[0] || null);
+  } catch (err) {
+    console.error("Erro geral:", err);
+    return res.status(500).json({ error: "Erro interno" });
+  }
+});
+
+app.get("/transactions", async (req, res) => {
+  try {
+    const authData = await authenticateRequest(req, res);
+    if (!authData) return;
+
+    const { data, error } = await supabase
+      .from("transactions")
+      .select("*")
+      .eq("user_id", authData.userId)
+      .order("date", { ascending: false });
+
+    if (error) {
+      console.error("Erro ao buscar transações:", error);
+      return res.status(500).json({ error: "Erro ao buscar" });
+    }
+
+    return res.json(data || []);
+  } catch (err) {
+    console.error("Erro geral:", err);
+    return res.status(500).json({ error: "Erro interno" });
+  }
+});
+
 const fetchProfileWithBilling = async (userId) => {
   const { data: profileAuth, error: profileAuthError } = await supabase
     .from("profiles")
