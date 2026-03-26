@@ -1138,21 +1138,25 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
       const normalizedHeight = parseNumberInput(bodyDraft.heightCm);
       const normalizedGoalWeight = parseNumberInput(bodyDraft.goalWeightKg);
       const entryDate = getLocalDateString();
+      const data = {
+        weight_kg: normalizedWeight,
+        height_cm: normalizedHeight,
+        weight_goal: normalizedGoalWeight,
+        goal_type: bodyDraft.goalType || 'maintain',
+      };
+
+      console.log('Payload corpo:', data);
 
       await saveProfile({
         supabase,
         userId,
-        heightCm: normalizedHeight,
-        goalWeightKg: normalizedGoalWeight,
-        weightKg: normalizedWeight,
-        goalType: bodyDraft.goalType || 'maintain',
+        ...data,
       });
 
       await saveWeightEntry({
         supabase,
         userId,
-        weightKg: normalizedWeight,
-        ...(normalizedHeight != null ? { heightCm: normalizedHeight } : {}),
+        ...data,
         entryDate,
       });
 
@@ -1170,7 +1174,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
         notify('Dados corporais salvos com sucesso.', 'success');
       }
     } catch (error) {
-      console.error('Falha ao salvar peso', error);
+      console.error('Erro ao salvar corpo:', error);
       setError('Não foi possível salvar o peso.');
       if (typeof notify === 'function') {
         notify('Não foi possível salvar o peso.', 'error');
