@@ -33,6 +33,11 @@ const defaultGoals = {
   protein: 120,
   water: 2.5,
 };
+const goalTypeOptions = [
+  { value: 'lose_weight', label: 'Perder peso' },
+  { value: 'maintain', label: 'Manter peso' },
+  { value: 'gain_muscle', label: 'Ganhar massa' },
+];
 
 const defaultBody = {
   heightCm: '',
@@ -144,6 +149,15 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
   const [selectedFood, setSelectedFood] = useState(null);
   const [mealItems, setMealItems] = useState([]);
   const [expandedMeals, setExpandedMeals] = useState({});
+  const [isGoalsWizardOpen, setIsGoalsWizardOpen] = useState(false);
+  const [goalsWizardStep, setGoalsWizardStep] = useState(1);
+  const [goalsDraft, setGoalsDraft] = useState({
+    goalType: 'maintain',
+    calories: '',
+    protein: '',
+    water: '',
+  });
+  const [hasSavedGoals, setHasSavedGoals] = useState(false);
 
   const [form, setForm] = useState({
     mealType: 'Almoço',
@@ -164,8 +178,6 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
   const [isScanModalOpen, setIsScanModalOpen] = useState(false);
   const inputCameraRef = useRef(null);
   const inputGalleryRef = useRef(null);
-  const goalAutosaveTimeoutRef = useRef(null);
-  const hasEditedGoalsRef = useRef(false);
   const lastSavedWaterGoalRef = useRef(defaultGoals.water);
   const initialBodyRef = useRef(defaultBody);
   const profileAutosaveTimeoutRef = useRef(null);
@@ -282,6 +294,14 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
 
         setGoals(nextGoals);
         setGoalType(normalizedProfile?.goalType || 'maintain');
+        setHasSavedGoals(Boolean(
+          profile && (
+            profile.calorie_goal != null ||
+            profile.protein_goal != null ||
+            profile.water_goal_l != null ||
+            profile.goal_type
+          )
+        ));
         setWaterSummary((prev) => ({
           ...prev,
           goalMl: nextGoals.water * 1000,
@@ -335,7 +355,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
     };
   }, [userId, supabase, refreshToken]);
 
-  const persistDailyGoals = async (nextGoals) => {
+  const persistDailyGoals = async (nextGoals, nextGoalType = goalType) => {
     const waterGoal = Number(nextGoals.water || 0);
     if (waterGoal < 0) {
       setError('Não foi possível salvar as metas.');
@@ -350,6 +370,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
       calorieGoal: nextGoals.calories,
       proteinGoal: nextGoals.protein,
       waterGoalL: nextGoals.water,
+      goalType: nextGoalType,
     });
 
     const normalizedGoals = {
@@ -370,38 +391,6 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
     setGoals(normalizedGoals);
     await updateHydrationGoal({ goalLiters: normalizedGoals.water }, supabase);
   };
-
-  useEffect(() => {
-    if (!userId || !hasEditedGoalsRef.current) return;
-
-    if (goalAutosaveTimeoutRef.current) {
-      clearTimeout(goalAutosaveTimeoutRef.current);
-    }
-
-    goalAutosaveTimeoutRef.current = setTimeout(async () => {
-      try {
-        await persistDailyGoals(goals);
-        const nextWaterGoal = Number(goals.water || 0);
-        if (lastSavedWaterGoalRef.current !== nextWaterGoal) {
-          setHydrationRefreshToken((prev) => prev + 1);
-          lastSavedWaterGoalRef.current = nextWaterGoal;
-        }
-        hasEditedGoalsRef.current = false;
-      } catch (error) {
-        console.error('Falha ao salvar metas', error);
-        setError('Não foi possível salvar as metas.');
-        if (typeof notify === 'function') {
-          notify('Não foi possível salvar as metas.', 'error');
-        }
-      }
-    }, 600);
-
-    return () => {
-      if (goalAutosaveTimeoutRef.current) {
-        clearTimeout(goalAutosaveTimeoutRef.current);
-      }
-    };
-  }, [goals, userId, notify]);
 
   const dayEntries = entriesByDate[selectedDate] || [];
 
@@ -1048,38 +1037,56 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
     }
   };
 
-  const handleGoalChange = (field, value) => {
-    hasEditedGoalsRef.current = true;
-    const nextValue = value === '' ? '' : Number(value);
-
-    setGoals((prev) => ({
-      ...prev,
-      [field]: nextValue,
-    }));
-
-    if (field === 'water') {
-      setWaterSummary((prev) => ({
-        ...prev,
-        goalMl: nextValue === '' ? 0 : Number(nextValue) * 1000,
-      }));
-    }
+  const openGoalsWizard = () => {
+    setGoalsDraft({
+      goalType: goalType || 'maintain',
+      calories: goals.calories === 0 ? '' : String(goals.calories ?? ''),
+      protein: goals.protein === 0 ? '' : String(goals.protein ?? ''),
+      water: goals.water === 0 ? '' : String(goals.water ?? ''),
+    });
+    setGoalsWizardStep(1);
+    setIsGoalsWizardOpen(true);
   };
 
-  const handleGoalTypeChange = async (value) => {
-    setGoalType(value);
+  const handleGoalsDraftChange = (field, value) => {
+    setGoalsDraft((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleSaveGoalsWizard = async () => {
+    const nextGoals = {
+      calories: Number(goalsDraft.calories || 0),
+      protein: Number(goalsDraft.protein || 0),
+      water: Number(goalsDraft.water || 0),
+    };
+    const nextGoalType = goalsDraft.goalType || 'maintain';
+
     try {
+      setGoalType(nextGoalType);
       await saveProfile({
         supabase,
         userId,
-        goalType: value,
+        goalType: nextGoalType,
       });
+      await persistDailyGoals(nextGoals, nextGoalType);
+      setGoals(nextGoals);
+      setWaterSummary((prev) => ({
+        ...prev,
+        goalMl: nextGoals.water * 1000,
+      }));
+      if (lastSavedWaterGoalRef.current !== nextGoals.water) {
+        setHydrationRefreshToken((prev) => prev + 1);
+        lastSavedWaterGoalRef.current = nextGoals.water;
+      }
+      setHasSavedGoals(true);
+      setIsGoalsWizardOpen(false);
       if (typeof notify === 'function') {
-        notify('Objetivo salvo com sucesso.', 'success');
+        notify('Metas salvas com sucesso.', 'success');
       }
     } catch (error) {
-      console.error('Falha ao salvar objetivo', error);
+      console.error('Falha ao salvar metas', error);
+      setError('Não foi possível salvar as metas.');
       if (typeof notify === 'function') {
-        notify('Não foi possível salvar o objetivo.', 'error');
+        notify('Não foi possível salvar as metas.', 'error');
       }
     }
   };
@@ -1365,73 +1372,6 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
           ✅ Meta do dia batida. Bom trabalho!
         </div>
       ) : null}
-    </div>
-  );
-
-  const DailyGoalsCard = () => (
-    <div className="food-diary-summary-card card-padrao">
-      <div style={{ marginBottom: 16 }}>
-        <h5 className="title" style={{ margin: 0, fontSize: 14 }}>
-          Objetivo
-        </h5>
-        <p style={{ margin: '6px 0 10px', fontSize: 12, color: '#6b7280' }}>
-          Escolha o foco principal da sua rotina.
-        </p>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          {[
-            { value: 'lose_weight', label: 'Perder peso' },
-            { value: 'maintain', label: 'Manter peso' },
-            { value: 'gain_muscle', label: 'Ganhar massa' },
-          ].map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              className={`objetivo-btn ${goalType === option.value ? 'active' : ''}`}
-              onClick={() => handleGoalTypeChange(option.value)}
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <h5 className="title" style={{ margin: 0, fontSize: 14 }}>
-        Metas diárias
-      </h5>
-      <div className="field">
-        <label>Meta de calorias (kcal/dia)</label>
-        <input
-          type="number"
-          min="0"
-          value={goals.calories}
-          onChange={(e) =>
-            handleGoalChange('calories', e.target.value)
-          }
-        />
-      </div>
-      <div className="field">
-        <label>Meta de proteína (g/dia)</label>
-        <input
-          type="number"
-          min="0"
-          value={goals.protein}
-          onChange={(e) =>
-            handleGoalChange('protein', e.target.value)
-          }
-        />
-      </div>
-      <div className="field">
-        <label>Meta de água (L/dia)</label>
-        <input
-          type="number"
-          min="0"
-          step="0.1"
-          value={goals.water}
-          onChange={(e) =>
-            handleGoalChange('water', e.target.value)
-          }
-        />
-      </div>
     </div>
   );
 
@@ -2121,8 +2061,127 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
 
       {activeSubTab === 'metas' && (
         <div className="gridDashboard">
-          <DailyGoalsCard />
+          <div className="food-diary-goals-action">
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={openGoalsWizard}
+              style={{ display: 'inline-flex' }}
+            >
+              {hasSavedGoals ? 'Editar Metas' : '+ Definir Metas'}
+            </button>
+          </div>
           <GoalsSummaryCard />
+        </div>
+      )}
+
+      {isGoalsWizardOpen && (
+        <div className="modal-overlay">
+          <div className="report-modal food-goals-wizard-modal">
+            <h2>Definir Metas</h2>
+            <p>Passo {goalsWizardStep} de 4</p>
+            <div className="progress-bar">
+              <div
+                className="progress-fill"
+                style={{ width: `${(goalsWizardStep / 4) * 100}%` }}
+              />
+            </div>
+
+            {goalsWizardStep === 1 && (
+              <div>
+                <h3>Selecionar objetivo</h3>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {goalTypeOptions.map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      className={`objetivo-btn ${goalsDraft.goalType === option.value ? 'active' : ''}`}
+                      onClick={() => handleGoalsDraftChange('goalType', option.value)}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {goalsWizardStep === 2 && (
+              <div className="field">
+                <label>Meta de calorias (kcal/dia)</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={goalsDraft.calories}
+                  onChange={(e) => handleGoalsDraftChange('calories', e.target.value)}
+                />
+              </div>
+            )}
+
+            {goalsWizardStep === 3 && (
+              <div className="field">
+                <label>Meta de proteína (g/dia)</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={goalsDraft.protein}
+                  onChange={(e) => handleGoalsDraftChange('protein', e.target.value)}
+                />
+              </div>
+            )}
+
+            {goalsWizardStep === 4 && (
+              <div className="field">
+                <label>Meta de água (L/dia)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.1"
+                  value={goalsDraft.water}
+                  onChange={(e) => handleGoalsDraftChange('water', e.target.value)}
+                />
+              </div>
+            )}
+
+            <div className="wizard-actions">
+              {goalsWizardStep > 1 && (
+                <button
+                  type="button"
+                  className="ghost"
+                  onClick={() => setGoalsWizardStep((prev) => prev - 1)}
+                >
+                  ← Voltar
+                </button>
+              )}
+
+              {goalsWizardStep < 4 && (
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={() => setGoalsWizardStep((prev) => prev + 1)}
+                >
+                  Continuar →
+                </button>
+              )}
+
+              {goalsWizardStep === 4 && (
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={handleSaveGoalsWizard}
+                >
+                  Salvar metas
+                </button>
+              )}
+
+              <button
+                type="button"
+                className="ghost"
+                onClick={() => setIsGoalsWizardOpen(false)}
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
