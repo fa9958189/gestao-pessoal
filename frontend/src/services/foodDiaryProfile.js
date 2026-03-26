@@ -111,31 +111,40 @@ export async function saveProfile({
   supabase,
   userId,
   weightKg,
+  weight_kg,
   goalWeightKg,
+  weight_goal,
   heightCm,
+  height_cm,
   sex,
   age,
   activityLevel,
   goalType,
+  goal_type,
 }) {
   ensureSupabase(supabase, 'salvar perfil');
+
+  const resolvedWeightKg = weight_kg !== undefined ? weight_kg : weightKg;
+  const resolvedGoalWeight = weight_goal !== undefined ? weight_goal : goalWeightKg;
+  const resolvedHeightCm = height_cm !== undefined ? height_cm : heightCm;
+  const resolvedGoalType = goal_type !== undefined ? goal_type : goalType;
 
   const normalizedSex = normalizeSexForStorage(sex);
   const normalizedActivity = normalizeActivityForStorage(activityLevel);
   const normalizedAge =
     age != null && age !== '' ? Number.parseInt(age, 10) : null;
   const normalizedHeight =
-    heightCm != null && heightCm !== '' ? Number(heightCm) : null;
+    resolvedHeightCm != null && resolvedHeightCm !== '' ? Number(resolvedHeightCm) : null;
   const normalizedWeight =
-    weightKg != null && weightKg !== '' ? Number(weightKg) : null;
+    resolvedWeightKg != null && resolvedWeightKg !== '' ? Number(resolvedWeightKg) : null;
   const normalizedGoalWeight =
-    goalWeightKg != null && goalWeightKg !== '' ? Number(goalWeightKg) : null;
+    resolvedGoalWeight != null && resolvedGoalWeight !== '' ? Number(resolvedGoalWeight) : null;
 
   const profilePayload = {
     user_id: userId,
-    ...(heightCm !== undefined ? { height_cm: normalizedHeight } : {}),
-    ...(weightKg !== undefined ? { current_weight_kg: normalizedWeight } : {}),
-    ...(goalWeightKg !== undefined
+    ...(resolvedHeightCm !== undefined ? { height_cm: normalizedHeight } : {}),
+    ...(resolvedWeightKg !== undefined ? { current_weight_kg: normalizedWeight } : {}),
+    ...(resolvedGoalWeight !== undefined
       ? { target_weight_kg: normalizedGoalWeight }
       : {}),
     ...(sex !== undefined ? { sex: normalizedSex } : {}),
@@ -161,9 +170,9 @@ export async function saveProfile({
   }
 
   const legacyPayload = {
-    ...(heightCm !== undefined ? { altura_cm: normalizedHeight } : {}),
-    ...(weightKg !== undefined ? { weight_kg: normalizedWeight } : {}),
-    ...(goalWeightKg !== undefined
+    ...(resolvedHeightCm !== undefined ? { altura_cm: normalizedHeight } : {}),
+    ...(resolvedWeightKg !== undefined ? { weight_kg: normalizedWeight } : {}),
+    ...(resolvedGoalWeight !== undefined
       ? { target_weight_kg: normalizedGoalWeight }
       : {}),
     ...(sex !== undefined ? { sexo: normalizedSex } : {}),
@@ -190,13 +199,11 @@ export async function saveProfile({
     }
   }
 
-  if (goalType !== undefined) {
+  if (resolvedGoalType !== undefined) {
     try {
       const profileSyncPayload = {
-        goal_type: goalType || 'maintain',
-        ...(heightCm !== undefined ? { height_cm: normalizedHeight } : {}),
-        ...(weightKg !== undefined ? { current_weight: normalizedWeight } : {}),
-        ...(goalWeightKg !== undefined ? { target_weight: normalizedGoalWeight } : {}),
+        weight_goal: normalizedGoalWeight,
+        goal_type: resolvedGoalType || 'maintain',
       };
 
       await supabase
@@ -209,9 +216,7 @@ export async function saveProfile({
   } else {
     try {
       const profileSyncPayload = {
-        ...(heightCm !== undefined ? { height_cm: normalizedHeight } : {}),
-        ...(weightKg !== undefined ? { current_weight: normalizedWeight } : {}),
-        ...(goalWeightKg !== undefined ? { target_weight: normalizedGoalWeight } : {}),
+        ...(resolvedGoalWeight !== undefined ? { weight_goal: normalizedGoalWeight } : {}),
       };
 
       if (Object.keys(profileSyncPayload).length > 0) {
@@ -232,20 +237,25 @@ export async function saveWeightEntry({
   supabase,
   userId,
   weightKg,
+  weight_kg,
   heightCm,
+  height_cm,
   entryDate = todayString(),
 }) {
   ensureSupabase(supabase, 'salvar peso');
 
+  const resolvedWeightKg = weight_kg !== undefined ? weight_kg : weightKg;
+  const resolvedHeightCm = height_cm !== undefined ? height_cm : heightCm;
+
   const normalizedWeight =
-    weightKg != null && weightKg !== '' ? Number(weightKg) : null;
+    resolvedWeightKg != null && resolvedWeightKg !== '' ? Number(resolvedWeightKg) : null;
 
   if (!Number.isFinite(normalizedWeight)) {
     throw new Error('Peso inválido para salvar.');
   }
 
   const normalizedHeight =
-    heightCm != null && heightCm !== '' ? Number(heightCm) : null;
+    resolvedHeightCm != null && resolvedHeightCm !== '' ? Number(resolvedHeightCm) : null;
 
   const { data: existing, error: lookupError } = await supabase
     .from('food_weight_history')
@@ -259,8 +269,10 @@ export async function saveWeightEntry({
   }
 
   const payload = {
+    user_id: userId,
+    entry_date: entryDate,
     weight_kg: normalizedWeight,
-    ...(normalizedHeight != null ? { height_cm: normalizedHeight } : {}),
+    height_cm: normalizedHeight,
   };
 
   if (existing?.id) {
@@ -278,10 +290,7 @@ export async function saveWeightEntry({
     try {
       await supabase
         .from('profiles')
-        .update({
-          current_weight: normalizedWeight,
-          ...(normalizedHeight != null ? { height_cm: normalizedHeight } : {}),
-        })
+        .update({ height_cm: normalizedHeight })
         .eq('id', userId);
     } catch (syncError) {
       console.warn('Não foi possível sincronizar peso na tabela profiles.', syncError);
@@ -292,11 +301,7 @@ export async function saveWeightEntry({
 
   const { data, error } = await supabase
     .from('food_weight_history')
-    .insert({
-      user_id: userId,
-      entry_date: entryDate,
-      ...payload,
-    })
+    .insert(payload)
     .select('*')
     .maybeSingle();
 
@@ -307,10 +312,7 @@ export async function saveWeightEntry({
   try {
     await supabase
       .from('profiles')
-      .update({
-        current_weight: normalizedWeight,
-        ...(normalizedHeight != null ? { height_cm: normalizedHeight } : {}),
-      })
+      .update({ height_cm: normalizedHeight })
       .eq('id', userId);
   } catch (syncError) {
     console.warn('Não foi possível sincronizar peso na tabela profiles.', syncError);
