@@ -70,19 +70,25 @@ const toNumberOrNull = (value) => {
 };
 
 const mapWaterGoalFromAuth = (profile) => {
-  const candidate =
-    profile?.water_goal_l ?? profile?.water_goal ?? profile?.water ?? null;
+  const candidate = profile?.water_goal_l ?? null;
   return toNumberOrNull(candidate);
 };
 
 const getWaterGoalL = async (supabaseClient, userId, fallbackProfile) => {
   const { data: authProfile, error: authError } = await supabaseClient
     .from("profiles")
-    .select("water_goal_l, water_goal, water")
+    .select("water_goal_l")
     .eq("id", userId)
     .maybeSingle();
 
-  if (authError) throw authError;
+  if (authError) {
+    console.error(
+      "[WATER] Falha no select profiles.water_goal_l",
+      { userId, column: "water_goal_l" },
+      authError
+    );
+    throw authError;
+  }
 
   const authGoal = mapWaterGoalFromAuth(authProfile);
   if (authGoal != null) {
@@ -99,7 +105,14 @@ const getWaterGoalL = async (supabaseClient, userId, fallbackProfile) => {
     .eq("user_id", userId)
     .maybeSingle();
 
-  if (diaryError) throw diaryError;
+  if (diaryError) {
+    console.error(
+      "[WATER] Falha no select food_diary_profile.water_goal_l",
+      { userId, column: "water_goal_l" },
+      diaryError
+    );
+    throw diaryError;
+  }
 
   if (diaryProfile?.water_goal_l != null) {
     return Number(diaryProfile.water_goal_l);
@@ -137,7 +150,18 @@ const getHydrationRowsFromLogs = async (supabaseClient, userId, dayDate) => {
     .or(`day_date.eq.${dayDate},entry_date.eq.${dayDate}`)
     .order("created_at", { ascending: false });
 
-  if (error) throw error;
+  if (error) {
+    console.error(
+      "[WATER] Falha no select hydration_logs",
+      {
+        userId,
+        dayDate,
+        columns: "id, amount_ml, water_ml, day_date, entry_date, created_at",
+      },
+      error
+    );
+    throw error;
+  }
 
   return data || [];
 };
@@ -417,7 +441,13 @@ export const addHydration = async ({
     entry_date: dayDate,
     amount_ml: amountMl,
     water_ml: amountMl,
+    created_at: new Date().toISOString(),
   };
+
+  console.info("[WATER] Tentando insert em hydration_logs", {
+    table: "hydration_logs",
+    payload,
+  });
 
   const { data, error } = await supabaseClient
     .from("hydration_logs")
@@ -426,9 +456,14 @@ export const addHydration = async ({
     .single();
 
   if (error) {
+    console.error("[WATER] Erro no insert em hydration_logs", { payload }, error);
     return { ok: false, error };
   }
 
+  console.info("[WATER] Insert em hydration_logs executado com sucesso", {
+    insertedId: data?.id ?? null,
+    payload,
+  });
   return { ok: true, insertedId: data?.id ?? null };
 };
 
