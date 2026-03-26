@@ -192,12 +192,36 @@ export async function saveProfile({
 
   if (goalType !== undefined) {
     try {
+      const profileSyncPayload = {
+        goal_type: goalType || 'maintain',
+        ...(heightCm !== undefined ? { height_cm: normalizedHeight } : {}),
+        ...(weightKg !== undefined ? { current_weight: normalizedWeight } : {}),
+        ...(goalWeightKg !== undefined ? { target_weight: normalizedGoalWeight } : {}),
+      };
+
       await supabase
         .from('profiles')
-        .update({ goal_type: goalType || 'maintain' })
+        .update(profileSyncPayload)
         .eq('id', userId);
     } catch (syncError) {
-      console.warn('Não foi possível sincronizar goal_type na tabela profiles.', syncError);
+      console.warn('Não foi possível sincronizar dados na tabela profiles.', syncError);
+    }
+  } else {
+    try {
+      const profileSyncPayload = {
+        ...(heightCm !== undefined ? { height_cm: normalizedHeight } : {}),
+        ...(weightKg !== undefined ? { current_weight: normalizedWeight } : {}),
+        ...(goalWeightKg !== undefined ? { target_weight: normalizedGoalWeight } : {}),
+      };
+
+      if (Object.keys(profileSyncPayload).length > 0) {
+        await supabase
+          .from('profiles')
+          .update(profileSyncPayload)
+          .eq('id', userId);
+      }
+    } catch (syncError) {
+      console.warn('Não foi possível sincronizar dados na tabela profiles.', syncError);
     }
   }
 
@@ -251,6 +275,18 @@ export async function saveWeightEntry({
       throw error;
     }
 
+    try {
+      await supabase
+        .from('profiles')
+        .update({
+          current_weight: normalizedWeight,
+          ...(normalizedHeight != null ? { height_cm: normalizedHeight } : {}),
+        })
+        .eq('id', userId);
+    } catch (syncError) {
+      console.warn('Não foi possível sincronizar peso na tabela profiles.', syncError);
+    }
+
     return data ?? null;
   }
 
@@ -266,6 +302,18 @@ export async function saveWeightEntry({
 
   if (error) {
     throw error;
+  }
+
+  try {
+    await supabase
+      .from('profiles')
+      .update({
+        current_weight: normalizedWeight,
+        ...(normalizedHeight != null ? { height_cm: normalizedHeight } : {}),
+      })
+      .eq('id', userId);
+  } catch (syncError) {
+    console.warn('Não foi possível sincronizar peso na tabela profiles.', syncError);
   }
 
   return data ?? null;

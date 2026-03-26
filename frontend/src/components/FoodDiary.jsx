@@ -137,7 +137,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
   const [, setIsLoading] = useState(true);
   const [, setSavingEntry] = useState(false);
   const [, setLoadingWeightHistory] = useState(false);
-  const [profileLoading, setProfileLoading] = useState(true);
+  const [, setProfileLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedDate, setSelectedDate] = useState(
     () => getLocalDateString()
@@ -158,6 +158,14 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
     water: '',
   });
   const [hasSavedGoals, setHasSavedGoals] = useState(false);
+  const [isBodyWizardOpen, setIsBodyWizardOpen] = useState(false);
+  const [bodyWizardStep, setBodyWizardStep] = useState(1);
+  const [bodyDraft, setBodyDraft] = useState({
+    weightKg: '',
+    heightCm: '',
+    goalType: 'maintain',
+    goalWeightKg: '',
+  });
 
   const [form, setForm] = useState({
     mealType: 'Almoço',
@@ -179,9 +187,6 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
   const inputCameraRef = useRef(null);
   const inputGalleryRef = useRef(null);
   const lastSavedWaterGoalRef = useRef(defaultGoals.water);
-  const initialBodyRef = useRef(defaultBody);
-  const profileAutosaveTimeoutRef = useRef(null);
-  const hasEditedProfileRef = useRef(false);
 
   const isMobile = () => /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
@@ -330,7 +335,6 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
         };
 
         setBody(nextBody);
-        initialBodyRef.current = nextBody;
 
         setWeightHistory(history || defaultWeightHistory);
         setHydrationGoalLoaded(true);
@@ -988,18 +992,14 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
 
   const handleEditWeightEntry = (entry) => {
     if (!entry) return;
-
-    // Opcional: colocar a data selecionada igual à data do registro
-    if (entry.date) {
-      setSelectedDate(entry.date);
-    }
-
-    // Preenche o campo "Peso atual (kg)" com o valor do histórico
-    setBody((prev) => ({
-      ...prev,
-      weightKg:
-        entry.weightKg != null ? String(entry.weightKg) : prev.weightKg,
-    }));
+    setBodyDraft({
+      weightKg: entry.weightKg != null ? String(entry.weightKg) : body.weightKg,
+      heightCm: body.heightCm || '',
+      goalType: goalType || 'maintain',
+      goalWeightKg: body.goalWeightKg || '',
+    });
+    setBodyWizardStep(1);
+    setIsBodyWizardOpen(true);
   };
 
   const handleDeleteWeightEntry = async (entry) => {
@@ -1091,110 +1091,32 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
     }
   };
 
-  const handleBodyChange = (field, value) => {
-    if (!isValidDecimalInput(value)) {
+  const hasBodyRegistration = useMemo(() => {
+    const hasWeightHistory = weightHistory.length > 0;
+    const hasCurrentWeight = Number.isFinite(parseNumberInput(body.weightKg));
+    const hasHeight = Number.isFinite(parseNumberInput(body.heightCm));
+    return hasWeightHistory || hasCurrentWeight || hasHeight;
+  }, [weightHistory.length, body.weightKg, body.heightCm]);
+
+  const openBodyWizard = () => {
+    setBodyDraft({
+      weightKg: body.weightKg || '',
+      heightCm: body.heightCm || '',
+      goalType: goalType || 'maintain',
+      goalWeightKg: body.goalWeightKg || '',
+    });
+    setBodyWizardStep(1);
+    setIsBodyWizardOpen(true);
+  };
+
+  const handleBodyDraftChange = (field, value) => {
+    if ((field === 'weightKg' || field === 'heightCm' || field === 'goalWeightKg') && !isValidDecimalInput(value)) {
       return;
     }
-
-    const nextBody = {
-      ...body,
-      [field]: value,
-    };
-
-    setBody(nextBody);
-
-    if (field !== 'weightKg') {
-      hasEditedProfileRef.current = true;
-    }
+    setBodyDraft((prev) => ({ ...prev, [field]: value }));
   };
 
-  const normalizeBodyValues = (values) => {
-    const normalizeNumber = (value) => {
-      return parseNumberInput(value);
-    };
-
-    return {
-      heightCm: normalizeNumber(values.heightCm),
-      weightKg: normalizeNumber(values.weightKg),
-      goalWeightKg: normalizeNumber(values.goalWeightKg),
-    };
-  };
-
-  const buildProfilePayload = (currentValues, initialValues) => {
-    const normalizedCurrent = normalizeBodyValues(currentValues);
-    const normalizedInitial = normalizeBodyValues(initialValues);
-    const fieldsToCheck = ['heightCm', 'goalWeightKg'];
-    const payload = fieldsToCheck.reduce((acc, key) => {
-      if (!Object.is(normalizedCurrent[key], normalizedInitial[key])) {
-        acc[key] = normalizedCurrent[key];
-      }
-      return acc;
-    }, {});
-
-    const cleanedPayload = Object.fromEntries(
-      Object.entries(payload).filter(
-        ([, value]) => value !== null && value !== undefined,
-      ),
-    );
-
-    return { cleanedPayload, normalizedCurrent };
-  };
-
-  const handleSaveProfile = async (nextBody = body) => {
-    try {
-      if (!userId) {
-        return;
-      }
-
-      const { cleanedPayload, normalizedCurrent } = buildProfilePayload(
-        nextBody,
-        initialBodyRef.current,
-      );
-
-      if (Object.keys(cleanedPayload).length === 0) {
-        return;
-      }
-
-      await saveProfile({
-        supabase,
-        userId,
-        ...cleanedPayload,
-      });
-
-      const refreshedBody = {
-        ...nextBody,
-        heightCm:
-          cleanedPayload.heightCm != null
-            ? String(cleanedPayload.heightCm)
-            : nextBody.heightCm,
-        goalWeightKg:
-          cleanedPayload.goalWeightKg != null
-            ? String(cleanedPayload.goalWeightKg)
-            : nextBody.goalWeightKg,
-      };
-
-      setBody(refreshedBody);
-      initialBodyRef.current = {
-        ...initialBodyRef.current,
-        heightCm:
-          normalizedCurrent.heightCm != null
-            ? String(normalizedCurrent.heightCm)
-            : initialBodyRef.current.heightCm,
-        goalWeightKg:
-          normalizedCurrent.goalWeightKg != null
-            ? String(normalizedCurrent.goalWeightKg)
-            : '',
-      };
-    } catch (error) {
-      console.error('Falha ao salvar perfil', error);
-      setError('Não foi possível salvar os dados do perfil.');
-      if (typeof notify === 'function') {
-        notify('Não foi possível salvar os dados do perfil.', 'error');
-      }
-    }
-  };
-
-  const handleSaveWeight = async (nextBody = body) => {
+  const handleSaveBodyWizard = async () => {
     try {
       if (!userId) {
         setError('Usuário não identificado para salvar o peso.');
@@ -1204,7 +1126,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
         return;
       }
 
-      const normalizedWeight = parseNumberInput(nextBody.weightKg);
+      const normalizedWeight = parseNumberInput(bodyDraft.weightKg);
       if (!Number.isFinite(normalizedWeight)) {
         setError('Não foi possível salvar o peso.');
         if (typeof notify === 'function') {
@@ -1213,8 +1135,18 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
         return;
       }
 
-      const normalizedHeight = parseNumberInput(nextBody.heightCm);
+      const normalizedHeight = parseNumberInput(bodyDraft.heightCm);
+      const normalizedGoalWeight = parseNumberInput(bodyDraft.goalWeightKg);
       const entryDate = getLocalDateString();
+
+      await saveProfile({
+        supabase,
+        userId,
+        heightCm: normalizedHeight,
+        goalWeightKg: normalizedGoalWeight,
+        weightKg: normalizedWeight,
+        goalType: bodyDraft.goalType || 'maintain',
+      });
 
       await saveWeightEntry({
         supabase,
@@ -1226,14 +1158,16 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
 
       const refreshedHistory = await fetchWeightHistoryFromDb(userId);
       setWeightHistory(refreshedHistory);
-
-      setBody((prev) => ({
-        ...prev,
+      setGoalType(bodyDraft.goalType || 'maintain');
+      setBody({
         weightKg: String(normalizedWeight),
-      }));
+        heightCm: normalizedHeight != null ? String(normalizedHeight) : '',
+        goalWeightKg: normalizedGoalWeight != null ? String(normalizedGoalWeight) : '',
+      });
+      setIsBodyWizardOpen(false);
 
       if (typeof notify === 'function') {
-        notify('Peso salvo com sucesso.', 'success');
+        notify('Dados corporais salvos com sucesso.', 'success');
       }
     } catch (error) {
       console.error('Falha ao salvar peso', error);
@@ -1243,33 +1177,6 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
       }
     }
   };
-
-  useEffect(() => {
-    if (!userId || profileLoading || !hasEditedProfileRef.current) return;
-
-    if (profileAutosaveTimeoutRef.current) {
-      clearTimeout(profileAutosaveTimeoutRef.current);
-    }
-
-    profileAutosaveTimeoutRef.current = setTimeout(async () => {
-      try {
-        await handleSaveProfile(body);
-        hasEditedProfileRef.current = false;
-      } catch (error) {
-        console.error('Falha ao salvar dados do perfil', error);
-      }
-    }, 600);
-
-    return () => {
-      if (profileAutosaveTimeoutRef.current) {
-        clearTimeout(profileAutosaveTimeoutRef.current);
-      }
-    };
-  }, [
-    body.heightCm,
-    userId,
-    profileLoading,
-  ]);
 
   const handleHydrationStateChange = (state) => {
     const totalMl = Number(state?.totalMl ?? 0);
@@ -1416,7 +1323,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
           <span className="body-highlight-label">Meta</span>
           <strong>{body.goalWeightKg ? `${formatNumber(body.goalWeightKg, 1)} kg` : 'Opcional'}</strong>
         </div>
-        <div className={`body-highlight variation ${currentBodyVariation?.className || 'neutral'}`}>
+      <div className={`body-highlight variation ${currentBodyVariation?.className || 'neutral'}`}>
           <span className="body-highlight-label">Variação</span>
           {currentBodyVariation ? (
             <strong>
@@ -1427,52 +1334,6 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
           )}
         </div>
       </div>
-
-      <div className="body-card-grid">
-        <div className="field">
-          <label>Peso atual (kg)</label>
-          <input
-            type="text"
-            inputMode="decimal"
-            value={body.weightKg}
-            onChange={(e) =>
-              handleBodyChange('weightKg', e.target.value)
-            }
-          />
-        </div>
-        <div className="field">
-          <label>Altura (cm)</label>
-          <input
-            type="text"
-            inputMode="decimal"
-            value={body.heightCm}
-            onChange={(e) =>
-              handleBodyChange('heightCm', e.target.value)
-            }
-          />
-        </div>
-        <div className="field">
-          <label>Meta de peso (kg)</label>
-          <input
-            type="text"
-            inputMode="numeric"
-            placeholder="Ex: 90"
-            value={body.goalWeightKg}
-            onChange={(e) =>
-              handleBodyChange('goalWeightKg', e.target.value)
-            }
-          />
-        </div>
-      </div>
-
-      <button
-        type="button"
-        className="primary"
-        style={{ marginTop: 10 }}
-        onClick={() => handleSaveWeight()}
-      >
-        Registrar hoje
-      </button>
 
       {currentBodyVariation?.referenceDate && (
         <div className="muted" style={{ fontSize: 12 }}>
@@ -2187,10 +2048,130 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
 
       {activeSubTab === 'corpo' && (
         <div className="gridBodySingle">
+          <div className="food-diary-goals-action">
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={openBodyWizard}
+              style={{ display: 'inline-flex', background: '#16a34a', borderColor: '#16a34a' }}
+            >
+              {hasBodyRegistration ? 'Editar Corpo' : '+ Registrar Corpo'}
+            </button>
+          </div>
           <div className="corpo-grid">
             <BodyInfoCard />
             <BmiCard />
             <WeightEvolutionCard />
+          </div>
+        </div>
+      )}
+
+      {isBodyWizardOpen && (
+        <div className="modal-overlay">
+          <div className="report-modal food-goals-wizard-modal">
+            <h2>Registrar Corpo</h2>
+            <p>Passo {bodyWizardStep} de 3</p>
+            <div className="progress-bar">
+              <div
+                className="progress-fill"
+                style={{ width: `${(bodyWizardStep / 3) * 100}%` }}
+              />
+            </div>
+
+            {bodyWizardStep === 1 && (
+              <div style={{ display: 'grid', gap: 12 }}>
+                <h3>Dados atuais</h3>
+                <div className="field">
+                  <label>Peso atual (kg)</label>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={bodyDraft.weightKg}
+                    onChange={(e) => handleBodyDraftChange('weightKg', e.target.value)}
+                  />
+                </div>
+                <div className="field">
+                  <label>Altura (cm)</label>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={bodyDraft.heightCm}
+                    onChange={(e) => handleBodyDraftChange('heightCm', e.target.value)}
+                  />
+                </div>
+              </div>
+            )}
+
+            {bodyWizardStep === 2 && (
+              <div>
+                <h3>Objetivo</h3>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {goalTypeOptions.map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      className={`objetivo-btn ${bodyDraft.goalType === option.value ? 'active' : ''}`}
+                      onClick={() => handleBodyDraftChange('goalType', option.value)}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {bodyWizardStep === 3 && (
+              <div className="field">
+                <h3>Meta</h3>
+                <label>Meta de peso (kg)</label>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={bodyDraft.goalWeightKg}
+                  onChange={(e) => handleBodyDraftChange('goalWeightKg', e.target.value)}
+                />
+              </div>
+            )}
+
+            <div className="wizard-actions">
+              {bodyWizardStep > 1 && (
+                <button
+                  type="button"
+                  className="ghost"
+                  onClick={() => setBodyWizardStep((prev) => prev - 1)}
+                >
+                  ← Voltar
+                </button>
+              )}
+
+              {bodyWizardStep < 3 && (
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={() => setBodyWizardStep((prev) => prev + 1)}
+                >
+                  Continuar →
+                </button>
+              )}
+
+              {bodyWizardStep === 3 && (
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={handleSaveBodyWizard}
+                >
+                  Salvar dados
+                </button>
+              )}
+
+              <button
+                type="button"
+                className="ghost"
+                onClick={() => setIsBodyWizardOpen(false)}
+              >
+                Cancelar
+              </button>
+            </div>
           </div>
         </div>
       )}
