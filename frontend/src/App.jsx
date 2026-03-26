@@ -1799,6 +1799,13 @@ function App() {
         date: row.date,
         createdAt: row.created_at,
       }));
+      const hoje = new Date();
+      const mesAtual = hoje.getMonth();
+      const anoAtual = hoje.getFullYear();
+      const filteredTx = normalizedTx.filter((tx) => {
+        const d = new Date(tx.date);
+        return d.getMonth() === mesAtual && d.getFullYear() === anoAtual;
+      });
 
       // 2) Eventos (agenda) do usuário logado
       const { data: eventData, error: evError } = await client
@@ -1846,12 +1853,12 @@ function App() {
       }
 
       // Atualiza estados
-      setTransactions(normalizedTx);
+      setTransactions(filteredTx);
       setEvents(eventData || []);
 
       // Salva snapshot local
       persistLocalSnapshot({
-        transactions: normalizedTx,
+        transactions: filteredTx,
         events: eventData || [],
       });
 
@@ -2210,11 +2217,18 @@ function App() {
 
                   // Salvar transação (local + Supabase)
                         const handleSaveTransaction = async () => {
+                          const todayIso = new Date().toISOString().split('T')[0];
+                          const transactionData = {
+                            type: txForm.type,
+                            amount: Number(txForm.amount || 0),
+                            description: txForm.description,
+                            date: todayIso,
+                          };
                           // Monta o objeto da transação
                           const payload = {
                             ...txForm,
                             id: txForm.id || randomId(),
-                            amount: Number(txForm.amount || 0),
+                            ...transactionData,
                             user_id: session?.user?.id ?? null,
                             userId: session?.user?.id ?? null,
                           };
@@ -2250,7 +2264,7 @@ function App() {
                                 amount: payload.amount,
                                 description: payload.description,
                                 category: payload.category,
-                                date: payload.date,            // input type="date" já está em YYYY-MM-DD
+                                date: transactionData.date,
                               });
 
                             if (error) {
