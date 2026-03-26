@@ -15,8 +15,6 @@ import {
   loadProfile,
   loadTodayWeight,
   saveGoals,
-  saveProfile,
-  saveWeightEntry,
 } from '../services/foodDiaryProfile';
 import {
   CartesianGrid,
@@ -1137,28 +1135,35 @@ function FoodDiary({ userId, supabase, notify, refreshToken }) {
 
       const normalizedHeight = parseNumberInput(bodyDraft.heightCm);
       const normalizedGoalWeight = parseNumberInput(bodyDraft.goalWeightKg);
-      const entryDate = getLocalDateString();
       const data = {
+        user_id: userId,
         weight_kg: normalizedWeight,
         height_cm: normalizedHeight,
         weight_goal: normalizedGoalWeight,
         goal_type: bodyDraft.goalType || 'maintain',
       };
 
+      console.log('ENVIANDO:', data);
       console.log('Payload corpo:', data);
 
-      await saveProfile({
-        supabase,
-        userId,
-        ...data,
+      const response = await fetch('/body', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          user_id: userId,
+          weight_kg: Number(normalizedWeight),
+          height_cm: normalizedHeight != null ? Number(normalizedHeight) : null,
+          weight_goal: normalizedGoalWeight != null ? Number(normalizedGoalWeight) : null,
+          goal_type: bodyDraft.goalType || 'maintain',
+        }),
       });
 
-      await saveWeightEntry({
-        supabase,
-        userId,
-        ...data,
-        entryDate,
-      });
+      const bodyResponse = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(bodyResponse?.error || 'Não foi possível salvar os dados corporais.');
+      }
 
       const refreshedHistory = await fetchWeightHistoryFromDb(userId);
       setWeightHistory(refreshedHistory);

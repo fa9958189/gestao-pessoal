@@ -2432,6 +2432,46 @@ app.post("/api/hydration/undo", handleHydrationUndo);
 app.get("/api/hydration/state", handleHydrationState);
 app.get("/api/hydration", handleWaterState);
 
+app.post("/body", async (req, res) => {
+  try {
+    const { user_id, weight_kg, height_cm, weight_goal, goal_type } = req.body || {};
+
+    console.log("Payload corpo:", req.body);
+
+    const { error: historyError } = await supabase
+      .from("food_weight_history")
+      .insert({
+        user_id,
+        weight_kg,
+        height_cm,
+        entry_date: new Date(),
+      });
+
+    if (historyError) {
+      console.error("Erro:", historyError);
+      return res.status(500).json({ error: historyError.message });
+    }
+
+    const { error: profileError } = await supabase
+      .from("profiles")
+      .update({
+        weight_goal,
+        goal_type,
+      })
+      .eq("id", user_id);
+
+    if (profileError) {
+      console.error("Erro:", profileError);
+      return res.status(500).json({ error: profileError.message });
+    }
+
+    return res.json({ success: true });
+  } catch (error) {
+    console.error("Erro:", error);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
 app.put("/api/food-diary/state", async (req, res) => {
   try {
     const userId = getUserIdFromRequest(req) || req.body?.userId;
