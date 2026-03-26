@@ -203,7 +203,7 @@ const fetchUserGoals = async (userId) => {
 
   const { data: authProfile, error: authError } = await supabase
     .from("profiles")
-    .select("water_goal_l, water_goal, water")
+    .select("water_goal_l")
     .eq("id", userId)
     .maybeSingle();
 
@@ -211,9 +211,7 @@ const fetchUserGoals = async (userId) => {
     console.warn("⚠️ Erro ao buscar meta de água em profiles:", authError.message);
   }
 
-  const authWaterGoal = Number(
-    authProfile?.water_goal_l ?? authProfile?.water_goal ?? authProfile?.water
-  );
+  const authWaterGoal = Number(authProfile?.water_goal_l);
 
   return {
     calories: Number(profile?.calorie_goal) || DEFAULT_CALORIE_GOAL,
