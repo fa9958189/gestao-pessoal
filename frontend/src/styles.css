@@ -1546,6 +1546,15 @@ canvas{ background:transparent; }
   box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.16), 0 0 18px rgba(59, 130, 246, 0.18);
 }
 
+.food-diary-goals-action {
+  display: flex;
+  align-items: flex-start;
+}
+
+.food-goals-wizard-modal {
+  width: min(560px, 100%);
+}
+
 .hydration-progress {
   width: 100%;
   height: 8px;

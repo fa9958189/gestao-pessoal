@@ -67,6 +67,7 @@ export async function saveGoals({
   calorieGoal,
   proteinGoal,
   waterGoalL,
+  goalType,
 }) {
   ensureSupabase(supabase, 'salvar metas');
 
@@ -87,6 +88,22 @@ export async function saveGoals({
     throw error;
   }
 
+  const profilePayload = {
+    calorie_goal: Number(calorieGoal || 0),
+    protein_goal: Number(proteinGoal || 0),
+    water_goal_l: Number(waterGoalL || 0),
+    ...(goalType !== undefined ? { goal_type: goalType || 'maintain' } : {}),
+  };
+
+  try {
+    await supabase
+      .from('profiles')
+      .update(profilePayload)
+      .eq('id', userId);
+  } catch (syncError) {
+    console.warn('Não foi possível sincronizar metas na tabela profiles.', syncError);
+  }
+
   return data ?? payload;
 }
 
@@ -99,6 +116,7 @@ export async function saveProfile({
   sex,
   age,
   activityLevel,
+  goalType,
 }) {
   ensureSupabase(supabase, 'salvar perfil');
 
@@ -169,6 +187,17 @@ export async function saveProfile({
       if (!missingColumn) {
         throw legacyError;
       }
+    }
+  }
+
+  if (goalType !== undefined) {
+    try {
+      await supabase
+        .from('profiles')
+        .update({ goal_type: goalType || 'maintain' })
+        .eq('id', userId);
+    } catch (syncError) {
+      console.warn('Não foi possível sincronizar goal_type na tabela profiles.', syncError);
     }
   }
 
@@ -255,7 +284,27 @@ export async function loadGoals({ supabase, userId }) {
     throw error;
   }
 
-  return data ?? null;
+  if (data) {
+    return data;
+  }
+
+  try {
+    const { data: profileData, error: profileError } = await supabase
+      .from('profiles')
+      .select('calorie_goal, protein_goal, water_goal_l, goal_type')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (profileError) {
+      throw profileError;
+    }
+
+    return profileData ?? null;
+  } catch (fallbackError) {
+    console.warn('Não foi possível carregar metas pela tabela profiles.', fallbackError);
+  }
+
+  return null;
 }
 
 export async function loadProfile({ supabase, userId }) {
@@ -273,9 +322,21 @@ export async function loadProfile({ supabase, userId }) {
 
   const diaryNormalized = normalizeProfileRow(diaryRowResult.data ?? null);
 
+  let profileGoalType = null;
+  try {
+    const { data: profileRow } = await supabase
+      .from('profiles')
+      .select('goal_type')
+      .eq('id', userId)
+      .maybeSingle();
+    profileGoalType = profileRow?.goal_type ?? null;
+  } catch (error) {
+    console.warn('Não foi possível carregar goal_type da tabela profiles.', error);
+  }
+
   return {
     ...diaryNormalized,
-    goalType: 'maintain',
+    goalType: profileGoalType || 'maintain',
   };
 }
 
