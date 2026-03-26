@@ -2442,13 +2442,16 @@ const handleBodyUpdate = async (req, res) => {
       return res.status(400).json({ error: "user_id e weight_kg são obrigatórios." });
     }
 
+    const now = new Date();
+    const brasilDate = new Date(now.getTime() - 3 * 60 * 60 * 1000);
+
     const { error: historyError } = await supabase
       .from("food_weight_history")
       .insert({
         user_id,
         weight_kg: Number(weight_kg),
         height_cm: Number.isFinite(Number(height_cm)) ? Number(height_cm) : null,
-        entry_date: new Date(),
+        entry_date: brasilDate.toISOString().split("T")[0],
       });
 
     if (historyError) {
