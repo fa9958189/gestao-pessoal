@@ -2442,9 +2442,12 @@ const handleBodyUpdate = async (req, res) => {
       return res.status(400).json({ error: "user_id e weight_kg são obrigatórios." });
     }
 
-    const now = new Date();
-    const brasilDate = new Date(now.getTime() - 3 * 60 * 60 * 1000);
-    const entryDate = brasilDate.toISOString().split("T")[0];
+    const rawEntryDate = String(req.body?.entry_date || "").trim();
+    const entryDate = rawEntryDate
+      ? rawEntryDate.includes("/")
+        ? rawEntryDate.split("/").reverse().join("-")
+        : rawEntryDate
+      : new Date().toLocaleDateString("pt-BR").split("/").reverse().join("-");
 
     const normalizedWeight = Number(weight_kg);
     const normalizedHeight = Number.isFinite(Number(height_cm)) ? Number(height_cm) : null;

@@ -83,6 +83,26 @@ const getLocalDateString = () => {
   return new Date(now.getTime() - offsetMs).toISOString().slice(0, 10);
 };
 
+const toStorageDateString = (selectedDate) => {
+  const normalized = String(selectedDate || '').trim();
+  if (normalized.includes('/')) {
+    return normalized.split('/').reverse().join('-');
+  }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
+    return normalized;
+  }
+  return new Date().toLocaleDateString('pt-BR').split('/').reverse().join('-');
+};
+
+const formatDateToPtBr = (date) => {
+  const normalized = String(date || '').trim();
+  if (!normalized) return '';
+  if (normalized.includes('/')) return normalized;
+  const [year, month, day] = normalized.split('-');
+  if (!year || !month || !day) return normalized;
+  return `${day}/${month}/${year}`;
+};
+
 const normalizeBaseUrl = (value) => {
   if (typeof value !== 'string') return '';
   return value.trim().replace(/\/+$/, '');
@@ -443,7 +463,11 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
         .slice()
         .sort((a, b) => a.date.localeCompare(b.date))
         .map((item) => ({
-          date: new Date(item.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
+          date: (() => {
+            const formatted = formatDateToPtBr(item.date);
+            const parts = formatted.split('/');
+            return parts.length === 3 ? `${parts[0]}/${parts[1]}` : formatted;
+          })(),
           peso: Number(item.weightKg) || 0,
         })),
     [weightHistory]
@@ -1179,7 +1203,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
         throw new Error('Supabase não disponível para registrar o peso.');
       }
 
-      const normalizedEntryDate = String(dailyWeightDraft.entryDate || '').trim() || getLocalDateString();
+      const normalizedEntryDate = toStorageDateString(dailyWeightDraft.entryDate);
 
       const { data: existingWeightEntry, error: existingWeightError } = await supabase
         .from('food_weight_history')
@@ -2014,7 +2038,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
                       key={`${item.date}-${item.recordedAt}`}
                       className="weight-history-row"
                     >
-                      <span>{new Date(item.date).toLocaleDateString('pt-BR')}</span>
+                      <span>{formatDateToPtBr(item.date)}</span>
                       <span>{formatNumber(item.weightKg, 1)} kg</span>
                       <span className={`weight-variation-badge ${item.variationMeta.className}`}>
                         {item.variationMeta.icon} {item.variationMeta.text}

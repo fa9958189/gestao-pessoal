@@ -1,4 +1,15 @@
-const todayString = () => new Date().toISOString().slice(0, 10);
+const todayString = () => new Date().toLocaleDateString('pt-BR').split('/').reverse().join('-');
+
+const toStorageDateString = (selectedDate) => {
+  const normalized = String(selectedDate || '').trim();
+  if (normalized.includes('/')) {
+    return normalized.split('/').reverse().join('-');
+  }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
+    return normalized;
+  }
+  return todayString();
+};
 
 const ensureSupabase = (supabase, context) => {
   if (!supabase) {
@@ -261,7 +272,7 @@ export async function saveWeightEntry({
     .from('food_weight_history')
     .select('id')
     .eq('user_id', userId)
-    .eq('entry_date', entryDate)
+    .eq('entry_date', toStorageDateString(entryDate))
     .maybeSingle();
 
   if (lookupError) {
@@ -270,7 +281,7 @@ export async function saveWeightEntry({
 
   const payload = {
     user_id: userId,
-    entry_date: entryDate,
+    entry_date: toStorageDateString(entryDate),
     weight_kg: normalizedWeight,
     height_cm: normalizedHeight,
   };
