@@ -1270,6 +1270,11 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
     </div>
   );
 
+  const weightGoalMetaText =
+    body.goalWeightKg != null && body.goalWeightKg !== ''
+      ? `${formatNumber(body.goalWeightKg, 1)} kg`
+      : 'Opcional';
+
   const BodyInfoCard = () => (
     <div className="food-diary-summary-card card-body card-corpo">
       <h5 className="title" style={{ margin: 0, fontSize: 14 }}>
@@ -1283,7 +1288,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
         </div>
         <div className="body-highlight">
           <span className="body-highlight-label">Meta</span>
-          <strong>{body.goalWeightKg ? `${formatNumber(body.goalWeightKg, 1)} kg` : 'Opcional'}</strong>
+          <strong>{weightGoalMetaText}</strong>
         </div>
       <div className={`body-highlight variation ${currentBodyVariation?.className || 'neutral'}`}>
           <span className="body-highlight-label">Variação</span>

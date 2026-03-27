@@ -327,7 +327,7 @@ export async function loadGoals({ supabase, userId }) {
   try {
     const { data: profileData, error: profileError } = await supabase
       .from('profiles')
-      .select('calorie_goal, protein_goal, water_goal_l, goal_type')
+      .select('weight_goal, calorie_goal, protein_goal, water_goal_l')
       .eq('id', userId)
       .maybeSingle();
 

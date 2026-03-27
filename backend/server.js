@@ -2527,10 +2527,12 @@ const handleBodyUpdate = async (req, res) => {
     const proteinGoal = Number((normalizedWeight * 2).toFixed(1));
     const waterGoalL = Number(((normalizedWeight * 35) / 1000).toFixed(2));
 
+    const weightGoalToSave = normalizedGoalWeight;
+
     const { error: profileError } = await supabase
       .from("profiles")
       .update({
-        weight_goal: normalizedGoalWeight,
+        weight_goal: weightGoalToSave,
         goal_type: normalizedGoalType,
         calorie_goal: calorieGoal,
         protein_goal: proteinGoal,
