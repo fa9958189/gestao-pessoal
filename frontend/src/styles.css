@@ -1499,11 +1499,21 @@ canvas{ background:transparent; }
   width: 100%;
 }
 
+.goals-tab-layout {
+  display: grid;
+  gap: 20px;
+  width: 100%;
+}
+
 .corpo-grid {
   display: grid;
   gap: 20px;
   width: 100%;
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+}
+
+.goals-analysis-grid {
+  grid-template-columns: 1fr;
 }
 
 .card-corpo,
