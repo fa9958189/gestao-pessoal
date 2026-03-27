@@ -605,96 +605,68 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
     let isMounted = true;
 
     const getTopFoods = async ({ weekStartStr, todayStr }) => {
-      const attempts = [
-        supabase
-          .from('food_logs')
-          .select('name, date')
-          .eq('user_id', userId)
-          .gte('date', weekStartStr)
-          .lte('date', todayStr),
-        supabase
-          .from('food_diary_entries')
-          .select('food, entry_date')
-          .eq('user_id', userId)
-          .gte('entry_date', weekStartStr)
-          .lte('entry_date', todayStr),
-      ];
+      const { data, error } = await supabase
+        .from('food_diary_entries')
+        .select('food, entry_date')
+        .eq('user_id', userId)
+        .gte('entry_date', weekStartStr)
+        .lte('entry_date', todayStr);
 
-      for (const query of attempts) {
-        // eslint-disable-next-line no-await-in-loop
-        const { data, error } = await query;
-        if (error) continue;
+      if (error) return [];
 
-        const grouped = (data || []).reduce((acc, row) => {
-          const name = (row.name || row.food || '').trim();
-          if (!name) return acc;
-          acc[name] = (acc[name] || 0) + 1;
-          return acc;
-        }, {});
+      const grouped = (data || []).reduce((acc, row) => {
+        const name = (row.food || '').trim();
+        if (!name) return acc;
+        acc[name] = (acc[name] || 0) + 1;
+        return acc;
+      }, {});
 
-        return Object.entries(grouped)
-          .map(([name, total]) => ({ name, total }))
-          .sort((a, b) => b.total - a.total)
-          .slice(0, 5);
-      }
-
-      return [];
+      return Object.entries(grouped)
+        .map(([name, total]) => ({ name, total }))
+        .sort((a, b) => b.total - a.total)
+        .slice(0, 5);
     };
 
     const getBadFoods = async ({ weekStartStr, todayStr, calorieGoal }) => {
       if (!calorieGoal) return [];
 
-      const attempts = [
-        supabase
-          .from('food_logs')
-          .select('name, calories, date')
-          .eq('user_id', userId)
-          .gte('date', weekStartStr)
-          .lte('date', todayStr),
-        supabase
-          .from('food_diary_entries')
-          .select('food, calories, entry_date')
-          .eq('user_id', userId)
-          .gte('entry_date', weekStartStr)
-          .lte('entry_date', todayStr),
-      ];
+      const { data, error } = await supabase
+        .from('food_diary_entries')
+        .select('food, calories, entry_date')
+        .eq('user_id', userId)
+        .gte('entry_date', weekStartStr)
+        .lte('entry_date', todayStr);
 
-      for (const query of attempts) {
-        // eslint-disable-next-line no-await-in-loop
-        const { data, error } = await query;
-        if (error) continue;
+      if (error) return [];
 
-        const entries = (data || []).map((row) => ({
-          name: row.name || row.food || '',
-          calories: Number(row.calories) || 0,
-          date: row.date || row.entry_date || '',
-        }));
+      const entries = (data || []).map((row) => ({
+        name: row.food || '',
+        calories: Number(row.calories) || 0,
+        date: row.entry_date || '',
+      }));
 
-        const caloriesByDay = entries.reduce((acc, item) => {
-          if (!item.date) return acc;
-          acc[item.date] = (acc[item.date] || 0) + item.calories;
-          return acc;
-        }, {});
+      const caloriesByDay = entries.reduce((acc, item) => {
+        if (!item.date) return acc;
+        acc[item.date] = (acc[item.date] || 0) + item.calories;
+        return acc;
+      }, {});
 
-        const exceededDays = new Set(
-          Object.entries(caloriesByDay)
-            .filter(([, calories]) => calories > calorieGoal)
-            .map(([date]) => date),
-        );
+      const exceededDays = new Set(
+        Object.entries(caloriesByDay)
+          .filter(([, calories]) => calories > calorieGoal)
+          .map(([date]) => date),
+      );
 
-        const grouped = entries.reduce((acc, item) => {
-          if (!item.name || !exceededDays.has(item.date)) return acc;
-          acc[item.name] = (acc[item.name] || 0) + 1;
-          return acc;
-        }, {});
+      const grouped = entries.reduce((acc, item) => {
+        if (!item.name || !exceededDays.has(item.date)) return acc;
+        acc[item.name] = (acc[item.name] || 0) + 1;
+        return acc;
+      }, {});
 
-        return Object.entries(grouped)
-          .map(([name, total]) => ({ name, total }))
-          .sort((a, b) => b.total - a.total)
-          .slice(0, 5);
-      }
-
-      return [];
+      return Object.entries(grouped)
+        .map(([name, total]) => ({ name, total }))
+        .sort((a, b) => b.total - a.total)
+        .slice(0, 5);
     };
 
     const getTopMuscles = async ({ weekStartStr, weekEndStr }) => {

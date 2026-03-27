@@ -1181,18 +1181,42 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
 
       const normalizedEntryDate = String(dailyWeightDraft.entryDate || '').trim() || getLocalDateString();
 
-      const { error: insertError } = await supabase
+      const { data: existingWeightEntry, error: existingWeightError } = await supabase
         .from('food_weight_history')
-        .insert([
-          {
-            user_id: userId,
-            weight_kg: Number(normalizedWeight),
-            entry_date: normalizedEntryDate,
-          },
-        ]);
+        .select('id')
+        .eq('user_id', userId)
+        .eq('entry_date', normalizedEntryDate)
+        .maybeSingle();
 
-      if (insertError) {
-        throw insertError;
+      if (existingWeightError) {
+        throw existingWeightError;
+      }
+
+      if (existingWeightEntry?.id) {
+        const { error: updateError } = await supabase
+          .from('food_weight_history')
+          .update({
+            weight_kg: Number(normalizedWeight),
+          })
+          .eq('id', existingWeightEntry.id);
+
+        if (updateError) {
+          throw updateError;
+        }
+      } else {
+        const { error: insertError } = await supabase
+          .from('food_weight_history')
+          .insert([
+            {
+              user_id: userId,
+              weight_kg: Number(normalizedWeight),
+              entry_date: normalizedEntryDate,
+            },
+          ]);
+
+        if (insertError) {
+          throw insertError;
+        }
       }
 
       const refreshedHistory = await fetchWeightHistoryFromDb(userId);
@@ -1204,6 +1228,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
       }
     } catch (err) {
       console.error('Erro ao registrar peso do dia', err);
+      alert('Erro ao salvar peso');
       setError('Não foi possível registrar o peso do dia.');
       if (typeof notify === 'function') {
         notify('Não foi possível registrar o peso do dia.', 'error');
