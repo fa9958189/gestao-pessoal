@@ -1,6 +1,14 @@
 import React, { useMemo, useState } from "react";
 
 export default function Transacoes() {
+  const centeredContainerStyle = {
+    maxWidth: "1200px",
+    margin: "0 auto",
+    width: "100%",
+    padding: "0 16px",
+    boxSizing: "border-box",
+  };
+
   const hoje = new Date().toISOString().split("T")[0];
 
   const [transacoes, setTransacoes] = useState([]);
@@ -63,25 +71,26 @@ export default function Transacoes() {
   }
 
   return (
-    <div className="card">
-      <h2>Transações</h2>
+    <div style={centeredContainerStyle}>
+      <div className="card">
+        <h2>Transações</h2>
 
-      <div style={{ marginBottom: "20px" }}>
-        <button
-          className="btn-primary"
-          onClick={() => {
-            setOpenTransacaoModal(true);
-            setStep(1);
-          }}
-        >
-          * Nova Transação
-        </button>
-      </div>
+        <div style={{ marginBottom: "20px" }}>
+          <button
+            className="btn-primary"
+            onClick={() => {
+              setOpenTransacaoModal(true);
+              setStep(1);
+            }}
+          >
+            * Nova Transação
+          </button>
+        </div>
 
-      {openTransacaoModal && (
-        <div className="modal-overlay">
-          <div className="report-modal">
-            <h2>Nova transação</h2>
+        {openTransacaoModal && (
+          <div className="modal-overlay">
+            <div className="report-modal">
+              <h2>Nova transação</h2>
 
             <p>Passo {step} de 3</p>
 
@@ -178,31 +187,32 @@ export default function Transacoes() {
                 Cancelar
               </button>
             </div>
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      <hr />
+        <hr />
 
-      <h3>Totais</h3>
-      <p>Receitas: R$ {totais.receitas.toFixed(2)}</p>
-      <p>Despesas: R$ {totais.despesas.toFixed(2)}</p>
-      <p>Saldo: R$ {(totais.receitas - totais.despesas).toFixed(2)}</p>
+        <h3>Totais</h3>
+        <p>Receitas: R$ {totais.receitas.toFixed(2)}</p>
+        <p>Despesas: R$ {totais.despesas.toFixed(2)}</p>
+        <p>Saldo: R$ {(totais.receitas - totais.despesas).toFixed(2)}</p>
 
-      <h3>Lista</h3>
-      {transacoes.length === 0 ? (
-        <p>Nenhuma transação cadastrada.</p>
-      ) : (
-        <ul>
-          {transacoes.map((item) => (
-            <li key={item.id}>
-              {item.data} · {item.tipo} · {item.categoria || "sem categoria"} · R${" "}
-              {Number(item.valor || 0).toFixed(2)}
-              {item.descricao ? ` · ${item.descricao}` : ""}
-            </li>
-          ))}
-        </ul>
-      )}
+        <h3>Lista</h3>
+        {transacoes.length === 0 ? (
+          <p>Nenhuma transação cadastrada.</p>
+        ) : (
+          <ul>
+            {transacoes.map((item) => (
+              <li key={item.id}>
+                {item.data} · {item.tipo} · {item.categoria || "sem categoria"} · R${" "}
+                {Number(item.valor || 0).toFixed(2)}
+                {item.descricao ? ` · ${item.descricao}` : ""}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </div>
   );
 }
