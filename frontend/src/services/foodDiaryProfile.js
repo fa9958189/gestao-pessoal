@@ -376,7 +376,7 @@ export async function loadProfile({ supabase, userId }) {
   try {
     const { data: profileRow } = await supabase
       .from('profiles')
-      .select('goal_type, current_weight, height_cm, target_weight, weight_goal')
+      .select('goal_type, current_weight, height_cm, weight_goal')
       .eq('id', userId)
       .maybeSingle();
     profileGoalType = profileRow?.goal_type ?? null;
@@ -386,7 +386,7 @@ export async function loadProfile({ supabase, userId }) {
     if (profileRow?.height_cm != null && diaryNormalized.heightCm == null) {
       diaryNormalized.heightCm = Number(profileRow.height_cm);
     }
-    const profileGoalWeight = profileRow?.target_weight ?? profileRow?.weight_goal ?? null;
+    const profileGoalWeight = profileRow?.weight_goal ?? null;
     if (profileGoalWeight != null && diaryNormalized.goalWeightKg == null) {
       diaryNormalized.goalWeightKg = Number(profileGoalWeight);
     }
