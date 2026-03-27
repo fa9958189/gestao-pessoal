@@ -158,12 +158,17 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
   const [mealItems, setMealItems] = useState([]);
   const [expandedMeals, setExpandedMeals] = useState({});
   const [isBodyWizardOpen, setIsBodyWizardOpen] = useState(false);
+  const [isDailyWeightModalOpen, setIsDailyWeightModalOpen] = useState(false);
   const [bodyWizardStep, setBodyWizardStep] = useState(1);
   const [bodyDraft, setBodyDraft] = useState({
     weightKg: '',
     heightCm: '',
     goalType: 'maintain',
     goalWeightKg: '',
+  });
+  const [dailyWeightDraft, setDailyWeightDraft] = useState({
+    weightKg: '',
+    entryDate: getLocalDateString(),
   });
 
   const [form, setForm] = useState({
@@ -1128,6 +1133,76 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
     }
   };
 
+  const openDailyWeightModal = () => {
+    setDailyWeightDraft({
+      weightKg: body.weightKg || '',
+      entryDate: getLocalDateString(),
+    });
+    setIsDailyWeightModalOpen(true);
+  };
+
+  const handleDailyWeightDraftChange = (field, value) => {
+    if (field === 'weightKg' && !isValidDecimalInput(value)) {
+      return;
+    }
+    setDailyWeightDraft((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleSaveDailyWeight = async () => {
+    try {
+      if (!userId) {
+        setError('Usuário não identificado para registrar o peso.');
+        if (typeof notify === 'function') {
+          notify('Não foi possível registrar o peso.', 'error');
+        }
+        return;
+      }
+
+      const normalizedWeight = parseNumberInput(dailyWeightDraft.weightKg);
+      if (!Number.isFinite(normalizedWeight)) {
+        setError('Informe um peso válido para registrar.');
+        if (typeof notify === 'function') {
+          notify('Informe um peso válido.', 'error');
+        }
+        return;
+      }
+
+      if (!supabase) {
+        throw new Error('Supabase não disponível para registrar o peso.');
+      }
+
+      const normalizedEntryDate = String(dailyWeightDraft.entryDate || '').trim() || getLocalDateString();
+
+      const { error: insertError } = await supabase
+        .from('food_weight_history')
+        .insert([
+          {
+            user_id: userId,
+            weight_kg: Number(normalizedWeight),
+            entry_date: normalizedEntryDate,
+          },
+        ]);
+
+      if (insertError) {
+        throw insertError;
+      }
+
+      const refreshedHistory = await fetchWeightHistoryFromDb(userId);
+      setWeightHistory(refreshedHistory);
+      setIsDailyWeightModalOpen(false);
+
+      if (typeof notify === 'function') {
+        notify('Peso do dia registrado com sucesso.', 'success');
+      }
+    } catch (err) {
+      console.error('Erro ao registrar peso do dia', err);
+      setError('Não foi possível registrar o peso do dia.');
+      if (typeof notify === 'function') {
+        notify('Não foi possível registrar o peso do dia.', 'error');
+      }
+    }
+  };
+
   const handleHydrationStateChange = (state) => {
     const totalMl = Number(state?.totalMl ?? 0);
     const goalMl = Number(state?.goalMl ?? defaultGoals.water * 1000);
@@ -1908,7 +1983,15 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
               onClick={openBodyWizard}
               style={{ display: 'inline-flex', background: '#16a34a', borderColor: '#16a34a' }}
             >
-              {hasBodyRegistration ? 'Editar Corpo' : '+ Registrar Corpo'}
+              {hasBodyRegistration ? 'Atualizar Dados Corporais' : '+ Atualizar Dados Corporais'}
+            </button>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={openDailyWeightModal}
+              style={{ display: 'inline-flex' }}
+            >
+              Registrar Peso do Dia
             </button>
           </div>
           <div className="corpo-grid">
@@ -2019,6 +2102,50 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
                 type="button"
                 className="ghost"
                 onClick={() => setIsBodyWizardOpen(false)}
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isDailyWeightModalOpen && (
+        <div className="modal-overlay">
+          <div className="report-modal food-goals-wizard-modal">
+            <h2>Registrar Peso do Dia</h2>
+            <div style={{ display: 'grid', gap: 12 }}>
+              <div className="field">
+                <label>Peso (kg)</label>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={dailyWeightDraft.weightKg}
+                  onChange={(e) => handleDailyWeightDraftChange('weightKg', e.target.value)}
+                  placeholder="Ex.: 72,5"
+                />
+              </div>
+              <div className="field">
+                <label>Data</label>
+                <input
+                  type="date"
+                  value={dailyWeightDraft.entryDate}
+                  onChange={(e) => handleDailyWeightDraftChange('entryDate', e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="wizard-actions">
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={handleSaveDailyWeight}
+              >
+                Salvar peso
+              </button>
+              <button
+                type="button"
+                className="ghost"
+                onClick={() => setIsDailyWeightModalOpen(false)}
               >
                 Cancelar
               </button>

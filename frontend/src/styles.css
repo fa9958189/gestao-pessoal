@@ -1559,6 +1559,8 @@ canvas{ background:transparent; }
 .food-diary-goals-action {
   display: flex;
   align-items: flex-start;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 .food-goals-wizard-modal {
