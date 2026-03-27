@@ -1405,7 +1405,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
   const weightGoalMetaText =
     body.goalWeightKg != null && body.goalWeightKg !== ''
       ? `${formatNumber(body.goalWeightKg, 1)} kg`
-      : 'Opcional';
+      : '—';
 
   const BodyInfoCard = () => (
     <div className="food-diary-summary-card card-body card-corpo">
@@ -1413,23 +1413,23 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
         Seu corpo hoje
       </h5>
 
-      <div className="body-card-highlights">
-        <div className="body-highlight">
-          <span className="body-highlight-label">Peso atual</span>
+      <div className="body-grid">
+        <div className="body-box">
+          <span>Peso atual</span>
           <strong>{body.weightKg ? `${formatNumber(body.weightKg, 1)} kg` : '—'}</strong>
         </div>
-        <div className="body-highlight">
-          <span className="body-highlight-label">Meta</span>
+        <div className="body-box">
+          <span>Meta</span>
           <strong>{weightGoalMetaText}</strong>
         </div>
-      <div className={`body-highlight variation ${currentBodyVariation?.className || 'neutral'}`}>
-          <span className="body-highlight-label">Variação</span>
+        <div className="body-box highlight">
+          <span>Variação</span>
           {currentBodyVariation ? (
             <strong>
-              {currentBodyVariation.icon} {currentBodyVariation.text}
+              {currentBodyVariation.text}
             </strong>
           ) : (
-            <strong>➖ Sem histórico</strong>
+            <strong>—</strong>
           )}
         </div>
       </div>
@@ -2012,7 +2012,9 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
             </button>
           </div>
           <div className="corpo-grid body-single-card">
-            <BodyInfoCard />
+            <div className="body-container">
+              <BodyInfoCard />
+            </div>
           </div>
         </div>
       )}

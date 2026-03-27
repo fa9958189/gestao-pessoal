@@ -1507,6 +1507,51 @@ canvas{ background:transparent; }
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
 }
 
+.body-container {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 16px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.body-container .card,
+.body-container .food-diary-summary-card {
+  width: 100%;
+  padding: 24px;
+  border-radius: 16px;
+}
+
+.body-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.body-box {
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 12px;
+  padding: 16px;
+  text-align: center;
+}
+
+.body-box span {
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+.body-box strong {
+  font-size: 20px;
+  display: block;
+  margin-top: 6px;
+}
+
+.body-box.highlight {
+  border: 1px solid #00ff88;
+  background: rgba(0, 255, 136, 0.05);
+}
+
 .goals-container {
   max-width: 1100px;
   margin: 0 auto;
@@ -1574,7 +1619,8 @@ canvas{ background:transparent; }
 }
 
 .body-single-card {
-  max-width: 600px;
+  max-width: none;
+  width: 100%;
   margin: 0 auto;
   grid-template-columns: 1fr;
 }
@@ -2527,6 +2573,10 @@ canvas{ background:transparent; }
 
 @media (max-width: 768px) {
   .goals-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .body-grid {
     grid-template-columns: 1fr;
   }
 }
