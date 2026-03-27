@@ -2459,11 +2459,30 @@ const handleBodyUpdate = async (req, res) => {
       return res.status(500).json({ error: historyError.message });
     }
 
+    const normalizedWeight = Number(weight_kg);
+    const normalizedGoalType = ["lose_weight", "maintain", "gain_muscle"].includes(goal_type)
+      ? goal_type
+      : "maintain";
+    const calorieMultiplierByGoal = {
+      lose_weight: 20,
+      maintain: 25,
+      gain_muscle: 30,
+    };
+    const calorieGoal = Math.round(normalizedWeight * calorieMultiplierByGoal[normalizedGoalType]);
+    const proteinGoal = Number((normalizedWeight * 2).toFixed(1));
+    const waterGoalL = Number(((normalizedWeight * 35) / 1000).toFixed(2));
+
     const { error: profileError } = await supabase
       .from("profiles")
       .update({
+        current_weight: normalizedWeight,
+        height_cm: Number.isFinite(Number(height_cm)) ? Number(height_cm) : null,
+        target_weight: Number.isFinite(Number(weight_goal)) ? Number(weight_goal) : null,
         weight_goal: Number.isFinite(Number(weight_goal)) ? Number(weight_goal) : null,
-        goal_type: goal_type || "maintain",
+        goal_type: normalizedGoalType,
+        calorie_goal: calorieGoal,
+        protein_goal: proteinGoal,
+        water_goal_l: waterGoalL,
       })
       .eq("id", user_id);
 
@@ -2472,7 +2491,15 @@ const handleBodyUpdate = async (req, res) => {
       return res.status(500).json({ error: profileError.message });
     }
 
-    return res.json({ success: true });
+    return res.json({
+      success: true,
+      goals: {
+        goal_type: normalizedGoalType,
+        calorie_goal: calorieGoal,
+        protein_goal: proteinGoal,
+        water_goal_l: waterGoalL,
+      },
+    });
   } catch (error) {
     console.error("Erro geral:", error);
     return res.status(500).json({ error: error.message });
