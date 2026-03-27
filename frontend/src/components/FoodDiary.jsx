@@ -1888,8 +1888,14 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
       )}
 
       {activeSubTab === 'metas' && (
-        <div className="gridDashboard">
-          <GoalsSummaryCard />
+        <div className="goals-tab-layout">
+          <div className="gridDashboard">
+            <GoalsSummaryCard />
+          </div>
+          <div className="corpo-grid goals-analysis-grid">
+            <BmiCard />
+            <WeightEvolutionCard />
+          </div>
         </div>
       )}
 
@@ -1907,8 +1913,6 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
           </div>
           <div className="corpo-grid">
             <BodyInfoCard />
-            <BmiCard />
-            <WeightEvolutionCard />
           </div>
         </div>
       )}
