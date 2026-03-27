@@ -131,6 +131,13 @@ const getVariationIndicator = (variation) => {
 };
 
 function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
+  const centeredContainerStyle = {
+    maxWidth: '1200px',
+    margin: '0 auto',
+    width: '100%',
+    padding: '0 16px',
+    boxSizing: 'border-box',
+  };
   const [entriesByDate, setEntriesByDate] = useState({});
   const [goals, setGoals] = useState(defaultGoals);
   const [goalType, setGoalType] = useState('maintain');
@@ -159,6 +166,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
   const [expandedMeals, setExpandedMeals] = useState({});
   const [isBodyWizardOpen, setIsBodyWizardOpen] = useState(false);
   const [isDailyWeightModalOpen, setIsDailyWeightModalOpen] = useState(false);
+  const [isWeightHistoryModalOpen, setIsWeightHistoryModalOpen] = useState(false);
   const [bodyWizardStep, setBodyWizardStep] = useState(1);
   const [bodyDraft, setBodyDraft] = useState({
     weightKg: '',
@@ -1382,53 +1390,6 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
           Comparado com {new Date(currentBodyVariation.referenceDate).toLocaleDateString('pt-BR')} ({formatNumber(currentBodyVariation.referenceWeight, 1)} kg).
         </div>
       )}
-
-      {weightHistoryWithVariation.length > 0 && (
-        <div className="weight-history-card">
-          <div className="weight-history-title">Histórico de peso</div>
-          <div className="weight-history-scroll">
-            <div className="weight-history-table">
-              <div className="weight-history-header">
-                <span>Data</span>
-                <span>Peso</span>
-                <span>Variação</span>
-                <span aria-hidden="true"></span>
-              </div>
-
-              {weightHistoryWithVariation.slice(0, 5).map((item) => (
-                <div
-                  key={`${item.date}-${item.recordedAt}`}
-                  className="weight-history-row"
-                >
-                  <span>{new Date(item.date).toLocaleDateString('pt-BR')}</span>
-                  <span>{formatNumber(item.weightKg, 1)} kg</span>
-                  <span className={`weight-variation-badge ${item.variationMeta.className}`}>
-                    {item.variationMeta.icon} {item.variationMeta.text}
-                  </span>
-                  <div className="table-actions">
-                    <button
-                      type="button"
-                      className="icon-button"
-                      onClick={() => handleEditWeightEntry(item)}
-                      title="Editar peso"
-                    >
-                      <span role="img" aria-label="Editar">✏️</span>
-                    </button>
-                    <button
-                      type="button"
-                      className="icon-button"
-                      onClick={() => handleDeleteWeightEntry(item)}
-                      title="Excluir peso"
-                    >
-                      <span role="img" aria-label="Excluir">🗑️</span>
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 
@@ -1584,58 +1545,59 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
         </div>
       )}
 
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: '12px',
-          flexWrap: 'wrap',
-          gap: '10px',
-        }}
-      >
-        <h2 style={{ margin: 0 }}>🍽 Alimentação</h2>
-
-        <button
-          type="button"
-          className="btn-primary"
-          onClick={openAddMealModal}
+      <div style={centeredContainerStyle}>
+        <div
           style={{
-            display: 'inline-flex',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: '12px',
+            flexWrap: 'wrap',
+            gap: '10px',
           }}
         >
-          + Novo Alimento
-        </button>
-      </div>
+          <h2 style={{ margin: 0 }}>🍽 Alimentação</h2>
 
-      <div className="sep" style={{ marginTop: 12 }}></div>
-
-      <div
-        style={{
-          display: 'flex',
-          gap: '10px',
-          marginBottom: '20px',
-          flexWrap: 'wrap',
-          marginTop: '10px',
-        }}
-      >
-        {[
-          { key: 'diario', label: '📖 Diário' },
-          { key: 'agua', label: '💧 Água' },
-          { key: 'metas', label: '🎯 Metas' },
-          { key: 'corpo', label: '📏 Corpo' },
-          { key: 'relatorios', label: '📊 Relatórios' },
-        ].map((subTab) => (
           <button
-            key={subTab.key}
             type="button"
-            className={activeSubTab === subTab.key ? 'subtab active' : 'subtab'}
-            onClick={() => setActiveSubTab(subTab.key)}
+            className="btn-primary"
+            onClick={openAddMealModal}
+            style={{
+              display: 'inline-flex',
+            }}
           >
-            {subTab.label}
+            + Novo Alimento
           </button>
-        ))}
-      </div>
+        </div>
+
+        <div className="sep" style={{ marginTop: 12 }}></div>
+
+        <div
+          style={{
+            display: 'flex',
+            gap: '10px',
+            marginBottom: '20px',
+            flexWrap: 'wrap',
+            marginTop: '10px',
+          }}
+        >
+          {[
+            { key: 'diario', label: '📖 Diário' },
+            { key: 'agua', label: '💧 Água' },
+            { key: 'metas', label: '🎯 Metas' },
+            { key: 'corpo', label: '📏 Corpo' },
+            { key: 'relatorios', label: '📊 Relatórios' },
+          ].map((subTab) => (
+            <button
+              key={subTab.key}
+              type="button"
+              className={activeSubTab === subTab.key ? 'subtab active' : 'subtab'}
+              onClick={() => setActiveSubTab(subTab.key)}
+            >
+              {subTab.label}
+            </button>
+          ))}
+        </div>
 
       {activeSubTab === 'diario' && (
         <>
@@ -1993,9 +1955,81 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
             >
               Registrar Peso do Dia
             </button>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => setIsWeightHistoryModalOpen(true)}
+              style={{ display: 'inline-flex' }}
+            >
+              Abrir histórico de peso
+            </button>
           </div>
-          <div className="corpo-grid">
+          <div className="corpo-grid body-single-card">
             <BodyInfoCard />
+          </div>
+        </div>
+      )}
+
+      {isWeightHistoryModalOpen && (
+        <div className="modal-overlay">
+          <div className="report-modal weight-history-modal">
+            <h2>Histórico de peso</h2>
+            {weightHistoryWithVariation.length > 0 ? (
+              <div className="weight-history-scroll">
+                <div className="weight-history-table">
+                  <div className="weight-history-header">
+                    <span>Data</span>
+                    <span>Peso</span>
+                    <span>Variação</span>
+                    <span aria-hidden="true"></span>
+                  </div>
+
+                  {weightHistoryWithVariation.map((item) => (
+                    <div
+                      key={`${item.date}-${item.recordedAt}`}
+                      className="weight-history-row"
+                    >
+                      <span>{new Date(item.date).toLocaleDateString('pt-BR')}</span>
+                      <span>{formatNumber(item.weightKg, 1)} kg</span>
+                      <span className={`weight-variation-badge ${item.variationMeta.className}`}>
+                        {item.variationMeta.icon} {item.variationMeta.text}
+                      </span>
+                      <div className="table-actions">
+                        <button
+                          type="button"
+                          className="icon-button"
+                          onClick={() => handleEditWeightEntry(item)}
+                          title="Editar peso"
+                        >
+                          <span role="img" aria-label="Editar">✏️</span>
+                        </button>
+                        <button
+                          type="button"
+                          className="icon-button"
+                          onClick={() => handleDeleteWeightEntry(item)}
+                          title="Excluir peso"
+                        >
+                          <span role="img" aria-label="Excluir">🗑️</span>
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="muted" style={{ fontSize: 13 }}>
+                Nenhum registro de peso encontrado.
+              </div>
+            )}
+            <div className="wizard-actions">
+              <button
+                type="button"
+                className="ghost"
+                onClick={() => setIsWeightHistoryModalOpen(false)}
+              >
+                Fechar
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -2170,6 +2204,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
           onSelectFood={handleSelectFood}
         />
       )}
+      </div>
       </div>
     </>
   );

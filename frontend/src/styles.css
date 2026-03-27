@@ -1563,6 +1563,24 @@ canvas{ background:transparent; }
   flex-wrap: wrap;
 }
 
+.body-single-card {
+  max-width: 600px;
+  margin: 0 auto;
+  grid-template-columns: 1fr;
+}
+
+.weight-history-modal {
+  width: min(920px, 100%);
+  max-height: min(85vh, 760px);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.weight-history-modal .weight-history-scroll {
+  max-height: min(62vh, 520px);
+}
+
 .food-goals-wizard-modal {
   width: min(560px, 100%);
 }
