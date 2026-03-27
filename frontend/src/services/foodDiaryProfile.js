@@ -324,20 +324,6 @@ export async function saveWeightEntry({
 export async function loadGoals({ supabase, userId }) {
   ensureSupabase(supabase, 'carregar metas');
 
-  const { data, error } = await supabase
-    .from('food_diary_profile')
-    .select('*')
-    .eq('user_id', userId)
-    .maybeSingle();
-
-  if (error) {
-    throw error;
-  }
-
-  if (data) {
-    return data;
-  }
-
   try {
     const { data: profileData, error: profileError } = await supabase
       .from('profiles')
@@ -352,6 +338,20 @@ export async function loadGoals({ supabase, userId }) {
     return profileData ?? null;
   } catch (fallbackError) {
     console.warn('Não foi possível carregar metas pela tabela profiles.', fallbackError);
+  }
+
+  const { data, error } = await supabase
+    .from('food_diary_profile')
+    .select('*')
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  if (data) {
+    return data;
   }
 
   return null;
@@ -376,10 +376,20 @@ export async function loadProfile({ supabase, userId }) {
   try {
     const { data: profileRow } = await supabase
       .from('profiles')
-      .select('goal_type')
+      .select('goal_type, current_weight, height_cm, target_weight, weight_goal')
       .eq('id', userId)
       .maybeSingle();
     profileGoalType = profileRow?.goal_type ?? null;
+    if (profileRow?.current_weight != null && diaryNormalized.weightKg == null) {
+      diaryNormalized.weightKg = Number(profileRow.current_weight);
+    }
+    if (profileRow?.height_cm != null && diaryNormalized.heightCm == null) {
+      diaryNormalized.heightCm = Number(profileRow.height_cm);
+    }
+    const profileGoalWeight = profileRow?.target_weight ?? profileRow?.weight_goal ?? null;
+    if (profileGoalWeight != null && diaryNormalized.goalWeightKg == null) {
+      diaryNormalized.goalWeightKg = Number(profileGoalWeight);
+    }
   } catch (error) {
     console.warn('Não foi possível carregar goal_type da tabela profiles.', error);
   }
