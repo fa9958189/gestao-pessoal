@@ -1407,7 +1407,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
       ? `${formatNumber(body.goalWeightKg, 1)} kg`
       : '—';
 
-  const BodyInfoCard = () => (
+  const BodySummaryCard = () => (
     <div className="food-diary-summary-card card-body card-corpo">
       <h5 className="title" style={{ margin: 0, fontSize: 14 }}>
         Seu corpo hoje
@@ -1984,8 +1984,8 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
       )}
 
       {activeSubTab === 'corpo' && (
-        <div className="gridBodySingle">
-          <div className="food-diary-goals-action">
+        <div className="body-page">
+          <div className="body-actions">
             <button
               type="button"
               className="btn-primary"
@@ -2011,10 +2011,8 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
               Abrir histórico de peso
             </button>
           </div>
-          <div className="corpo-grid body-single-card">
-            <div className="body-container">
-              <BodyInfoCard />
-            </div>
+          <div className="body-main">
+            <BodySummaryCard />
           </div>
         </div>
       )}
