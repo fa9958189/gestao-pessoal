@@ -1478,7 +1478,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
     <div className="food-diary-summary-card card-grafico">
       <h5 className="title" style={{ margin: 0, fontSize: 14 }}>Evolução do peso</h5>
       {weightChartData.length > 0 ? (
-        <div style={{ width: '100%', height: 260 }}>
+        <div style={{ width: '100%', height: 220 }}>
           <ResponsiveContainer>
             <LineChart data={weightChartData}>
               <CartesianGrid stroke="rgba(255,255,255,0.08)" strokeDasharray="3 3" />
@@ -1974,11 +1974,9 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
       )}
 
       {activeSubTab === 'metas' && (
-        <div className="goals-tab-layout">
-          <div className="gridDashboard">
-            <GoalsSummaryCard />
-          </div>
-          <div className="corpo-grid goals-analysis-grid">
+        <div className="goals-container">
+          <GoalsSummaryCard />
+          <div className="goals-grid">
             <BmiCard />
             <WeightEvolutionCard />
           </div>
