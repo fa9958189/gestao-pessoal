@@ -78,8 +78,9 @@ function FoodPicker({ open, onClose, onSelectFood }) {
               const servingQty = Number(item?.serving_qty);
               const parsedQty = Number.isFinite(servingQty) ? servingQty : 1;
               const servingUnit = item?.serving_unit || 'porção';
+              const itemUnit = item?.unit_type === 'ml' ? 'ml' : 'g';
               const servingG = Number(item?.serving_g);
-              const servingGText = Number.isFinite(servingG) ? ` (${round0(servingG)} g)` : '';
+              const servingGText = Number.isFinite(servingG) ? ` (${round0(servingG)} ${itemUnit})` : '';
 
               return {
                 id: `taco-${item?.id || index}`,
@@ -93,6 +94,7 @@ function FoodPicker({ open, onClose, onSelectFood }) {
                 serving_g: Number.isFinite(servingG) ? servingG : 100,
                 serving_qty: parsedQty,
                 serving_unit: servingUnit,
+                unit_type: item?.unit_type || null,
               };
             })
           : [];
@@ -165,7 +167,7 @@ function FoodPicker({ open, onClose, onSelectFood }) {
       ? selectedFood.serving_g
       : 100)
     : 100;
-  const unit = selectedFood?.serving_unit === 'ml' ? 'ml' : 'g';
+  const unit = selectedFood?.unit_type === 'ml' ? 'ml' : 'g';
   const gramsNumber = Number(grams);
   const gramsValue = Number.isFinite(gramsNumber) ? gramsNumber : 0;
 
@@ -208,6 +210,7 @@ function FoodPicker({ open, onClose, onSelectFood }) {
       serving_g: selectedFood.serving_g,
       serving_qty: selectedFood.serving_qty,
       serving_unit: selectedFood.serving_unit,
+      unit_type: selectedFood.unit_type || null,
       quantity: gramsValue,
     });
     handleClose();

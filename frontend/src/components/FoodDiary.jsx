@@ -579,9 +579,10 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
   const handleSelectFood = (foodData) => {
     const parsedQuantity = Number(foodData.quantity);
     const quantity = Number.isFinite(parsedQuantity) && parsedQuantity > 0 ? parsedQuantity : 100;
+    const unit = foodData?.unit_type === 'ml' ? 'ml' : 'g';
     const selectedItem = {
       nome: foodData.name,
-      quantidade: `${quantity} g`,
+      quantidade: `${quantity} ${unit}`,
       calorias: Number(foodData.calories) || 0,
       proteina: Number(foodData.protein) || 0,
     };
@@ -596,6 +597,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
       serving_g: Number(foodData.serving_g) || 0,
       serving_qty: Number(foodData.serving_qty) || 0,
       serving_unit: foodData.serving_unit || '',
+      unit_type: foodData.unit_type || null,
       quantity,
     });
 
