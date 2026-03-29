@@ -2460,12 +2460,14 @@ const handleBodyUpdate = async (req, res) => {
       userId: userIdFromBody,
       weight,
       weight_kg,
+      height,
       height_cm,
       goal_weight,
       weight_goal,
       goal_type,
       objective,
       sex,
+      age,
     } = req.body || {};
     const userId = user_id || userIdFromBody;
     const resolvedWeight = weight_kg ?? weight;
@@ -2486,7 +2488,9 @@ const handleBodyUpdate = async (req, res) => {
       : new Date().toLocaleDateString("pt-BR").split("/").reverse().join("-");
 
     const normalizedWeight = Number(resolvedWeight);
-    const normalizedHeight = Number.isFinite(Number(height_cm)) ? Number(height_cm) : null;
+    const resolvedHeight = height_cm ?? height;
+    const normalizedHeight = Number.isFinite(Number(resolvedHeight)) ? Number(resolvedHeight) : null;
+    const normalizedAge = Number.isFinite(Number(age)) ? Number(age) : null;
     const normalizedGoalWeight = Number.isFinite(Number(resolvedGoalWeight))
       ? Number(resolvedGoalWeight)
       : null;
@@ -2566,9 +2570,55 @@ const handleBodyUpdate = async (req, res) => {
       maintain: 25,
       gain_muscle: 30,
     };
-    const calorieGoal = Math.round(normalizedWeight * calorieMultiplierByGoal[normalizedGoalType]);
-    const proteinGoal = Number((normalizedWeight * 2).toFixed(1));
-    const waterGoalL = Number(((normalizedWeight * 35) / 1000).toFixed(2));
+
+    const canCalculateByBodyMetrics =
+      Number.isFinite(normalizedWeight) &&
+      Number.isFinite(normalizedHeight) &&
+      Number.isFinite(normalizedAge) &&
+      (normalizedSex === "male" || normalizedSex === "female");
+
+    let calorieGoal;
+    let proteinGoal;
+    let waterGoalL;
+
+    if (canCalculateByBodyMetrics) {
+      let tmb;
+
+      if (normalizedSex === "male") {
+        tmb = 10 * normalizedWeight + 6.25 * normalizedHeight - 5 * normalizedAge + 5;
+      } else {
+        tmb = 10 * normalizedWeight + 6.25 * normalizedHeight - 5 * normalizedAge - 161;
+      }
+
+      const activityFactor = 1.55;
+      const tdee = tmb * activityFactor;
+
+      if (normalizedObjective === "perder_peso") {
+        calorieGoal = tdee - 500;
+      } else if (normalizedObjective === "ganhar_massa") {
+        calorieGoal = tdee + 400;
+      } else {
+        calorieGoal = tdee;
+      }
+
+      if (normalizedObjective === "perder_peso") {
+        proteinGoal = normalizedWeight * 2;
+      } else if (normalizedObjective === "ganhar_massa") {
+        proteinGoal = normalizedWeight * 2.2;
+      } else {
+        proteinGoal = normalizedWeight * 1.6;
+      }
+
+      waterGoalL = normalizedWeight * 0.035;
+    } else {
+      calorieGoal = normalizedWeight * calorieMultiplierByGoal[normalizedGoalType];
+      proteinGoal = normalizedWeight * 2;
+      waterGoalL = (normalizedWeight * 35) / 1000;
+    }
+
+    calorieGoal = Math.round(calorieGoal);
+    proteinGoal = Math.round(proteinGoal);
+    waterGoalL = Number(waterGoalL.toFixed(2));
 
     const weightGoalToSave = normalizedGoalWeight;
 
