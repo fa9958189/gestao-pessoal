@@ -1090,7 +1090,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
     return hasWeightHistory || hasCurrentWeight || hasHeight;
   }, [weightHistory.length, body.weightKg, body.heightCm]);
 
-  const openBodyWizard = () => {
+  const openBodyWizard = async () => {
     setBodyDraft({
       sex: sex || null,
       weightKg: body.weightKg || '',
@@ -1100,6 +1100,32 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
     });
     setBodyWizardStep(1);
     setIsBodyWizardOpen(true);
+
+    if (!supabase || !userId) {
+      return;
+    }
+
+    try {
+      const { data, error: profileError } = await supabase
+        .from('profiles')
+        .select('sex, weight, height, objective, goal_weight')
+        .eq('id', userId)
+        .single();
+
+      if (profileError) {
+        throw profileError;
+      }
+
+      if (data?.sex) {
+        setSex(data.sex);
+        setBodyDraft((prev) => ({
+          ...prev,
+          sex: data.sex,
+        }));
+      }
+    } catch (err) {
+      console.warn('Não foi possível pré-carregar sexo do perfil.', err);
+    }
   };
 
   const handleBodyDraftChange = (field, value) => {
@@ -2270,6 +2296,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
                   className="btn-primary"
                   onClick={() => {
                     if (bodyWizardStep === 1 && !bodyDraft.sex) {
+                      alert('Selecione seu sexo para continuar');
                       setError('Selecione o sexo para continuar.');
                       if (typeof notify === 'function') {
                         notify('Selecione o sexo para continuar.', 'error');
