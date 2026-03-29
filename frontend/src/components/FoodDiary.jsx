@@ -35,6 +35,16 @@ const goalTypeOptions = [
   { value: 'maintain', label: 'Manter peso' },
   { value: 'gain_muscle', label: 'Ganhar massa' },
 ];
+const objectiveToGoalType = {
+  perder_peso: 'lose_weight',
+  manter_peso: 'maintain',
+  ganhar_massa: 'gain_muscle',
+};
+const goalTypeToObjective = {
+  lose_weight: 'perder_peso',
+  maintain: 'manter_peso',
+  gain_muscle: 'ganhar_massa',
+};
 
 const defaultBody = {
   heightCm: '',
@@ -161,6 +171,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
   const [entriesByDate, setEntriesByDate] = useState({});
   const [goals, setGoals] = useState(defaultGoals);
   const [goalType, setGoalType] = useState('maintain');
+  const [objective, setObjective] = useState('manter_peso');
   const [body, setBody] = useState(defaultBody);
   const [weightHistory, setWeightHistory] = useState(defaultWeightHistory);
   const [waterSummary, setWaterSummary] = useState({
@@ -329,8 +340,12 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
               : defaultGoals.water,
         };
 
+        const profileObjective =
+          normalizedProfile?.objective || goalTypeToObjective[normalizedProfile?.goalType] || 'manter_peso';
+
         setGoals(nextGoals);
-        setGoalType(normalizedProfile?.goalType || 'maintain');
+        setObjective(profileObjective);
+        setGoalType(objectiveToGoalType[profileObjective] || normalizedProfile?.goalType || 'maintain');
         setWaterSummary((prev) => ({
           ...prev,
           goalMl: nextGoals.water * 1000,
@@ -440,9 +455,11 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
   }, [body.heightCm]);
 
   const goalTypeLabel = useMemo(() => {
-    const selectedOption = goalTypeOptions.find((option) => option.value === goalType);
+    const objetivo = objective;
+    const selectedGoalType = objectiveToGoalType[objetivo] || goalType;
+    const selectedOption = goalTypeOptions.find((option) => option.value === selectedGoalType);
     return selectedOption?.label || 'Manter peso';
-  }, [goalType]);
+  }, [goalType, objective]);
 
   const hasAutomaticGoals = useMemo(() => {
     const validWeight = Number.isFinite(parseNumberInput(body.weightKg));
@@ -1086,12 +1103,14 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
 
       const normalizedHeight = parseNumberInput(bodyDraft.heightCm);
       const normalizedGoalWeight = parseNumberInput(bodyDraft.goalWeightKg);
+      const normalizedObjective = goalTypeToObjective[bodyDraft.goalType] || 'manter_peso';
       const data = {
         user_id: userId,
         weight_kg: normalizedWeight,
         height_cm: normalizedHeight,
         weight_goal: normalizedGoalWeight,
         goal_type: bodyDraft.goalType || 'maintain',
+        objective: normalizedObjective,
       };
 
       console.log('ENVIANDO:', data);
@@ -1108,6 +1127,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
           height_cm: normalizedHeight != null ? Number(normalizedHeight) : null,
           weight_goal: normalizedGoalWeight != null ? Number(normalizedGoalWeight) : null,
           goal_type: bodyDraft.goalType || 'maintain',
+          objective: normalizedObjective,
         }),
       });
 
@@ -1145,6 +1165,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
 
       const refreshedHistory = await fetchWeightHistoryFromDb(userId);
       setWeightHistory(refreshedHistory);
+      setObjective(normalizedObjective);
       setGoalType(bodyDraft.goalType || 'maintain');
       setBody({
         weightKg: String(normalizedWeight),

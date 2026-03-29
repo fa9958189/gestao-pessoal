@@ -33,6 +33,25 @@ const normalizeActivityForStorage = (value) => {
   return String(value).trim();
 };
 
+const OBJECTIVE_TO_GOAL_TYPE = {
+  perder_peso: 'lose_weight',
+  manter_peso: 'maintain',
+  ganhar_massa: 'gain_muscle',
+};
+
+const GOAL_TYPE_TO_OBJECTIVE = {
+  lose_weight: 'perder_peso',
+  maintain: 'manter_peso',
+  gain_muscle: 'ganhar_massa',
+};
+
+const normalizeObjectiveForStorage = (value) => {
+  if (value == null || value === '') return null;
+  const normalized = String(value).trim().toLowerCase();
+  if (OBJECTIVE_TO_GOAL_TYPE[normalized]) return normalized;
+  return GOAL_TYPE_TO_OBJECTIVE[normalized] || null;
+};
+
 const normalizeProfileRow = (row) => {
   if (!row) {
     return {
@@ -384,13 +403,17 @@ export async function loadProfile({ supabase, userId }) {
   const diaryNormalized = normalizeProfileRow(diaryRowResult.data ?? null);
 
   let profileGoalType = null;
+  let profileObjective = null;
   try {
     const { data: profileRow } = await supabase
       .from('profiles')
-      .select('goal_type, current_weight, height_cm, weight_goal')
+      .select('*')
       .eq('id', userId)
-      .maybeSingle();
-    profileGoalType = profileRow?.goal_type ?? null;
+      .single();
+    profileObjective = normalizeObjectiveForStorage(profileRow?.objective ?? null);
+    profileGoalType =
+      profileRow?.goal_type ??
+      (profileObjective ? OBJECTIVE_TO_GOAL_TYPE[profileObjective] : null);
     if (profileRow?.current_weight != null && diaryNormalized.weightKg == null) {
       diaryNormalized.weightKg = Number(profileRow.current_weight);
     }
@@ -407,6 +430,7 @@ export async function loadProfile({ supabase, userId }) {
 
   return {
     ...diaryNormalized,
+    objective: profileObjective || GOAL_TYPE_TO_OBJECTIVE[profileGoalType] || 'manter_peso',
     goalType: profileGoalType || 'maintain',
   };
 }
