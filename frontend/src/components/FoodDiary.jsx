@@ -1108,7 +1108,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
     try {
       const { data, error: profileError } = await supabase
         .from('profiles')
-        .select('sex, weight, height, objective, goal_weight')
+        .select('sex, weight, height, height_cm, objective, goal_weight')
         .eq('id', userId)
         .single();
 
@@ -1116,11 +1116,17 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
         throw profileError;
       }
 
-      if (data?.sex) {
-        setSex(data.sex);
+      const resolvedHeight = data?.height_cm ?? data?.height ?? null;
+
+      if (data?.sex || resolvedHeight != null) {
+        if (data?.sex) {
+          setSex(data.sex);
+        }
+
         setBodyDraft((prev) => ({
           ...prev,
-          sex: data.sex,
+          ...(data?.sex ? { sex: data.sex } : {}),
+          ...(resolvedHeight != null ? { heightCm: String(resolvedHeight) } : {}),
         }));
       }
     } catch (err) {
