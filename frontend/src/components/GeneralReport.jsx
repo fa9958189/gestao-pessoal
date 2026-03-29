@@ -317,6 +317,24 @@ const buildSummary = ({ foodEntries, workoutSessions, transactions, goals, baseD
   };
 };
 
+const normalizeReportProfile = (row) => {
+  if (!row) {
+    return {
+      sex: null,
+      weight: null,
+      height: null,
+      objective: null,
+    };
+  }
+
+  return {
+    sex: row.sex ?? null,
+    weight: row.weight ?? row.current_weight ?? row.weight_kg ?? null,
+    height: row.height_cm ?? row.height ?? row.altura_cm ?? null,
+    objective: row.objective ?? row.goal_type ?? null,
+  };
+};
+
 const readCache = (userId) => {
   if (!userId) return null;
   try {
@@ -608,12 +626,12 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('sex, weight, height, objective')
+        .select('sex, weight, height, height_cm, objective, goal_weight, weight_goal, age')
         .eq('id', userId)
         .single();
 
       if (!error && data) {
-        setProfile(data);
+        setProfile(normalizeReportProfile(data));
       }
     } catch (err) {
       console.error('Erro ao buscar perfil:', err);
@@ -624,13 +642,7 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
     if (userId) {
       fetchUserProfile();
     }
-  }, [userId]);
-
-  useEffect(() => {
-    if (refreshToken) {
-      fetchUserProfile();
-    }
-  }, [refreshToken]);
+  }, [userId, refreshToken]);
 
   useEffect(() => {
     let isMounted = true;
@@ -808,7 +820,7 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
 
         const calorieGoal = Number(goals?.calories || 0);
         const proteinGoal = Number(goals?.protein || 0);
-        const objective = profile?.objective || 'manter_peso';
+        const objective = profile?.objective ?? null;
 
         const [foodResult, txResult, topFoods, badFoods, musclesAnalysis, topExpenses] = await Promise.all([
           supabase
@@ -1065,14 +1077,26 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
 
       <div className="general-report-card mb-4">
         <h3 style={{ marginTop: 0 }}>Seus dados atuais</h3>
-        <p>👤 {profile?.sex === 'male' ? 'Homem' : 'Mulher'}</p>
-        <p>⚖️ Peso: {profile?.weight ? `${profile.weight} kg` : '--'}</p>
-        <p>📏 Altura: {profile?.height ? `${profile.height} cm` : '--'}</p>
+        <p>
+          👤 {
+            profile?.sex === 'male'
+              ? 'Homem'
+              : profile?.sex === 'female'
+              ? 'Mulher'
+              : '--'
+          }
+        </p>
+        <p>⚖️ Peso: {profile?.weight != null ? `${profile.weight} kg` : '--'}</p>
+        <p>📏 Altura: {profile?.height != null ? `${profile.height} cm` : '--'}</p>
         <p>
           🎯 Objetivo: {
-            profile?.objective === 'perder_peso' ? 'Perder peso' : (
-              profile?.objective === 'ganhar_massa' ? 'Ganhar massa' : 'Manter peso'
-            )
+            profile?.objective === 'perder_peso'
+              ? 'Perder peso'
+              : profile?.objective === 'ganhar_massa'
+              ? 'Ganhar massa'
+              : profile?.objective === 'manter_peso'
+              ? 'Manter peso'
+              : '--'
           }
         </p>
       </div>
