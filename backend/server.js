@@ -2627,7 +2627,6 @@ const handleBodyUpdate = async (req, res) => {
       goal_weight: weightGoalToSave,
       weight_goal: weightGoalToSave,
       height_cm: normalizedHeight,
-      height: normalizedHeight,
       ...(normalizedAge != null ? { age: normalizedAge } : {}),
       goal_type: normalizedGoalType,
       calorie_goal: calorieGoal,

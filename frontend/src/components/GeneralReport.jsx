@@ -330,7 +330,7 @@ const normalizeReportProfile = (row) => {
   return {
     sex: row.sex ?? null,
     weight: row.weight ?? row.current_weight ?? row.weight_kg ?? null,
-    height: row.height_cm ?? row.height ?? row.altura_cm ?? null,
+    height: row.height_cm ?? null,
     objective: row.objective ?? row.goal_type ?? null,
   };
 };
@@ -626,7 +626,7 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('sex, weight, height, height_cm, objective, goal_weight, weight_goal, age')
+        .select('sex, weight, height_cm, objective, goal_weight, weight_goal')
         .eq('id', userId)
         .single();
 
