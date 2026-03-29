@@ -579,10 +579,15 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
   const handleSelectFood = (foodData) => {
     const parsedQuantity = Number(foodData.quantity);
     const quantity = Number.isFinite(parsedQuantity) && parsedQuantity > 0 ? parsedQuantity : 100;
-    const unit = foodData?.unit_type === 'ml' ? 'ml' : 'g';
+    const isWhey = foodData?.source === 'WHEY';
+    const unitType = foodData?.unit_type || 'g';
+    const displayUnit = isWhey ? 'scoop' : unitType;
+    const quantityLabel = isWhey
+      ? `${quantity} ${quantity === 1 ? 'scoop' : 'scoops'}`
+      : `${quantity} ${displayUnit}`;
     const selectedItem = {
       nome: foodData.name,
-      quantidade: `${quantity} ${unit}`,
+      quantidade: quantityLabel,
       calorias: Number(foodData.calories) || 0,
       proteina: Number(foodData.protein) || 0,
     };
@@ -597,8 +602,10 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
       serving_g: Number(foodData.serving_g) || 0,
       serving_qty: Number(foodData.serving_qty) || 0,
       serving_unit: foodData.serving_unit || '',
+      source: foodData.source || null,
       unit_type: foodData.unit_type || null,
       quantity,
+      quantity_label: quantityLabel,
     });
 
     setScanPreview((prev) => {
@@ -619,6 +626,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
       food: selectedFood.name || prev.food,
       calories: String(selectedFood.calories ?? prev.calories ?? ''),
       protein: String(selectedFood.protein ?? prev.protein ?? ''),
+      notes: selectedFood.quantity_label || prev.notes || '',
     }));
   }, [selectedFood]);
 
@@ -1966,6 +1974,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
                               <div key={`${item.name || 'item'}-${index}`} className="meal-item">
                                 <span>
                                   {item.name} — {formatNumber(item.calories, 0)} kcal
+                                  {item.notes ? ` • ${item.notes}` : ''}
                                 </span>
                                 <button
                                   type="button"

@@ -17,6 +17,13 @@ const normalizeText = (text) => (text || '')
   .toLowerCase()
   .normalize('NFD')
   .replace(/[\u0300-\u036f]/g, '');
+const getUnitContext = (food) => {
+  const isWhey = food?.source === 'WHEY';
+  const unitType = food?.unit_type || 'g';
+  const displayUnit = isWhey ? 'scoop' : unitType;
+
+  return { isWhey, unitType, displayUnit };
+};
 
 function FoodPicker({ open, onClose, onSelectFood }) {
   const [query, setQuery] = useState('');
@@ -78,9 +85,12 @@ function FoodPicker({ open, onClose, onSelectFood }) {
               const servingQty = Number(item?.serving_qty);
               const parsedQty = Number.isFinite(servingQty) ? servingQty : 1;
               const servingUnit = item?.serving_unit || 'porção';
-              const itemUnit = item?.unit_type === 'ml' ? 'ml' : 'g';
+              const isWhey = item?.source === 'WHEY';
+              const itemUnit = isWhey ? 'scoop' : (item?.unit_type || 'g');
               const servingG = Number(item?.serving_g);
-              const servingGText = Number.isFinite(servingG) ? ` (${round0(servingG)} ${itemUnit})` : '';
+              const servingGText = Number.isFinite(servingG)
+                ? ` (${round0(servingG)} ${isWhey ? 'g' : itemUnit})`
+                : '';
 
               return {
                 id: `taco-${item?.id || index}`,
@@ -94,6 +104,7 @@ function FoodPicker({ open, onClose, onSelectFood }) {
                 serving_g: Number.isFinite(servingG) ? servingG : 100,
                 serving_qty: parsedQty,
                 serving_unit: servingUnit,
+                source: item?.source || null,
                 unit_type: item?.unit_type || null,
               };
             })
@@ -156,10 +167,11 @@ function FoodPicker({ open, onClose, onSelectFood }) {
 
   const handlePick = (food) => {
     setSelectedFood(food);
+    const { isWhey } = getUnitContext(food);
     const baseServing = food.serving_g && food.serving_g > 0
       ? food.serving_g
       : parseBaseGrams(food.descricaoPorcao);
-    setGrams(String(baseServing));
+    setGrams(isWhey ? '1' : String(baseServing));
   };
 
   const baseGrams = selectedFood
@@ -167,9 +179,12 @@ function FoodPicker({ open, onClose, onSelectFood }) {
       ? selectedFood.serving_g
       : 100)
     : 100;
-  const unit = selectedFood?.unit_type === 'ml' ? 'ml' : 'g';
+  const { isWhey, unitType, displayUnit } = getUnitContext(selectedFood);
+  const portionLabel = isWhey
+    ? `1 scoop (${round0(baseGrams)}g)`
+    : `${round0(baseGrams)} ${unitType}`;
   const gramsNumber = Number(grams);
-  const gramsValue = Number.isFinite(gramsNumber) ? gramsNumber : 0;
+  const quantityValue = Number.isFinite(gramsNumber) ? gramsNumber : 0;
 
   useEffect(() => {
     if (!selectedFood) return;
@@ -181,21 +196,23 @@ function FoodPicker({ open, onClose, onSelectFood }) {
       return;
     }
 
-    const calories = (quantity / baseGrams) * (selectedFood.kcalPorPorcao || 0);
-    const protein = (quantity / baseGrams) * (selectedFood.proteina || 0);
+    const quantityInGrams = isWhey ? quantity * baseGrams : quantity;
+    const calories = (quantityInGrams / baseGrams) * (selectedFood.kcalPorPorcao || 0);
+    const protein = (quantityInGrams / baseGrams) * (selectedFood.proteina || 0);
 
     setCaloriesCalc(Number(calories.toFixed(1)));
     setProteinCalc(Number(protein.toFixed(1)));
-  }, [grams, selectedFood, baseGrams]);
+  }, [grams, selectedFood, baseGrams, isWhey]);
 
-  const fatCalc = selectedFood && gramsValue > 0
-    ? round1(((selectedFood.gordura ?? 0) / baseGrams) * gramsValue)
+  const quantityInGrams = isWhey ? quantityValue * baseGrams : quantityValue;
+  const fatCalc = selectedFood && quantityValue > 0
+    ? round1(((selectedFood.gordura ?? 0) / baseGrams) * quantityInGrams)
     : 0;
-  const carbsCalc = selectedFood && gramsValue > 0
-    ? round1(((selectedFood.carboidrato ?? 0) / baseGrams) * gramsValue)
+  const carbsCalc = selectedFood && quantityValue > 0
+    ? round1(((selectedFood.carboidrato ?? 0) / baseGrams) * quantityInGrams)
     : 0;
-  const fiberCalc = selectedFood && gramsValue > 0
-    ? round1(((selectedFood.fibra ?? 0) / baseGrams) * gramsValue)
+  const fiberCalc = selectedFood && quantityValue > 0
+    ? round1(((selectedFood.fibra ?? 0) / baseGrams) * quantityInGrams)
     : 0;
 
   const handleConfirm = () => {
@@ -210,8 +227,9 @@ function FoodPicker({ open, onClose, onSelectFood }) {
       serving_g: selectedFood.serving_g,
       serving_qty: selectedFood.serving_qty,
       serving_unit: selectedFood.serving_unit,
+      source: selectedFood.source || null,
       unit_type: selectedFood.unit_type || null,
-      quantity: gramsValue,
+      quantity: quantityValue,
     });
     handleClose();
   };
@@ -303,12 +321,12 @@ function FoodPicker({ open, onClose, onSelectFood }) {
                 {selectedFood.nome}
               </div>
               <div className="muted" style={{ fontSize: 12 }}>
-                Porção base: {selectedFood.serving_g} {unit}
+                Porção base: {portionLabel}
               </div>
             </div>
 
             <div className="field">
-              <label>Quantidade ({unit})</label>
+              <label>Quantidade ({displayUnit})</label>
               <input
                 type="number"
                 min={1}
