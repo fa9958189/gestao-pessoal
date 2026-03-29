@@ -2446,11 +2446,25 @@ const goalTypeToObjective = {
 
 const handleBodyUpdate = async (req, res) => {
   try {
-    const { user_id, weight_kg, height_cm, weight_goal, goal_type, objective } = req.body || {};
+    const {
+      user_id,
+      userId: userIdFromBody,
+      weight,
+      weight_kg,
+      height_cm,
+      goal_weight,
+      weight_goal,
+      goal_type,
+      objective,
+    } = req.body || {};
+    const userId = user_id || userIdFromBody;
+    const resolvedWeight = weight_kg ?? weight;
+    const resolvedGoalWeight = weight_goal ?? goal_weight;
 
     console.log("BODY RECEBIDO:", req.body);
+    console.log("USER ID:", userId);
 
-    if (!user_id || !Number.isFinite(Number(weight_kg))) {
+    if (!userId || !Number.isFinite(Number(resolvedWeight))) {
       return res.status(400).json({ error: "user_id e weight_kg são obrigatórios." });
     }
 
@@ -2461,10 +2475,10 @@ const handleBodyUpdate = async (req, res) => {
         : rawEntryDate
       : new Date().toLocaleDateString("pt-BR").split("/").reverse().join("-");
 
-    const normalizedWeight = Number(weight_kg);
+    const normalizedWeight = Number(resolvedWeight);
     const normalizedHeight = Number.isFinite(Number(height_cm)) ? Number(height_cm) : null;
-    const normalizedGoalWeight = Number.isFinite(Number(weight_goal))
-      ? Number(weight_goal)
+    const normalizedGoalWeight = Number.isFinite(Number(resolvedGoalWeight))
+      ? Number(resolvedGoalWeight)
       : null;
     const normalizedObjective = ["perder_peso", "manter_peso", "ganhar_massa"].includes(objective)
       ? objective
@@ -2476,7 +2490,7 @@ const handleBodyUpdate = async (req, res) => {
     const { data: existingWeightEntry, error: existingWeightEntryError } = await supabase
       .from("food_weight_history")
       .select("id")
-      .eq("user_id", user_id)
+      .eq("user_id", userId)
       .eq("entry_date", entryDate)
       .maybeSingle();
 
@@ -2502,7 +2516,7 @@ const handleBodyUpdate = async (req, res) => {
       const { error: insertWeightError } = await supabase
         .from("food_weight_history")
         .insert({
-          user_id,
+          user_id: userId,
           weight_kg: normalizedWeight,
           height_cm: normalizedHeight,
           entry_date: entryDate,
@@ -2519,7 +2533,7 @@ const handleBodyUpdate = async (req, res) => {
               weight_kg: normalizedWeight,
               height_cm: normalizedHeight,
             })
-            .eq("user_id", user_id)
+            .eq("user_id", userId)
             .eq("entry_date", entryDate);
 
           if (duplicateFallbackUpdateError) {
@@ -2548,6 +2562,8 @@ const handleBodyUpdate = async (req, res) => {
     const weightGoalToSave = normalizedGoalWeight;
 
     const profileUpdatePayload = {
+      weight: normalizedWeight,
+      goal_weight: weightGoalToSave,
       weight_goal: weightGoalToSave,
       goal_type: normalizedGoalType,
       calorie_goal: calorieGoal,
@@ -2559,7 +2575,7 @@ const handleBodyUpdate = async (req, res) => {
     const { error: profileError } = await supabase
       .from("profiles")
       .update(profileUpdatePayload)
-      .eq("id", user_id);
+      .eq("id", userId);
 
     if (profileError) {
       console.error("Erro profile:", profileError);
