@@ -589,6 +589,12 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
     neglectedMuscles: [],
     topExpenses: [],
   });
+  const [userProfile, setUserProfile] = useState({
+    sex: '',
+    weight: null,
+    height: null,
+    objective: 'manter_peso',
+  });
 
   const baseDate = useMemo(() => new Date(), []);
 
@@ -600,6 +606,29 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
       setLoading(false);
     }
   }, [userId]);
+
+  const fetchUserProfile = async () => {
+    if (!userId || !supabase) return;
+
+    const { data } = await supabase
+      .from('profiles')
+      .select('sex, weight, height, objective')
+      .eq('id', userId)
+      .single();
+
+    if (data) {
+      setUserProfile({
+        sex: data.sex || '',
+        weight: Number.isFinite(Number(data.weight)) ? Number(data.weight) : null,
+        height: Number.isFinite(Number(data.height)) ? Number(data.height) : null,
+        objective: data.objective || 'manter_peso',
+      });
+    }
+  };
+
+  useEffect(() => {
+    fetchUserProfile();
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -627,12 +656,12 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
         .slice(0, 5);
     };
 
-    const getBadFoods = async ({ weekStartStr, todayStr, calorieGoal }) => {
-      if (!calorieGoal) return [];
+    const getBadFoods = async ({ weekStartStr, todayStr, calorieGoal, proteinGoal, objective }) => {
+      if (!objective) return [];
 
       const { data, error } = await supabase
         .from('food_diary_entries')
-        .select('food, calories, entry_date')
+        .select('food, calories, protein, entry_date')
         .eq('user_id', userId)
         .gte('entry_date', weekStartStr)
         .lte('entry_date', todayStr);
@@ -642,23 +671,44 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
       const entries = (data || []).map((row) => ({
         name: row.food || '',
         calories: Number(row.calories) || 0,
+        protein: Number(row.protein) || 0,
         date: row.entry_date || '',
       }));
 
-      const caloriesByDay = entries.reduce((acc, item) => {
+      const nutritionByDay = entries.reduce((acc, item) => {
         if (!item.date) return acc;
-        acc[item.date] = (acc[item.date] || 0) + item.calories;
+        acc[item.date] = acc[item.date] || { calories: 0, protein: 0 };
+        acc[item.date].calories += item.calories;
+        acc[item.date].protein += item.protein;
         return acc;
       }, {});
 
-      const exceededDays = new Set(
-        Object.entries(caloriesByDay)
-          .filter(([, calories]) => calories > calorieGoal)
+      let flaggedDays = [];
+      if (objective === 'perder_peso') {
+        flaggedDays = Object.entries(nutritionByDay)
+          .filter(([, day]) => calorieGoal > 0 && day.calories > calorieGoal)
+          .map(([date]) => date);
+      } else if (objective === 'ganhar_massa') {
+        flaggedDays = Object.entries(nutritionByDay)
+          .filter(([, day]) => proteinGoal > 0 && day.protein < proteinGoal)
+          .map(([date]) => date);
+      } else {
+        flaggedDays = Object.entries(nutritionByDay)
+          .filter(([, day]) => {
+            if (calorieGoal <= 0 && proteinGoal <= 0) return false;
+            const caloriesOutOfRange = calorieGoal > 0
+              ? (day.calories < calorieGoal * 0.9 || day.calories > calorieGoal * 1.1)
+              : false;
+            const proteinLow = proteinGoal > 0 ? day.protein < proteinGoal * 0.9 : false;
+            return caloriesOutOfRange || proteinLow;
+          })
           .map(([date]) => date),
-      );
+      }
+
+      const flaggedDaysSet = new Set(flaggedDays);
 
       const grouped = entries.reduce((acc, item) => {
-        if (!item.name || !exceededDays.has(item.date)) return acc;
+        if (!item.name || !flaggedDaysSet.has(item.date)) return acc;
         acc[item.name] = (acc[item.name] || 0) + 1;
         return acc;
       }, {});
@@ -755,6 +805,8 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
         const monthStartStr = monthStart.toISOString().slice(0, 10);
 
         const calorieGoal = Number(goals?.calories || 0);
+        const proteinGoal = Number(goals?.protein || 0);
+        const objective = userProfile.objective || 'manter_peso';
 
         const [foodResult, txResult, topFoods, badFoods, musclesAnalysis, topExpenses] = await Promise.all([
           supabase
@@ -772,7 +824,13 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
             .lte('date', todayStr)
             .order('date', { ascending: true }),
           getTopFoods({ weekStartStr, todayStr }),
-          getBadFoods({ weekStartStr, todayStr, calorieGoal }),
+          getBadFoods({
+            weekStartStr,
+            todayStr,
+            calorieGoal,
+            proteinGoal,
+            objective,
+          }),
           getTopMuscles({ weekStartStr: mondayStr, weekEndStr: sundayStr }),
           getTopExpenses({ monthStartStr, todayStr }),
         ]);
@@ -837,7 +895,7 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
     return () => {
       isMounted = false;
     };
-  }, [goals, supabase, userId, refreshToken]);
+  }, [goals, supabase, userId, refreshToken, userProfile.objective]);
 
   const fallbackSummary = useMemo(
     () =>
@@ -1002,6 +1060,20 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
         level={previewLevel}
         onClose={() => setPreviewLevel(null)}
       />
+
+      <div className="general-report-card mb-4">
+        <h3 style={{ marginTop: 0 }}>Seus dados atuais</h3>
+        <p>👤 {userProfile.sex === 'male' ? 'Homem' : 'Mulher'}</p>
+        <p>⚖️ Peso: {userProfile.weight ?? '--'} kg</p>
+        <p>📏 Altura: {userProfile.height ?? '--'} cm</p>
+        <p>
+          🎯 Objetivo: {
+            userProfile.objective === 'perder_peso' ? 'Perder peso' : (
+              userProfile.objective === 'ganhar_massa' ? 'Ganhar massa' : 'Manter peso'
+            )
+          }
+        </p>
+      </div>
 
       <div className="general-report-grid">
         <div className="general-report-card">
