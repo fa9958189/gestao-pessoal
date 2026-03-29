@@ -702,7 +702,7 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
             const proteinLow = proteinGoal > 0 ? day.protein < proteinGoal * 0.9 : false;
             return caloriesOutOfRange || proteinLow;
           })
-          .map(([date]) => date),
+          .map(([date]) => date);
       }
 
       const flaggedDaysSet = new Set(flaggedDays);
