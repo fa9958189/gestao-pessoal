@@ -2432,9 +2432,21 @@ app.post("/api/hydration/undo", handleHydrationUndo);
 app.get("/api/hydration/state", handleHydrationState);
 app.get("/api/hydration", handleWaterState);
 
+const objectiveToGoalType = {
+  perder_peso: "lose_weight",
+  manter_peso: "maintain",
+  ganhar_massa: "gain_muscle",
+};
+
+const goalTypeToObjective = {
+  lose_weight: "perder_peso",
+  maintain: "manter_peso",
+  gain_muscle: "ganhar_massa",
+};
+
 const handleBodyUpdate = async (req, res) => {
   try {
-    const { user_id, weight_kg, height_cm, weight_goal, goal_type } = req.body || {};
+    const { user_id, weight_kg, height_cm, weight_goal, goal_type, objective } = req.body || {};
 
     console.log("BODY RECEBIDO:", req.body);
 
@@ -2454,9 +2466,12 @@ const handleBodyUpdate = async (req, res) => {
     const normalizedGoalWeight = Number.isFinite(Number(weight_goal))
       ? Number(weight_goal)
       : null;
+    const normalizedObjective = ["perder_peso", "manter_peso", "ganhar_massa"].includes(objective)
+      ? objective
+      : goalTypeToObjective[goal_type] || "manter_peso";
     const normalizedGoalType = ["lose_weight", "maintain", "gain_muscle"].includes(goal_type)
       ? goal_type
-      : "maintain";
+      : objectiveToGoalType[normalizedObjective] || "maintain";
 
     const { data: existingWeightEntry, error: existingWeightEntryError } = await supabase
       .from("food_weight_history")
@@ -2532,15 +2547,18 @@ const handleBodyUpdate = async (req, res) => {
 
     const weightGoalToSave = normalizedGoalWeight;
 
+    const profileUpdatePayload = {
+      weight_goal: weightGoalToSave,
+      goal_type: normalizedGoalType,
+      calorie_goal: calorieGoal,
+      protein_goal: proteinGoal,
+      water_goal: waterGoalL,
+      ...(objective !== undefined ? { objective: normalizedObjective } : {}),
+    };
+
     const { error: profileError } = await supabase
       .from("profiles")
-      .update({
-        weight_goal: weightGoalToSave,
-        goal_type: normalizedGoalType,
-        calorie_goal: calorieGoal,
-        protein_goal: proteinGoal,
-        water_goal: waterGoalL,
-      })
+      .update(profileUpdatePayload)
       .eq("id", user_id);
 
     if (profileError) {
@@ -2552,6 +2570,7 @@ const handleBodyUpdate = async (req, res) => {
       success: true,
       goals: {
         goal_type: normalizedGoalType,
+        objective: normalizedObjective,
         weight_goal: normalizedGoalWeight,
         calorie_goal: calorieGoal,
         protein_goal: proteinGoal,
