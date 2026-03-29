@@ -13,6 +13,10 @@ const parseBaseGrams = (descricaoPorcao) => {
 
 const round1 = (n) => Math.round(n * 10) / 10;
 const round0 = (n) => Math.round(n);
+const normalizeText = (text) => (text || '')
+  .toLowerCase()
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '');
 
 function FoodPicker({ open, onClose, onSelectFood }) {
   const [query, setQuery] = useState('');
@@ -30,15 +34,22 @@ function FoodPicker({ open, onClose, onSelectFood }) {
     if (!open) return;
 
     const term = normalizedQuery;
-    if (!term) {
+    const search = normalizeText(term);
+
+    if (!search) {
       setFoods(FOOD_CATALOG);
       setIsLoading(false);
       setErrorMessage('');
       return;
     }
 
-    if (term.length < 2) {
-      setFoods(FOOD_CATALOG);
+    const catalogMatches = FOOD_CATALOG.filter((food) => {
+      const name = normalizeText(food?.nome);
+      return name.includes(search);
+    });
+
+    if (search.length < 2) {
+      setFoods(catalogMatches);
       setIsLoading(false);
       setErrorMessage('');
       return;
@@ -52,8 +63,7 @@ function FoodPicker({ open, onClose, onSelectFood }) {
         const { data, error } = await supabase
           .from('taco_foods')
           .select('*')
-          .ilike('name', `%${term}%`)
-          .limit(20);
+          .limit(100);
 
         if (error) {
           throw error;
@@ -87,7 +97,25 @@ function FoodPicker({ open, onClose, onSelectFood }) {
             })
           : [];
 
-        setFoods(mapped);
+        const remoteMatches = mapped.filter((food) => {
+          const name = normalizeText(food?.nome);
+          return name.includes(search);
+        });
+
+        const mergedFoods = [...catalogMatches];
+        const existingNames = new Set(
+          catalogMatches.map((food) => normalizeText(food?.nome)),
+        );
+
+        remoteMatches.forEach((food) => {
+          const normalizedName = normalizeText(food?.nome);
+          if (!existingNames.has(normalizedName)) {
+            existingNames.add(normalizedName);
+            mergedFoods.push(food);
+          }
+        });
+
+        setFoods(mergedFoods);
       } catch (error) {
         if (shouldCancel) {
           return;
