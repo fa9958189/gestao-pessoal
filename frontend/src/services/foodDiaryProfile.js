@@ -20,11 +20,11 @@ const ensureSupabase = (supabase, context) => {
 const normalizeSexForStorage = (value) => {
   if (value == null || value === '') return null;
   const normalized = String(value).trim().toLowerCase();
-  if (normalized === 'masculino' || normalized === 'feminino') {
+  if (normalized === 'male' || normalized === 'female') {
     return normalized;
   }
-  if (normalized === 'masc') return 'masculino';
-  if (normalized === 'fem') return 'feminino';
+  if (normalized === 'masculino' || normalized === 'masc') return 'male';
+  if (normalized === 'feminino' || normalized === 'fem') return 'female';
   return normalized;
 };
 
