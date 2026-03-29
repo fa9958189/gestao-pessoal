@@ -464,6 +464,28 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
     return selectedOption?.label || 'Manter peso';
   }, [goalType, objective]);
 
+  const objectiveExplanation = useMemo(() => {
+    let title = '';
+    let explanation = '';
+
+    if (objective === 'perder_peso') {
+      title = '🔥 Emagrecimento';
+      explanation = 'Você está em déficit calórico. Seu corpo vai usar gordura como fonte de energia.';
+    }
+
+    if (objective === 'ganhar_massa') {
+      title = '💪 Hipertrofia';
+      explanation = 'Você está em superávit calórico. O foco é crescimento muscular.';
+    }
+
+    if (objective === 'manter_peso') {
+      title = '⚖️ Manutenção';
+      explanation = 'Você está em equilíbrio calórico. O objetivo é estabilidade.';
+    }
+
+    return { title, explanation };
+  }, [objective]);
+
   const hasAutomaticGoals = useMemo(() => {
     const validWeight = Number.isFinite(parseNumberInput(body.weightKg));
     return (
@@ -1439,6 +1461,20 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
 
           <div className="muted" style={{ fontSize: 12 }}>
             Essas metas foram calculadas automaticamente com base no seu peso e objetivo corporal.
+          </div>
+
+          <div className="food-diary-summary-card card-padrao" style={{ marginTop: 12 }}>
+            <h5 className="title" style={{ margin: 0, fontSize: 14 }}>
+              {objectiveExplanation.title}
+            </h5>
+            <p className="muted" style={{ margin: '8px 0 0', fontSize: 13 }}>
+              {objectiveExplanation.explanation}
+            </p>
+            {objective === 'perder_peso' ? (
+              <p style={{ margin: '8px 0 0', fontSize: 13 }}>
+                📉 Ritmo estimado: ~0,5kg por semana
+              </p>
+            ) : null}
           </div>
         </>
       ) : (
