@@ -787,6 +787,9 @@ export const FOOD_CATALOG = [
     nome: 'Whey protein',
     categoria: 'Suplementos',
     icon: 'Milk',
+    source: 'WHEY',
+    unit_type: 'g',
+    serving_g: 30,
     kcalPorPorcao: 120,
     descricaoPorcao: '1 scoop (30 g)',
     proteina: 24
