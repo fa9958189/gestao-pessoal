@@ -1104,6 +1104,16 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
       const normalizedHeight = parseNumberInput(bodyDraft.heightCm);
       const normalizedGoalWeight = parseNumberInput(bodyDraft.goalWeightKg);
       const normalizedObjective = goalTypeToObjective[bodyDraft.goalType] || 'manter_peso';
+      const bodyPayload = {
+        user_id: userId,
+        weight: Number(normalizedWeight),
+        weight_kg: Number(normalizedWeight),
+        height_cm: normalizedHeight != null ? Number(normalizedHeight) : null,
+        goal_weight: normalizedGoalWeight != null ? Number(normalizedGoalWeight) : null,
+        weight_goal: normalizedGoalWeight != null ? Number(normalizedGoalWeight) : null,
+        goal_type: bodyDraft.goalType || 'maintain',
+        objective: normalizedObjective,
+      };
       const data = {
         user_id: userId,
         weight_kg: normalizedWeight,
@@ -1114,6 +1124,11 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
       };
 
       console.log('ENVIANDO:', data);
+      console.log('ENVIANDO:', {
+        weight: bodyPayload.weight,
+        goal_weight: bodyPayload.goal_weight,
+        objective: bodyPayload.objective,
+      });
       console.log('Payload corpo:', data);
 
       const response = await fetch(buildApiUrl(apiBaseUrl, '/body'), {
@@ -1121,14 +1136,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          user_id: userId,
-          weight_kg: Number(normalizedWeight),
-          height_cm: normalizedHeight != null ? Number(normalizedHeight) : null,
-          weight_goal: normalizedGoalWeight != null ? Number(normalizedGoalWeight) : null,
-          goal_type: bodyDraft.goalType || 'maintain',
-          objective: normalizedObjective,
-        }),
+        body: JSON.stringify(bodyPayload),
       });
 
       const bodyResponse = await response.json().catch(() => ({}));
