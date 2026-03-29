@@ -589,12 +589,7 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
     neglectedMuscles: [],
     topExpenses: [],
   });
-  const [userProfile, setUserProfile] = useState({
-    sex: '',
-    weight: null,
-    height: null,
-    objective: 'manter_peso',
-  });
+  const [profile, setProfile] = useState(null);
 
   const baseDate = useMemo(() => new Date(), []);
 
@@ -610,25 +605,32 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
   const fetchUserProfile = async () => {
     if (!userId || !supabase) return;
 
-    const { data } = await supabase
-      .from('profiles')
-      .select('sex, weight, height, objective')
-      .eq('id', userId)
-      .single();
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('sex, weight, height, objective')
+        .eq('id', userId)
+        .single();
 
-    if (data) {
-      setUserProfile({
-        sex: data.sex || '',
-        weight: Number.isFinite(Number(data.weight)) ? Number(data.weight) : null,
-        height: Number.isFinite(Number(data.height)) ? Number(data.height) : null,
-        objective: data.objective || 'manter_peso',
-      });
+      if (!error && data) {
+        setProfile(data);
+      }
+    } catch (err) {
+      console.error('Erro ao buscar perfil:', err);
     }
   };
 
   useEffect(() => {
-    fetchUserProfile();
-  }, []);
+    if (userId) {
+      fetchUserProfile();
+    }
+  }, [userId]);
+
+  useEffect(() => {
+    if (refreshToken) {
+      fetchUserProfile();
+    }
+  }, [refreshToken]);
 
   useEffect(() => {
     let isMounted = true;
@@ -806,7 +808,7 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
 
         const calorieGoal = Number(goals?.calories || 0);
         const proteinGoal = Number(goals?.protein || 0);
-        const objective = userProfile.objective || 'manter_peso';
+        const objective = profile?.objective || 'manter_peso';
 
         const [foodResult, txResult, topFoods, badFoods, musclesAnalysis, topExpenses] = await Promise.all([
           supabase
@@ -895,7 +897,7 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
     return () => {
       isMounted = false;
     };
-  }, [goals, supabase, userId, refreshToken, userProfile.objective]);
+  }, [goals, supabase, userId, refreshToken, profile?.objective]);
 
   const fallbackSummary = useMemo(
     () =>
@@ -1063,13 +1065,13 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
 
       <div className="general-report-card mb-4">
         <h3 style={{ marginTop: 0 }}>Seus dados atuais</h3>
-        <p>👤 {userProfile.sex === 'male' ? 'Homem' : 'Mulher'}</p>
-        <p>⚖️ Peso: {userProfile.weight ?? '--'} kg</p>
-        <p>📏 Altura: {userProfile.height ?? '--'} cm</p>
+        <p>👤 {profile?.sex === 'male' ? 'Homem' : 'Mulher'}</p>
+        <p>⚖️ Peso: {profile?.weight ? `${profile.weight} kg` : '--'}</p>
+        <p>📏 Altura: {profile?.height ? `${profile.height} cm` : '--'}</p>
         <p>
           🎯 Objetivo: {
-            userProfile.objective === 'perder_peso' ? 'Perder peso' : (
-              userProfile.objective === 'ganhar_massa' ? 'Ganhar massa' : 'Manter peso'
+            profile?.objective === 'perder_peso' ? 'Perder peso' : (
+              profile?.objective === 'ganhar_massa' ? 'Ganhar massa' : 'Manter peso'
             )
           }
         </p>
