@@ -172,6 +172,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
   const [goals, setGoals] = useState(defaultGoals);
   const [goalType, setGoalType] = useState('maintain');
   const [objective, setObjective] = useState('manter_peso');
+  const [sex, setSex] = useState(null);
   const [body, setBody] = useState(defaultBody);
   const [weightHistory, setWeightHistory] = useState(defaultWeightHistory);
   const [waterSummary, setWaterSummary] = useState({
@@ -200,6 +201,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
   const [isWeightHistoryModalOpen, setIsWeightHistoryModalOpen] = useState(false);
   const [bodyWizardStep, setBodyWizardStep] = useState(1);
   const [bodyDraft, setBodyDraft] = useState({
+    sex: null,
     weightKg: '',
     heightCm: '',
     goalType: 'maintain',
@@ -346,6 +348,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
         setGoals(nextGoals);
         setObjective(profileObjective);
         setGoalType(objectiveToGoalType[profileObjective] || normalizedProfile?.goalType || 'maintain');
+        setSex(normalizedProfile?.sex || null);
         setWaterSummary((prev) => ({
           ...prev,
           goalMl: nextGoals.water * 1000,
@@ -1013,6 +1016,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
   const handleEditWeightEntry = (entry) => {
     if (!entry) return;
     setBodyDraft({
+      sex: sex || null,
       weightKg: entry.weightKg != null ? String(entry.weightKg) : body.weightKg,
       heightCm: body.heightCm || '',
       goalType: goalType || 'maintain',
@@ -1066,6 +1070,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
 
   const openBodyWizard = () => {
     setBodyDraft({
+      sex: sex || null,
       weightKg: body.weightKg || '',
       heightCm: body.heightCm || '',
       goalType: goalType || 'maintain',
@@ -1104,6 +1109,16 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
       const normalizedHeight = parseNumberInput(bodyDraft.heightCm);
       const normalizedGoalWeight = parseNumberInput(bodyDraft.goalWeightKg);
       const normalizedObjective = goalTypeToObjective[bodyDraft.goalType] || 'manter_peso';
+      const normalizedSex = bodyDraft.sex === 'male' || bodyDraft.sex === 'female' ? bodyDraft.sex : null;
+
+      if (!normalizedSex) {
+        setError('Selecione o sexo para continuar.');
+        if (typeof notify === 'function') {
+          notify('Selecione o sexo para continuar.', 'error');
+        }
+        return;
+      }
+
       const bodyPayload = {
         user_id: userId,
         weight: Number(normalizedWeight),
@@ -1113,6 +1128,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
         weight_goal: normalizedGoalWeight != null ? Number(normalizedGoalWeight) : null,
         goal_type: bodyDraft.goalType || 'maintain',
         objective: normalizedObjective,
+        sex: normalizedSex,
       };
       const data = {
         user_id: userId,
@@ -1121,6 +1137,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
         weight_goal: normalizedGoalWeight,
         goal_type: bodyDraft.goalType || 'maintain',
         objective: normalizedObjective,
+        sex: normalizedSex,
       };
 
       console.log('ENVIANDO:', data);
@@ -1175,6 +1192,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
       setWeightHistory(refreshedHistory);
       setObjective(normalizedObjective);
       setGoalType(bodyDraft.goalType || 'maintain');
+      setSex(normalizedSex);
       setBody({
         weightKg: String(normalizedWeight),
         heightCm: normalizedHeight != null ? String(normalizedHeight) : '',
@@ -2114,15 +2132,37 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
         <div className="modal-overlay">
           <div className="report-modal food-goals-wizard-modal">
             <h2>Registrar Corpo</h2>
-            <p>Passo {bodyWizardStep} de 3</p>
+            <p>Passo {bodyWizardStep} de 4</p>
             <div className="progress-bar">
               <div
                 className="progress-fill"
-                style={{ width: `${(bodyWizardStep / 3) * 100}%` }}
+                style={{ width: `${(bodyWizardStep / 4) * 100}%` }}
               />
             </div>
 
             {bodyWizardStep === 1 && (
+              <div>
+                <h3>Você é:</h3>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    className={`objetivo-btn ${bodyDraft.sex === 'male' ? 'active' : ''}`}
+                    onClick={() => handleBodyDraftChange('sex', 'male')}
+                  >
+                    Homem
+                  </button>
+                  <button
+                    type="button"
+                    className={`objetivo-btn ${bodyDraft.sex === 'female' ? 'active' : ''}`}
+                    onClick={() => handleBodyDraftChange('sex', 'female')}
+                  >
+                    Mulher
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {bodyWizardStep === 2 && (
               <div style={{ display: 'grid', gap: 12 }}>
                 <h3>Dados atuais</h3>
                 <div className="field">
@@ -2146,7 +2186,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
               </div>
             )}
 
-            {bodyWizardStep === 2 && (
+            {bodyWizardStep === 3 && (
               <div>
                 <h3>Objetivo</h3>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -2164,7 +2204,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
               </div>
             )}
 
-            {bodyWizardStep === 3 && (
+            {bodyWizardStep === 4 && (
               <div className="field">
                 <h3>Meta</h3>
                 <label>Meta de peso (kg)</label>
@@ -2188,17 +2228,26 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
                 </button>
               )}
 
-              {bodyWizardStep < 3 && (
+              {bodyWizardStep < 4 && (
                 <button
                   type="button"
                   className="btn-primary"
-                  onClick={() => setBodyWizardStep((prev) => prev + 1)}
+                  onClick={() => {
+                    if (bodyWizardStep === 1 && !bodyDraft.sex) {
+                      setError('Selecione o sexo para continuar.');
+                      if (typeof notify === 'function') {
+                        notify('Selecione o sexo para continuar.', 'error');
+                      }
+                      return;
+                    }
+                    setBodyWizardStep((prev) => prev + 1);
+                  }}
                 >
                   Continuar →
                 </button>
               )}
 
-              {bodyWizardStep === 3 && (
+              {bodyWizardStep === 4 && (
                 <button
                   type="button"
                   className="btn-primary"

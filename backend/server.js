@@ -2444,6 +2444,15 @@ const goalTypeToObjective = {
   gain_muscle: "ganhar_massa",
 };
 
+const normalizeSex = (value) => {
+  if (value == null || value === "") return null;
+  const normalized = String(value).trim().toLowerCase();
+  if (normalized === "male" || normalized === "female") return normalized;
+  if (normalized === "masculino" || normalized === "masc") return "male";
+  if (normalized === "feminino" || normalized === "fem") return "female";
+  return null;
+};
+
 const handleBodyUpdate = async (req, res) => {
   try {
     const {
@@ -2456,6 +2465,7 @@ const handleBodyUpdate = async (req, res) => {
       weight_goal,
       goal_type,
       objective,
+      sex,
     } = req.body || {};
     const userId = user_id || userIdFromBody;
     const resolvedWeight = weight_kg ?? weight;
@@ -2486,6 +2496,7 @@ const handleBodyUpdate = async (req, res) => {
     const normalizedGoalType = ["lose_weight", "maintain", "gain_muscle"].includes(goal_type)
       ? goal_type
       : objectiveToGoalType[normalizedObjective] || "maintain";
+    const normalizedSex = normalizeSex(sex);
 
     const { data: existingWeightEntry, error: existingWeightEntryError } = await supabase
       .from("food_weight_history")
@@ -2570,6 +2581,7 @@ const handleBodyUpdate = async (req, res) => {
       protein_goal: proteinGoal,
       water_goal: waterGoalL,
       ...(objective !== undefined ? { objective: normalizedObjective } : {}),
+      ...(sex !== undefined ? { sex: normalizedSex } : {}),
     };
 
     const { error: profileError } = await supabase
