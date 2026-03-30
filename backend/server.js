@@ -9,7 +9,11 @@ import multer from "multer";
 import foodsRouter from "./routes/foods.js";
 import eventsRoutes from "./routes/events.js";
 import treinosRoutes from "./routes/treinos.js";
-import { supabase } from "./supabase.js";
+import {
+  getCircuitBreakerState,
+  supabase,
+} from "./supabase.js";
+import { logError, logInfo, logWarn } from "./utils/logger.js";
 import {
   sendWhatsAppMessage,
   startMorningAgendaScheduler,
@@ -95,21 +99,74 @@ const buildApiErrorMessage = (error) => {
   if (isPermissionError(error)) return "Sem permissão";
   return "Erro interno, tente novamente";
 };
-const isConnectionTimeoutError = (error) => {
+const isSupabaseTemporaryFailure = (error) => {
   const raw =
     `${error?.message || ""} ${error?.details || ""} ${error?.cause?.message || ""} ${
       error?.cause?.code || ""
-    } ${error?.code || ""}`.toLowerCase();
+    } ${error?.code || ""} ${error?.status || ""}`.toLowerCase();
 
   return (
+    raw.includes("supabase_circuit_open") ||
     raw.includes("timeout") ||
     raw.includes("connect timeout") ||
     raw.includes("und_err_connect_timeout") ||
-    raw.includes("fetch failed")
+    raw.includes("fetch failed") ||
+    raw.includes("502") ||
+    raw.includes("503") ||
+    raw.includes("504")
   );
 };
 
 const formatDateOnly = (date) => date.toISOString().split("T")[0];
+
+const AUTH_CACHE_TTL_MS = 60 * 1000;
+const authCache = new Map();
+
+const clearExpiredAuthCache = () => {
+  const now = Date.now();
+  for (const [token, cached] of authCache.entries()) {
+    if (!cached?.expiresAt || cached.expiresAt <= now) {
+      authCache.delete(token);
+      logInfo("auth_cache_expired", { tokenSize: token.length });
+    }
+  }
+};
+
+const getAuthCache = (token) => {
+  clearExpiredAuthCache();
+  const cached = authCache.get(token);
+  if (!cached) return null;
+
+  if (!cached.expiresAt || cached.expiresAt <= Date.now()) {
+    authCache.delete(token);
+    logInfo("auth_cache_expired", { tokenSize: token.length });
+    return null;
+  }
+
+  return cached;
+};
+
+const setAuthCache = (token, payload) => {
+  authCache.set(token, payload);
+  logInfo("auth_cache_set", { tokenSize: token.length, expiresAt: payload.expiresAt });
+};
+
+const invalidateAuthCache = (token) => {
+  if (!token) return;
+  authCache.delete(token);
+};
+
+const getBearerToken = (req) => {
+  const authHeader = req.headers["authorization"] || "";
+  return authHeader.startsWith("Bearer")
+    ? authHeader.replace(/Bearer\s+/i, "").trim()
+    : null;
+};
+
+const sendSupabaseUnavailable = (res) =>
+  res
+    .status(503)
+    .json({ error: "Serviço temporariamente indisponível. Tente novamente em instantes." });
 
 const computePlanDates = (planType) => {
   const today = new Date();
@@ -208,6 +265,40 @@ if (!schedulerStarted) {
   schedulerStarted = true;
 }
 
+app.get("/health", (req, res) => {
+  return res.json({
+    ok: true,
+    uptime: process.uptime(),
+    timestamp: new Date().toISOString(),
+  });
+});
+
+app.get("/health/supabase", async (req, res) => {
+  clearExpiredAuthCache();
+  const circuit = getCircuitBreakerState();
+  const basePayload = {
+    service: "supabase",
+    circuit,
+    cache: {
+      authEntries: authCache.size,
+    },
+  };
+
+  try {
+    const { error } = await supabase.from("profiles").select("id").limit(1);
+
+    if (error) {
+      logWarn("supabase_healthcheck_failure", { message: error?.message, code: error?.code });
+      return res.status(503).json({ ok: false, ...basePayload });
+    }
+
+    return res.status(200).json({ ok: true, ...basePayload });
+  } catch (err) {
+    logWarn("supabase_healthcheck_failure", { message: err?.message, code: err?.code });
+    return res.status(503).json({ ok: false, ...basePayload });
+  }
+});
+
 app.get("/debug/zapi-test", async (req, res) => {
   try {
     const phone = req.query.phone;
@@ -238,21 +329,6 @@ app.post("/debug/send-whatsapp", async (req, res) => {
   }
 });
 
-app.get("/health/supabase", async (req, res) => {
-  try {
-    const { error } = await supabase.from("profiles").select("id").limit(1);
-
-    if (error) {
-      console.error("Falha no healthcheck do Supabase:", error);
-      return res.status(503).json({ ok: false, service: "supabase", error: "Falha de conexão" });
-    }
-
-    return res.json({ ok: true, service: "supabase" });
-  } catch (err) {
-    console.error("Falha no healthcheck do Supabase:", err);
-    return res.status(503).json({ ok: false, service: "supabase", error: "Falha de conexão" });
-  }
-});
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -482,15 +558,35 @@ app.post("/create-user", async (req, res) => {
 });
 
 const authenticateRequest = async (req, res, { requireAdmin = false } = {}) => {
-  const authHeader = req.headers["authorization"] || "";
-  const token = authHeader.startsWith("Bearer")
-    ? authHeader.replace(/Bearer\s+/i, "").trim()
-    : null;
+  const token = getBearerToken(req);
 
   if (!token) {
     res.status(401).json({ error: "Token de acesso obrigatório" });
     return null;
   }
+
+  const cachedAuth = getAuthCache(token);
+  if (cachedAuth?.user?.id) {
+    logInfo("auth_cache_hit", { userId: cachedAuth.user.id, requireAdmin });
+
+    if (cachedAuth.profile?.billing_status === "inactive") {
+      res.status(403).json({ error: "Conta inativa" });
+      return null;
+    }
+
+    if (requireAdmin && cachedAuth.profile?.role !== "admin") {
+      res.status(403).json({ error: "Sem permissão" });
+      return null;
+    }
+
+    return {
+      userId: cachedAuth.user.id,
+      profile: cachedAuth.profile || null,
+      user: cachedAuth.user,
+    };
+  }
+
+  logInfo("auth_cache_miss", { requireAdmin });
 
   let requesterData;
   let requesterError;
@@ -499,22 +595,26 @@ const authenticateRequest = async (req, res, { requireAdmin = false } = {}) => {
     requesterData = authResponse.data;
     requesterError = authResponse.error;
   } catch (err) {
-    if (isConnectionTimeoutError(err)) {
-      console.error("Timeout ao validar token no Supabase:", requesterError || err);
-      console.warn("Retornando 503 por falha temporária de conexão com Supabase.");
-      res
-        .status(503)
-        .json({ error: "Falha temporária de conexão com o servidor. Tente novamente." });
+    if (isSupabaseTemporaryFailure(err)) {
+      logWarn("auth_profile_fetch_error", {
+        stage: "auth.getUser",
+        message: err?.message,
+        code: err?.code,
+      });
+      sendSupabaseUnavailable(res);
       return null;
     }
 
     throw err;
   }
 
-  if (isConnectionTimeoutError(requesterError)) {
-    console.error("Timeout ao validar token no Supabase:", requesterError);
-    console.warn("Retornando 503 por falha temporária de conexão com Supabase.");
-    res.status(503).json({ error: "Falha temporária de conexão com o servidor. Tente novamente." });
+  if (isSupabaseTemporaryFailure(requesterError)) {
+    logWarn("auth_profile_fetch_error", {
+      stage: "auth.getUser",
+      message: requesterError?.message,
+      code: requesterError?.code,
+    });
+    sendSupabaseUnavailable(res);
     return null;
   }
 
@@ -531,12 +631,13 @@ const authenticateRequest = async (req, res, { requireAdmin = false } = {}) => {
       .eq("id", requesterId)
       .maybeSingle();
 
-    if (isConnectionTimeoutError(profileError)) {
-      console.error("Timeout ao buscar perfil do solicitante:", profileError);
-      console.warn("Retornando 503 por falha temporária de conexão com Supabase.");
-      res
-        .status(503)
-        .json({ error: "Falha temporária de conexão com o servidor. Tente novamente." });
+    if (isSupabaseTemporaryFailure(profileError)) {
+      logWarn("auth_profile_fetch_error", {
+        stage: "profiles.select",
+        message: profileError?.message,
+        code: profileError?.code,
+      });
+      sendSupabaseUnavailable(res);
       return null;
     }
 
@@ -554,18 +655,25 @@ const authenticateRequest = async (req, res, { requireAdmin = false } = {}) => {
       return null;
     }
 
+    setAuthCache(token, {
+      user: requesterData.user,
+      profile: requesterProfile || null,
+      expiresAt: Date.now() + AUTH_CACHE_TTL_MS,
+    });
+
     return { userId: requesterId, profile: requesterProfile || null, user: requesterData.user };
   } catch (err) {
-    if (isConnectionTimeoutError(err)) {
-      console.error("Timeout ao buscar perfil do solicitante:", err);
-      console.warn("Retornando 503 por falha temporária de conexão com Supabase.");
-      res
-        .status(503)
-        .json({ error: "Falha temporária de conexão com o servidor. Tente novamente." });
+    if (isSupabaseTemporaryFailure(err)) {
+      logWarn("auth_profile_fetch_error", {
+        stage: "profiles.select",
+        message: err?.message,
+        code: err?.code,
+      });
+      sendSupabaseUnavailable(res);
       return null;
     }
 
-    console.error("Erro ao validar perfil do solicitante:", err);
+    logError("auth_profile_fetch_error", { message: err?.message, code: err?.code });
     res.status(500).json({ error: "Erro interno no servidor" });
     return null;
   }
@@ -705,6 +813,10 @@ app.get("/auth/profile", async (req, res) => {
 
     return res.json({ profile, ...extraTrialFields });
   } catch (err) {
+    if (isSupabaseTemporaryFailure(err)) {
+      return sendSupabaseUnavailable(res);
+    }
+
     console.error("Erro inesperado em GET /auth/profile:", err);
     return res.status(500).json({ error: "Erro interno no servidor" });
   }
@@ -1529,6 +1641,8 @@ app.post("/public/affiliate/apply", async (req, res) => {
       console.error("Erro ao vincular afiliado:", updateErr);
       return res.status(400).json({ error: updateErr.message });
     }
+
+    invalidateAuthCache(getBearerToken(req));
 
     return res.json({ ok: true, affiliate_id: affiliate.id });
   } catch (err) {
