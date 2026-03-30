@@ -546,8 +546,31 @@ app.post("/create-user", async (req, res) => {
 
     if (profileError) {
       console.error("Erro ao gravar em profiles:", profileError);
+      console.error("Payload enviado para profiles:", {
+        id: userId,
+        name,
+        username: rawUsername,
+        email: rawEmail,
+        whatsapp,
+        role: normalizedRole,
+        billing_status: "active",
+        billing_due_day: BILLING_DEFAULT_DUE_DAY,
+        affiliate_id: affiliate.id,
+        affiliate_code: affiliate.code || null,
+        plan_type: finalPlanType,
+        plan_start_date: planStartDate,
+        plan_end_date: planEndDate,
+        trial_start_at: trialStartIso,
+        trial_end_at: trialEndIso,
+        trial_status: finalPlanType === USER_PLAN_TYPES.TRIAL ? "trial" : null,
+        trial_notified_at: null,
+        subscription_status: "active",
+      });
       await supabase.auth.admin.deleteUser(userId);
-      return res.status(500).json({ error: buildApiErrorMessage(profileError) });
+      return res.status(500).json({
+        error: profileError?.message || "Erro ao gravar perfil do usuário",
+        details: profileError || null,
+      });
     }
 
     return res.json({ success: true, id: userId });
