@@ -95,6 +95,19 @@ const buildApiErrorMessage = (error) => {
   if (isPermissionError(error)) return "Sem permissão";
   return "Erro interno, tente novamente";
 };
+const isConnectionTimeoutError = (error) => {
+  const raw =
+    `${error?.message || ""} ${error?.details || ""} ${error?.cause?.message || ""} ${
+      error?.cause?.code || ""
+    } ${error?.code || ""}`.toLowerCase();
+
+  return (
+    raw.includes("timeout") ||
+    raw.includes("connect timeout") ||
+    raw.includes("und_err_connect_timeout") ||
+    raw.includes("fetch failed")
+  );
+};
 
 const formatDateOnly = (date) => date.toISOString().split("T")[0];
 
@@ -222,6 +235,22 @@ app.post("/debug/send-whatsapp", async (req, res) => {
     });
   } catch (e) {
     res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+app.get("/health/supabase", async (req, res) => {
+  try {
+    const { error } = await supabase.from("profiles").select("id").limit(1);
+
+    if (error) {
+      console.error("Falha no healthcheck do Supabase:", error);
+      return res.status(503).json({ ok: false, service: "supabase", error: "Falha de conexão" });
+    }
+
+    return res.json({ ok: true, service: "supabase" });
+  } catch (err) {
+    console.error("Falha no healthcheck do Supabase:", err);
+    return res.status(503).json({ ok: false, service: "supabase", error: "Falha de conexão" });
   }
 });
 
@@ -463,8 +492,31 @@ const authenticateRequest = async (req, res, { requireAdmin = false } = {}) => {
     return null;
   }
 
-  const { data: requesterData, error: requesterError } =
-    await supabase.auth.getUser(token);
+  let requesterData;
+  let requesterError;
+  try {
+    const authResponse = await supabase.auth.getUser(token);
+    requesterData = authResponse.data;
+    requesterError = authResponse.error;
+  } catch (err) {
+    if (isConnectionTimeoutError(err)) {
+      console.error("Timeout ao validar token no Supabase:", requesterError || err);
+      console.warn("Retornando 503 por falha temporária de conexão com Supabase.");
+      res
+        .status(503)
+        .json({ error: "Falha temporária de conexão com o servidor. Tente novamente." });
+      return null;
+    }
+
+    throw err;
+  }
+
+  if (isConnectionTimeoutError(requesterError)) {
+    console.error("Timeout ao validar token no Supabase:", requesterError);
+    console.warn("Retornando 503 por falha temporária de conexão com Supabase.");
+    res.status(503).json({ error: "Falha temporária de conexão com o servidor. Tente novamente." });
+    return null;
+  }
 
   if (requesterError || !requesterData?.user?.id) {
     res.status(401).json({ error: "Sessão inválida. Faça login novamente." });
@@ -472,53 +524,51 @@ const authenticateRequest = async (req, res, { requireAdmin = false } = {}) => {
   }
 
   const requesterId = requesterData.user.id;
-
-  let requesterProfile = null;
   try {
-    const { data: profileAuth, error: profileAuthError } = await supabase
+    const { data: requesterProfile, error: profileError } = await supabase
       .from("profiles")
       .select("role, billing_status")
       .eq("id", requesterId)
       .maybeSingle();
 
-    if (profileAuthError && profileAuthError.code !== "42P01") {
-      throw profileAuthError;
+    if (isConnectionTimeoutError(profileError)) {
+      console.error("Timeout ao buscar perfil do solicitante:", profileError);
+      console.warn("Retornando 503 por falha temporária de conexão com Supabase.");
+      res
+        .status(503)
+        .json({ error: "Falha temporária de conexão com o servidor. Tente novamente." });
+      return null;
     }
 
-    requesterProfile = profileAuth || null;
+    if (profileError && profileError.code !== "42P01") {
+      throw profileError;
+    }
+
+    if (requesterProfile?.billing_status === "inactive") {
+      res.status(403).json({ error: "Conta inativa" });
+      return null;
+    }
+
+    if (requireAdmin && requesterProfile?.role !== "admin") {
+      res.status(403).json({ error: "Sem permissão" });
+      return null;
+    }
+
+    return { userId: requesterId, profile: requesterProfile || null, user: requesterData.user };
   } catch (err) {
-    console.error("Erro ao validar perfil do solicitante (profiles):", err);
-  }
-
-  if (!requesterProfile) {
-    try {
-      const { data: profileData, error: roleError } = await supabase
-        .from("profiles")
-        .select("role, billing_status")
-        .eq("id", requesterId)
-        .maybeSingle();
-
-      if (roleError && roleError.code !== "42P01") {
-        throw roleError;
-      }
-
-      requesterProfile = profileData || null;
-    } catch (err) {
-      console.error("Erro ao validar perfil do solicitante:", err);
+    if (isConnectionTimeoutError(err)) {
+      console.error("Timeout ao buscar perfil do solicitante:", err);
+      console.warn("Retornando 503 por falha temporária de conexão com Supabase.");
+      res
+        .status(503)
+        .json({ error: "Falha temporária de conexão com o servidor. Tente novamente." });
+      return null;
     }
-  }
 
-  if (requesterProfile?.billing_status === "inactive") {
-    res.status(403).json({ error: "Conta inativa" });
+    console.error("Erro ao validar perfil do solicitante:", err);
+    res.status(500).json({ error: "Erro interno no servidor" });
     return null;
   }
-
-  if (requireAdmin && requesterProfile?.role !== "admin") {
-    res.status(403).json({ error: "Sem permissão" });
-    return null;
-  }
-
-  return { userId: requesterId, profile: requesterProfile, user: requesterData.user };
 };
 
 app.post("/transactions", async (req, res) => {
