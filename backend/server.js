@@ -682,9 +682,18 @@ app.get("/admin/users", async (req, res) => {
   }
 });
 
-const deleteUserFlow = async (userId, authUserId) => {
+const deleteUserFlow = async (userIdToDelete, authUserId) => {
+  const buildDeleteError = (status, message, cause) => {
+    const error = new Error(message);
+    error.status = status;
+    if (cause) error.cause = cause;
+    return error;
+  };
+
+  console.log("Iniciando exclusão do usuário:", userIdToDelete);
+
   const deleteByUserId = async (tableName) => {
-    const { error } = await supabase.from(tableName).delete().eq("user_id", userId);
+    const { error } = await supabase.from(tableName).delete().eq("user_id", userIdToDelete);
     if (error) {
       console.error(`Erro ao limpar dados em ${tableName}:`, error);
       throw error;
@@ -693,14 +702,23 @@ const deleteUserFlow = async (userId, authUserId) => {
 
   const { data: targetUser, error: targetUserError } = await supabase
     .from("profiles")
-    .select("role, username")
-    .eq("id", userId)
+    .select("id, is_super_admin, name, username, role")
+    .eq("id", userIdToDelete)
     .single();
 
   if (targetUserError) {
     console.error("Erro ao buscar usuário alvo para exclusão:", targetUserError);
-    throw targetUserError;
+    if (targetUserError.code === "PGRST116") {
+      throw buildDeleteError(404, "Usuário não encontrado.", targetUserError);
+    }
+    throw buildDeleteError(500, "Falha ao buscar usuário para exclusão.", targetUserError);
   }
+
+  if (!targetUser) {
+    throw buildDeleteError(404, "Usuário não encontrado.");
+  }
+
+  console.log("Usuário encontrado para exclusão:", targetUser);
 
   const { data: currentUser, error: currentUserError } = await supabase
     .from("profiles")
@@ -710,11 +728,16 @@ const deleteUserFlow = async (userId, authUserId) => {
 
   if (currentUserError) {
     console.error("Erro ao buscar solicitante da exclusão:", currentUserError);
-    throw currentUserError;
+    throw buildDeleteError(500, "Falha ao validar permissões para exclusão.", currentUserError);
+  }
+
+  if (targetUser.is_super_admin === true) {
+    console.warn("Tentativa de excluir super admin bloqueada:", userIdToDelete);
+    throw buildDeleteError(403, "Não é permitido excluir um super admin.");
   }
 
   if (targetUser?.role === "admin" && currentUser?.username !== SUPER_ADMIN_EMAIL) {
-    throw new Error("ADMIN_DELETE_BLOCKED: Não é permitido excluir usuário admin");
+    throw buildDeleteError(403, "Não é permitido excluir usuário admin.");
   }
 
   // 1) Limpa dados relacionados antes de remover o usuário no Auth.
@@ -729,18 +752,23 @@ const deleteUserFlow = async (userId, authUserId) => {
   await deleteByUserId("transactions");
 
   // 2) Remove profile (se existir).
-  const { error: profileError } = await supabase.from("profiles").delete().eq("id", userId);
-  if (profileError) {
-    console.error("Erro ao deletar profile do usuário:", profileError);
-    throw profileError;
+  const { error: deleteProfileError } = await supabase
+    .from("profiles")
+    .delete()
+    .eq("id", userIdToDelete);
+  if (deleteProfileError) {
+    console.error("Erro ao excluir profile do usuário:", deleteProfileError);
+    throw buildDeleteError(500, "Falha ao excluir profile do usuário.", deleteProfileError);
   }
 
   // 3) Por fim, remove no Auth.
-  const { error: authError } = await supabase.auth.admin.deleteUser(userId);
-  if (authError) {
-    console.error("Erro ao deletar usuário no Auth:", authError);
-    throw authError;
+  const { error: deleteAuthError } = await supabase.auth.admin.deleteUser(userIdToDelete);
+  if (deleteAuthError) {
+    console.error("Erro ao excluir usuário no auth:", deleteAuthError);
+    throw buildDeleteError(500, "Falha ao excluir usuário no auth.", deleteAuthError);
   }
+
+  console.log("Usuário excluído com sucesso:", userIdToDelete);
 
   return { success: true };
 };
@@ -757,12 +785,12 @@ app.delete("/delete-user/:id", async (req, res) => {
 
     return res.json({
       success: true,
-      message: "Usuário deletado com sucesso",
+      message: "Usuário excluído com sucesso.",
     });
   } catch (err) {
     console.error("Erro geral ao deletar usuário:", err);
-    return res.status(500).json({
-      error: err.message || "Erro ao deletar usuário",
+    return res.status(err?.status || 500).json({
+      error: err.message || "Erro ao deletar usuário.",
     });
   }
 });
@@ -779,12 +807,12 @@ app.delete("/admin/users/:userId", async (req, res) => {
 
     return res.json({
       success: true,
-      message: "Usuário deletado com sucesso",
+      message: "Usuário excluído com sucesso.",
     });
   } catch (err) {
     console.error("Erro geral ao deletar usuário:", err);
-    return res.status(500).json({
-      error: err.message || "Erro ao deletar usuário",
+    return res.status(err?.status || 500).json({
+      error: err.message || "Erro ao deletar usuário.",
     });
   }
 });
