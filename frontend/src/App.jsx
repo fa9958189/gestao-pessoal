@@ -235,6 +235,19 @@ const computeEffectiveSubscriptionStatus = (user, today = new Date()) => {
   return 'active';
 };
 
+const renderFinancialStatus = (user) => {
+  switch (user?.financial_status) {
+    case 'PAID':
+      return <span className="financial-status financial-status-green">🟢 Pago</span>;
+    case 'DUE_TODAY':
+      return <span className="financial-status financial-status-yellow">🟡 Vence hoje</span>;
+    case 'OVERDUE':
+      return <span className="financial-status financial-status-red">🔴 Atrasado</span>;
+    default:
+      return <span className="financial-status financial-status-gray">⚪ Pendente</span>;
+  }
+};
+
 const getCurrentPeriodMonth = (today = new Date()) => {
   const cursor = new Date(today);
   return new Date(cursor.getFullYear(), cursor.getMonth(), 1).toISOString().slice(0, 10);
@@ -607,7 +620,6 @@ const UsersTable = ({ items, onEdit, onDelete, affiliateNameById }) => (
         {items.map((user) => {
           const status = user.derived_status || user.subscription_status || 'active';
           const labelMap = { active: 'ATIVO', pending: 'PENDENTE', inactive: 'INATIVO' };
-          const paid = user.payment_status === 'paid';
           const trialEnd = getTrialEnd(user);
           const daysLeft = getDaysLeft(trialEnd);
           const planVisual = getPlanVisual(user.plan_type);
@@ -628,9 +640,7 @@ const UsersTable = ({ items, onEdit, onDelete, affiliateNameById }) => (
                   <span className={`badge badge-${status}`}>
                     {labelMap[status] || status.toUpperCase()}
                   </span>
-                  <span className={`badge ${paid ? 'badge-paid' : 'badge-payment-pending'}`}>
-                    {paid ? 'PAGO' : 'PENDENTE'}
-                  </span>
+                  {renderFinancialStatus(user)}
                 </div>
                 <div className="event-subtitle user-event-details">
                   <span>
@@ -1653,6 +1663,11 @@ function App() {
   const [transactions, setTransactions] = useState(() => getLocalSnapshot().transactions);
   const [events, setEvents] = useState(() => getLocalSnapshot().events);
   const [users, setUsers] = useState([]);
+  const userFinancialSummary = useMemo(() => ({
+    paid: users.filter((user) => user.financial_status === 'PAID').length,
+    dueToday: users.filter((user) => user.financial_status === 'DUE_TODAY').length,
+    overdue: users.filter((user) => user.financial_status === 'OVERDUE').length,
+  }), [users]);
   const [txForm, setTxForm] = useState(defaultTxForm);
   const [etapaTx, setEtapaTx] = useState('lista');
   const [eventForm, setEventForm] = useState(defaultEventForm);
@@ -3421,6 +3436,12 @@ function App() {
                   )}
                 </div>
               )}
+            </div>
+
+            <div className="financial-summary">
+              <div className="financial-summary-card financial-summary-green">🟢 Pagos: {userFinancialSummary.paid}</div>
+              <div className="financial-summary-card financial-summary-yellow">🟡 Vencendo hoje: {userFinancialSummary.dueToday}</div>
+              <div className="financial-summary-card financial-summary-red">🔴 Atrasados: {userFinancialSummary.overdue}</div>
             </div>
 
             <UsersTable

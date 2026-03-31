@@ -188,6 +188,29 @@ const computePlanDates = (planType) => {
   return { planStartDate, planEndDate };
 };
 
+const getFinancialStatus = (user) => {
+  const today = new Date();
+  const dueDay = Number(user?.billing_due_day || user?.due_day || BILLING_DEFAULT_DUE_DAY);
+
+  const lastPaymentRaw = user?.last_payment_date || user?.last_payment_at || user?.last_paid_at;
+  const lastPayment = lastPaymentRaw ? new Date(lastPaymentRaw) : null;
+  const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+
+  if (lastPayment && !Number.isNaN(lastPayment.getTime()) && lastPayment >= firstDayOfMonth) {
+    return "PAID";
+  }
+
+  if (today.getDate() === dueDay) {
+    return "DUE_TODAY";
+  }
+
+  if (today.getDate() > dueDay) {
+    return "OVERDUE";
+  }
+
+  return "PENDING";
+};
+
 const findMainAffiliateFallback = async () => {
   const { data: byFelipeName, error: byNameError } = await supabase
     .from("affiliates")
@@ -860,7 +883,12 @@ app.get("/admin/users", async (req, res) => {
       return res.status(500).json({ error: buildApiErrorMessage(error) });
     }
 
-    return res.json(users || []);
+    const normalizedUsers = (users || []).map((user) => ({
+      ...user,
+      financial_status: getFinancialStatus(user),
+    }));
+
+    return res.json(normalizedUsers);
   } catch (err) {
     console.error("Erro inesperado em GET /admin/users:", err);
     return res.status(500).json({ error: "Erro interno ao listar usuários." });
