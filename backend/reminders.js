@@ -86,6 +86,91 @@ function buildDailyWorkoutReminderMessage(plan) {
   ].join('\n');
 }
 
+
+function hasUserPaidThisMonth(user) {
+  const today = getNowInSaoPaulo();
+
+  const firstDayOfMonth = new Date(
+    today.getFullYear(),
+    today.getMonth(),
+    1
+  );
+
+  if (!user?.last_payment_date) return false;
+
+  const lastPayment = new Date(user.last_payment_date);
+
+  return lastPayment >= firstDayOfMonth;
+}
+
+async function sendWhatsApp(phone, message) {
+  try {
+    return await sendWhatsAppMessage({ phone, message });
+  } catch (err) {
+    console.error("Erro WhatsApp:", err);
+    return null;
+  }
+}
+
+async function runDailyBilling(users) {
+  const today = getNowInSaoPaulo();
+  const day = today.getDate();
+
+  for (const user of users || []) {
+    if (hasUserPaidThisMonth(user)) continue;
+    if (user?.subscription_status === "inactive") continue;
+    if (!user?.whatsapp) continue;
+
+    let message = null;
+
+    if (day === 10) {
+      message = `👋 Bom dia, ${user.name}!
+
+Sua mensalidade do Gestão Pessoal venceu hoje (dia 10).
+
+Para continuar com acesso completo ao sistema, realize o pagamento 🙏
+
+Se já pagou, pode ignorar esta mensagem 👍`;
+    }
+
+    if (day === 15) {
+      message = `👋 Olá, ${user.name}!
+
+Identificamos que sua mensalidade ainda está em aberto.
+
+Evite a suspensão do seu acesso realizando o pagamento o quanto antes 🙏
+
+Se já pagou, pode ignorar esta mensagem 👍`;
+    }
+
+    if (day >= 20) {
+      message = `⚠️ Atenção, ${user.name}!
+
+Sua assinatura foi suspensa por falta de pagamento.
+
+Para continuar utilizando o sistema, regularize sua mensalidade.
+
+Se já pagou, pode ignorar esta mensagem 👍`;
+
+      const { error: blockError } = await supabase
+        .from("profiles")
+        .update({ subscription_status: "inactive" })
+        .eq("id", user.id);
+
+      if (blockError) {
+        console.error("❌ Erro ao bloquear usuário inadimplente:", {
+          userId: user.id,
+          error: blockError,
+        });
+      }
+    }
+
+    if (message) {
+      await sendWhatsApp(user.whatsapp, message);
+    }
+  }
+}
+
 function normalizePhone(phone) {
   const digits = String(phone || "").replace(/\D/g, "");
   if (!digits) return null;
@@ -302,6 +387,16 @@ export function startMorningAgendaScheduler() {
               sendResult?.status
             );
           }
+        }
+
+        const { data: users, error: usersError } = await supabase
+          .from("profiles")
+          .select("*");
+
+        if (usersError) {
+          console.error("❌ Erro ao buscar usuários para cobrança:", usersError);
+        } else {
+          await runDailyBilling(users);
         }
       } catch (err) {
         console.error(
