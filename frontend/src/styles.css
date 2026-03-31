@@ -345,6 +345,65 @@ h2.title, h3.title{ margin:0 0 10px; font-weight:600; }
 .user-empty.hidden{ display:none; }
 .admin-card .user-empty{ text-align:center; margin-top:12px; }
 .user-list-wrapper{ min-width:0; }
+.financial-summary {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.financial-summary-card {
+  padding: 10px 15px;
+  border-radius: 10px;
+  font-weight: 700;
+  border: 1px solid transparent;
+}
+
+.financial-summary-green {
+  background: rgba(0, 255, 100, 0.1);
+  color: #00ff88;
+  border-color: rgba(0, 255, 136, 0.35);
+}
+
+.financial-summary-yellow {
+  background: rgba(255, 200, 0, 0.1);
+  color: #ffcc00;
+  border-color: rgba(255, 204, 0, 0.35);
+}
+
+.financial-summary-red {
+  background: rgba(255, 0, 0, 0.1);
+  color: #ff4d4d;
+  border-color: rgba(255, 77, 77, 0.35);
+}
+
+.financial-status {
+  padding: 4px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.financial-status-green {
+  background: rgba(0, 255, 100, 0.1);
+  color: #00ff88;
+}
+
+.financial-status-yellow {
+  background: rgba(255, 200, 0, 0.1);
+  color: #ffcc00;
+}
+
+.financial-status-red {
+  background: rgba(255, 0, 0, 0.1);
+  color: #ff4d4d;
+}
+
+.financial-status-gray {
+  background: rgba(148, 163, 184, 0.2);
+  color: #cbd5e1;
+}
+
 .usuarios-scroll-container {
   max-height: 400px;
   overflow-y: auto;
