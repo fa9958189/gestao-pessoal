@@ -515,6 +515,24 @@ h2.title, h3.title{ margin:0 0 10px; font-weight:600; }
   background: #1e293b;
 }
 
+.user-actions-extra {
+  display: flex;
+  gap: 6px;
+}
+
+.user-actions-extra button {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  background: rgba(255,255,255,0.05);
+}
+
+.user-actions-extra button:hover {
+  background: rgba(255,255,255,0.1);
+}
+
 @media (max-width: 640px) {
   .user-event-email {
     min-width: auto;

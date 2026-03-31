@@ -611,7 +611,15 @@ const EventsTable = ({ items, onEdit, onDelete }) => (
   </div>
 );
 
-const UsersTable = ({ items, onEdit, onDelete, affiliateNameById }) => (
+const UsersTable = ({
+  items,
+  onEdit,
+  onDelete,
+  onMarkAsPaid,
+  onActivate,
+  onDeactivate,
+  affiliateNameById,
+}) => (
   <div className="user-list-wrapper">
     {items.length === 0 ? (
       <div className="muted user-empty">Nenhum usuário cadastrado além de você.</div>
@@ -662,6 +670,33 @@ const UsersTable = ({ items, onEdit, onDelete, affiliateNameById }) => (
                 <button className="btn-delete btn-ui" onClick={() => onDelete(user)} title="Excluir usuário">
                   🗑️
                 </button>
+
+                <div className="user-actions-extra">
+                  <button
+                    type="button"
+                    className="btn-ui"
+                    onClick={() => onMarkAsPaid(user.id)}
+                    title="Marcar como pago"
+                  >
+                    💰
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-ui"
+                    onClick={() => onActivate(user.id)}
+                    title="Ativar usuário"
+                  >
+                    🔓
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-ui"
+                    onClick={() => onDeactivate(user.id)}
+                    title="Inativar usuário"
+                  >
+                    🔒
+                  </button>
+                </div>
               </div>
             </div>
           );
@@ -2708,6 +2743,105 @@ function App() {
     }
   };
 
+  const markAsPaid = async (id) => {
+    if (!client || profile?.role !== 'admin') {
+      pushToast('Somente administradores podem atualizar cobrança.', 'warning');
+      return;
+    }
+
+    try {
+      const accessToken = await getAccessToken();
+      if (!accessToken) {
+        pushToast('Sessão expirada. Faça login novamente.', 'warning');
+        return;
+      }
+
+      const response = await fetch(`${workoutApiBase}/admin/users/${id}/mark-paid`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(body?.error || 'Erro ao marcar usuário como pago.');
+      }
+
+      pushToast('Pagamento marcado com sucesso.', 'success');
+      await loadRemoteData();
+    } catch (err) {
+      console.warn('Erro ao marcar usuário como pago', err);
+      pushToast('Não foi possível marcar como pago.', 'danger');
+    }
+  };
+
+  const activateUser = async (id) => {
+    if (!client || profile?.role !== 'admin') {
+      pushToast('Somente administradores podem alterar status.', 'warning');
+      return;
+    }
+
+    try {
+      const accessToken = await getAccessToken();
+      if (!accessToken) {
+        pushToast('Sessão expirada. Faça login novamente.', 'warning');
+        return;
+      }
+
+      const response = await fetch(`${workoutApiBase}/admin/users/${id}/activate`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(body?.error || 'Erro ao ativar usuário.');
+      }
+
+      pushToast('Usuário ativado com sucesso.', 'success');
+      await loadRemoteData();
+    } catch (err) {
+      console.warn('Erro ao ativar usuário', err);
+      pushToast('Não foi possível ativar o usuário.', 'danger');
+    }
+  };
+
+  const deactivateUser = async (id) => {
+    if (!client || profile?.role !== 'admin') {
+      pushToast('Somente administradores podem alterar status.', 'warning');
+      return;
+    }
+
+    try {
+      const accessToken = await getAccessToken();
+      if (!accessToken) {
+        pushToast('Sessão expirada. Faça login novamente.', 'warning');
+        return;
+      }
+
+      const response = await fetch(`${workoutApiBase}/admin/users/${id}/deactivate`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(body?.error || 'Erro ao inativar usuário.');
+      }
+
+      pushToast('Usuário inativado com sucesso.', 'success');
+      await loadRemoteData();
+    } catch (err) {
+      console.warn('Erro ao inativar usuário', err);
+      pushToast('Não foi possível inativar o usuário.', 'danger');
+    }
+  };
+
 
 
   const normalizeAffiliateStats = (item) => ({
@@ -3460,6 +3594,9 @@ function App() {
                 setOpenUserModal(true);
               }}
               onDelete={handleDeleteUser}
+              onMarkAsPaid={markAsPaid}
+              onActivate={activateUser}
+              onDeactivate={deactivateUser}
             />
 
             {openUserModal && editingUserId && (
