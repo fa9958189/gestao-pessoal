@@ -2943,6 +2943,76 @@ app.put("/api/food-diary/state", async (req, res) => {
   }
 });
 
+/**
+ * MARCAR COMO PAGO
+ */
+app.post("/admin/users/:id/mark-paid", async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const { error } = await supabase
+      .from("profiles")
+      .update({
+        last_paid_at: new Date().toISOString(),
+        billing_status: "paid",
+      })
+      .eq("id", id);
+
+    if (error) throw error;
+
+    return res.json({ success: true });
+  } catch (err) {
+    console.error("Erro ao marcar como pago:", err);
+    return res.status(500).json({ error: "Erro ao marcar pagamento" });
+  }
+});
+
+/**
+ * ATIVAR USUÁRIO
+ */
+app.post("/admin/users/:id/activate", async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const { error } = await supabase
+      .from("profiles")
+      .update({
+        subscription_status: "active",
+      })
+      .eq("id", id);
+
+    if (error) throw error;
+
+    return res.json({ success: true });
+  } catch (err) {
+    console.error("Erro ao ativar usuário:", err);
+    return res.status(500).json({ error: "Erro ao ativar usuário" });
+  }
+});
+
+/**
+ * DESATIVAR USUÁRIO
+ */
+app.post("/admin/users/:id/deactivate", async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const { error } = await supabase
+      .from("profiles")
+      .update({
+        subscription_status: "inactive",
+      })
+      .eq("id", id);
+
+    if (error) throw error;
+
+    return res.json({ success: true });
+  } catch (err) {
+    console.error("Erro ao desativar usuário:", err);
+    return res.status(500).json({ error: "Erro ao desativar usuário" });
+  }
+});
+
 app.use((err, req, res, next) => {
   console.error("ERRO GLOBAL:", err);
   res.status(500).json({ error: "Erro interno" });
