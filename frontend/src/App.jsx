@@ -626,7 +626,8 @@ const UsersTable = ({
     ) : (
       <div className="usuarios-scroll-container">
         {items.map((user) => {
-          const status = user.derived_status || user.subscription_status || 'active';
+          const isOwner = Boolean(user.is_owner);
+          const status = isOwner ? 'active' : (user.derived_status || user.subscription_status || 'active');
           const labelMap = { active: 'ATIVO', pending: 'PENDENTE', inactive: 'INATIVO' };
           const trialEnd = getTrialEnd(user);
           const daysLeft = getDaysLeft(trialEnd);
@@ -648,7 +649,11 @@ const UsersTable = ({
                   <span className={`badge badge-${status}`}>
                     {labelMap[status] || status.toUpperCase()}
                   </span>
-                  {renderFinancialStatus(user)}
+                  {isOwner ? (
+                    <span className="financial-status financial-status-green">🟢 Pago</span>
+                  ) : (
+                    renderFinancialStatus(user)
+                  )}
                 </div>
                 <div className="event-subtitle user-event-details">
                   <span>
@@ -672,14 +677,16 @@ const UsersTable = ({
                 </button>
 
                 <div className="user-actions-extra">
-                  <button
-                    type="button"
-                    className="btn-ui"
-                    onClick={() => onMarkAsPaid(user.id)}
-                    title="Marcar como pago"
-                  >
-                    💰
-                  </button>
+                  {!isOwner && (
+                    <button
+                      type="button"
+                      className="btn-ui"
+                      onClick={() => onMarkAsPaid(user.id)}
+                      title="Marcar como pago"
+                    >
+                      💰
+                    </button>
+                  )}
                   <button
                     type="button"
                     className="btn-ui"
@@ -688,14 +695,16 @@ const UsersTable = ({
                   >
                     🔓
                   </button>
-                  <button
-                    type="button"
-                    className="btn-ui"
-                    onClick={() => onDeactivate(user.id)}
-                    title="Inativar usuário"
-                  >
-                    🔒
-                  </button>
+                  {!isOwner && (
+                    <button
+                      type="button"
+                      className="btn-ui"
+                      onClick={() => onDeactivate(user.id)}
+                      title="Inativar usuário"
+                    >
+                      🔒
+                    </button>
+                  )}
                 </div>
               </div>
             </div>

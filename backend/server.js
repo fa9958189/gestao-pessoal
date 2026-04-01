@@ -189,6 +189,10 @@ const computePlanDates = (planType) => {
 };
 
 const getFinancialStatus = (user) => {
+  if (user?.is_owner) {
+    return "PAID";
+  }
+
   const today = new Date();
   const dueDay = Number(user?.billing_due_day || user?.due_day || BILLING_DEFAULT_DUE_DAY);
 
@@ -2950,6 +2954,20 @@ app.post("/admin/users/:id/mark-paid", async (req, res) => {
   try {
     const { id } = req.params;
 
+    const { data: user, error: userError } = await supabase
+      .from("profiles")
+      .select("is_owner")
+      .eq("id", id)
+      .single();
+
+    if (userError) throw userError;
+
+    if (user?.is_owner) {
+      return res.status(400).json({
+        error: "Usuário principal não pode ser alterado",
+      });
+    }
+
     const { error } = await supabase
       .from("profiles")
       .update({
@@ -2974,6 +2992,20 @@ app.post("/admin/users/:id/activate", async (req, res) => {
   try {
     const { id } = req.params;
 
+    const { data: user, error: userError } = await supabase
+      .from("profiles")
+      .select("is_owner")
+      .eq("id", id)
+      .single();
+
+    if (userError) throw userError;
+
+    if (user?.is_owner) {
+      return res.status(400).json({
+        error: "Usuário principal não pode ser alterado",
+      });
+    }
+
     const { error } = await supabase
       .from("profiles")
       .update({
@@ -2996,6 +3028,20 @@ app.post("/admin/users/:id/activate", async (req, res) => {
 app.post("/admin/users/:id/deactivate", async (req, res) => {
   try {
     const { id } = req.params;
+
+    const { data: user, error: userError } = await supabase
+      .from("profiles")
+      .select("is_owner")
+      .eq("id", id)
+      .single();
+
+    if (userError) throw userError;
+
+    if (user?.is_owner) {
+      return res.status(400).json({
+        error: "Usuário principal não pode ser alterado",
+      });
+    }
 
     const { error } = await supabase
       .from("profiles")
