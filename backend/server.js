@@ -280,6 +280,25 @@ const resolveAffiliate = async (affiliateId) => {
   return { affiliate };
 };
 
+const normalizeAffiliateCodeText = (value = "") =>
+  String(value)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9\s]/g, " ")
+    .trim()
+    .toUpperCase();
+
+const generateAffiliateCode = (name = "") => {
+  const base = normalizeAffiliateCodeText(name)
+    .split(/\s+/)
+    .filter(Boolean)
+    .join("")
+    .slice(0, 4)
+    .padEnd(3, "AFI");
+  const suffix = String(Math.floor(1000 + Math.random() * 9000));
+  return `${base}${suffix}`;
+};
+
 const ENABLE_MORNING_AGENDA = process.env.ENABLE_MORNING_AGENDA === "true";
 const ENABLE_DAILY_GOALS_REMINDER =
   process.env.ENABLE_DAILY_GOALS_REMINDER !== "false";
@@ -896,6 +915,109 @@ app.get("/admin/users", async (req, res) => {
   } catch (err) {
     console.error("Erro inesperado em GET /admin/users:", err);
     return res.status(500).json({ error: "Erro interno ao listar usuários." });
+  }
+});
+
+app.post("/admin/users/:id/promote-to-affiliate", async (req, res) => {
+  try {
+    const authData = await authenticateRequest(req, res, { requireAdmin: true });
+    if (!authData) return;
+
+    const { id } = req.params;
+    const payload = req.body || {};
+    console.log("[promote-to-affiliate] payload recebido:", payload);
+
+    const { data: user, error: userError } = await supabase
+      .from("profiles")
+      .select("id, name, username, email, whatsapp, role, is_owner, is_affiliate, affiliate_id, affiliate_code")
+      .eq("id", id)
+      .maybeSingle();
+
+    console.log("[promote-to-affiliate] usuário recebido:", user);
+
+    if (userError) {
+      console.error("Erro ao buscar usuário para promoção:", userError);
+      return res.status(400).json({ error: userError.message || "Erro ao buscar usuário." });
+    }
+    if (!user?.id) {
+      return res.status(404).json({ error: "Usuário não encontrado." });
+    }
+    if (user.is_owner === true || user.role === "admin") {
+      return res.status(400).json({ error: "Usuário owner/admin não pode ser promovido para afiliado." });
+    }
+    if (user.is_affiliate === true || user.affiliate_id || user.affiliate_code) {
+      return res.status(400).json({ error: "Usuário já é afiliado." });
+    }
+
+    const normalizedStatus = payload?.status === "inactive" ? "inactive" : "active";
+    const candidateCode = String(payload?.affiliate_code || "").trim().toUpperCase();
+    const affiliateCode = candidateCode || generateAffiliateCode(payload?.name || user?.name || user?.username);
+    console.log("[promote-to-affiliate] affiliate_code final:", affiliateCode);
+
+    const { data: existingCode, error: existingCodeError } = await supabase
+      .from("affiliates")
+      .select("id")
+      .eq("code", affiliateCode)
+      .maybeSingle();
+
+    if (existingCodeError && existingCodeError.code !== "PGRST116") {
+      console.error("Erro ao validar código de afiliado:", existingCodeError);
+      return res.status(400).json({ error: existingCodeError.message || "Erro ao validar código." });
+    }
+    if (existingCode?.id) {
+      return res.status(400).json({ error: "Já existe um afiliado com esse código" });
+    }
+
+    const affiliateInput = {
+      name: payload?.name?.trim() || user?.name || user?.username || "Afiliado",
+      email: payload?.email?.trim() || user?.email || null,
+      whatsapp: payload?.whatsapp?.trim() || user?.whatsapp || null,
+      code: affiliateCode,
+      is_active: normalizedStatus === "active",
+    };
+
+    const { data: createdAffiliate, error: affiliateCreateError } = await supabase
+      .from("affiliates")
+      .insert([affiliateInput])
+      .select("id, code, name, email, whatsapp, is_active")
+      .single();
+
+    if (affiliateCreateError) {
+      console.error("Erro ao criar afiliado na promoção:", affiliateCreateError);
+      if (affiliateCreateError.code === "23505") {
+        return res.status(400).json({ error: "Já existe um afiliado com esse código" });
+      }
+      return res.status(400).json({ error: affiliateCreateError.message || "Erro ao criar afiliado." });
+    }
+    console.log("[promote-to-affiliate] afiliado criado:", createdAffiliate);
+
+    const updatePayload = {
+      is_affiliate: true,
+      affiliate_code: createdAffiliate.code,
+      affiliate_id: createdAffiliate.id,
+    };
+
+    const { data: updatedProfile, error: updateProfileError } = await supabase
+      .from("profiles")
+      .update(updatePayload)
+      .eq("id", user.id)
+      .select("id, is_affiliate, affiliate_id, affiliate_code")
+      .single();
+
+    if (updateProfileError) {
+      console.error("Erro ao atualizar profile após promoção:", updateProfileError);
+      return res.status(400).json({ error: updateProfileError.message || "Erro ao atualizar usuário." });
+    }
+    console.log("[promote-to-affiliate] profile atualizado:", updatedProfile);
+
+    return res.status(201).json({
+      ok: true,
+      affiliate: createdAffiliate,
+      profile: updatedProfile,
+    });
+  } catch (err) {
+    console.error("Erro inesperado em POST /admin/users/:id/promote-to-affiliate:", err);
+    return res.status(500).json({ error: "Erro interno ao promover usuário para afiliado." });
   }
 });
 

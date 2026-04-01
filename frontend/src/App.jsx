@@ -98,6 +98,34 @@ const createDefaultAffiliateForm = () => ({
   pix_key: '',
 });
 
+const createDefaultAffiliatePromotionDraft = () => ({
+  linkedUserId: '',
+  name: '',
+  email: '',
+  whatsapp: '',
+  code: '',
+  status: 'active',
+});
+
+const normalizeAffiliateCodeBase = (value = '') =>
+  String(value)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9\s]/g, ' ')
+    .trim()
+    .toUpperCase();
+
+const generateAffiliateCodeSuggestion = (name = '') => {
+  const base = normalizeAffiliateCodeBase(name)
+    .split(/\s+/)
+    .filter(Boolean)
+    .join('')
+    .slice(0, 4)
+    .padEnd(3, 'AFI');
+  const suffix = String(Math.floor(1000 + Math.random() * 9000));
+  return `${base}${suffix}`;
+};
+
 const normalizeBaseUrl = (value) => {
   if (!value) return '';
   return String(value).trim().replace(/\/+$/, '');
@@ -618,6 +646,7 @@ const UsersTable = ({
   onMarkAsPaid,
   onActivate,
   onDeactivate,
+  onPromoteToAffiliate,
   affiliateNameById,
 }) => (
   <div className="user-list-wrapper">
@@ -627,6 +656,9 @@ const UsersTable = ({
       <div className="usuarios-scroll-container">
         {items.map((user) => {
           const isOwner = Boolean(user.is_owner);
+          const isAdminUser = user.role === 'admin';
+          const isAffiliate = Boolean(user.is_affiliate || user.affiliate_id || user.affiliate_code);
+          const canPromoteToAffiliate = !isOwner && !isAdminUser && !isAffiliate;
           const status = isOwner ? 'active' : (user.derived_status || user.subscription_status || 'active');
           const labelMap = { active: 'ATIVO', pending: 'PENDENTE', inactive: 'INATIVO' };
           const trialEnd = getTrialEnd(user);
@@ -646,6 +678,7 @@ const UsersTable = ({
                 <div className="event-subtitle">{user.whatsapp || 'WhatsApp não informado'}</div>
                 <div className="event-subtitle user-event-meta">
                   <span className="badge">{user.role}</span>
+                  {isAffiliate && <span className="badge">AFILIADO</span>}
                   <span className={`badge badge-${status}`}>
                     {labelMap[status] || status.toUpperCase()}
                   </span>
@@ -703,6 +736,16 @@ const UsersTable = ({
                       title="Inativar usuário"
                     >
                       🔒
+                    </button>
+                  )}
+                  {canPromoteToAffiliate && (
+                    <button
+                      type="button"
+                      className="btn-ui"
+                      onClick={() => onPromoteToAffiliate(user)}
+                      title="Tornar afiliado"
+                    >
+                      🤝
                     </button>
                   )}
                 </div>
@@ -1731,6 +1774,9 @@ function App() {
   const [isAffiliateUsersModalOpen, setIsAffiliateUsersModalOpen] = useState(false);
   const [isEditAffiliateModalOpen, setIsEditAffiliateModalOpen] = useState(false);
   const [editAffiliateForm, setEditAffiliateForm] = useState(createDefaultAffiliateForm);
+  const [affiliateModalOpen, setAffiliateModalOpen] = useState(false);
+  const [affiliateDraft, setAffiliateDraft] = useState(createDefaultAffiliatePromotionDraft);
+  const [selectedUserToPromote, setSelectedUserToPromote] = useState(null);
   const activeAffiliates = useMemo(
     () => (affiliates || []).filter((affiliate) => affiliate?.is_active === true),
     [affiliates]
@@ -1893,6 +1939,7 @@ function App() {
 
           userData = (data || []).map((item) => ({
             ...item,
+            is_affiliate: Boolean(item?.is_affiliate || item?.affiliate_id || item?.affiliate_code),
             payment_status: isUserPaidForCurrentCycle(item, new Date()) ? 'paid' : 'pending',
             derived_status: computeEffectiveSubscriptionStatus(item, new Date()),
           }));
@@ -2778,6 +2825,79 @@ function App() {
     }
   };
 
+  const openPromoteAffiliateModal = (user) => {
+    const suggestedCode = generateAffiliateCodeSuggestion(user?.name || user?.username || '');
+    setSelectedUserToPromote(user);
+    setAffiliateDraft({
+      linkedUserId: user?.id || '',
+      name: user?.name || '',
+      email: user?.email || user?.username || '',
+      whatsapp: user?.whatsapp || '',
+      code: suggestedCode,
+      status: 'active',
+    });
+    setAffiliateModalOpen(true);
+  };
+
+  const closePromoteAffiliateModal = () => {
+    setAffiliateModalOpen(false);
+    setSelectedUserToPromote(null);
+    setAffiliateDraft(createDefaultAffiliatePromotionDraft());
+  };
+
+  const handlePromoteToAffiliate = async () => {
+    if (!selectedUserToPromote?.id) return;
+    if (!workoutApiBase || !/^https?:\/\//i.test(workoutApiBase)) {
+      pushToast('Backend não configurado para afiliados.', 'warning');
+      return;
+    }
+
+    try {
+      const accessToken = await getAccessToken();
+      if (!accessToken) {
+        pushToast('Sessão expirada. Faça login novamente.', 'warning');
+        return;
+      }
+
+      const payload = {
+        name: affiliateDraft.name?.trim(),
+        email: affiliateDraft.email?.trim(),
+        whatsapp: affiliateDraft.whatsapp?.trim(),
+        affiliate_code: affiliateDraft.code?.trim(),
+        status: affiliateDraft.status || 'active',
+      };
+
+      const response = await fetch(
+        `${workoutApiBase}/admin/users/${selectedUserToPromote.id}/promote-to-affiliate`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify(payload),
+        }
+      );
+
+      const body = await response.json().catch(() => ({}));
+      if (response.status === 403) {
+        handleApiForbidden();
+        return;
+      }
+      if (!response.ok) {
+        throw new Error(body?.error || 'Não foi possível promover o usuário.');
+      }
+
+      closePromoteAffiliateModal();
+      pushToast('Usuário promovido para afiliado com sucesso', 'success');
+      await loadRemoteData();
+      await fetchAffiliates();
+    } catch (err) {
+      console.warn('Erro ao promover usuário para afiliado', err);
+      pushToast(err?.message || 'Não foi possível promover o usuário.', 'danger');
+    }
+  };
+
 
 
   const normalizeAffiliateStats = (item) => ({
@@ -3467,6 +3587,7 @@ function App() {
               onMarkAsPaid={markAsPaid}
               onActivate={activateUser}
               onDeactivate={deactivateUser}
+              onPromoteToAffiliate={openPromoteAffiliateModal}
             />
 
             {openUserModal && editingUserId && (
@@ -3926,6 +4047,60 @@ function App() {
                 Salvar
               </button>
               <button type="button" className="btn-ui" onClick={closeEditAffiliateModal}>
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {affiliateModalOpen && selectedUserToPromote && (
+        <div className="affiliate-modal-backdrop" onClick={closePromoteAffiliateModal}>
+          <div className="affiliate-modal" onClick={(e) => e.stopPropagation()}>
+            <h3>Tornar usuário em afiliado</h3>
+
+            <label>Nome do afiliado</label>
+            <input
+              value={affiliateDraft.name}
+              onChange={(e) => setAffiliateDraft((prev) => ({ ...prev, name: e.target.value }))}
+              placeholder="Nome do afiliado"
+            />
+
+            <label>WhatsApp</label>
+            <input
+              value={affiliateDraft.whatsapp}
+              onChange={(e) => setAffiliateDraft((prev) => ({ ...prev, whatsapp: e.target.value }))}
+              placeholder="WhatsApp"
+            />
+
+            <label>Email</label>
+            <input
+              value={affiliateDraft.email}
+              onChange={(e) => setAffiliateDraft((prev) => ({ ...prev, email: e.target.value }))}
+              placeholder="Email"
+            />
+
+            <label>Código do afiliado</label>
+            <input
+              value={affiliateDraft.code}
+              onChange={(e) => setAffiliateDraft((prev) => ({ ...prev, code: e.target.value.toUpperCase() }))}
+              placeholder="Código do afiliado"
+            />
+
+            <label>Status</label>
+            <select
+              value={affiliateDraft.status}
+              onChange={(e) => setAffiliateDraft((prev) => ({ ...prev, status: e.target.value }))}
+            >
+              <option value="active">Ativo</option>
+              <option value="inactive">Inativo</option>
+            </select>
+
+            <div className="wizard-actions" style={{ marginTop: 16 }}>
+              <button type="button" className="btn-primary btn-ui" onClick={handlePromoteToAffiliate}>
+                Promover para afiliado
+              </button>
+              <button type="button" className="btn-ui" onClick={closePromoteAffiliateModal}>
                 Cancelar
               </button>
             </div>
