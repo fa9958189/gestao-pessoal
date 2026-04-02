@@ -59,6 +59,68 @@ const USER_PLAN_TYPES = Object.freeze({
 const ALLOWED_USER_PLAN_TYPES = new Set(Object.values(USER_PLAN_TYPES));
 const SUPER_ADMIN_EMAIL = "gestaopessoaloficial@gmail.com";
 let schedulerStarted = false;
+const OWNER_EMAIL = SUPER_ADMIN_EMAIL.toLowerCase();
+
+const normalizeEmail = (value) => String(value || "").trim().toLowerCase();
+const isOwnerEmail = (email) => normalizeEmail(email) === OWNER_EMAIL;
+
+const getOwnerProtectionUpdatePayload = () => ({
+  subscription_status: "active",
+  billing_status: "paid",
+  is_affiliate: true,
+});
+
+const enforceOwnerProtectionByEmail = async () => {
+  const { error } = await supabase
+    .from("profiles")
+    .update(getOwnerProtectionUpdatePayload())
+    .eq("email", SUPER_ADMIN_EMAIL);
+
+  if (error && error.code !== "PGRST116") {
+    console.error("Erro ao aplicar proteção do owner por email:", error);
+  }
+};
+
+const getUserByIdForOwnerProtection = async (userId) => {
+  const { data: user, error } = await supabase
+    .from("profiles")
+    .select("id, email, role, is_affiliate, subscription_status, billing_status")
+    .eq("id", userId)
+    .maybeSingle();
+  return { user, error };
+};
+
+const enforceOwnerProtectionById = async (userId) => {
+  const { user, error } = await getUserByIdForOwnerProtection(userId);
+  if (error) return { user: null, error };
+  if (!user?.id) return { user: null, isOwner: false, error: null };
+  if (!isOwnerEmail(user.email)) return { user, isOwner: false, error: null };
+
+  const payload = getOwnerProtectionUpdatePayload();
+  const needsUpdate =
+    user.subscription_status !== payload.subscription_status ||
+    user.billing_status !== payload.billing_status ||
+    user.is_affiliate !== payload.is_affiliate;
+
+  if (needsUpdate) {
+    const { error: updateError } = await supabase
+      .from("profiles")
+      .update(payload)
+      .eq("id", userId);
+    if (updateError) {
+      return { user, isOwner: true, error: updateError };
+    }
+  }
+
+  return {
+    user: {
+      ...user,
+      ...payload,
+    },
+    isOwner: true,
+    error: null,
+  };
+};
 
 function parseBoolean(value) {
   if (value === true || value === "true" || value === 1 || value === "1") return true;
@@ -895,6 +957,7 @@ app.get("/admin/users", async (req, res) => {
   try {
     const authData = await authenticateRequest(req, res, { requireAdmin: true });
     if (!authData) return;
+    await enforceOwnerProtectionByEmail();
 
     const { data: users, error } = await supabase
       .from("profiles")
@@ -906,10 +969,18 @@ app.get("/admin/users", async (req, res) => {
       return res.status(500).json({ error: buildApiErrorMessage(error) });
     }
 
-    const normalizedUsers = (users || []).map((user) => ({
-      ...user,
-      financial_status: getFinancialStatus(user),
-    }));
+    const normalizedUsers = (users || []).map((user) => {
+      const normalizedUser = {
+        ...user,
+        subscription_status: isOwnerEmail(user.email) ? "active" : user.subscription_status,
+        billing_status: isOwnerEmail(user.email) ? "paid" : user.billing_status,
+        is_affiliate: isOwnerEmail(user.email) ? true : user.is_affiliate,
+      };
+      return {
+        ...normalizedUser,
+        financial_status: getFinancialStatus(normalizedUser),
+      };
+    });
 
     return res.json(normalizedUsers);
   } catch (err) {
@@ -1023,7 +1094,7 @@ const deleteUserFlow = async (userIdToDelete, authUserId) => {
 
   const { data: targetUser, error: targetUserError } = await supabase
     .from("profiles")
-    .select("id, is_super_admin, name, username, role")
+    .select("id, is_super_admin, name, username, role, email")
     .eq("id", userIdToDelete)
     .single();
 
@@ -1037,6 +1108,10 @@ const deleteUserFlow = async (userIdToDelete, authUserId) => {
 
   if (!targetUser) {
     throw buildDeleteError(404, "Usuário não encontrado.");
+  }
+
+  if (isOwnerEmail(targetUser.email)) {
+    throw buildDeleteError(403, "Usuário principal não pode ser removido");
   }
 
   console.log("Usuário encontrado para exclusão:", targetUser);
@@ -1148,6 +1223,11 @@ app.put("/admin/users/:userId", async (req, res) => {
       return res.status(400).json({ error: "userId é obrigatório" });
     }
 
+    const { error: protectedUserError, isOwner } = await enforceOwnerProtectionById(userId);
+    if (protectedUserError) {
+      return res.status(400).json({ error: protectedUserError.message || "Erro ao validar usuário." });
+    }
+
     const { name, username, email, whatsapp, role, affiliate_id, plan_type, password } = req.body || {};
 
     const incomingEmail = typeof email === "string" ? email.trim() : "";
@@ -1171,6 +1251,7 @@ app.put("/admin/users/:userId", async (req, res) => {
       if (typeof role === "string") updateProfilePayload.role = role;
       if (affiliate_id !== undefined) updateProfilePayload.affiliate_id = affiliate_id || null;
       if (plan_type !== undefined) updateProfilePayload.plan_type = plan_type || null;
+      if (isOwner) Object.assign(updateProfilePayload, getOwnerProtectionUpdatePayload(), { is_affiliate: true });
 
       const { error: upProfileErr } = await supabase
         .from("profiles")
@@ -1229,6 +1310,11 @@ app.patch("/admin/users/:userId", async (req, res) => {
       return res.status(400).json({ error: "userId é obrigatório" });
     }
 
+    const { error: protectedUserError, isOwner } = await enforceOwnerProtectionById(userId);
+    if (protectedUserError) {
+      return res.status(400).json({ error: protectedUserError.message || "Erro ao validar usuário." });
+    }
+
     const { name, email, whatsapp, role, affiliate_id, plan_type } = req.body || {};
     const trimmedEmail = typeof email === "string" ? email.trim() : "";
     const trimmedName = typeof name === "string" ? name.trim() : "";
@@ -1280,6 +1366,8 @@ app.patch("/admin/users/:userId", async (req, res) => {
         trial_start_at: trialStartIso,
         trial_end_at: trialEndIso,
         trial_status: normalizedPlanType === USER_PLAN_TYPES.TRIAL ? "trial" : null,
+        ...(isOwner ? getOwnerProtectionUpdatePayload() : {}),
+        ...(isOwner ? { is_affiliate: true } : {}),
       })
       .eq("id", userId);
 
@@ -1329,6 +1417,11 @@ app.patch("/admin/users/:authId/billing", async (req, res) => {
       return res.status(400).json({ error: "authId é obrigatório" });
     }
 
+    const { isOwner, error: protectedUserError } = await enforceOwnerProtectionById(authId);
+    if (protectedUserError) {
+      return res.status(400).json({ error: protectedUserError.message || "Erro ao validar usuário." });
+    }
+
     const {
       billing_status,
       billing_last_paid_at,
@@ -1347,6 +1440,15 @@ app.patch("/admin/users/:authId/billing", async (req, res) => {
       }
       updates.billing_status = billing_status;
       authUpdates.billing_status = billing_status;
+    }
+
+    if (isOwner) {
+      updates.billing_status = "paid";
+      authUpdates.billing_status = "paid";
+      updates.subscription_status = "active";
+      authUpdates.subscription_status = "active";
+      updates.is_affiliate = true;
+      authUpdates.is_affiliate = true;
     }
 
     if (billing_last_paid_at !== undefined) {
@@ -1540,10 +1642,12 @@ app.get("/admin/affiliates", async (req, res) => {
     const authData = await authenticateRequest(req, res, { requireAdmin: true });
     if (!authData) return;
 
+    await enforceOwnerProtectionByEmail();
+
     const { data: affiliates, error } = await supabase
       .from("profiles")
       .select("id, name, username, email, whatsapp, role, is_affiliate, affiliate_code, created_at")
-      .eq("is_affiliate", true)
+      .or(`is_affiliate.eq.true,email.eq.${SUPER_ADMIN_EMAIL}`)
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -1552,7 +1656,12 @@ app.get("/admin/affiliates", async (req, res) => {
       return res.status(400).json({ error: error.message });
     }
 
-    return res.json(affiliates || []);
+    const normalizedAffiliates = (affiliates || []).map((user) => ({
+      ...user,
+      is_affiliate: isOwnerEmail(user.email) ? true : user.is_affiliate,
+    }));
+
+    return res.json(normalizedAffiliates);
   } catch (err) {
     console.error("Erro inesperado em GET /admin/affiliates:", err);
     return res.status(500).json({ error: "Erro interno ao listar afiliados." });
@@ -3061,16 +3170,15 @@ app.post("/admin/users/:id/mark-paid", async (req, res) => {
 
     const { data: user, error: userError } = await supabase
       .from("profiles")
-      .select("role")
+      .select("role, email")
       .eq("id", id)
       .single();
 
     if (userError) throw userError;
 
-    if (user?.role === "admin") {
-      return res.status(400).json({
-        error: "Usuário principal não pode ser alterado",
-      });
+    if (isOwnerEmail(user?.email)) {
+      await enforceOwnerProtectionById(id);
+      return res.json({ success: true });
     }
 
     const { error } = await supabase
@@ -3099,16 +3207,15 @@ app.post("/admin/users/:id/activate", async (req, res) => {
 
     const { data: user, error: userError } = await supabase
       .from("profiles")
-      .select("role")
+      .select("role, email")
       .eq("id", id)
       .single();
 
     if (userError) throw userError;
 
-    if (user?.role === "admin") {
-      return res.status(400).json({
-        error: "Usuário principal não pode ser alterado",
-      });
+    if (isOwnerEmail(user?.email)) {
+      await enforceOwnerProtectionById(id);
+      return res.json({ success: true });
     }
 
     const { error } = await supabase
@@ -3136,16 +3243,15 @@ app.post("/admin/users/:id/deactivate", async (req, res) => {
 
     const { data: user, error: userError } = await supabase
       .from("profiles")
-      .select("role")
+      .select("role, email")
       .eq("id", id)
       .single();
 
     if (userError) throw userError;
 
-    if (user?.role === "admin") {
-      return res.status(400).json({
-        error: "Usuário principal não pode ser alterado",
-      });
+    if (isOwnerEmail(user?.email)) {
+      await enforceOwnerProtectionById(id);
+      return res.json({ success: true });
     }
 
     const { error } = await supabase
