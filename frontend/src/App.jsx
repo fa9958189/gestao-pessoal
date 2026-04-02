@@ -132,6 +132,9 @@ const normalizeBaseUrl = (value) => {
 };
 
 const LOCAL_STORAGE_KEY = 'gp-react-data';
+const OWNER_EMAIL = 'gestaopessoaloficial@gmail.com';
+const normalizeEmail = (value) => String(value || '').trim().toLowerCase();
+const isOwnerUser = (user) => normalizeEmail(user?.email || user?.username) === OWNER_EMAIL;
 
 const getLocalSnapshot = () => {
   try {
@@ -655,10 +658,11 @@ const UsersTable = ({
     ) : (
       <div className="usuarios-scroll-container">
         {items.map((user) => {
-          const isAdminUser = user.role === 'admin';
-          const isAffiliate = Boolean(user.is_affiliate || user.affiliate_id || user.affiliate_code);
-          const canPromoteToAffiliate = !isAdminUser && !isAffiliate;
-          const status = isAdminUser ? 'active' : (user.derived_status || user.subscription_status || 'active');
+          const isOwner = isOwnerUser(user);
+          const isAdminUser = user.role === 'admin' || isOwner;
+          const isAffiliate = isOwner || Boolean(user.is_affiliate || user.affiliate_id || user.affiliate_code);
+          const canPromoteToAffiliate = !isOwner && !isAdminUser && !isAffiliate;
+          const status = isOwner ? 'active' : (isAdminUser ? 'active' : (user.derived_status || user.subscription_status || 'active'));
           const labelMap = { active: 'ATIVO', pending: 'PENDENTE', inactive: 'INATIVO' };
           const trialEnd = getTrialEnd(user);
           const daysLeft = getDaysLeft(trialEnd);
@@ -676,12 +680,12 @@ const UsersTable = ({
 
                 <div className="event-subtitle">{user.whatsapp || 'WhatsApp não informado'}</div>
                 <div className="event-subtitle user-event-meta">
-                  <span className="badge">{user.role}</span>
+                  <span className="badge">{isOwner ? 'ADMIN' : user.role}</span>
                   {isAffiliate && <span className="badge">AFILIADO</span>}
                   <span className={`badge badge-${status}`}>
                     {labelMap[status] || status.toUpperCase()}
                   </span>
-                  {isAdminUser ? (
+                  {isOwner || isAdminUser ? (
                     <span className="financial-status financial-status-green">🟢 Pago</span>
                   ) : (
                     renderFinancialStatus(user)
@@ -700,16 +704,20 @@ const UsersTable = ({
               </div>
 
               <div className="event-actions">
-                <button className="btn-edit btn-ui" onClick={() => onEdit(user)} title="Editar usuário">
-                  ✏️
-                </button>
+                {!isOwner && (
+                  <button className="btn-edit btn-ui" onClick={() => onEdit(user)} title="Editar usuário">
+                    ✏️
+                  </button>
+                )}
 
-                <button className="btn-delete btn-ui" onClick={() => onDelete(user)} title="Excluir usuário">
-                  🗑️
-                </button>
+                {!isOwner && (
+                  <button className="btn-delete btn-ui" onClick={() => onDelete(user)} title="Excluir usuário">
+                    🗑️
+                  </button>
+                )}
 
                 <div className="user-actions-extra">
-                  {!isAdminUser && (
+                  {!isOwner && !isAdminUser && (
                     <button
                       type="button"
                       className="btn-ui"
@@ -719,15 +727,17 @@ const UsersTable = ({
                       💰
                     </button>
                   )}
-                  <button
-                    type="button"
-                    className="btn-ui"
-                    onClick={() => onActivate(user.id)}
-                    title="Ativar usuário"
-                  >
-                    🔓
-                  </button>
-                  {!isAdminUser && (
+                  {!isOwner && (
+                    <button
+                      type="button"
+                      className="btn-ui"
+                      onClick={() => onActivate(user.id)}
+                      title="Ativar usuário"
+                    >
+                      🔓
+                    </button>
+                  )}
+                  {!isOwner && !isAdminUser && (
                     <button
                       type="button"
                       className="btn-ui"
@@ -737,7 +747,7 @@ const UsersTable = ({
                       🔒
                     </button>
                   )}
-                  {canPromoteToAffiliate && (
+                  {!isOwner && canPromoteToAffiliate && (
                     <button
                       type="button"
                       className="btn-ui"
@@ -1762,10 +1772,19 @@ function App() {
   const [affiliateModalOpen, setAffiliateModalOpen] = useState(false);
   const [affiliateDraft, setAffiliateDraft] = useState(createDefaultAffiliatePromotionDraft);
   const [selectedUserToPromote, setSelectedUserToPromote] = useState(null);
-  const activeAffiliates = useMemo(
-    () => (affiliates || []).filter((affiliate) => affiliate?.is_affiliate === true),
-    [affiliates]
-  );
+  const activeAffiliates = useMemo(() => {
+    const base = (affiliates || []).filter(
+      (affiliate) => affiliate?.is_affiliate === true || isOwnerUser(affiliate)
+    );
+    const ownerFromUsers = (users || []).find((user) => isOwnerUser(user));
+    if (ownerFromUsers && !base.some((affiliate) => affiliate.id === ownerFromUsers.id)) {
+      base.unshift({
+        ...ownerFromUsers,
+        is_affiliate: true,
+      });
+    }
+    return base;
+  }, [affiliates, users]);
   const affiliateNameById = useMemo(() => {
     return activeAffiliates.reduce((acc, affiliate) => {
       acc[affiliate.id] = affiliate.name || affiliate.code || 'Afiliado';
@@ -1924,9 +1943,13 @@ function App() {
 
           userData = (data || []).map((item) => ({
             ...item,
-            is_affiliate: Boolean(item?.is_affiliate || item?.affiliate_id || item?.affiliate_code),
+            is_affiliate: isOwnerUser(item)
+              ? true
+              : Boolean(item?.is_affiliate || item?.affiliate_id || item?.affiliate_code),
             payment_status: isUserPaidForCurrentCycle(item, new Date()) ? 'paid' : 'pending',
-            derived_status: computeEffectiveSubscriptionStatus(item, new Date()),
+            derived_status: isOwnerUser(item) ? 'active' : computeEffectiveSubscriptionStatus(item, new Date()),
+            billing_status: isOwnerUser(item) ? 'paid' : item?.billing_status,
+            role: isOwnerUser(item) ? 'admin' : item?.role,
           }));
           setUsers(userData);
         } catch (err) {
@@ -2662,6 +2685,11 @@ function App() {
   };
 
   const handleDeleteUser = async (user) => {
+    if (isOwnerUser(user)) {
+      pushToast('Usuário principal não pode ser removido', 'warning');
+      return;
+    }
+
     if (!client || profile?.role !== 'admin') {
       pushToast('Somente administradores podem excluir usuários.', 'warning');
       return;
@@ -2718,6 +2746,12 @@ function App() {
     }
 
     try {
+      const targetUser = users.find((item) => item.id === id);
+      if (isOwnerUser(targetUser)) {
+        pushToast('Usuário principal já é considerado pago.', 'warning');
+        return;
+      }
+
       const accessToken = await getAccessToken();
       if (!accessToken) {
         pushToast('Sessão expirada. Faça login novamente.', 'warning');
@@ -2751,6 +2785,12 @@ function App() {
     }
 
     try {
+      const targetUser = users.find((item) => item.id === id);
+      if (isOwnerUser(targetUser)) {
+        pushToast('Usuário principal permanece ativo.', 'warning');
+        return;
+      }
+
       const accessToken = await getAccessToken();
       if (!accessToken) {
         pushToast('Sessão expirada. Faça login novamente.', 'warning');
@@ -2784,6 +2824,12 @@ function App() {
     }
 
     try {
+      const targetUser = users.find((item) => item.id === id);
+      if (isOwnerUser(targetUser)) {
+        pushToast('Usuário principal não pode ser desativado.', 'warning');
+        return;
+      }
+
       const accessToken = await getAccessToken();
       if (!accessToken) {
         pushToast('Sessão expirada. Faça login novamente.', 'warning');
