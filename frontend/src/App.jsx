@@ -655,11 +655,10 @@ const UsersTable = ({
     ) : (
       <div className="usuarios-scroll-container">
         {items.map((user) => {
-          const isOwner = Boolean(user.is_owner);
           const isAdminUser = user.role === 'admin';
           const isAffiliate = Boolean(user.is_affiliate || user.affiliate_id || user.affiliate_code);
-          const canPromoteToAffiliate = !isOwner && !isAdminUser && !isAffiliate;
-          const status = isOwner ? 'active' : (user.derived_status || user.subscription_status || 'active');
+          const canPromoteToAffiliate = !isAdminUser && !isAffiliate;
+          const status = isAdminUser ? 'active' : (user.derived_status || user.subscription_status || 'active');
           const labelMap = { active: 'ATIVO', pending: 'PENDENTE', inactive: 'INATIVO' };
           const trialEnd = getTrialEnd(user);
           const daysLeft = getDaysLeft(trialEnd);
@@ -682,7 +681,7 @@ const UsersTable = ({
                   <span className={`badge badge-${status}`}>
                     {labelMap[status] || status.toUpperCase()}
                   </span>
-                  {isOwner ? (
+                  {isAdminUser ? (
                     <span className="financial-status financial-status-green">🟢 Pago</span>
                   ) : (
                     renderFinancialStatus(user)
@@ -710,7 +709,7 @@ const UsersTable = ({
                 </button>
 
                 <div className="user-actions-extra">
-                  {!isOwner && (
+                  {!isAdminUser && (
                     <button
                       type="button"
                       className="btn-ui"
@@ -728,7 +727,7 @@ const UsersTable = ({
                   >
                     🔓
                   </button>
-                  {!isOwner && (
+                  {!isAdminUser && (
                     <button
                       type="button"
                       className="btn-ui"
@@ -759,7 +758,7 @@ const UsersTable = ({
 );
 
 
-const AffiliateCards = ({ items, onViewUsers, onEditAffiliate, onDeleteAffiliate }) => (
+const AffiliateCards = ({ items }) => (
   <div className="user-list-wrapper">
     {items.length === 0 ? (
       <div className="muted user-empty">Nenhum afiliado cadastrado.</div>
@@ -769,7 +768,7 @@ const AffiliateCards = ({ items, onViewUsers, onEditAffiliate, onDeleteAffiliate
           return (
             <div key={affiliate.id} className="event-card user-event-card card-ui">
               <div className="event-date user-event-email">
-                {affiliate.email || affiliate.code || '-'}
+                {affiliate.email || affiliate.affiliate_code || '-'}
               </div>
 
               <div className="event-content">
@@ -780,23 +779,9 @@ const AffiliateCards = ({ items, onViewUsers, onEditAffiliate, onDeleteAffiliate
                   <span className="badge-green affiliate-status-button">ATIVO</span>
                 </div>
                 <div className="event-subtitle user-event-details">
-                  <span>Código: {affiliate.code}</span>
-                  <span>PIX: {affiliate.pix_key || 'Não informado'}</span>
-                  <span>Clientes vinculados: {affiliate.total_users ?? 0}</span>
-                </div>
-              </div>
-
-              <div className="event-actions">
-                <div className="table-actions">
-                  <button className="btn-ui" onClick={() => onViewUsers(affiliate)} title="Visualizar clientes">
-                    👁️
-                  </button>
-                  <button className="btn-edit btn-ui" onClick={() => onEditAffiliate(affiliate)} title="Editar afiliado">
-                    ✏️
-                  </button>
-                  <button className="btn-delete btn-ui" onClick={() => onDeleteAffiliate(affiliate.id)} title="Excluir afiliado">
-                    🗑️
-                  </button>
+                  <span>Código: {affiliate.affiliate_code || '-'}</span>
+                  <span>Perfil: {affiliate.role || 'affiliate'}</span>
+                  <span>Criado em: {formatDate(affiliate.created_at)}</span>
                 </div>
               </div>
             </div>
@@ -1778,7 +1763,7 @@ function App() {
   const [affiliateDraft, setAffiliateDraft] = useState(createDefaultAffiliatePromotionDraft);
   const [selectedUserToPromote, setSelectedUserToPromote] = useState(null);
   const activeAffiliates = useMemo(
-    () => (affiliates || []).filter((affiliate) => affiliate?.is_active === true),
+    () => (affiliates || []).filter((affiliate) => affiliate?.is_affiliate === true),
     [affiliates]
   );
   const affiliateNameById = useMemo(() => {
@@ -2890,8 +2875,7 @@ function App() {
 
       closePromoteAffiliateModal();
       pushToast('Usuário promovido para afiliado com sucesso', 'success');
-      await loadRemoteData();
-      await fetchAffiliates();
+      await Promise.all([loadRemoteData(), fetchAffiliates()]);
     } catch (err) {
       console.warn('Erro ao promover usuário para afiliado', err);
       pushToast(err?.message || 'Não foi possível promover o usuário.', 'danger');
@@ -2902,7 +2886,7 @@ function App() {
 
   const normalizeAffiliateStats = (item) => ({
     ...item,
-    is_active: item?.is_active === true,
+    is_affiliate: item?.is_affiliate === true,
   });
 
   const fetchAffiliates = async () => {
@@ -3799,15 +3783,6 @@ function App() {
                 <p className="muted">Gerencie parceiros e visualize seus clientes.</p>
               </div>
 
-              <button
-                onClick={() => {
-                  resetAffiliateWizard();
-                  setShowForm(true);
-                }}
-                className="btn-primary"
-              >
-                + Novo Afiliado
-              </button>
             </div>
 
             {showForm && (
@@ -3908,9 +3883,6 @@ function App() {
             {!affiliatesLoading && (
               <AffiliateCards
                 items={affiliates || []}
-                onViewUsers={handleViewAffiliateUsers}
-                onEditAffiliate={openEditAffiliateModal}
-                onDeleteAffiliate={deleteAffiliate}
               />
             )}
           </section>
