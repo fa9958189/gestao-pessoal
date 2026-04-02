@@ -117,7 +117,7 @@ async function runDailyBilling(users) {
   const day = today.getDate();
 
   for (const user of users || []) {
-    if (user?.is_owner) continue;
+    if (user?.role === "admin") continue;
     if (hasUserPaidThisMonth(user)) continue;
     if (user?.subscription_status === "inactive") continue;
     if (!user?.whatsapp) continue;

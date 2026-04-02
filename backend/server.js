@@ -189,7 +189,7 @@ const computePlanDates = (planType) => {
 };
 
 const getFinancialStatus = (user) => {
-  if (user?.is_owner) {
+  if (user?.role === "admin") {
     return "PAID";
   }
 
@@ -929,7 +929,7 @@ app.post("/admin/users/:id/promote-to-affiliate", async (req, res) => {
 
     const { data: user, error: userError } = await supabase
       .from("profiles")
-      .select("id, name, username, email, whatsapp, role, is_owner, is_affiliate, affiliate_id, affiliate_code")
+      .select("id, name, username, email, whatsapp, role, is_affiliate, affiliate_id, affiliate_code")
       .eq("id", id)
       .maybeSingle();
 
@@ -942,7 +942,7 @@ app.post("/admin/users/:id/promote-to-affiliate", async (req, res) => {
     if (!user?.id) {
       return res.status(404).json({ error: "Usuário não encontrado." });
     }
-    if (user.is_owner === true || user.role === "admin") {
+    if (user.role === "admin") {
       return res.status(400).json({ error: "Usuário owner/admin não pode ser promovido para afiliado." });
     }
     if (user.is_affiliate === true || user.affiliate_id || user.affiliate_code) {
@@ -3078,13 +3078,13 @@ app.post("/admin/users/:id/mark-paid", async (req, res) => {
 
     const { data: user, error: userError } = await supabase
       .from("profiles")
-      .select("is_owner")
+      .select("role")
       .eq("id", id)
       .single();
 
     if (userError) throw userError;
 
-    if (user?.is_owner) {
+    if (user?.role === "admin") {
       return res.status(400).json({
         error: "Usuário principal não pode ser alterado",
       });
@@ -3116,13 +3116,13 @@ app.post("/admin/users/:id/activate", async (req, res) => {
 
     const { data: user, error: userError } = await supabase
       .from("profiles")
-      .select("is_owner")
+      .select("role")
       .eq("id", id)
       .single();
 
     if (userError) throw userError;
 
-    if (user?.is_owner) {
+    if (user?.role === "admin") {
       return res.status(400).json({
         error: "Usuário principal não pode ser alterado",
       });
@@ -3153,13 +3153,13 @@ app.post("/admin/users/:id/deactivate", async (req, res) => {
 
     const { data: user, error: userError } = await supabase
       .from("profiles")
-      .select("is_owner")
+      .select("role")
       .eq("id", id)
       .single();
 
     if (userError) throw userError;
 
-    if (user?.is_owner) {
+    if (user?.role === "admin") {
       return res.status(400).json({
         error: "Usuário principal não pode ser alterado",
       });
