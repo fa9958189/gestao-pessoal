@@ -60,6 +60,15 @@ const ALLOWED_USER_PLAN_TYPES = new Set(Object.values(USER_PLAN_TYPES));
 const SUPER_ADMIN_EMAIL = "gestaopessoaloficial@gmail.com";
 let schedulerStarted = false;
 const OWNER_EMAIL = SUPER_ADMIN_EMAIL.toLowerCase();
+const OWNER_AFFILIATE_SEED = Object.freeze({
+  code: "FELI0001",
+  name: "Felipe",
+  email: SUPER_ADMIN_EMAIL,
+  whatsapp: "+5563992393705",
+  is_active: true,
+  pix_key: null,
+  commission_cents: 2000,
+});
 
 const normalizeEmail = (value) => String(value || "").trim().toLowerCase();
 const isOwnerEmail = (email) => normalizeEmail(email) === OWNER_EMAIL;
@@ -278,9 +287,31 @@ const getFinancialStatus = (user) => {
 };
 
 const findMainAffiliateFallback = async () => {
+  try {
+    const ensuredOwner = await ensureOwnerAffiliateExists();
+    if (ensuredOwner?.id && ensuredOwner.is_active === true) {
+      return ensuredOwner;
+    }
+  } catch (err) {
+    console.error("Erro ao garantir afiliado principal no fallback:", err);
+  }
+
+  const { data: byOwnerEmail, error: byOwnerEmailError } = await supabase
+    .from("affiliates")
+    .select("id, code, name, email, whatsapp, pix_key, commission_cents, is_active, created_at")
+    .eq("is_active", true)
+    .eq("email", SUPER_ADMIN_EMAIL)
+    .limit(1)
+    .maybeSingle();
+
+  if (byOwnerEmailError && byOwnerEmailError.code !== "PGRST116") {
+    console.error("Erro ao buscar afiliado principal por email fixo:", byOwnerEmailError);
+  }
+  if (byOwnerEmail?.id) return byOwnerEmail;
+
   const { data: byFelipeName, error: byNameError } = await supabase
     .from("affiliates")
-    .select("id, code, name, email, is_active")
+    .select("id, code, name, email, whatsapp, pix_key, commission_cents, is_active, created_at")
     .eq("is_active", true)
     .ilike("name", "%felipe%")
     .limit(1)
@@ -293,9 +324,9 @@ const findMainAffiliateFallback = async () => {
 
   const { data: byFelipeEmail, error: byEmailError } = await supabase
     .from("affiliates")
-    .select("id, code, name, email, is_active")
+    .select("id, code, name, email, whatsapp, pix_key, commission_cents, is_active, created_at")
     .eq("is_active", true)
-    .ilike("email", "%felipe%")
+    .ilike("email", "%gestaopessoaloficial@gmail.com%")
     .limit(1)
     .maybeSingle();
 
@@ -307,20 +338,58 @@ const findMainAffiliateFallback = async () => {
   return null;
 };
 
+const ensureOwnerAffiliateExists = async () => {
+  const { data: existingOwner, error: findError } = await supabase
+    .from("affiliates")
+    .select("id, code, name, email, whatsapp, pix_key, commission_cents, is_active, created_at")
+    .eq("email", SUPER_ADMIN_EMAIL)
+    .limit(1)
+    .maybeSingle();
+
+  if (findError && findError.code !== "PGRST116") {
+    console.error("Erro ao verificar afiliado principal:", findError);
+    throw findError;
+  }
+
+  if (existingOwner?.id) {
+    return existingOwner;
+  }
+
+  const { data: createdOwner, error: createError } = await supabase
+    .from("affiliates")
+    .insert(OWNER_AFFILIATE_SEED)
+    .select("id, code, name, email, whatsapp, pix_key, commission_cents, is_active, created_at")
+    .single();
+
+  if (createError) {
+    console.error("Erro ao criar afiliado principal:", createError);
+    throw createError;
+  }
+
+  return createdOwner;
+};
+
 const resolveAffiliate = async (affiliateId) => {
   const normalizedId =
     typeof affiliateId === "string" && affiliateId.trim().length ? affiliateId.trim() : null;
   let finalAffiliateId = normalizedId;
 
   if (!finalAffiliateId) {
-    const mainAffiliate = await findMainAffiliateFallback();
-    if (!mainAffiliate?.id) {
-      return {
-        error:
-          "Afiliado obrigatório. Não foi possível encontrar afiliado principal de fallback.",
-      };
+    try {
+      const ownerAffiliate = await ensureOwnerAffiliateExists();
+      finalAffiliateId = ownerAffiliate?.id || null;
+    } catch (err) {
+      console.error("Erro ao garantir afiliado principal padrão:", err);
     }
-    finalAffiliateId = mainAffiliate.id;
+
+    if (!finalAffiliateId) {
+      const mainAffiliate = await findMainAffiliateFallback();
+      finalAffiliateId = mainAffiliate?.id || null;
+    }
+
+    if (!finalAffiliateId) {
+      return { error: "Afiliado obrigatório. Não foi possível encontrar afiliado principal." };
+    }
   }
 
   const { data: affiliate, error: affiliateError } = await supabase
@@ -537,9 +606,9 @@ app.post("/create-user", async (req, res) => {
       apply_trial: applyTrial,
     } = req.body;
 
-    if (!name || !email || !whatsapp || !affiliate_id || !plan_type) {
+    if (!name || !email || !whatsapp || !plan_type) {
       return res.status(400).json({
-        error: "name, email, whatsapp, affiliate_id e plan_type são obrigatórios.",
+        error: "name, email, whatsapp e plan_type são obrigatórios.",
       });
     }
 
@@ -547,13 +616,15 @@ app.post("/create-user", async (req, res) => {
     const rawUsername = String(username || rawEmail).trim();
     const normalizedRole = String(role || "user").trim().toLowerCase() || "user";
 
+    const rawAffiliateId = typeof affiliate_id === "string" ? affiliate_id.trim() : "";
+    const isAffiliateIdFilled = rawAffiliateId.length > 0;
     const isUuid =
-      typeof affiliate_id === "string" &&
+      isAffiliateIdFilled &&
       /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-        affiliate_id.trim()
+        rawAffiliateId
       );
 
-    if (!isUuid) {
+    if (isAffiliateIdFilled && !isUuid) {
       return res.status(400).json({
         error: "affiliate_id deve ser um UUID válido.",
       });
@@ -570,8 +641,7 @@ app.post("/create-user", async (req, res) => {
     }
 
     const trimmedAffiliateCode = (affiliateCode || "").trim();
-    let incomingAffiliateId =
-      typeof affiliate_id === "string" && affiliate_id.trim().length ? affiliate_id.trim() : null;
+    let incomingAffiliateId = isAffiliateIdFilled ? rawAffiliateId : null;
 
     if (!incomingAffiliateId && trimmedAffiliateCode) {
       const { data: affiliateByCode, error: affiliateByCodeError } = await supabase
@@ -1642,12 +1712,11 @@ app.get("/admin/affiliates", async (req, res) => {
     const authData = await authenticateRequest(req, res, { requireAdmin: true });
     if (!authData) return;
 
-    await enforceOwnerProtectionByEmail();
+    await ensureOwnerAffiliateExists();
 
     const { data: affiliates, error } = await supabase
-      .from("profiles")
-      .select("id, name, username, email, whatsapp, role, is_affiliate, affiliate_code, created_at")
-      .or(`is_affiliate.eq.true,email.eq.${SUPER_ADMIN_EMAIL}`)
+      .from("affiliates")
+      .select("id, code, name, email, whatsapp, pix_key, commission_cents, is_active, created_at")
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -1656,12 +1725,7 @@ app.get("/admin/affiliates", async (req, res) => {
       return res.status(400).json({ error: error.message });
     }
 
-    const normalizedAffiliates = (affiliates || []).map((user) => ({
-      ...user,
-      is_affiliate: isOwnerEmail(user.email) ? true : user.is_affiliate,
-    }));
-
-    return res.json(normalizedAffiliates);
+    return res.json(Array.isArray(affiliates) ? affiliates : []);
   } catch (err) {
     console.error("Erro inesperado em GET /admin/affiliates:", err);
     return res.status(500).json({ error: "Erro interno ao listar afiliados." });

@@ -133,14 +133,6 @@ const normalizeBaseUrl = (value) => {
 
 const LOCAL_STORAGE_KEY = 'gp-react-data';
 const OWNER_EMAIL = 'gestaopessoaloficial@gmail.com';
-const OWNER_AFFILIATE_FALLBACK = {
-  id: 'owner-manual',
-  name: 'Felipe',
-  email: OWNER_EMAIL,
-  whatsapp: '+5563992393705',
-  role: 'ADMIN',
-  is_affiliate: true,
-};
 const normalizeEmail = (value) => String(value || '').trim().toLowerCase();
 const isOwnerUser = (user) => normalizeEmail(user?.email || user?.username) === OWNER_EMAIL;
 
@@ -792,7 +784,7 @@ const AffiliateCards = ({ items }) => (
           return (
             <div key={affiliate.id} className="event-card user-event-card card-ui">
               <div className="event-date user-event-email">
-                {affiliate.email || affiliate.affiliate_code || '-'}
+                {affiliate.email || affiliate.code || '-'}
               </div>
 
               <div className="event-content">
@@ -800,11 +792,13 @@ const AffiliateCards = ({ items }) => (
 
                 <div className="event-subtitle">{affiliate.whatsapp || 'WhatsApp não informado'}</div>
                 <div className="event-subtitle user-event-meta">
-                  <span className="badge-green affiliate-status-button">ATIVO</span>
+                  <span className={`badge-${affiliate.is_active ? 'green' : 'red'} affiliate-status-button`}>
+                    {affiliate.is_active ? 'ATIVO' : 'INATIVO'}
+                  </span>
                 </div>
                 <div className="event-subtitle user-event-details">
-                  <span>Código: {affiliate.affiliate_code || '-'}</span>
-                  <span>Perfil: {affiliate.role || 'affiliate'}</span>
+                  <span>Código: {affiliate.code || '-'}</span>
+                  <span>Comissão: {formatCurrency((affiliate.commission_cents || 0) / 100)}</span>
                   <span>Criado em: {formatDate(affiliate.created_at)}</span>
                 </div>
               </div>
@@ -1787,25 +1781,12 @@ function App() {
   const [affiliateDraft, setAffiliateDraft] = useState(createDefaultAffiliatePromotionDraft);
   const [selectedUserToPromote, setSelectedUserToPromote] = useState(null);
   const affiliatesFinal = useMemo(() => {
-    const base = (affiliates || []).filter(
-      (affiliate) => affiliate?.is_affiliate === true || isOwnerUser(affiliate)
-    );
-    const ownerFromUsers = (users || []).find((user) => isOwnerUser(user));
-    const hasOwner = base.some((affiliate) => isOwnerUser(affiliate));
-
-    if (!hasOwner && ownerFromUsers) {
-      base.unshift({
-        ...ownerFromUsers,
-        is_affiliate: true,
-      });
-    }
-
-    if (!base.some((affiliate) => isOwnerUser(affiliate))) {
-      base.unshift(OWNER_AFFILIATE_FALLBACK);
-    }
-
-    return base;
-  }, [affiliates, users]);
+    return Array.isArray(affiliates) ? affiliates : [];
+  }, [affiliates]);
+  const activeAffiliates = useMemo(
+    () => affiliatesFinal.filter((affiliate) => affiliate?.is_active === true),
+    [affiliatesFinal]
+  );
   const affiliateNameById = useMemo(() => {
     return affiliatesFinal.reduce((acc, affiliate) => {
       acc[affiliate.id] = affiliate.name || affiliate.code || 'Afiliado';
@@ -2953,7 +2934,8 @@ function App() {
 
   const normalizeAffiliateStats = (item) => ({
     ...item,
-    is_affiliate: item?.is_affiliate === true,
+    commission_cents: Number(item?.commission_cents || 0),
+    is_active: item?.is_active === true,
   });
 
   const fetchAffiliates = async () => {
@@ -3673,12 +3655,15 @@ function App() {
                     onChange={(e) => setEditUserForm((prev) => ({ ...prev, affiliate_id: e.target.value }))}
                   >
                     <option value="">Selecione um afiliado</option>
-                    {affiliatesFinal.map((affiliate) => (
+                    {activeAffiliates.map((affiliate) => (
                       <option key={affiliate.id} value={affiliate.id}>
                         {affiliate.name}{affiliate.code ? ` (${affiliate.code})` : ''}
                       </option>
                     ))}
                   </select>
+                  {activeAffiliates.length === 0 && (
+                    <p className="muted">Nenhum afiliado ativo disponível no momento.</p>
+                  )}
 
                   <label>Plano</label>
                   <select
@@ -3786,12 +3771,15 @@ function App() {
                         onChange={(e) => setUserForm({ ...userForm, affiliate_id: e.target.value })}
                       >
                         <option value="">Selecione um afiliado</option>
-                        {affiliatesFinal.map((affiliate) => (
+                        {activeAffiliates.map((affiliate) => (
                           <option key={affiliate.id} value={affiliate.id}>
                             {affiliate.name}{affiliate.code ? ` (${affiliate.code})` : ''}
                           </option>
                         ))}
                       </select>
+                      {activeAffiliates.length === 0 && (
+                        <p className="muted">Não há afiliados ativos retornados pela API.</p>
+                      )}
 
                       <label>Plano *</label>
                       <select
