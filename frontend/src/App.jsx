@@ -133,6 +133,14 @@ const normalizeBaseUrl = (value) => {
 
 const LOCAL_STORAGE_KEY = 'gp-react-data';
 const OWNER_EMAIL = 'gestaopessoaloficial@gmail.com';
+const OWNER_AFFILIATE_FALLBACK = {
+  id: 'owner-manual',
+  name: 'Felipe',
+  email: OWNER_EMAIL,
+  whatsapp: '+5563992393705',
+  role: 'ADMIN',
+  is_affiliate: true,
+};
 const normalizeEmail = (value) => String(value || '').trim().toLowerCase();
 const isOwnerUser = (user) => normalizeEmail(user?.email || user?.username) === OWNER_EMAIL;
 
@@ -682,25 +690,31 @@ const UsersTable = ({
                 <div className="event-subtitle user-event-meta">
                   <span className="badge">{isOwner ? 'ADMIN' : user.role}</span>
                   {isAffiliate && <span className="badge">AFILIADO</span>}
-                  <span className={`badge badge-${status}`}>
-                    {labelMap[status] || status.toUpperCase()}
-                  </span>
-                  {isOwner || isAdminUser ? (
-                    <span className="financial-status financial-status-green">🟢 Pago</span>
-                  ) : (
-                    renderFinancialStatus(user)
+                  {!isOwner && (
+                    <>
+                      <span className={`badge badge-${status}`}>
+                        {labelMap[status] || status.toUpperCase()}
+                      </span>
+                      {isAdminUser ? (
+                        <span className="financial-status financial-status-green">🟢 Pago</span>
+                      ) : (
+                        renderFinancialStatus(user)
+                      )}
+                    </>
                   )}
                 </div>
-                <div className="event-subtitle user-event-details">
-                  <span>
-                    Plano: <span className={`badge ${planVisual.className}`}>{planVisual.label}</span>
-                  </span>
-                  <span>Afiliado: {affiliateName}</span>
-                  <span>Vencimento: dia {user.due_day || BILLING_DUE_DAY}</span>
-                  <span>Último pagamento: {formatDate(user.last_payment_at || user.last_paid_at)}</span>
-                  <span>Criado em: {formatDate(user.created_at)}</span>
-                  <span>Teste: {formatTrialLabel(daysLeft)}</span>
-                </div>
+                {!isOwner && (
+                  <div className="event-subtitle user-event-details">
+                    <span>
+                      Plano: <span className={`badge ${planVisual.className}`}>{planVisual.label}</span>
+                    </span>
+                    <span>Afiliado: {affiliateName}</span>
+                    <span>Vencimento: dia {user.due_day || BILLING_DUE_DAY}</span>
+                    <span>Último pagamento: {formatDate(user.last_payment_at || user.last_paid_at)}</span>
+                    <span>Criado em: {formatDate(user.created_at)}</span>
+                    <span>Teste: {formatTrialLabel(daysLeft)}</span>
+                  </div>
+                )}
               </div>
 
               <div className="event-actions">
@@ -1777,12 +1791,19 @@ function App() {
       (affiliate) => affiliate?.is_affiliate === true || isOwnerUser(affiliate)
     );
     const ownerFromUsers = (users || []).find((user) => isOwnerUser(user));
-    if (ownerFromUsers && !base.some((affiliate) => affiliate.id === ownerFromUsers.id)) {
+    const hasOwner = base.some((affiliate) => isOwnerUser(affiliate));
+
+    if (!hasOwner && ownerFromUsers) {
       base.unshift({
         ...ownerFromUsers,
         is_affiliate: true,
       });
     }
+
+    if (!base.some((affiliate) => isOwnerUser(affiliate))) {
+      base.unshift(OWNER_AFFILIATE_FALLBACK);
+    }
+
     return base;
   }, [affiliates, users]);
   const affiliateNameById = useMemo(() => {
