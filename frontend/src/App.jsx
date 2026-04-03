@@ -1786,7 +1786,7 @@ function App() {
   const [affiliateModalOpen, setAffiliateModalOpen] = useState(false);
   const [affiliateDraft, setAffiliateDraft] = useState(createDefaultAffiliatePromotionDraft);
   const [selectedUserToPromote, setSelectedUserToPromote] = useState(null);
-  const activeAffiliates = useMemo(() => {
+  const affiliatesFinal = useMemo(() => {
     const base = (affiliates || []).filter(
       (affiliate) => affiliate?.is_affiliate === true || isOwnerUser(affiliate)
     );
@@ -1807,11 +1807,11 @@ function App() {
     return base;
   }, [affiliates, users]);
   const affiliateNameById = useMemo(() => {
-    return activeAffiliates.reduce((acc, affiliate) => {
+    return affiliatesFinal.reduce((acc, affiliate) => {
       acc[affiliate.id] = affiliate.name || affiliate.code || 'Afiliado';
       return acc;
     }, {});
-  }, [activeAffiliates]);
+  }, [affiliatesFinal]);
   const affiliateUsersList = affiliateUsers || [];
   const affiliateUsersComputed = affiliateUsersList.map((user) => ({
     ...user,
@@ -3673,7 +3673,7 @@ function App() {
                     onChange={(e) => setEditUserForm((prev) => ({ ...prev, affiliate_id: e.target.value }))}
                   >
                     <option value="">Selecione um afiliado</option>
-                    {activeAffiliates.map((affiliate) => (
+                    {affiliatesFinal.map((affiliate) => (
                       <option key={affiliate.id} value={affiliate.id}>
                         {affiliate.name}{affiliate.code ? ` (${affiliate.code})` : ''}
                       </option>
@@ -3786,7 +3786,7 @@ function App() {
                         onChange={(e) => setUserForm({ ...userForm, affiliate_id: e.target.value })}
                       >
                         <option value="">Selecione um afiliado</option>
-                        {activeAffiliates.map((affiliate) => (
+                        {affiliatesFinal.map((affiliate) => (
                           <option key={affiliate.id} value={affiliate.id}>
                             {affiliate.name}{affiliate.code ? ` (${affiliate.code})` : ''}
                           </option>
@@ -3949,7 +3949,7 @@ function App() {
             {affiliatesLoading && <p className="muted">Carregando afiliados...</p>}
             {!affiliatesLoading && (
               <AffiliateCards
-                items={affiliates || []}
+                items={affiliatesFinal}
               />
             )}
           </section>
