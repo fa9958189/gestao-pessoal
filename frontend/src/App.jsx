@@ -831,14 +831,54 @@ const FinanceTable = ({ items, affiliateNameById, onMarkPaid, onBlock, onUnblock
               <td>{user.overdue_days || 0}</td>
               <td>
                 <div className="finance-actions">
-                  <button type="button" title="Marcar como pago" onClick={() => onMarkPaid(user.id)}>💰</button>
+                  <button
+                    type="button"
+                    className="finance-action-btn finance-action-paid"
+                    title="Marcar como pago"
+                    aria-label="Marcar como pago"
+                    onClick={() => onMarkPaid(user.id)}
+                  >
+                    💰
+                  </button>
                   {isBlocked ? (
-                    <button type="button" title="Desbloquear usuário" onClick={() => onUnblock(user.id)}>🔓</button>
+                    <button
+                      type="button"
+                      className="finance-action-btn finance-action-unblock"
+                      title="Desbloquear usuário"
+                      aria-label="Desbloquear usuário"
+                      onClick={() => onUnblock(user.id)}
+                    >
+                      🔓
+                    </button>
                   ) : (
-                    <button type="button" title="Bloquear usuário" onClick={() => onBlock(user.id)}>🚫</button>
+                    <button
+                      type="button"
+                      className="finance-action-btn finance-action-block"
+                      title="Bloquear usuário"
+                      aria-label="Bloquear usuário"
+                      onClick={() => onBlock(user.id)}
+                    >
+                      🚫
+                    </button>
                   )}
-                  <button type="button" title="Cobrar no WhatsApp" onClick={() => chargeUser(message, phone)}>📲</button>
-                  <button type="button" title="Ver histórico" onClick={() => onHistory(user)}>🕘</button>
+                  <button
+                    type="button"
+                    className="finance-action-btn finance-action-charge"
+                    title="Cobrar no WhatsApp"
+                    aria-label="Cobrar no WhatsApp"
+                    onClick={() => chargeUser(message, phone)}
+                  >
+                    📲
+                  </button>
+                  <button
+                    type="button"
+                    className="finance-action-btn finance-action-history"
+                    title="Ver histórico financeiro"
+                    aria-label="Ver histórico financeiro"
+                    onClick={() => onHistory(user)}
+                  >
+                    🕘
+                  </button>
                 </div>
               </td>
             </tr>
