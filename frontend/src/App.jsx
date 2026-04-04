@@ -776,52 +776,46 @@ const FinanceHistoryModal = ({ user, history, onClose }) => {
 };
 
 const FinanceTable = ({ items, affiliateNameById, onMarkPaid, onBlock, onUnblock, onHistory }) => (
-  <div className="events-table-container">
-    <table className="events-table">
-      <thead>
-        <tr>
-          <th>Nome</th><th>Email</th><th>WhatsApp</th><th>Plano</th><th>Afiliado</th>
-          <th>Status financeiro</th><th>Acesso</th><th>Último pagamento</th><th>Próximo vencimento</th>
-          <th>Valor</th><th>Dias atraso</th><th className="right">Ações</th>
-        </tr>
-      </thead>
-      <tbody>
-        {items.length === 0 && <tr><td colSpan="12" className="muted">Nenhum usuário encontrado.</td></tr>}
-        {items.map((user) => {
-          const dueDay = user.billing_due_day || BILLING_DUE_DAY;
-          const isOverdue = user.finance_status === 'overdue';
-          const message = isOverdue
-            ? `Olá, ${user.name}! Identificamos que sua mensalidade do Gestão Pessoal está em atraso.\nVencimento: dia ${dueDay}.\nPara evitar bloqueio do acesso, pedimos a regularização o quanto antes.\nSe já pagou, desconsidere esta mensagem.`
-            : `Olá, ${user.name}! Passando para lembrar que a mensalidade do Gestão Pessoal está em aberto.\nVencimento: dia ${dueDay}.\nCaso já tenha realizado o pagamento, por favor desconsidere esta mensagem.\nSe precisar de suporte, estou à disposição.`;
-          const phone = String(user.whatsapp || '').replace(/\D/g, '');
-          const whatsappLink = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
+  <div className="events-table-container finance-table-wrapper">
+    <div className="finance-row finance-row-header">
+      <div>Nome</div><div>Email</div><div>WhatsApp</div><div>Plano</div><div>Afiliado</div>
+      <div>Status financeiro</div><div>Acesso</div><div>Último pagamento</div><div>Próximo vencimento</div>
+      <div>Valor</div><div>Dias atraso</div><div className="right">Ações</div>
+    </div>
+    {items.length === 0 && <div className="finance-row"><div className="muted">Nenhum usuário encontrado.</div></div>}
+    {items.map((user) => {
+      const dueDay = user.billing_due_day || BILLING_DUE_DAY;
+      const isOverdue = user.finance_status === 'overdue';
+      const message = isOverdue
+        ? `Olá, ${user.name}! Identificamos que sua mensalidade do Gestão Pessoal está em atraso.\nVencimento: dia ${dueDay}.\nPara evitar bloqueio do acesso, pedimos a regularização o quanto antes.\nSe já pagou, desconsidere esta mensagem.`
+        : `Olá, ${user.name}! Passando para lembrar que a mensalidade do Gestão Pessoal está em aberto.\nVencimento: dia ${dueDay}.\nCaso já tenha realizado o pagamento, por favor desconsidere esta mensagem.\nSe precisar de suporte, estou à disposição.`;
+      const phone = String(user.whatsapp || '').replace(/\D/g, '');
+      const whatsappLink = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
 
-          return (
-            <tr key={user.id}>
-              <td>{user.name}</td><td>{user.email}</td><td>{user.whatsapp || '-'}</td>
-              <td>{getPlanVisual(user.plan_type).label}</td>
-              <td>{affiliateNameById[user.affiliate_id] || user.affiliate_name || '-'}</td>
-              <td>{user.finance_status}</td>
-              <td>{user.status_acesso === 'inactive' ? 'Inativo' : 'Ativo'}</td>
-              <td>{formatDate(user.last_paid_at)}</td>
-              <td>{formatDate(user.billing_next_date)}</td>
-              <td>{formatCurrency(getPlanMonthlyValue(user.plan_type))}</td>
-              <td>{user.overdue_days || 0}</td>
-              <td className="right">
-                <div className="table-actions">
-                  <button className="btn-ui" onClick={() => onMarkPaid(user.id)}>Marcar como pago</button>
-                  {user.status_acesso === 'inactive'
-                    ? <button className="btn-ui" onClick={() => onUnblock(user.id)}>Desbloquear</button>
-                    : <button className="btn-ui" onClick={() => onBlock(user.id)}>Bloquear</button>}
-                  <a href={whatsappLink} target="_blank" rel="noreferrer"><button className="btn-ui">Cobrar</button></a>
-                  <button className="btn-ui" onClick={() => onHistory(user)}>Ver histórico</button>
-                </div>
-              </td>
-            </tr>
-          );
-        })}
-      </tbody>
-    </table>
+      return (
+        <div key={user.id} className="finance-row">
+          <div>{user.name}</div><div>{user.email}</div><div>{user.whatsapp || '-'}</div>
+          <div>{getPlanVisual(user.plan_type).label}</div>
+          <div>{affiliateNameById[user.affiliate_id] || user.affiliate_name || '-'}</div>
+          <div>{user.finance_status}</div>
+          <div>{user.status_acesso === 'inactive' ? 'Inativo' : 'Ativo'}</div>
+          <div>{formatDate(user.last_paid_at)}</div>
+          <div>{formatDate(user.billing_next_date)}</div>
+          <div>{formatCurrency(getPlanMonthlyValue(user.plan_type))}</div>
+          <div>{user.overdue_days || 0}</div>
+          <div className="right">
+            <div className="table-actions finance-actions">
+              <button className="btn-ui" onClick={() => onMarkPaid(user.id)}>Marcar como pago</button>
+              {user.status_acesso === 'inactive'
+                ? <button className="btn-ui" onClick={() => onUnblock(user.id)}>Desbloquear</button>
+                : <button className="btn-ui" onClick={() => onBlock(user.id)}>Bloquear</button>}
+              <a href={whatsappLink} target="_blank" rel="noreferrer"><button className="btn-ui">Cobrar</button></a>
+              <button className="btn-ui" onClick={() => onHistory(user)}>Ver histórico</button>
+            </div>
+          </div>
+        </div>
+      );
+    })}
   </div>
 );
 

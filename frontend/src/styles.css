@@ -1158,6 +1158,63 @@ canvas{ background:transparent; }
 .table-actions button:hover{
   transform:scale(1.1);
 }
+.finance-table-wrapper {
+  width: 100%;
+  overflow-x: auto; /* fallback */
+}
+
+.finance-row {
+  display: grid;
+  grid-template-columns:
+    2fr   /* nome */
+    2fr   /* email */
+    1.5fr /* telefone */
+    1fr   /* plano */
+    1fr   /* afiliado */
+    1fr   /* status pagamento */
+    1fr   /* status conta */
+    1.2fr /* data início */
+    1.2fr /* vencimento */
+    1fr   /* valor */
+    1fr   /* dias atraso */
+    1fr   /* ações */;
+  gap: 12px;
+  padding: 14px;
+  align-items: center;
+  border-bottom: 1px solid #1e293b;
+}
+
+.finance-row > div {
+  min-width: 0;
+}
+
+.finance-row-header {
+  font-weight: 700;
+}
+
+.finance-row:hover {
+  background: rgba(255,255,255,0.02);
+}
+
+@media (max-width: 1200px) {
+  .finance-row {
+    grid-template-columns: 1fr 1fr;
+    row-gap: 8px;
+  }
+}
+
+@media (max-width: 768px) {
+  .finance-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.finance-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .toast{
   position:fixed;
   top:16px;
