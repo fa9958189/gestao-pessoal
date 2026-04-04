@@ -222,6 +222,17 @@ const USER_PLAN_OPTIONS = [
   { value: USER_PLAN_TYPES.NORMAL, label: '🔵 Plano normal — R$120/mês' },
   { value: USER_PLAN_TYPES.PROMO, label: '🟣 Plano promocional — R$80/mês (fidelidade de 4 meses)' },
 ];
+const PLAN_MONTHLY_VALUES = Object.freeze({
+  [USER_PLAN_TYPES.TRIAL]: 0,
+  [USER_PLAN_TYPES.NORMAL]: 120,
+  [USER_PLAN_TYPES.PROMO]: 80,
+  vip: 200,
+});
+
+const getPlanMonthlyValue = (planType) => {
+  const normalized = String(planType || '').toLowerCase();
+  return PLAN_MONTHLY_VALUES[normalized] ?? PLAN_MONTHLY_VALUES[USER_PLAN_TYPES.NORMAL];
+};
 
 const getPlanVisual = (planType) => {
   const normalized = String(planType || '').toLowerCase();
@@ -646,9 +657,6 @@ const UsersTable = ({
   items,
   onEdit,
   onDelete,
-  onMarkAsPaid,
-  onActivate,
-  onDeactivate,
   onPromoteToAffiliate,
   affiliateNameById,
 }) => (
@@ -723,36 +731,6 @@ const UsersTable = ({
                 )}
 
                 <div className="user-actions-extra">
-                  {!isOwner && !isAdminUser && (
-                    <button
-                      type="button"
-                      className="btn-ui"
-                      onClick={() => onMarkAsPaid(user.id)}
-                      title="Marcar como pago"
-                    >
-                      💰
-                    </button>
-                  )}
-                  {!isOwner && (
-                    <button
-                      type="button"
-                      className="btn-ui"
-                      onClick={() => onActivate(user.id)}
-                      title="Ativar usuário"
-                    >
-                      🔓
-                    </button>
-                  )}
-                  {!isOwner && !isAdminUser && (
-                    <button
-                      type="button"
-                      className="btn-ui"
-                      onClick={() => onDeactivate(user.id)}
-                      title="Inativar usuário"
-                    >
-                      🔒
-                    </button>
-                  )}
                   {!isOwner && canPromoteToAffiliate && (
                     <button
                       type="button"
@@ -770,6 +748,80 @@ const UsersTable = ({
         })}
       </div>
     )}
+  </div>
+);
+
+const FinanceHistoryModal = ({ user, history, onClose }) => {
+  if (!user) return null;
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="report-modal" onClick={(event) => event.stopPropagation()}>
+        <h2>Histórico financeiro — {user.name}</h2>
+        <div className="usuarios-scroll-container" style={{ maxHeight: 320 }}>
+          {history.length === 0 && <p className="muted">Nenhum histórico financeiro registrado.</p>}
+          {history.map((item) => (
+            <div key={item.id} className="event-subtitle">
+              <strong>{item.action}</strong> • {formatDate(item.created_at)}
+              <div className="muted">Criado por: {item.created_by || '-'}</div>
+              {item.notes ? <div className="muted">{item.notes}</div> : null}
+            </div>
+          ))}
+        </div>
+        <div className="wizard-actions">
+          <button className="btn-ui" onClick={onClose}>Fechar</button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const FinanceTable = ({ items, affiliateNameById, onMarkPaid, onBlock, onUnblock, onHistory }) => (
+  <div className="events-table-container">
+    <table className="events-table">
+      <thead>
+        <tr>
+          <th>Nome</th><th>Email</th><th>WhatsApp</th><th>Plano</th><th>Afiliado</th>
+          <th>Status financeiro</th><th>Acesso</th><th>Último pagamento</th><th>Próximo vencimento</th>
+          <th>Valor</th><th>Dias atraso</th><th className="right">Ações</th>
+        </tr>
+      </thead>
+      <tbody>
+        {items.length === 0 && <tr><td colSpan="12" className="muted">Nenhum usuário encontrado.</td></tr>}
+        {items.map((user) => {
+          const dueDay = user.billing_due_day || BILLING_DUE_DAY;
+          const isOverdue = user.finance_status === 'overdue';
+          const message = isOverdue
+            ? `Olá, ${user.name}! Identificamos que sua mensalidade do Gestão Pessoal está em atraso.\nVencimento: dia ${dueDay}.\nPara evitar bloqueio do acesso, pedimos a regularização o quanto antes.\nSe já pagou, desconsidere esta mensagem.`
+            : `Olá, ${user.name}! Passando para lembrar que a mensalidade do Gestão Pessoal está em aberto.\nVencimento: dia ${dueDay}.\nCaso já tenha realizado o pagamento, por favor desconsidere esta mensagem.\nSe precisar de suporte, estou à disposição.`;
+          const phone = String(user.whatsapp || '').replace(/\D/g, '');
+          const whatsappLink = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
+
+          return (
+            <tr key={user.id}>
+              <td>{user.name}</td><td>{user.email}</td><td>{user.whatsapp || '-'}</td>
+              <td>{getPlanVisual(user.plan_type).label}</td>
+              <td>{affiliateNameById[user.affiliate_id] || user.affiliate_name || '-'}</td>
+              <td>{user.finance_status}</td>
+              <td>{user.status_acesso === 'inactive' ? 'Inativo' : 'Ativo'}</td>
+              <td>{formatDate(user.last_paid_at)}</td>
+              <td>{formatDate(user.billing_next_date)}</td>
+              <td>{formatCurrency(getPlanMonthlyValue(user.plan_type))}</td>
+              <td>{user.overdue_days || 0}</td>
+              <td className="right">
+                <div className="table-actions">
+                  <button className="btn-ui" onClick={() => onMarkPaid(user.id)}>Marcar como pago</button>
+                  {user.status_acesso === 'inactive'
+                    ? <button className="btn-ui" onClick={() => onUnblock(user.id)}>Desbloquear</button>
+                    : <button className="btn-ui" onClick={() => onBlock(user.id)}>Bloquear</button>}
+                  <a href={whatsappLink} target="_blank" rel="noreferrer"><button className="btn-ui">Cobrar</button></a>
+                  <button className="btn-ui" onClick={() => onHistory(user)}>Ver histórico</button>
+                </div>
+              </td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
   </div>
 );
 
@@ -1810,11 +1862,17 @@ function App() {
   const [transactions, setTransactions] = useState(() => getLocalSnapshot().transactions);
   const [events, setEvents] = useState(() => getLocalSnapshot().events);
   const [users, setUsers] = useState([]);
-  const userFinancialSummary = useMemo(() => ({
-    paid: users.filter((user) => user.financial_status === 'PAID').length,
-    dueToday: users.filter((user) => user.financial_status === 'DUE_TODAY').length,
-    overdue: users.filter((user) => user.financial_status === 'OVERDUE').length,
-  }), [users]);
+  const [financeSummary, setFinanceSummary] = useState(null);
+  const [financeUsers, setFinanceUsers] = useState([]);
+  const [financeHistoryUser, setFinanceHistoryUser] = useState(null);
+  const [financeHistory, setFinanceHistory] = useState([]);
+  const [financeFilters, setFinanceFilters] = useState({
+    search: '',
+    status: 'todos',
+    plan: '',
+    affiliateId: '',
+    sort: 'name',
+  });
   const [txForm, setTxForm] = useState(defaultTxForm);
   const [etapaTx, setEtapaTx] = useState('lista');
   const [eventForm, setEventForm] = useState(defaultEventForm);
@@ -2146,6 +2204,15 @@ function App() {
   }, [session, profile?.role]);
 
   useEffect(() => {
+    if (!session || !isAdmin || activeView !== 'finance') return;
+    loadFinanceData(financeFilters).catch((err) => {
+      console.warn('Erro ao carregar Financeiro', err);
+      pushToast(err?.message || 'Erro ao carregar Financeiro.', 'danger');
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session, isAdmin, activeView, financeFilters]);
+
+  useEffect(() => {
     const { from, to } = monthRange(txMonth);
     setTxFilters((prev) => ({ ...prev, from, to }));
   }, [txMonth]);
@@ -2372,6 +2439,62 @@ function App() {
   const getAccessToken = async () => {
     const { data: sessionData } = await client.auth.getSession();
     return sessionData?.session?.access_token || '';
+  };
+
+  const loadFinanceData = async (customFilters = financeFilters) => {
+    if (!isAdmin || !workoutApiBase) return;
+    const accessToken = await getAccessToken();
+    if (!accessToken) return;
+    const params = new URLSearchParams({
+      search: customFilters.search || '',
+      status: customFilters.status || 'todos',
+      plan: customFilters.plan || '',
+      affiliateId: customFilters.affiliateId || '',
+      sort: customFilters.sort || 'name',
+    });
+
+    const [summaryRes, usersRes] = await Promise.all([
+      fetch(`${workoutApiBase}/admin/finance/summary`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      }),
+      fetch(`${workoutApiBase}/admin/finance/users?${params.toString()}`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      }),
+    ]);
+
+    const summaryBody = await summaryRes.json().catch(() => ({}));
+    const usersBody = await usersRes.json().catch(() => ({}));
+
+    if (!summaryRes.ok || !usersRes.ok) {
+      throw new Error(summaryBody?.error || usersBody?.error || 'Erro ao carregar Financeiro.');
+    }
+    setFinanceSummary(summaryBody);
+    setFinanceUsers(usersBody?.users || []);
+  };
+
+  const runFinanceAction = async (path, successMessage) => {
+    const accessToken = await getAccessToken();
+    const response = await fetch(`${workoutApiBase}${path}`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(body?.error || 'Erro na operação.');
+    pushToast(successMessage, 'success');
+    await loadFinanceData();
+  };
+
+  const openFinanceHistory = async (user) => {
+    const accessToken = await getAccessToken();
+    const response = await fetch(`${workoutApiBase}/admin/finance/users/${user.id}/history`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(body?.error || 'Erro ao abrir histórico.');
+    }
+    setFinanceHistoryUser(user);
+    setFinanceHistory(body?.history || []);
   };
 
                   // Salvar transação (local + Supabase)
@@ -3189,8 +3312,9 @@ function App() {
     { key: 'transactions', label: '💰 Transações' },
     { key: 'agenda', label: '📅 Agenda' },
     ...(isAdmin
-      ? [
+        ? [
           { key: 'users', label: '👤 Usuários' },
+          { key: 'finance', label: '💳 Financeiro' },
           { key: 'affiliates', label: '🤝 Afiliados' },
         ]
       : []),
@@ -3577,12 +3701,6 @@ function App() {
               </button>
             </div>
 
-            <div className="financial-summary">
-              <div className="financial-summary-card financial-summary-green">🟢 Pagos: {userFinancialSummary.paid}</div>
-              <div className="financial-summary-card financial-summary-yellow">🟡 Vencendo hoje: {userFinancialSummary.dueToday}</div>
-              <div className="financial-summary-card financial-summary-red">🔴 Atrasados: {userFinancialSummary.overdue}</div>
-            </div>
-
             <UsersTable
               items={users.map((user) => ({ ...user, _editing: user.id === editingUserId }))}
               affiliateNameById={affiliateNameById}
@@ -3599,9 +3717,6 @@ function App() {
                 setOpenUserModal(true);
               }}
               onDelete={handleDeleteUser}
-              onMarkAsPaid={markAsPaid}
-              onActivate={activateUser}
-              onDeactivate={deactivateUser}
               onPromoteToAffiliate={openPromoteAffiliateModal}
             />
 
@@ -3807,6 +3922,66 @@ function App() {
                 </div>
               </div>
             )}
+          </section>
+        </div>
+      )}
+
+      {activeView === 'finance' && isAdmin && (
+        <div className="container single-card admin-users-container">
+          <section className="card admin-card">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
+              <div>
+                <h1 className="title" style={{ marginBottom: 4 }}>Financeiro</h1>
+                <p className="muted">Controle operacional financeiro centralizado.</p>
+              </div>
+            </div>
+
+            <div className="financial-summary">
+              <div className="financial-summary-card financial-summary-green">Total recebido: {formatCurrency(financeSummary?.totalReceivedMonth || 0)}</div>
+              <div className="financial-summary-card financial-summary-yellow">Total pendente: {formatCurrency(financeSummary?.totalPending || 0)}</div>
+              <div className="financial-summary-card financial-summary-red">Total atrasado: {formatCurrency(financeSummary?.totalOverdue || 0)}</div>
+              <div className="financial-summary-card">Usuários pagos: {financeSummary?.paidUsers || 0}</div>
+              <div className="financial-summary-card">Vencendo hoje: {financeSummary?.usersDueToday || 0}</div>
+              <div className="financial-summary-card">Atrasados: {financeSummary?.usersOverdue || 0}</div>
+              <div className="financial-summary-card">Bloqueados: {financeSummary?.usersBlocked || 0}</div>
+              <div className="financial-summary-card">Receita estimada: {formatCurrency(financeSummary?.estimatedMonthlyRevenue || 0)}</div>
+            </div>
+
+            <div className="grid grid-2" style={{ marginBottom: 16 }}>
+              <input
+                placeholder="Buscar por nome, email ou whatsapp"
+                value={financeFilters.search}
+                onChange={(e) => setFinanceFilters((prev) => ({ ...prev, search: e.target.value }))}
+              />
+              <select value={financeFilters.status} onChange={(e) => setFinanceFilters((prev) => ({ ...prev, status: e.target.value }))}>
+                <option value="todos">todos</option><option value="pagos">pagos</option><option value="pendentes">pendentes</option>
+                <option value="vencendo hoje">vencendo hoje</option><option value="atrasados">atrasados</option>
+                <option value="bloqueados">bloqueados</option><option value="ativos">ativos</option><option value="inativos">inativos</option>
+              </select>
+              <select value={financeFilters.plan} onChange={(e) => setFinanceFilters((prev) => ({ ...prev, plan: e.target.value }))}>
+                <option value="">Todos os planos</option>
+                {USER_PLAN_OPTIONS.map((plan) => <option key={plan.value} value={plan.value}>{plan.label}</option>)}
+              </select>
+              <select value={financeFilters.affiliateId} onChange={(e) => setFinanceFilters((prev) => ({ ...prev, affiliateId: e.target.value }))}>
+                <option value="">Todos os afiliados</option>
+                {activeAffiliates.map((affiliate) => <option key={affiliate.id} value={affiliate.id}>{affiliate.name}</option>)}
+              </select>
+              <select value={financeFilters.sort} onChange={(e) => setFinanceFilters((prev) => ({ ...prev, sort: e.target.value }))}>
+                <option value="name">nome</option>
+                <option value="due_date">vencimento mais próximo</option>
+                <option value="overdue">atraso</option>
+                <option value="last_payment">último pagamento</option>
+              </select>
+            </div>
+
+            <FinanceTable
+              items={financeUsers}
+              affiliateNameById={affiliateNameById}
+              onMarkPaid={(id) => runFinanceAction(`/admin/finance/users/${id}/mark-paid`, 'Pagamento registrado com sucesso.').catch((err) => pushToast(err.message, 'danger'))}
+              onBlock={(id) => runFinanceAction(`/admin/finance/users/${id}/block`, 'Usuário bloqueado com sucesso.').catch((err) => pushToast(err.message, 'danger'))}
+              onUnblock={(id) => runFinanceAction(`/admin/finance/users/${id}/unblock`, 'Usuário desbloqueado com sucesso.').catch((err) => pushToast(err.message, 'danger'))}
+              onHistory={(user) => openFinanceHistory(user).catch((err) => pushToast(err.message, 'danger'))}
+            />
           </section>
         </div>
       )}
@@ -4017,6 +4192,17 @@ function App() {
             </div>
           </div>
         </div>
+      )}
+
+      {financeHistoryUser && (
+        <FinanceHistoryModal
+          user={financeHistoryUser}
+          history={financeHistory}
+          onClose={() => {
+            setFinanceHistoryUser(null);
+            setFinanceHistory([]);
+          }}
+        />
       )}
       </div>
     </>
