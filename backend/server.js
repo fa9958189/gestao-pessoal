@@ -50,11 +50,18 @@ app.use("/api/events", eventsRoutes);
 app.use("/events", eventsRoutes);
 app.use("/treinos", treinosRoutes);
 
-const BILLING_DEFAULT_DUE_DAY = 20;
+const BILLING_DEFAULT_DUE_DAY = 10;
+const BILLING_OVERDUE_DAY = 20;
 const USER_PLAN_TYPES = Object.freeze({
   TRIAL: "trial",
   NORMAL: "normal",
   PROMO: "promo",
+});
+const PLAN_MONTHLY_VALUES = Object.freeze({
+  [USER_PLAN_TYPES.TRIAL]: 0,
+  [USER_PLAN_TYPES.NORMAL]: 120,
+  [USER_PLAN_TYPES.PROMO]: 80,
+  vip: 200,
 });
 const ALLOWED_USER_PLAN_TYPES = new Set(Object.values(USER_PLAN_TYPES));
 const SUPER_ADMIN_EMAIL = "gestaopessoaloficial@gmail.com";
@@ -189,6 +196,93 @@ const isSupabaseTemporaryFailure = (error) => {
 };
 
 const formatDateOnly = (date) => date.toISOString().split("T")[0];
+const parseDateSafe = (value) => {
+  if (!value) return null;
+  const parsed = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
+const getPlanMonthlyValue = (planType) => {
+  const normalizedPlan = String(planType || "").trim().toLowerCase();
+  return PLAN_MONTHLY_VALUES[normalizedPlan] ?? PLAN_MONTHLY_VALUES[USER_PLAN_TYPES.NORMAL];
+};
+
+const getTrialEndDate = (user) => {
+  const trialEnd = parseDateSafe(user?.trial_end_at || user?.plan_end_date);
+  if (trialEnd) return trialEnd;
+  const createdAt = parseDateSafe(user?.created_at);
+  if (!createdAt) return null;
+  const fallbackEnd = new Date(createdAt);
+  fallbackEnd.setDate(fallbackEnd.getDate() + 30);
+  return fallbackEnd;
+};
+
+const isTrialActive = (user, today = new Date()) => {
+  const planType = String(user?.plan_type || "").toLowerCase();
+  if (planType !== USER_PLAN_TYPES.TRIAL) return false;
+  const trialEnd = getTrialEndDate(user);
+  if (!trialEnd) return false;
+  return today <= trialEnd;
+};
+
+const startOfCurrentMonth = (today = new Date()) =>
+  new Date(today.getFullYear(), today.getMonth(), 1, 0, 0, 0, 0);
+
+const hasPaidCurrentMonth = (user, today = new Date()) => {
+  const lastPayment = parseDateSafe(
+    user?.last_paid_at || user?.billing_last_paid_at || user?.last_payment_at,
+  );
+  if (!lastPayment) return false;
+  return lastPayment >= startOfCurrentMonth(today);
+};
+
+const normalizeDueDay = (user) => {
+  const dueDay = Number(user?.billing_due_day || user?.due_day || BILLING_DEFAULT_DUE_DAY);
+  if (!Number.isFinite(dueDay)) return BILLING_DEFAULT_DUE_DAY;
+  return Math.min(28, Math.max(1, Math.trunc(dueDay)));
+};
+
+const computeNextDueDate = (dueDay = BILLING_DEFAULT_DUE_DAY, baseDate = new Date()) => {
+  const normalizedDueDay = Math.min(28, Math.max(1, Number(dueDay) || BILLING_DEFAULT_DUE_DAY));
+  const candidate = new Date(
+    baseDate.getFullYear(),
+    baseDate.getMonth(),
+    normalizedDueDay,
+    0,
+    0,
+    0,
+    0,
+  );
+  if (candidate <= baseDate) {
+    candidate.setMonth(candidate.getMonth() + 1);
+  }
+  return formatDateOnly(candidate);
+};
+
+const isFinanceOperationalUser = (user) => {
+  if (!user?.id) return false;
+  if (isOwnerEmail(user?.email)) return false;
+  if (String(user?.role || "").toLowerCase() === "admin") return false;
+  return true;
+};
+
+const getFinanceStatus = (user, today = new Date()) => {
+  if (isTrialActive(user, today)) return "trial";
+  if (String(user?.subscription_status || "").toLowerCase() === "inactive") return "blocked";
+  if (hasPaidCurrentMonth(user, today) || String(user?.billing_status || "").toLowerCase() === "paid") {
+    return "paid";
+  }
+  const dueDay = normalizeDueDay(user);
+  const currentDay = today.getDate();
+  if (currentDay === dueDay) return "due_today";
+  if (currentDay > BILLING_OVERDUE_DAY) return "overdue";
+  return "pending";
+};
+
+const getOverdueDays = (user, today = new Date()) => {
+  if (getFinanceStatus(user, today) !== "overdue") return 0;
+  return Math.max(0, today.getDate() - BILLING_OVERDUE_DAY);
+};
 
 const AUTH_CACHE_TTL_MS = 60 * 1000;
 const authCache = new Map();
@@ -1062,6 +1156,175 @@ app.get("/admin/users", async (req, res) => {
   } catch (err) {
     console.error("Erro inesperado em GET /admin/users:", err);
     return res.status(500).json({ error: "Erro interno ao listar usuários." });
+  }
+});
+
+const FINANCE_SELECT_COLUMNS = [
+  "id",
+  "name",
+  "email",
+  "username",
+  "whatsapp",
+  "role",
+  "plan_type",
+  "affiliate_id",
+  "affiliate_code",
+  "billing_status",
+  "billing_due_day",
+  "billing_last_paid_at",
+  "billing_next_due",
+  "subscription_status",
+  "last_paid_at",
+  "due_day",
+  "trial_start_at",
+  "trial_end_at",
+  "trial_status",
+  "created_at",
+].join(", ");
+
+const listFinanceUsersBase = async () => {
+  const { data, error } = await supabase.from("profiles").select(FINANCE_SELECT_COLUMNS);
+  if (error) throw error;
+  return data || [];
+};
+
+const normalizeFinanceUser = (user, affiliateNameById, today = new Date()) => {
+  const financeStatus = getFinanceStatus(user, today);
+  const planMonthlyValue = getPlanMonthlyValue(user?.plan_type);
+  const dueDay = normalizeDueDay(user);
+  const nextDue = user?.billing_next_due || computeNextDueDate(dueDay, today);
+
+  return {
+    id: user.id,
+    name: user.name || user.username || "Sem nome",
+    email: user.email || user.username || "",
+    whatsapp: user.whatsapp || "",
+    plan_type: user.plan_type || USER_PLAN_TYPES.NORMAL,
+    affiliate_id: user.affiliate_id || null,
+    affiliate_code: user.affiliate_code || null,
+    affiliate_name: affiliateNameById?.[user.affiliate_id] || null,
+    billing_status: user.billing_status || "pending",
+    billing_due_day: dueDay,
+    billing_last_paid_at: user.billing_last_paid_at || user.last_paid_at || null,
+    billing_next_date: nextDue,
+    billing_next_due: nextDue,
+    subscription_status: user.subscription_status || "active",
+    last_paid_at: user.last_paid_at || user.billing_last_paid_at || null,
+    finance_status: financeStatus,
+    status_financeiro: financeStatus,
+    status_acesso: user.subscription_status || "active",
+    plan_monthly_value: planMonthlyValue,
+    estimated_monthly_value: planMonthlyValue,
+    overdue_days: getOverdueDays(user, today),
+    is_trial_active: isTrialActive(user, today),
+  };
+};
+
+app.get("/admin/finance/summary", async (req, res) => {
+  try {
+    const authData = await authenticateRequest(req, res, { requireAdmin: true });
+    if (!authData) return;
+
+    const today = new Date();
+    const monthStart = startOfCurrentMonth(today);
+    const users = await listFinanceUsersBase();
+    const operationalUsers = users.filter((user) => isFinanceOperationalUser(user));
+    const billableUsers = operationalUsers.filter((user) => !isTrialActive(user, today));
+    const normalized = billableUsers.map((user) => normalizeFinanceUser(user, {}, today));
+
+    const totalReceivedMonth = normalized.reduce((sum, user) => {
+      const lastPayment = parseDateSafe(user.last_paid_at);
+      if (!lastPayment || lastPayment < monthStart) return sum;
+      return sum + user.plan_monthly_value;
+    }, 0);
+
+    const totalPending = normalized
+      .filter((user) => user.finance_status === "pending" || user.finance_status === "due_today")
+      .reduce((sum, user) => sum + user.plan_monthly_value, 0);
+    const totalOverdue = normalized
+      .filter((user) => user.finance_status === "overdue")
+      .reduce((sum, user) => sum + user.plan_monthly_value, 0);
+
+    return res.json({
+      totalReceivedMonth,
+      totalPending,
+      totalOverdue,
+      paidUsers: normalized.filter((user) => user.finance_status === "paid").length,
+      usersDueToday: normalized.filter((user) => user.finance_status === "due_today").length,
+      usersOverdue: normalized.filter((user) => user.finance_status === "overdue").length,
+      usersBlocked: normalized.filter((user) => user.status_acesso === "inactive").length,
+      estimatedMonthlyRevenue: normalized.reduce((sum, user) => sum + user.plan_monthly_value, 0),
+    });
+  } catch (err) {
+    console.error("Erro inesperado em GET /admin/finance/summary:", err);
+    return res.status(500).json({ error: "Erro ao carregar resumo financeiro." });
+  }
+});
+
+app.get("/admin/finance/users", async (req, res) => {
+  try {
+    const authData = await authenticateRequest(req, res, { requireAdmin: true });
+    if (!authData) return;
+
+    const { search = "", status = "todos", plan = "", affiliateId = "", sort = "name" } = req.query || {};
+    const today = new Date();
+    const users = await listFinanceUsersBase();
+    const { data: affiliates } = await supabase.from("affiliates").select("id,name,code");
+    const affiliateNameById = (affiliates || []).reduce((acc, affiliate) => {
+      acc[affiliate.id] = affiliate.name || affiliate.code || "Afiliado";
+      return acc;
+    }, {});
+
+    let normalized = users
+      .filter((user) => isFinanceOperationalUser(user))
+      .map((user) => normalizeFinanceUser(user, affiliateNameById, today));
+
+    const normalizedSearch = String(search || "").trim().toLowerCase();
+    if (normalizedSearch) {
+      normalized = normalized.filter((user) =>
+        [user.name, user.email, user.whatsapp]
+          .filter(Boolean)
+          .some((field) => String(field).toLowerCase().includes(normalizedSearch)),
+      );
+    }
+
+    if (plan) {
+      normalized = normalized.filter(
+        (user) => String(user.plan_type || "").toLowerCase() === String(plan).toLowerCase(),
+      );
+    }
+
+    if (affiliateId) {
+      normalized = normalized.filter((user) => String(user.affiliate_id || "") === String(affiliateId));
+    }
+
+    const statusFilter = String(status || "todos").toLowerCase();
+    if (statusFilter !== "todos") {
+      normalized = normalized.filter((user) => {
+        if (statusFilter === "pagos") return user.finance_status === "paid";
+        if (statusFilter === "pendentes") return user.finance_status === "pending";
+        if (statusFilter === "vencendo hoje") return user.finance_status === "due_today";
+        if (statusFilter === "atrasados") return user.finance_status === "overdue";
+        if (statusFilter === "bloqueados") return user.status_acesso === "inactive";
+        if (statusFilter === "ativos") return user.status_acesso === "active";
+        if (statusFilter === "inativos") return user.status_acesso === "inactive";
+        return true;
+      });
+    }
+
+    const sortBy = String(sort || "name").toLowerCase();
+    normalized.sort((a, b) => {
+      if (sortBy === "due_date") return String(a.billing_next_date).localeCompare(String(b.billing_next_date));
+      if (sortBy === "overdue") return (b.overdue_days || 0) - (a.overdue_days || 0);
+      if (sortBy === "last_payment")
+        return String(b.last_paid_at || "").localeCompare(String(a.last_paid_at || ""));
+      return String(a.name || "").localeCompare(String(b.name || ""));
+    });
+
+    return res.json({ users: normalized });
+  } catch (err) {
+    console.error("Erro inesperado em GET /admin/finance/users:", err);
+    return res.status(500).json({ error: "Erro ao carregar usuários do financeiro." });
   }
 });
 
@@ -3234,34 +3497,115 @@ app.put("/api/food-diary/state", async (req, res) => {
 /**
  * MARCAR COMO PAGO
  */
+const registerFinanceHistory = async ({
+  userId,
+  action,
+  oldValue = null,
+  newValue = null,
+  notes = null,
+  createdBy = null,
+}) => {
+  const payload = {
+    user_id: userId,
+    action,
+    old_value: oldValue,
+    new_value: newValue,
+    notes,
+    created_by: createdBy,
+  };
+
+  const { error } = await supabase.from("finance_history").insert(payload);
+  if (error) {
+    console.warn("Falha ao registrar histórico financeiro:", error.message);
+  }
+};
+
+const getProfileById = async (id) => {
+  const { data, error } = await supabase
+    .from("profiles")
+    .select(
+      "id, email, role, plan_type, billing_due_day, due_day, billing_status, subscription_status, last_paid_at, billing_last_paid_at",
+    )
+    .eq("id", id)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+};
+
+const markUserAsPaid = async (id, actorUserId) => {
+  const user = await getProfileById(id);
+  if (!user?.id) {
+    return { status: 404, body: { error: "Usuário não encontrado." } };
+  }
+  if (isOwnerEmail(user?.email)) {
+    await enforceOwnerProtectionById(id);
+    return { status: 200, body: { success: true } };
+  }
+
+  const now = new Date();
+  const currentIso = now.toISOString();
+  const dueDay = normalizeDueDay(user);
+  const nextDue = computeNextDueDate(dueDay, now);
+  const updatePayload = {
+    last_paid_at: currentIso,
+    billing_last_paid_at: currentIso,
+    billing_status: "paid",
+    subscription_status: "active",
+    billing_next_due: nextDue,
+  };
+
+  const { error } = await supabase.from("profiles").update(updatePayload).eq("id", id);
+  if (error) throw error;
+
+  await registerFinanceHistory({
+    userId: id,
+    action: "mark_paid",
+    oldValue: {
+      billing_status: user.billing_status,
+      subscription_status: user.subscription_status,
+      last_paid_at: user.last_paid_at || user.billing_last_paid_at || null,
+    },
+    newValue: updatePayload,
+    createdBy: actorUserId,
+  });
+
+  return { status: 200, body: { success: true } };
+};
+
+const updateSubscriptionStatus = async (id, subscriptionStatus, actorUserId) => {
+  const user = await getProfileById(id);
+  if (!user?.id) {
+    return { status: 404, body: { error: "Usuário não encontrado." } };
+  }
+  if (isOwnerEmail(user?.email)) {
+    await enforceOwnerProtectionById(id);
+    return { status: 200, body: { success: true } };
+  }
+
+  const { error } = await supabase
+    .from("profiles")
+    .update({ subscription_status: subscriptionStatus })
+    .eq("id", id);
+  if (error) throw error;
+
+  await registerFinanceHistory({
+    userId: id,
+    action: subscriptionStatus === "inactive" ? "block" : "unblock",
+    oldValue: { subscription_status: user.subscription_status },
+    newValue: { subscription_status: subscriptionStatus },
+    createdBy: actorUserId,
+  });
+
+  return { status: 200, body: { success: true } };
+};
+
 app.post("/admin/users/:id/mark-paid", async (req, res) => {
   try {
+    const authData = await authenticateRequest(req, res, { requireAdmin: true });
+    if (!authData) return;
     const { id } = req.params;
-
-    const { data: user, error: userError } = await supabase
-      .from("profiles")
-      .select("role, email")
-      .eq("id", id)
-      .single();
-
-    if (userError) throw userError;
-
-    if (isOwnerEmail(user?.email)) {
-      await enforceOwnerProtectionById(id);
-      return res.json({ success: true });
-    }
-
-    const { error } = await supabase
-      .from("profiles")
-      .update({
-        last_paid_at: new Date().toISOString(),
-        billing_status: "paid",
-      })
-      .eq("id", id);
-
-    if (error) throw error;
-
-    return res.json({ success: true });
+    const result = await markUserAsPaid(id, authData.userId);
+    return res.status(result.status).json(result.body);
   } catch (err) {
     console.error("Erro ao marcar como pago:", err);
     return res.status(500).json({ error: "Erro ao marcar pagamento" });
@@ -3273,31 +3617,11 @@ app.post("/admin/users/:id/mark-paid", async (req, res) => {
  */
 app.post("/admin/users/:id/activate", async (req, res) => {
   try {
+    const authData = await authenticateRequest(req, res, { requireAdmin: true });
+    if (!authData) return;
     const { id } = req.params;
-
-    const { data: user, error: userError } = await supabase
-      .from("profiles")
-      .select("role, email")
-      .eq("id", id)
-      .single();
-
-    if (userError) throw userError;
-
-    if (isOwnerEmail(user?.email)) {
-      await enforceOwnerProtectionById(id);
-      return res.json({ success: true });
-    }
-
-    const { error } = await supabase
-      .from("profiles")
-      .update({
-        subscription_status: "active",
-      })
-      .eq("id", id);
-
-    if (error) throw error;
-
-    return res.json({ success: true });
+    const result = await updateSubscriptionStatus(id, "active", authData.userId);
+    return res.status(result.status).json(result.body);
   } catch (err) {
     console.error("Erro ao ativar usuário:", err);
     return res.status(500).json({ error: "Erro ao ativar usuário" });
@@ -3309,34 +3633,72 @@ app.post("/admin/users/:id/activate", async (req, res) => {
  */
 app.post("/admin/users/:id/deactivate", async (req, res) => {
   try {
+    const authData = await authenticateRequest(req, res, { requireAdmin: true });
+    if (!authData) return;
     const { id } = req.params;
-
-    const { data: user, error: userError } = await supabase
-      .from("profiles")
-      .select("role, email")
-      .eq("id", id)
-      .single();
-
-    if (userError) throw userError;
-
-    if (isOwnerEmail(user?.email)) {
-      await enforceOwnerProtectionById(id);
-      return res.json({ success: true });
-    }
-
-    const { error } = await supabase
-      .from("profiles")
-      .update({
-        subscription_status: "inactive",
-      })
-      .eq("id", id);
-
-    if (error) throw error;
-
-    return res.json({ success: true });
+    const result = await updateSubscriptionStatus(id, "inactive", authData.userId);
+    return res.status(result.status).json(result.body);
   } catch (err) {
     console.error("Erro ao desativar usuário:", err);
     return res.status(500).json({ error: "Erro ao desativar usuário" });
+  }
+});
+
+app.post("/admin/finance/users/:id/mark-paid", async (req, res) => {
+  try {
+    const authData = await authenticateRequest(req, res, { requireAdmin: true });
+    if (!authData) return;
+    const result = await markUserAsPaid(req.params.id, authData.userId);
+    return res.status(result.status).json(result.body);
+  } catch (err) {
+    console.error("Erro em POST /admin/finance/users/:id/mark-paid:", err);
+    return res.status(500).json({ error: "Erro ao marcar usuário como pago." });
+  }
+});
+
+app.post("/admin/finance/users/:id/block", async (req, res) => {
+  try {
+    const authData = await authenticateRequest(req, res, { requireAdmin: true });
+    if (!authData) return;
+    const result = await updateSubscriptionStatus(req.params.id, "inactive", authData.userId);
+    return res.status(result.status).json(result.body);
+  } catch (err) {
+    console.error("Erro em POST /admin/finance/users/:id/block:", err);
+    return res.status(500).json({ error: "Erro ao bloquear usuário." });
+  }
+});
+
+app.post("/admin/finance/users/:id/unblock", async (req, res) => {
+  try {
+    const authData = await authenticateRequest(req, res, { requireAdmin: true });
+    if (!authData) return;
+    const result = await updateSubscriptionStatus(req.params.id, "active", authData.userId);
+    return res.status(result.status).json(result.body);
+  } catch (err) {
+    console.error("Erro em POST /admin/finance/users/:id/unblock:", err);
+    return res.status(500).json({ error: "Erro ao desbloquear usuário." });
+  }
+});
+
+app.get("/admin/finance/users/:id/history", async (req, res) => {
+  try {
+    const authData = await authenticateRequest(req, res, { requireAdmin: true });
+    if (!authData) return;
+
+    const { data, error } = await supabase
+      .from("finance_history")
+      .select("*")
+      .eq("user_id", req.params.id)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      return res.status(400).json({ error: error.message || "Erro ao carregar histórico financeiro." });
+    }
+
+    return res.json({ history: data || [] });
+  } catch (err) {
+    console.error("Erro em GET /admin/finance/users/:id/history:", err);
+    return res.status(500).json({ error: "Erro ao carregar histórico financeiro." });
   }
 });
 
