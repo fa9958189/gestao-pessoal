@@ -843,27 +843,24 @@ const FinanceTable = ({ items, affiliateNameById, onMarkPaid, onBlock, onUnblock
                   >
                     💰
                   </button>
-                  {isBlocked ? (
-                    <button
-                      type="button"
-                      className="finance-action-btn finance-action-unblock"
-                      title="Desbloquear usuário"
-                      aria-label="Desbloquear usuário"
-                      onClick={() => onUnblock(user.id)}
-                    >
-                      🔓
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      className="finance-action-btn finance-action-block"
-                      title="Bloquear usuário"
-                      aria-label="Bloquear usuário"
-                      onClick={() => onBlock(user.id)}
-                    >
-                      🚫
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    className="finance-action-btn finance-action-block"
+                    title="Bloquear usuário"
+                    aria-label="Bloquear usuário"
+                    onClick={() => onBlock(user.id)}
+                  >
+                    🚫
+                  </button>
+                  <button
+                    type="button"
+                    className="finance-action-btn finance-action-unblock"
+                    title="Desbloquear usuário"
+                    aria-label="Desbloquear usuário"
+                    onClick={() => onUnblock(user.id)}
+                  >
+                    🔓
+                  </button>
                   <button
                     type="button"
                     className="finance-action-btn finance-action-charge"
