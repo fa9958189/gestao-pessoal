@@ -775,7 +775,13 @@ const FinanceHistoryModal = ({ user, history, onClose }) => {
   );
 };
 
-const FinanceTable = ({ items, affiliateNameById, onMarkPaid, onBlock, onUnblock, onHistory }) => (
+const FinanceTable = ({ items, affiliateNameById, onMarkPaid, onBlock, onUnblock, onHistory }) => {
+  const chargeUser = (message, phone) => {
+    const whatsappLink = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
+    window.open(whatsappLink, '_blank', 'noopener,noreferrer');
+  };
+
+  return (
   <div className="events-table-container finance-table-scroll">
     <table className="finance-table">
       <thead>
@@ -807,8 +813,8 @@ const FinanceTable = ({ items, affiliateNameById, onMarkPaid, onBlock, onUnblock
             ? `Olá, ${user.name}! Identificamos que sua mensalidade do Gestão Pessoal está em atraso.\nVencimento: dia ${dueDay}.\nPara evitar bloqueio do acesso, pedimos a regularização o quanto antes.\nSe já pagou, desconsidere esta mensagem.`
             : `Olá, ${user.name}! Passando para lembrar que a mensalidade do Gestão Pessoal está em aberto.\nVencimento: dia ${dueDay}.\nCaso já tenha realizado o pagamento, por favor desconsidere esta mensagem.\nSe precisar de suporte, estou à disposição.`;
           const phone = String(user.whatsapp || '').replace(/\D/g, '');
-          const whatsappLink = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
-          const isInactive = user.status_acesso === 'inactive';
+          const isBlocked = (user.access || user.status_acesso) === 'blocked' || user.status_acesso === 'inactive';
+          const isInactive = isBlocked;
 
           return (
             <tr key={user.id}>
@@ -826,14 +832,12 @@ const FinanceTable = ({ items, affiliateNameById, onMarkPaid, onBlock, onUnblock
               <td>
                 <div className="finance-actions">
                   <button type="button" title="Marcar como pago" onClick={() => onMarkPaid(user.id)}>💰</button>
-                  <button
-                    type="button"
-                    title={isInactive ? 'Desbloquear' : 'Bloquear'}
-                    onClick={() => (isInactive ? onUnblock(user.id) : onBlock(user.id))}
-                  >
-                    {isInactive ? '🔓' : '🚫'}
-                  </button>
-                  <a href={whatsappLink} target="_blank" rel="noreferrer" title="Cobrar">📲</a>
+                  {isBlocked ? (
+                    <button type="button" title="Desbloquear usuário" onClick={() => onUnblock(user.id)}>🔓</button>
+                  ) : (
+                    <button type="button" title="Bloquear usuário" onClick={() => onBlock(user.id)}>🚫</button>
+                  )}
+                  <button type="button" title="Cobrar no WhatsApp" onClick={() => chargeUser(message, phone)}>📲</button>
                   <button type="button" title="Ver histórico" onClick={() => onHistory(user)}>🕘</button>
                 </div>
               </td>
@@ -844,6 +848,7 @@ const FinanceTable = ({ items, affiliateNameById, onMarkPaid, onBlock, onUnblock
     </table>
   </div>
 );
+};
 
 
 const AffiliateCards = ({
@@ -2504,6 +2509,10 @@ function App() {
     await loadFinanceData();
   };
 
+  const unblockUser = async (id) => {
+    await runFinanceAction(`/admin/finance/users/${id}/unblock`, 'Usuário desbloqueado com sucesso.');
+  };
+
   const openFinanceHistory = async (user) => {
     const accessToken = await getAccessToken();
     const response = await fetch(`${workoutApiBase}/admin/finance/users/${user.id}/history`, {
@@ -3999,7 +4008,7 @@ function App() {
               affiliateNameById={affiliateNameById}
               onMarkPaid={(id) => runFinanceAction(`/admin/finance/users/${id}/mark-paid`, 'Pagamento registrado com sucesso.').catch((err) => pushToast(err.message, 'danger'))}
               onBlock={(id) => runFinanceAction(`/admin/finance/users/${id}/block`, 'Usuário bloqueado com sucesso.').catch((err) => pushToast(err.message, 'danger'))}
-              onUnblock={(id) => runFinanceAction(`/admin/finance/users/${id}/unblock`, 'Usuário desbloqueado com sucesso.').catch((err) => pushToast(err.message, 'danger'))}
+              onUnblock={(id) => unblockUser(id).catch((err) => pushToast(err.message, 'danger'))}
               onHistory={(user) => openFinanceHistory(user).catch((err) => pushToast(err.message, 'danger'))}
             />
           </section>

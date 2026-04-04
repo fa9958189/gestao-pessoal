@@ -1209,6 +1209,7 @@ const normalizeFinanceUser = (user, affiliateNameById, today = new Date()) => {
     billing_next_date: nextDue,
     billing_next_due: nextDue,
     subscription_status: user.subscription_status || "active",
+    access: user.subscription_status || "active",
     last_paid_at: user.last_paid_at || user.billing_last_paid_at || null,
     finance_status: financeStatus,
     status_financeiro: financeStatus,
