@@ -1029,10 +1029,16 @@ app.get("/admin/users", async (req, res) => {
     if (!authData) return;
     await enforceOwnerProtectionByEmail();
 
-    const { data: users, error } = await supabase
+    let query = supabase
       .from("profiles")
       .select("*")
       .order("created_at", { ascending: false });
+
+    if (req.query.affiliate_id) {
+      query = query.eq("affiliate_id", req.query.affiliate_id);
+    }
+
+    const { data: users, error } = await query;
 
     if (error) {
       console.error("Erro ao listar usuários em GET /admin/users:", error);

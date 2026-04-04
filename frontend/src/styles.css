@@ -3073,6 +3073,19 @@ canvas{ background:transparent; }
   overflow-x:hidden;
 }
 
+.affiliate-inline-users{
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255,255,255,0.08);
+}
+
+.affiliate-inline-users-list{
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
 .affiliate-modal-total{
   margin-top:12px;
   display:flex;
