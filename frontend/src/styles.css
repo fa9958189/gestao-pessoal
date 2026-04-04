@@ -1158,61 +1158,60 @@ canvas{ background:transparent; }
 .table-actions button:hover{
   transform:scale(1.1);
 }
-.finance-table-wrapper {
+.finance-table-scroll {
   width: 100%;
-  overflow-x: auto; /* fallback */
+  overflow-x: auto;
+  border-radius: 12px;
 }
 
-.finance-row {
-  display: grid;
-  grid-template-columns:
-    2fr   /* nome */
-    2fr   /* email */
-    1.5fr /* telefone */
-    1fr   /* plano */
-    1fr   /* afiliado */
-    1fr   /* status pagamento */
-    1fr   /* status conta */
-    1.2fr /* data início */
-    1.2fr /* vencimento */
-    1fr   /* valor */
-    1fr   /* dias atraso */
-    1fr   /* ações */;
-  gap: 12px;
-  padding: 14px;
-  align-items: center;
+.finance-table {
+  min-width: 1200px;
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.finance-table th {
+  text-align: left;
+  padding: 12px;
+  font-weight: 600;
+  color: #94a3b8;
   border-bottom: 1px solid #1e293b;
+  white-space: nowrap;
 }
 
-.finance-row > div {
-  min-width: 0;
+.finance-table td {
+  padding: 14px 12px;
+  border-bottom: 1px solid #1e293b;
+  white-space: nowrap;
 }
 
-.finance-row-header {
-  font-weight: 700;
-}
-
-.finance-row:hover {
+.finance-table tr:hover {
   background: rgba(255,255,255,0.02);
-}
-
-@media (max-width: 1200px) {
-  .finance-row {
-    grid-template-columns: 1fr 1fr;
-    row-gap: 8px;
-  }
-}
-
-@media (max-width: 768px) {
-  .finance-row {
-    grid-template-columns: 1fr;
-  }
 }
 
 .finance-actions {
   display: flex;
   gap: 8px;
-  flex-wrap: wrap;
+}
+
+.finance-actions button,
+.finance-actions a {
+  background: transparent;
+  border: 1px solid #1e293b;
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  line-height: 1;
+  text-decoration: none;
+  color: inherit;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.finance-actions button:hover,
+.finance-actions a:hover {
+  background: #0f172a;
 }
 
 .toast{
