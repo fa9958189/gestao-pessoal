@@ -813,7 +813,10 @@ const FinanceTable = ({ items, affiliateNameById, onMarkPaid, onBlock, onUnblock
             ? `Olá, ${user.name}! Identificamos que sua mensalidade do Gestão Pessoal está em atraso.\nVencimento: dia ${dueDay}.\nPara evitar bloqueio do acesso, pedimos a regularização o quanto antes.\nSe já pagou, desconsidere esta mensagem.`
             : `Olá, ${user.name}! Passando para lembrar que a mensalidade do Gestão Pessoal está em aberto.\nVencimento: dia ${dueDay}.\nCaso já tenha realizado o pagamento, por favor desconsidere esta mensagem.\nSe precisar de suporte, estou à disposição.`;
           const phone = String(user.whatsapp || '').replace(/\D/g, '');
-          const isBlocked = (user.access || user.status_acesso) === 'blocked' || user.status_acesso === 'inactive';
+          const isBlocked =
+            user.access === 'Inativo' ||
+            user.status_acesso === 'Inativo' ||
+            user.access === false;
           const isInactive = isBlocked;
 
           return (
