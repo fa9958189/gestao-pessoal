@@ -139,64 +139,72 @@ export default function Supervisor({
 
   if (!canSeeSupervisor) {
     return (
-      <div className="container single-card">
-        <section className="card supervisor-container">
-          <h2 className="title">👁 Supervisor</h2>
-          <p className="muted">Acesso disponível apenas para admin e afiliado.</p>
-        </section>
+      <div className="page-container supervisor-page">
+        <div className="page-content">
+          <div className="card">
+            <div className="card-header">
+              <h2>👁️ Supervisor</h2>
+              <p>Acesso disponível apenas para admin e afiliado.</p>
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="container single-card">
-      <section className="card supervisor-container">
-        <div style={{ marginBottom: 14 }}>
-          <h2 className="title" style={{ marginBottom: 4 }}>👁 Supervisor</h2>
-          <p className="muted">Visualização de usuários com escopo por perfil.</p>
-        </div>
+    <div className="page-container supervisor-page">
+      <div className="page-content">
+        <div className="card">
+          <div className="card-header">
+            <h2>👁️ Supervisor</h2>
+            <p>Visualização de usuários com escopo por perfil.</p>
+          </div>
 
-        <div className="supervisor-table scroll-x">
-          <table className="finance-table">
-            <thead>
-              <tr>
-                <th>Nome</th>
-                <th>Email</th>
-                <th>WhatsApp</th>
-                <th>Status</th>
-                <th>Plano</th>
-                <th>Ação</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr>
-                  <td colSpan={6}>Carregando...</td>
-                </tr>
-              ) : visibleUsers.length === 0 ? (
-                <tr>
-                  <td colSpan={6}>Nenhum usuário encontrado.</td>
-                </tr>
-              ) : (
-                visibleUsers.map((user) => (
-                  <tr key={user.id}>
-                    <td>{user.name || '-'}</td>
-                    <td>{user.email || '-'}</td>
-                    <td>{user.whatsapp || '-'}</td>
-                    <td>{formatStatus(user)}</td>
-                    <td>{formatPlan(user.plan_type)}</td>
-                    <td>
-                      <button type="button" className="btn-ui" onClick={() => openUserDetail(user)}>
-                        👁
-                      </button>
-                    </td>
+          <div className="card-body">
+            <div className="supervisor-table scroll-x">
+              <table className="finance-table">
+                <thead>
+                  <tr>
+                    <th>Nome</th>
+                    <th>Email</th>
+                    <th>WhatsApp</th>
+                    <th>Status</th>
+                    <th>Plano</th>
+                    <th>Ação</th>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                </thead>
+                <tbody>
+                  {loading ? (
+                    <tr>
+                      <td colSpan={6}>Carregando...</td>
+                    </tr>
+                  ) : visibleUsers.length === 0 ? (
+                    <tr>
+                      <td colSpan={6}>Nenhum usuário encontrado.</td>
+                    </tr>
+                  ) : (
+                    visibleUsers.map((user) => (
+                      <tr key={user.id}>
+                        <td>{user.name || '-'}</td>
+                        <td>{user.email || '-'}</td>
+                        <td>{user.whatsapp || '-'}</td>
+                        <td>{formatStatus(user)}</td>
+                        <td>{formatPlan(user.plan_type)}</td>
+                        <td>
+                          <button type="button" className="btn-ui" onClick={() => openUserDetail(user)}>
+                            👁
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
-      </section>
+      </div>
 
       {selectedUser && (
         <div className="modal-overlay" onClick={() => setSelectedUser(null)}>
