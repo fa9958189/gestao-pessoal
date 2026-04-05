@@ -1232,9 +1232,27 @@ app.get("/supervisor/users/:id", async (req, res) => {
       return res.status(403).json({ error: "Sem permissão" });
     }
 
-    const [workoutsResult, foodLogsResult, weightHistoryResult] = await Promise.all([
+    const [
+      workoutSessionsResult,
+      workoutScheduleResult,
+      workoutRoutinesResult,
+      foodLogsResult,
+      weightHistoryResult,
+    ] = await Promise.all([
       supabase
-        .from("workouts")
+        .from("workout_sessions")
+        .select("*")
+        .eq("user_id", targetUserId)
+        .order("created_at", { ascending: false })
+        .limit(30),
+      supabase
+        .from("workout_schedule")
+        .select("*")
+        .eq("user_id", targetUserId)
+        .order("created_at", { ascending: false })
+        .limit(30),
+      supabase
+        .from("workout_routines")
         .select("*")
         .eq("user_id", targetUserId)
         .order("created_at", { ascending: false })
@@ -1254,15 +1272,27 @@ app.get("/supervisor/users/:id", async (req, res) => {
         .limit(60),
     ]);
 
-    if (workoutsResult.error || foodLogsResult.error || weightHistoryResult.error) {
-      const firstError = workoutsResult.error || foodLogsResult.error || weightHistoryResult.error;
-      console.error("Erro ao buscar detalhes do supervisor:", firstError);
-      return res.status(400).json({ error: firstError.message });
+    if (workoutSessionsResult.error) {
+      console.error("Erro em workout_sessions do supervisor:", workoutSessionsResult.error);
+    }
+    if (workoutScheduleResult.error) {
+      console.error("Erro em workout_schedule do supervisor:", workoutScheduleResult.error);
+    }
+    if (workoutRoutinesResult.error) {
+      console.error("Erro em workout_routines do supervisor:", workoutRoutinesResult.error);
+    }
+    if (foodLogsResult.error) {
+      console.error("Erro em food_diary_entries do supervisor:", foodLogsResult.error);
+    }
+    if (weightHistoryResult.error) {
+      console.error("Erro em food_weight_history do supervisor:", weightHistoryResult.error);
     }
 
     return res.json({
       profile,
-      workouts: workoutsResult.data || [],
+      workouts: workoutSessionsResult.data || [],
+      workout_schedule: workoutScheduleResult.data || [],
+      workout_routines: workoutRoutinesResult.data || [],
       food_logs: foodLogsResult.data || [],
       weight_history: weightHistoryResult.data || [],
     });
