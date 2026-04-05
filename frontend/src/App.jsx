@@ -782,7 +782,7 @@ const FinanceTable = ({ items, affiliateNameById, onMarkPaid, onBlock, onUnblock
   };
 
   return (
-  <div className="events-table-container finance-table-scroll">
+  <div className="events-table-container finance-table-scroll scroll-container">
     <table className="finance-table">
       <thead>
         <tr>
@@ -836,7 +836,7 @@ const FinanceTable = ({ items, affiliateNameById, onMarkPaid, onBlock, onUnblock
                 <div className="finance-actions">
                   <button
                     type="button"
-                    className="finance-action-btn finance-action-paid"
+                    className="finance-action-btn finance-action-paid botao-pagar"
                     title="Marcar como pago"
                     aria-label="Marcar como pago"
                     onClick={() => onMarkPaid(user.id)}
@@ -845,7 +845,7 @@ const FinanceTable = ({ items, affiliateNameById, onMarkPaid, onBlock, onUnblock
                   </button>
                   <button
                     type="button"
-                    className="finance-action-btn finance-action-block"
+                    className="finance-action-btn finance-action-block botao-bloquear"
                     title="Bloquear usuário"
                     aria-label="Bloquear usuário"
                     onClick={() => onBlock(user.id)}
@@ -854,7 +854,7 @@ const FinanceTable = ({ items, affiliateNameById, onMarkPaid, onBlock, onUnblock
                   </button>
                   <button
                     type="button"
-                    className="finance-action-btn finance-action-unblock"
+                    className="finance-action-btn finance-action-unblock botao-desbloquear"
                     title="Desbloquear usuário"
                     aria-label="Desbloquear usuário"
                     onClick={() => onUnblock(user.id)}
@@ -863,7 +863,7 @@ const FinanceTable = ({ items, affiliateNameById, onMarkPaid, onBlock, onUnblock
                   </button>
                   <button
                     type="button"
-                    className="finance-action-btn finance-action-charge"
+                    className="finance-action-btn finance-action-charge botao-cobrar"
                     title="Cobrar no WhatsApp"
                     aria-label="Cobrar no WhatsApp"
                     onClick={() => chargeUser(message, phone)}
@@ -872,7 +872,7 @@ const FinanceTable = ({ items, affiliateNameById, onMarkPaid, onBlock, onUnblock
                   </button>
                   <button
                     type="button"
-                    className="finance-action-btn finance-action-history"
+                    className="finance-action-btn finance-action-history botao-historico"
                     title="Ver histórico financeiro"
                     aria-label="Ver histórico financeiro"
                     onClick={() => onHistory(user)}
@@ -3997,23 +3997,23 @@ function App() {
 
       {activeView === 'finance' && isAdmin && (
         <div className="container single-card admin-users-container">
-          <section className="card admin-card">
+          <section className="card admin-card finance-container">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
               <div>
-                <h1 className="title" style={{ marginBottom: 4 }}>Financeiro</h1>
+                <h1 className="title" style={{ marginBottom: 4 }}>💰 Financeiro</h1>
                 <p className="muted">Controle operacional financeiro centralizado.</p>
               </div>
             </div>
 
             <div className="financial-summary">
-              <div className="financial-summary-card financial-summary-green">Total recebido: {formatCurrency(financeSummary?.totalReceivedMonth || 0)}</div>
-              <div className="financial-summary-card financial-summary-yellow">Total pendente: {formatCurrency(financeSummary?.totalPending || 0)}</div>
-              <div className="financial-summary-card financial-summary-red">Total atrasado: {formatCurrency(financeSummary?.totalOverdue || 0)}</div>
-              <div className="financial-summary-card">Usuários pagos: {financeSummary?.paidUsers || 0}</div>
-              <div className="financial-summary-card">Vencendo hoje: {financeSummary?.usersDueToday || 0}</div>
-              <div className="financial-summary-card">Atrasados: {financeSummary?.usersOverdue || 0}</div>
-              <div className="financial-summary-card">Bloqueados: {financeSummary?.usersBlocked || 0}</div>
-              <div className="financial-summary-card">Receita estimada: {formatCurrency(financeSummary?.estimatedMonthlyRevenue || 0)}</div>
+              <div className="financial-summary-card card-finance card-success financial-summary-green">Total recebido: {formatCurrency(financeSummary?.totalReceivedMonth || 0)}</div>
+              <div className="financial-summary-card card-finance card-warning financial-summary-yellow">Total pendente: {formatCurrency(financeSummary?.totalPending || 0)}</div>
+              <div className="financial-summary-card card-finance card-danger financial-summary-red">Total atrasado: {formatCurrency(financeSummary?.totalOverdue || 0)}</div>
+              <div className="financial-summary-card card-finance">Usuários pagos: {financeSummary?.paidUsers || 0}</div>
+              <div className="financial-summary-card card-finance">Vencendo hoje: {financeSummary?.usersDueToday || 0}</div>
+              <div className="financial-summary-card card-finance">Atrasados: {financeSummary?.usersOverdue || 0}</div>
+              <div className="financial-summary-card card-finance">Bloqueados: {financeSummary?.usersBlocked || 0}</div>
+              <div className="financial-summary-card card-finance">Receita estimada: {formatCurrency(financeSummary?.estimatedMonthlyRevenue || 0)}</div>
             </div>
 
             <div className="grid grid-2" style={{ marginBottom: 16 }}>
