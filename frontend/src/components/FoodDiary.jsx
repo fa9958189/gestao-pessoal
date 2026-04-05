@@ -161,13 +161,6 @@ const getVariationIndicator = (variation) => {
 };
 
 function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
-  const centeredContainerStyle = {
-    maxWidth: '1200px',
-    margin: '0 auto',
-    width: '100%',
-    padding: '0 16px',
-    boxSizing: 'border-box',
-  };
   const [entriesByDate, setEntriesByDate] = useState({});
   const [goals, setGoals] = useState(defaultGoals);
   const [goalType, setGoalType] = useState('maintain');
@@ -1719,7 +1712,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
         </div>
       )}
 
-      <div style={centeredContainerStyle}>
+      <div className="content-wrapper">
         <div
           style={{
             display: 'flex',

@@ -105,7 +105,7 @@ a:hover{ text-decoration:underline; }
 .main-content{
   margin-left:240px;
   min-height:100vh;
-  padding:20px;
+  padding:20px 0;
   width:calc(100% - 240px);
 }
 
@@ -191,10 +191,19 @@ h2.title, h3.title{ margin:0 0 10px; font-weight:600; }
   font-size:13px;
 }
 
+.container,
+.container-page,
+.page-container,
+.app-content,
+.dashboard-content{
+  width:100%;
+  min-width:0;
+}
+
 .container{
-  max-width:1200px;
+  max-width:none;
   margin:20px auto;
-  padding:0 16px;
+  padding:0;
   display:grid;
   grid-template-columns:1fr;
   grid-template-areas:
@@ -212,13 +221,13 @@ h2.title, h3.title{ margin:0 0 10px; font-weight:600; }
 
 .container.single-card{
   width:100%;
-  max-width:1100px;
+  max-width:none;
   margin:0 auto;
-  padding:0 16px;
+  padding:0;
   box-sizing:border-box;
   grid-template-columns:1fr;
   grid-template-areas:"main";
-  justify-items:center;
+  justify-items:stretch;
 }
 
 .container.single-card > .admin-card{
@@ -232,32 +241,36 @@ h2.title, h3.title{ margin:0 0 10px; font-weight:600; }
 .page-container {
   width: 100%;
   display: flex;
-  justify-content: center;
+  min-width: 0;
 }
 
-.page-content {
+.page-content,
+.module-container,
+.content-wrapper,
+.container.single-card{
   width: 100%;
-  max-width: 1600px;
+  max-width: none;
+  min-width: 0;
   margin: 0 auto;
-  padding: 0 40px;
+  padding-left: 24px;
+  padding-right: 24px;
+  box-sizing: border-box;
 }
 
-@media (min-width: 1800px) {
-  .page-content {
-    max-width: 1800px;
-  }
-}
-
-@media (min-width: 2200px) {
-  .page-content {
-    max-width: 2000px;
+@media (min-width: 1400px) {
+  .page-content,
+  .module-container,
+  .content-wrapper,
+  .container.single-card{
+    padding-left: 32px;
+    padding-right: 32px;
   }
 }
 
 .card-container {
   width: 100%;
-  max-width: 1200px;
-  padding: 0 16px;
+  max-width: none;
+  padding: 0;
   box-sizing: border-box;
 }
 
@@ -305,6 +318,10 @@ h2.title, h3.title{ margin:0 0 10px; font-weight:600; }
 
 .card-ui,
 .card-padrao{
+  width:100%;
+  max-width:none;
+  min-width:0;
+  box-sizing:border-box;
   background: linear-gradient(145deg, #0f172a, #020617);
   border: 1px solid rgba(59,130,246,0.25);
   border-radius: 16px;
@@ -329,9 +346,18 @@ h2.title, h3.title{ margin:0 0 10px; font-weight:600; }
   flex:1 1 160px;
 }
 .admin-users-container{
-  max-width:1200px;
+  max-width:none;
   margin-left:auto;
   margin-right:auto;
+}
+
+.section-card,
+.module-card,
+.dashboard-card{
+  width:100%;
+  max-width:none;
+  min-width:0;
+  box-sizing:border-box;
 }
 
 .admin-user-form-card{
@@ -1536,13 +1562,13 @@ canvas{ background:transparent; }
   width: 100%;
   max-width: 100%;
   margin: 0;
-  padding: 0 16px;
+  padding: 0 24px;
 }
 
 .container.single-card.workout-page-container > .workout-page-card {
   width: 100%;
-  max-width: 1200px;
-  margin: 0 auto;
+  max-width: none;
+  margin: 0;
 }
 
 /* em telas grandes: Rotina de Treino + Semana de Treino lado a lado */
@@ -1555,6 +1581,10 @@ canvas{ background:transparent; }
 
 /* já existia – continua igual, só fica depois */
 @media (max-width: 768px) {
+  .container.single-card.workout-page-container {
+    padding: 0 12px;
+  }
+
   .workout-card .row {
     flex-wrap: wrap;
   }
