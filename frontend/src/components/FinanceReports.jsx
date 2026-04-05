@@ -157,7 +157,7 @@ export default function FinanceReports({ formatCurrency, apiBase, getAccessToken
         <p className="muted" style={{ marginTop: 10 }}>
           {formatCurrency(faturamentoAtual)} / {formatCurrency(META)}
         </p>
-      </div>
+      </section>
 
       <div className="reports-grid">
         <section className="card card-finance report-chart-card">
