@@ -1191,6 +1191,40 @@ canvas{ background:transparent; }
   background: rgba(59, 130, 246, 0.08);
 }
 
+.supervisor-container {
+  background: linear-gradient(180deg, #0b1220, #0f172a);
+  border: 1px solid rgba(59,130,246,0.25);
+  border-radius: 20px;
+  padding: 24px;
+}
+
+.supervisor-table {
+  background: linear-gradient(180deg, #0b1220, #0f172a);
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid rgba(59, 130, 246, 0.2);
+}
+
+.supervisor-table tr:hover {
+  background: rgba(59,130,246,0.08);
+}
+
+.scroll-x {
+  overflow-x: auto;
+}
+
+.user-detail {
+  background: linear-gradient(180deg, #0b1220, #0f172a);
+  border-radius: 16px;
+  padding: 20px;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 16px;
+}
+
 .finance-actions {
   display: flex;
   gap: 8px;

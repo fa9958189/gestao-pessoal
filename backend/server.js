@@ -922,7 +922,7 @@ const authenticateRequest = async (req, res, { requireAdmin = false } = {}) => {
   try {
     const { data: requesterProfile, error: profileError } = await supabase
       .from("profiles")
-      .select("role, billing_status")
+      .select("role, billing_status, affiliate_id")
       .eq("id", requesterId)
       .maybeSingle();
 
@@ -1049,7 +1049,7 @@ const fetchProfileWithBilling = async (userId) => {
   const { data: profileAuth, error: profileAuthError } = await supabase
     .from("profiles")
     .select(
-      "id, name, email, role, billing_status, subscription_status, trial_end_at, trial_start_at, trial_status"
+      "id, name, email, role, billing_status, subscription_status, trial_end_at, trial_start_at, trial_status, affiliate_id"
     )
     .eq("id", userId)
     .maybeSingle();
@@ -1062,7 +1062,9 @@ const fetchProfileWithBilling = async (userId) => {
 
   const { data: profileData, error: profileError } = await supabase
     .from("profiles")
-    .select("id, name, email, role, billing_status, subscription_status, trial_end_at, trial_start_at, trial_status")
+    .select(
+      "id, name, email, role, billing_status, subscription_status, trial_end_at, trial_start_at, trial_status, affiliate_id"
+    )
     .eq("id", userId)
     .maybeSingle();
 
@@ -1156,6 +1158,117 @@ app.get("/admin/users", async (req, res) => {
   } catch (err) {
     console.error("Erro inesperado em GET /admin/users:", err);
     return res.status(500).json({ error: "Erro interno ao listar usuários." });
+  }
+});
+
+app.get("/supervisor/users", async (req, res) => {
+  try {
+    const authData = await authenticateRequest(req, res, { requireAdmin: false });
+    if (!authData) return;
+
+    const requesterRole = String(authData?.profile?.role || "").toLowerCase();
+    const requesterId = authData?.userId;
+
+    if (requesterRole !== "admin" && requesterRole !== "affiliate") {
+      return res.status(403).json({ error: "Sem permissão" });
+    }
+
+    let query = supabase
+      .from("profiles")
+      .select("id, name, email, whatsapp, billing_status, subscription_status, plan_type, affiliate_id")
+      .order("created_at", { ascending: false });
+
+    if (requesterRole !== "admin") {
+      query = query.eq("affiliate_id", requesterId);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error("Erro ao listar usuários em GET /supervisor/users:", error);
+      return res.status(400).json({ error: error.message });
+    }
+
+    return res.json(data || []);
+  } catch (err) {
+    console.error("Erro inesperado em GET /supervisor/users:", err);
+    return res.status(500).json({ error: "Erro interno ao listar usuários do supervisor." });
+  }
+});
+
+app.get("/supervisor/users/:id", async (req, res) => {
+  try {
+    const authData = await authenticateRequest(req, res, { requireAdmin: false });
+    if (!authData) return;
+
+    const requesterRole = String(authData?.profile?.role || "").toLowerCase();
+    const requesterId = authData?.userId;
+    const { id: targetUserId } = req.params;
+
+    if (!targetUserId) {
+      return res.status(400).json({ error: "id é obrigatório" });
+    }
+
+    if (requesterRole !== "admin" && requesterRole !== "affiliate") {
+      return res.status(403).json({ error: "Sem permissão" });
+    }
+
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("id, name, email, whatsapp, billing_status, subscription_status, plan_type, affiliate_id")
+      .eq("id", targetUserId)
+      .maybeSingle();
+
+    if (profileError) {
+      console.error("Erro ao buscar perfil em GET /supervisor/users/:id:", profileError);
+      return res.status(400).json({ error: profileError.message });
+    }
+
+    if (!profile) {
+      return res.status(404).json({ error: "Usuário não encontrado" });
+    }
+
+    if (requesterRole !== "admin" && profile.affiliate_id !== requesterId) {
+      return res.status(403).json({ error: "Sem permissão" });
+    }
+
+    const [workoutsResult, foodLogsResult, weightHistoryResult] = await Promise.all([
+      supabase
+        .from("workouts")
+        .select("*")
+        .eq("user_id", targetUserId)
+        .order("created_at", { ascending: false })
+        .limit(30),
+      supabase
+        .from("food_diary_entries")
+        .select("*")
+        .eq("user_id", targetUserId)
+        .order("entry_date", { ascending: false })
+        .order("created_at", { ascending: false })
+        .limit(30),
+      supabase
+        .from("food_weight_history")
+        .select("*")
+        .eq("user_id", targetUserId)
+        .order("entry_date", { ascending: false })
+        .limit(60),
+    ]);
+
+    if (workoutsResult.error || foodLogsResult.error || weightHistoryResult.error) {
+      const firstError = workoutsResult.error || foodLogsResult.error || weightHistoryResult.error;
+      console.error("Erro ao buscar detalhes do supervisor:", firstError);
+      return res.status(400).json({ error: firstError.message });
+    }
+
+    return res.json({
+      profile,
+      workouts: workoutsResult.data || [],
+      food_logs: foodLogsResult.data || [],
+      weight_history: weightHistoryResult.data || [],
+    });
+  } catch (err) {
+    console.error("Erro inesperado em GET /supervisor/users/:id:", err);
+    return res.status(500).json({ error: "Erro interno ao buscar detalhes do usuário." });
   }
 });
 

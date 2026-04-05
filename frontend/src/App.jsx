@@ -6,6 +6,7 @@ import FinanceReports from './components/FinanceReports.jsx';
 import './styles.css';
 import { loadGoals } from './services/foodDiaryProfile';
 import Agenda from './pages/Agenda';
+import Supervisor from './pages/Supervisor';
 
 const currencyFormatter = new Intl.NumberFormat('pt-BR', {
   style: 'currency',
@@ -1908,6 +1909,7 @@ function App() {
 
   const currentUserRole = profile?.role || session?.user?.role || 'user';
   const isAdmin = currentUserRole === 'admin';
+  const isAffiliate = currentUserRole === 'affiliate';
 
   const affiliateRef = useMemo(() => {
     try {
@@ -2330,10 +2332,15 @@ function App() {
   }, [client, session?.user?.id]);
 
   useEffect(() => {
-    if (!isAdmin && (activeView === 'users' || activeView === 'affiliates')) {
+    if (!isAdmin && (activeView === 'users' || activeView === 'affiliates' || activeView === 'finance')) {
+      setActiveView('transactions');
+      return;
+    }
+
+    if (!isAdmin && !isAffiliate && activeView === 'supervisor') {
       setActiveView('transactions');
     }
-  }, [isAdmin, activeView]);
+  }, [isAdmin, isAffiliate, activeView]);
 
   useEffect(() => {
     if ((activeView === 'affiliates' || activeView === 'users') && isAdmin) {
@@ -3389,6 +3396,9 @@ function App() {
           { key: 'affiliates', label: '🤝 Afiliados' },
         ]
       : []),
+    ...((isAdmin || isAffiliate)
+      ? [{ key: 'supervisor', label: '👁 Supervisor' }]
+      : []),
     { key: 'workout', label: '🏋️ Treino' },
     { key: 'foodDiary', label: '🍽 Alimentação' },
     { key: 'generalReport', label: '📊 Relatório Geral' },
@@ -4082,6 +4092,17 @@ function App() {
             )}
           </section>
         </div>
+      )}
+
+      {activeView === 'supervisor' && (isAdmin || isAffiliate) && (
+        <Supervisor
+          apiBase={workoutApiBase}
+          getAccessToken={getAccessToken}
+          role={currentUserRole}
+          currentUserId={session?.user?.id}
+          currentAffiliateId={profileDetails?.affiliate_id || profile?.affiliate_id || null}
+          pushToast={pushToast}
+        />
       )}
 
       {activeView === 'affiliates' && isAdmin && (
