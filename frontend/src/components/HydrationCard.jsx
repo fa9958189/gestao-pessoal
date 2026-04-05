@@ -93,6 +93,23 @@ function HydrationCard({ userId, supabase, notify, selectedDate, onStateChange }
 
   const handleAdd = async (amountMl) => {
     if (!userId) return;
+    const previousState = {
+      totalMl,
+      goalMl,
+      lastEntryId: hydrationLastEntryId,
+    };
+    const optimisticTotalMl = totalMl + amountMl;
+    const optimisticState = {
+      totalMl: optimisticTotalMl,
+      goalMl,
+      lastEntryId: hydrationLastEntryId,
+    };
+
+    setHydrationTotalMl(optimisticTotalMl);
+    if (typeof onStateChange === 'function') {
+      onStateChange(optimisticState);
+    }
+
     try {
       setIsSaving(true);
       const result = await addHydrationEntry({ dayDate: date, amountMl }, supabase);
@@ -111,6 +128,12 @@ function HydrationCard({ userId, supabase, notify, selectedDate, onStateChange }
       }
     } catch (err) {
       console.error('Erro ao salvar água', err);
+      setHydrationTotalMl(previousState.totalMl);
+      setHydrationGoalMl(previousState.goalMl);
+      setHydrationLastEntryId(previousState.lastEntryId);
+      if (typeof onStateChange === 'function') {
+        onStateChange(previousState);
+      }
       if (typeof notify === 'function') {
         notify('Não foi possível salvar a água.', 'error');
       }
