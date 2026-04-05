@@ -3440,3 +3440,26 @@ canvas{ background:transparent; }
     justify-content:flex-end;
   }
 }
+
+.active-tab {
+  box-shadow: 0 0 0 1px rgba(96, 165, 250, 0.25);
+}
+
+.reports-container {
+  display: grid;
+  gap: 20px;
+}
+
+.reports-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 16px;
+}
+
+.report-chart-wide {
+  grid-column: 1 / -1;
+}
+
+.reports-grid .report-chart-card {
+  margin-bottom: 0;
+}
