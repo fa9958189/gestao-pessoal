@@ -1,14 +1,6 @@
 import React, { useMemo, useState } from "react";
 
 export default function Transacoes() {
-  const centeredContainerStyle = {
-    maxWidth: "1200px",
-    margin: "0 auto",
-    width: "100%",
-    padding: "0 16px",
-    boxSizing: "border-box",
-  };
-
   const hoje = new Date().toISOString().split("T")[0];
 
   const [transacoes, setTransacoes] = useState([]);
@@ -71,7 +63,7 @@ export default function Transacoes() {
   }
 
   return (
-    <div style={centeredContainerStyle}>
+    <div className="content-wrapper">
       <div className="card">
         <h2>Transações</h2>
 

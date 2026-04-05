@@ -3460,8 +3460,8 @@ function App() {
         <DashboardHeader apiUrl={window.APP_CONFIG?.supabaseUrl} profile={profile} onLogout={handleLogout} />
 
         {activeView === 'transactions' && (
-        <div className="container single-card">
-          <section className="card dashboard-card">
+        <div className="container single-card app-content">
+          <section className="card dashboard-card module-card">
             <div
               style={{
                 display: 'flex',
@@ -3756,14 +3756,14 @@ function App() {
 
 
       {activeView === 'agenda' && (
-        <div className="container single-card">
+        <div className="container single-card app-content">
           <Agenda />
         </div>
       )}
 
       {activeView === 'users' && isAdmin && (
-        <div className="container single-card admin-users-container">
-          <section className="card admin-card" id="adminUsersSection">
+        <div className="container single-card app-content admin-users-container">
+          <section className="card admin-card module-card" id="adminUsersSection">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
               <div>
                 <h1 className="title" style={{ marginBottom: 4 }}>Cadastro de Usuários</h1>
@@ -4008,8 +4008,8 @@ function App() {
       )}
 
       {activeView === 'finance' && isAdmin && (
-        <div className="container single-card admin-users-container">
-          <section className="card admin-card finance-container">
+        <div className="container single-card app-content admin-users-container">
+          <section className="card admin-card module-card finance-container">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
               <div>
                 <h1 className="title" style={{ marginBottom: 4 }}>💰 Financeiro</h1>
@@ -4106,8 +4106,8 @@ function App() {
       )}
 
       {activeView === 'affiliates' && isAdmin && (
-        <div className="container single-card admin-users-container">
-          <section className="card admin-card" id="adminAffiliatesSection">
+        <div className="container single-card app-content admin-users-container">
+          <section className="card admin-card module-card" id="adminAffiliatesSection">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
               <div>
                 <h2 className="title" style={{ marginBottom: 4 }}>Afiliados</h2>
@@ -4225,16 +4225,16 @@ function App() {
       )}
 
       {activeView === 'workout' && (
-        <div className="container single-card workout-page-container">
-          <section className="card dashboard-card workout-page-card">
+        <div className="container single-card app-content workout-page-container">
+          <section className="card dashboard-card module-card workout-page-card">
             <WorkoutRoutine apiBaseUrl={workoutApiBase} pushToast={pushToast} />
           </section>
         </div>
       )}
 
       {activeView === 'foodDiary' && (
-        <div className="container single-card">
-          <section className="card">
+        <div className="container single-card app-content">
+          <section className="card module-card">
             <FoodDiary
               apiBaseUrl={workoutApiBase}
               supabase={client}
@@ -4247,8 +4247,8 @@ function App() {
       )}
 
       {activeView === 'generalReport' && (
-        <div className="container single-card">
-          <section className="card">
+        <div className="container single-card app-content">
+          <section className="card module-card">
             <GeneralReport
               userId={session?.user?.id}
               supabase={client}
