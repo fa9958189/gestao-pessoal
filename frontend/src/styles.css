@@ -237,7 +237,21 @@ h2.title, h3.title{ margin:0 0 10px; font-weight:600; }
 
 .page-content {
   width: 100%;
-  max-width: 1200px;
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: 0 40px;
+}
+
+@media (min-width: 1800px) {
+  .page-content {
+    max-width: 1800px;
+  }
+}
+
+@media (min-width: 2200px) {
+  .page-content {
+    max-width: 2000px;
+  }
 }
 
 .card-container {
