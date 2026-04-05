@@ -4075,9 +4075,9 @@ function App() {
 
             {financeTab === 'relatorios' && (
               <FinanceReports
-                summary={financeSummary}
-                users={financeUsers}
                 formatCurrency={formatCurrency}
+                apiBase={workoutApiBase}
+                getAccessToken={getAccessToken}
               />
             )}
           </section>

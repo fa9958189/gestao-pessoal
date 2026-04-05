@@ -1329,6 +1329,94 @@ app.get("/admin/finance/users", async (req, res) => {
   }
 });
 
+app.get("/admin/finance/reports", async (req, res) => {
+  try {
+    const authData = await authenticateRequest(req, res, { requireAdmin: true });
+    if (!authData) return;
+
+    const { data: users, error } = await supabase
+      .from("profiles")
+      .select("affiliate_id, subscription_status, billing_next_due");
+
+    if (error) {
+      console.error("Erro ao carregar dados em GET /admin/finance/reports:", error);
+      return res.status(500).json({ error: "Erro ao carregar relatórios financeiros." });
+    }
+
+    const safeUsers = (users || []).filter((user) => isFinanceOperationalUser(user));
+
+    const revenueByAffiliateMap = safeUsers.reduce((acc, user) => {
+      const affiliateId = user?.affiliate_id || null;
+      const key = affiliateId || "__sem_afiliado__";
+      if (!acc[key]) {
+        acc[key] = {
+          affiliate_id: affiliateId,
+          total_users: 0,
+          total_revenue: 0,
+        };
+      }
+      acc[key].total_users += 1;
+      if (String(user?.subscription_status || "").toLowerCase() === "active") {
+        acc[key].total_revenue += 120;
+      }
+      return acc;
+    }, {});
+
+    const usersStatus = safeUsers.reduce(
+      (acc, user) => {
+        if (String(user?.subscription_status || "").toLowerCase() === "active") {
+          acc.paid += 1;
+        } else {
+          acc.pending += 1;
+        }
+        return acc;
+      },
+      { paid: 0, pending: 0 },
+    );
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const overdueCount = safeUsers.filter((user) => {
+      if (String(user?.subscription_status || "").toLowerCase() === "active") return false;
+      const nextBillingDate = parseDateSafe(user?.billing_next_due);
+      if (!nextBillingDate) return false;
+      nextBillingDate.setHours(0, 0, 0, 0);
+      return nextBillingDate < today;
+    }).length;
+
+    const monthlyRevenueMap = safeUsers.reduce((acc, user) => {
+      if (String(user?.subscription_status || "").toLowerCase() !== "active") return acc;
+      const nextBillingDate = parseDateSafe(user?.billing_next_due);
+      if (!nextBillingDate) return acc;
+      const monthDate = new Date(nextBillingDate.getFullYear(), nextBillingDate.getMonth(), 1);
+      const monthKey = formatDateOnly(monthDate);
+      if (!acc[monthKey]) {
+        acc[monthKey] = {
+          month: monthKey,
+          revenue: 0,
+        };
+      }
+      acc[monthKey].revenue += 120;
+      return acc;
+    }, {});
+
+    const monthlyRevenue = Object.values(monthlyRevenueMap).sort((a, b) =>
+      String(a.month).localeCompare(String(b.month)),
+    );
+
+    return res.json({
+      revenueByAffiliate: Object.values(revenueByAffiliateMap),
+      usersStatus,
+      overdueCount,
+      monthlyRevenue,
+    });
+  } catch (err) {
+    console.error("Erro inesperado em GET /admin/finance/reports:", err);
+    return res.status(500).json({ error: "Erro ao carregar relatórios financeiros." });
+  }
+});
+
 app.post("/admin/users/:id/promote-to-affiliate", async (req, res) => {
   try {
     const authData = await authenticateRequest(req, res, { requireAdmin: true });
