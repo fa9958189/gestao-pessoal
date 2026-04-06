@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 
 const formatDate = (value) => {
   if (!value) return '-';
@@ -67,7 +67,7 @@ const filterBySearch = (items, searchTerm, searchableKeys = []) => {
   );
 };
 
-export default function Supervisor({
+function Supervisor({
   apiBase,
   getAccessToken,
   role,
@@ -76,6 +76,7 @@ export default function Supervisor({
   pushToast,
 }) {
   const [users, setUsers] = useState([]);
+  const [lastFetch, setLastFetch] = useState(0);
   const [selectedUser, setSelectedUser] = useState(null);
   const [selectedUserDetail, setSelectedUserDetail] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -89,7 +90,13 @@ export default function Supervisor({
 
   const canSeeSupervisor = isAdmin || isAffiliate;
 
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
+    const now = Date.now();
+
+    if (now - lastFetch < 30000 && users.length > 0) {
+      return;
+    }
+
     if (!canSeeSupervisor || !apiBase) {
       setLoading(false);
       return;
@@ -111,13 +118,14 @@ export default function Supervisor({
 
       const safeUsers = Array.isArray(body) ? body : [];
       setUsers(safeUsers);
+      setLastFetch(now);
     } catch (err) {
       console.warn('Erro em /supervisor/users', err);
       pushToast(err?.message || 'Erro ao carregar usuários do supervisor.', 'danger');
     } finally {
       setLoading(false);
     }
-  };
+  }, [apiBase, canSeeSupervisor, getAccessToken, lastFetch, pushToast, users.length]);
 
   useEffect(() => {
     fetchUsers();
@@ -461,3 +469,5 @@ export default function Supervisor({
     </div>
   );
 }
+
+export default React.memo(Supervisor);
