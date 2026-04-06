@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 
+const SUPERVISOR_USERS_CACHE_KEY = 'supervisor_users';
+
 const formatDate = (value) => {
   if (!value) return '-';
   const parsed = new Date(value);
@@ -76,7 +78,6 @@ function Supervisor({
   pushToast,
 }) {
   const [users, setUsers] = useState([]);
-  const [lastFetch, setLastFetch] = useState(0);
   const [selectedUser, setSelectedUser] = useState(null);
   const [selectedUserDetail, setSelectedUserDetail] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -91,12 +92,6 @@ function Supervisor({
   const canSeeSupervisor = isAdmin || isAffiliate;
 
   const fetchUsers = useCallback(async () => {
-    const now = Date.now();
-
-    if (now - lastFetch < 30000 && users.length > 0) {
-      return;
-    }
-
     if (!canSeeSupervisor || !apiBase) {
       setLoading(false);
       return;
@@ -118,19 +113,46 @@ function Supervisor({
 
       const safeUsers = Array.isArray(body) ? body : [];
       setUsers(safeUsers);
-      setLastFetch(now);
+      localStorage.setItem(SUPERVISOR_USERS_CACHE_KEY, JSON.stringify(safeUsers));
     } catch (err) {
       console.warn('Erro em /supervisor/users', err);
       pushToast(err?.message || 'Erro ao carregar usuários do supervisor.', 'danger');
     } finally {
       setLoading(false);
     }
-  }, [apiBase, canSeeSupervisor, getAccessToken, lastFetch, pushToast, users.length]);
+  }, [apiBase, canSeeSupervisor, getAccessToken, pushToast]);
+
+  useEffect(() => {
+    const cached = localStorage.getItem(SUPERVISOR_USERS_CACHE_KEY);
+
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed)) {
+          setUsers(parsed);
+        }
+      } catch (error) {
+        console.error('Erro ao ler cache', error);
+      }
+    }
+  }, []);
 
   useEffect(() => {
     fetchUsers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    const handleFocus = () => {
+      fetchUsers();
+    };
+
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [fetchUsers]);
 
   const visibleUsers = useMemo(() => {
     if (isAdmin) return users;
@@ -138,29 +160,17 @@ function Supervisor({
     return users.filter((user) => user?.affiliate_id && user.affiliate_id === affiliateReference);
   }, [users, isAdmin, currentAffiliateId, currentUserId]);
 
-  const openUserDetail = async (user) => {
-    if (!user?.id || !apiBase) return;
+  const fetchUserDetails = useCallback(async (id) => {
+    if (!id || !apiBase) return;
 
-    if (!isAdmin) {
-      const affiliateReference = currentAffiliateId || currentUserId;
-      if (!affiliateReference || user.affiliate_id !== affiliateReference) {
-        pushToast('Sem permissão para visualizar este usuário.', 'danger');
-        return;
-      }
-    }
-
-    setSelectedUser(user);
     setLoadingDetail(true);
     setSelectedUserDetail(null);
-    setTab('resumo');
-    setSearch('');
-    setPeriod('semana');
 
     try {
       const token = await getAccessToken();
       if (!token) return;
 
-      const response = await fetch(`${apiBase}/supervisor/user-details/${user.id}`, {
+      const response = await fetch(`${apiBase}/supervisor/user-details/${id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -173,11 +183,28 @@ function Supervisor({
     } catch (err) {
       console.warn('Erro em /supervisor/user-details/:id', err);
       pushToast(err?.message || 'Erro ao carregar detalhes do usuário.', 'danger');
-      setSelectedUser(null);
       setSelectedUserDetail(null);
     } finally {
       setLoadingDetail(false);
     }
+  }, [apiBase, getAccessToken, pushToast]);
+
+  const openUserDetail = (user) => {
+    if (!user?.id || !apiBase) return;
+
+    if (!isAdmin) {
+      const affiliateReference = currentAffiliateId || currentUserId;
+      if (!affiliateReference || user.affiliate_id !== affiliateReference) {
+        pushToast('Sem permissão para visualizar este usuário.', 'danger');
+        return;
+      }
+    }
+
+    setSelectedUser(user);
+    setTab('resumo');
+    setSearch('');
+    setPeriod('semana');
+    fetchUserDetails(user.id);
   };
 
   if (!canSeeSupervisor) {
