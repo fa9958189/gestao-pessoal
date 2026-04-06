@@ -1869,6 +1869,34 @@ app.delete("/admin/users/:userId", async (req, res) => {
   }
 });
 
+app.post("/admin/update-user-password", async (req, res) => {
+  try {
+    const authData = await authenticateRequest(req, res, { requireAdmin: true });
+    if (!authData) return;
+
+    const { userId, newPassword } = req.body || {};
+
+    if (!userId || !newPassword) {
+      return res.status(400).json({ error: "Dados obrigatórios" });
+    }
+
+    const { error } = await supabase.auth.admin.updateUserById(
+      userId,
+      { password: newPassword },
+    );
+
+    if (error) {
+      console.error("Erro Supabase:", error);
+      return res.status(500).json({ error: "Erro ao atualizar senha" });
+    }
+
+    return res.json({ success: true });
+  } catch (err) {
+    console.error("Erro interno:", err);
+    return res.status(500).json({ error: "Erro interno" });
+  }
+});
+
 app.put("/admin/users/:userId", async (req, res) => {
   try {
     const authData = await authenticateRequest(req, res, { requireAdmin: true });

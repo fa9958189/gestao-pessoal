@@ -1947,6 +1947,8 @@ function App() {
   const [eventForm, setEventForm] = useState(defaultEventForm);
   const [userForm, setUserForm] = useState(defaultUserForm);
   const [editUserForm, setEditUserForm] = useState(defaultEditUserForm);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [openUserModal, setOpenUserModal] = useState(false);
   const [step, setStep] = useState(1);
   const [editingUserId, setEditingUserId] = useState(null);
@@ -2733,6 +2735,8 @@ function App() {
   const resetUserWizard = ({ closeModal = false } = {}) => {
     setUserForm(defaultUserForm);
     setEditUserForm(defaultEditUserForm);
+    setNewPassword('');
+    setConfirmPassword('');
     setEditingUserId(null);
     setEditingUserOriginal(null);
     setStep(1);
@@ -2900,6 +2904,34 @@ function App() {
       if (!editUserForm.plan_type) {
         pushToast('Selecione um plano para salvar a edição.', 'warning');
         return;
+      }
+
+      if (newPassword) {
+        if (newPassword !== confirmPassword) {
+          alert('Senhas não conferem');
+          return;
+        }
+
+        const passwordResponse = await fetch(`${workoutApiBase}/admin/update-user-password`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${accessToken}`
+          },
+          body: JSON.stringify({
+            userId: editingUserId,
+            newPassword
+          })
+        });
+
+        const passwordBody = await passwordResponse.json().catch(() => ({}));
+        if (passwordResponse.status === 403) {
+          handleApiForbidden();
+          return;
+        }
+        if (!passwordResponse.ok) {
+          throw new Error(passwordBody.error || 'Erro ao atualizar senha.');
+        }
       }
 
       const response = await fetch(`${workoutApiBase}/admin/users/${editingUserId}`, {
@@ -3825,6 +3857,20 @@ function App() {
                     value={editUserForm.whatsapp}
                     onChange={(e) => setEditUserForm((prev) => ({ ...prev, whatsapp: e.target.value }))}
                     placeholder="WhatsApp"
+                  />
+
+                  <input
+                    type="password"
+                    placeholder="Nova senha (opcional)"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                  />
+
+                  <input
+                    type="password"
+                    placeholder="Confirmar nova senha"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
                   />
 
                   <label>Afiliado</label>
