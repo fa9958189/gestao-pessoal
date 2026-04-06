@@ -3595,6 +3595,19 @@ const normalizeSex = (value) => {
   return null;
 };
 
+const buildAutomaticGoalsFromWeight = (weight) => {
+  const numericWeight = Number(weight);
+  if (!Number.isFinite(numericWeight) || numericWeight <= 0) {
+    return null;
+  }
+
+  return {
+    calories: Math.round(numericWeight * 20),
+    protein: Math.round(numericWeight * 2),
+    water: Number((numericWeight * 0.035).toFixed(2)),
+  };
+};
+
 const handleBodyUpdate = async (req, res) => {
   try {
     const {
@@ -3789,6 +3802,32 @@ const handleBodyUpdate = async (req, res) => {
       return res.status(500).json({ error: profileError.message });
     }
 
+    const { data: authProfile, error: authProfileError } = await supabase
+      .from("profiles_auth")
+      .select("goal_mode, weight")
+      .eq("auth_id", userId)
+      .maybeSingle();
+
+    if (authProfileError) {
+      console.error("Erro ao buscar profiles_auth após salvar corpo:", authProfileError);
+    } else if (authProfile?.goal_mode === "auto") {
+      const automaticGoals = buildAutomaticGoalsFromWeight(authProfile.weight ?? normalizedWeight);
+      if (automaticGoals) {
+        const { error: authUpdateError } = await supabase
+          .from("profiles_auth")
+          .update({
+            goal_calories: automaticGoals.calories,
+            goal_protein: automaticGoals.protein,
+            goal_water: automaticGoals.water,
+          })
+          .eq("auth_id", userId);
+
+        if (authUpdateError) {
+          console.error("Erro ao atualizar metas automáticas em profiles_auth:", authUpdateError);
+        }
+      }
+    }
+
     return res.json({
       success: true,
       goals: {
@@ -3808,6 +3847,90 @@ const handleBodyUpdate = async (req, res) => {
 
 app.post("/body", handleBodyUpdate);
 app.post("/api/body", handleBodyUpdate);
+
+app.put("/goals/manual", async (req, res) => {
+  try {
+    const authData = await authenticateRequest(req, res, { requireAdmin: false });
+    if (!authData) return;
+
+    const userId = authData.userId;
+    const { calories, protein, water } = req.body || {};
+    const parsedCalories = Number(calories);
+    const parsedProtein = Number(protein);
+    const parsedWater = Number(water);
+
+    if (
+      !Number.isFinite(parsedCalories) ||
+      !Number.isFinite(parsedProtein) ||
+      !Number.isFinite(parsedWater)
+    ) {
+      return res.status(400).json({ error: "calories, protein e water são obrigatórios." });
+    }
+
+    const { error } = await supabase
+      .from("profiles_auth")
+      .update({
+        goal_calories: parsedCalories,
+        goal_protein: parsedProtein,
+        goal_water: parsedWater,
+        goal_mode: "manual",
+      })
+      .eq("auth_id", userId);
+
+    if (error) throw error;
+
+    return res.json({ success: true });
+  } catch (err) {
+    console.error("Erro ao atualizar metas manuais:", err);
+    return res.status(500).json({ error: "Erro ao atualizar metas" });
+  }
+});
+
+app.put("/goals/auto", async (req, res) => {
+  try {
+    const authData = await authenticateRequest(req, res, { requireAdmin: false });
+    if (!authData) return;
+
+    const userId = authData.userId;
+
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles_auth")
+      .select("weight")
+      .eq("auth_id", userId)
+      .single();
+
+    if (profileError) throw profileError;
+
+    const automaticGoals = buildAutomaticGoalsFromWeight(profile?.weight);
+    if (!automaticGoals) {
+      return res.status(400).json({ error: "Peso inválido para cálculo automático." });
+    }
+
+    const { error } = await supabase
+      .from("profiles_auth")
+      .update({
+        goal_calories: automaticGoals.calories,
+        goal_protein: automaticGoals.protein,
+        goal_water: automaticGoals.water,
+        goal_mode: "auto",
+      })
+      .eq("auth_id", userId);
+
+    if (error) throw error;
+
+    return res.json({
+      success: true,
+      goals: {
+        calories: automaticGoals.calories,
+        protein: automaticGoals.protein,
+        water: automaticGoals.water,
+      },
+    });
+  } catch (err) {
+    console.error("Erro ao voltar para automático:", err);
+    return res.status(500).json({ error: "Erro ao voltar para automático" });
+  }
+});
 
 app.put("/api/food-diary/state", async (req, res) => {
   try {

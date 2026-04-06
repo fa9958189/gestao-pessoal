@@ -124,6 +124,16 @@ const buildApiUrl = (baseUrl, path) => {
   return `${normalizeBaseUrl(baseUrl)}${safePath}`;
 };
 
+const getAuthHeaders = async (supabaseClient) => {
+  if (!supabaseClient?.auth?.getSession) {
+    return {};
+  }
+
+  const { data } = await supabaseClient.auth.getSession();
+  const accessToken = data?.session?.access_token;
+  return accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
+};
+
 const getVariationIndicator = (variation) => {
   if (!Number.isFinite(variation)) {
     return {
@@ -192,6 +202,13 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
   const [isBodyWizardOpen, setIsBodyWizardOpen] = useState(false);
   const [isDailyWeightModalOpen, setIsDailyWeightModalOpen] = useState(false);
   const [isWeightHistoryModalOpen, setIsWeightHistoryModalOpen] = useState(false);
+  const [isGoalsModalOpen, setIsGoalsModalOpen] = useState(false);
+  const [goalsModalStep, setGoalsModalStep] = useState(1);
+  const [manualGoalsDraft, setManualGoalsDraft] = useState({
+    calories: '',
+    protein: '',
+    water: '',
+  });
   const [bodyWizardStep, setBodyWizardStep] = useState(1);
   const [bodyDraft, setBodyDraft] = useState({
     sex: null,
@@ -1269,6 +1286,110 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
     }
   };
 
+  const openGoalsModal = () => {
+    setManualGoalsDraft({
+      calories: goals?.calories != null ? String(goals.calories) : '',
+      protein: goals?.protein != null ? String(goals.protein) : '',
+      water: goals?.water != null ? String(goals.water) : '',
+    });
+    setGoalsModalStep(1);
+    setIsGoalsModalOpen(true);
+  };
+
+  const handleManualGoalsDraftChange = (field, value) => {
+    if (!isValidDecimalInput(value)) return;
+    setManualGoalsDraft((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleSaveManualGoals = async () => {
+    try {
+      const calories = parseNumberInput(manualGoalsDraft.calories);
+      const protein = parseNumberInput(manualGoalsDraft.protein);
+      const water = parseNumberInput(manualGoalsDraft.water);
+
+      if (!Number.isFinite(calories) || !Number.isFinite(protein) || !Number.isFinite(water)) {
+        throw new Error('Preencha calorias, proteína e água com valores válidos.');
+      }
+
+      const headers = await getAuthHeaders(supabase);
+      const response = await fetch(buildApiUrl(apiBaseUrl, '/goals/manual'), {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          ...headers,
+        },
+        body: JSON.stringify({
+          calories,
+          protein,
+          water,
+        }),
+      });
+
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload?.error || 'Erro ao atualizar metas');
+      }
+
+      setGoals({
+        calories: Number(calories),
+        protein: Number(protein),
+        water: Number(water),
+      });
+      setWaterSummary((prev) => ({
+        ...prev,
+        goalMl: Number(water) * 1000,
+      }));
+      await updateHydrationGoal({ goalLiters: Number(water) }, supabase);
+      setIsGoalsModalOpen(false);
+      if (typeof notify === 'function') {
+        notify('Metas manuais salvas com sucesso.', 'success');
+      }
+    } catch (err) {
+      console.error('Erro ao salvar metas manuais:', err);
+      setError('Não foi possível atualizar metas manuais.');
+      if (typeof notify === 'function') {
+        notify(err?.message || 'Não foi possível atualizar metas manuais.', 'error');
+      }
+    }
+  };
+
+  const setAutoGoals = async () => {
+    try {
+      const headers = await getAuthHeaders(supabase);
+      const response = await fetch(buildApiUrl(apiBaseUrl, '/goals/auto'), {
+        method: 'PUT',
+        headers,
+      });
+
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload?.error || 'Erro ao voltar para automático');
+      }
+
+      const nextGoals = {
+        calories: Number(payload?.goals?.calories ?? goals.calories),
+        protein: Number(payload?.goals?.protein ?? goals.protein),
+        water: Number(payload?.goals?.water ?? goals.water),
+      };
+
+      setGoals(nextGoals);
+      setWaterSummary((prev) => ({
+        ...prev,
+        goalMl: nextGoals.water * 1000,
+      }));
+      await updateHydrationGoal({ goalLiters: nextGoals.water }, supabase);
+      if (typeof notify === 'function') {
+        notify('Metas automáticas reativadas.', 'success');
+      }
+    } catch (err) {
+      console.error('Erro ao voltar metas automáticas:', err);
+      setError('Não foi possível voltar para metas automáticas.');
+      if (typeof notify === 'function') {
+        notify(err?.message || 'Não foi possível voltar para metas automáticas.', 'error');
+      }
+    }
+  };
+
   const openDailyWeightModal = () => {
     setDailyWeightDraft({
       weightKg: body.weightKg || '',
@@ -2094,6 +2215,14 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
 
       {activeSubTab === 'metas' && (
         <div className="goals-container">
+          <div className="goals-actions">
+            <button type="button" className="btn-primary" onClick={openGoalsModal}>
+              ✏️ Editar Metas
+            </button>
+            <button type="button" className="btn-secondary" onClick={setAutoGoals}>
+              🔄 Voltar para automático
+            </button>
+          </div>
           <GoalsSummaryCard />
           <div className="goals-grid">
             <BmiCard />
@@ -2378,6 +2507,92 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
                 type="button"
                 className="ghost"
                 onClick={() => setIsDailyWeightModalOpen(false)}
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isGoalsModalOpen && (
+        <div className="modal-overlay">
+          <div className="report-modal food-goals-wizard-modal">
+            <h2>Editar metas</h2>
+            <p>Passo {goalsModalStep} de 3</p>
+            <div className="progress-bar">
+              <div
+                className="progress-fill"
+                style={{ width: `${(goalsModalStep / 3) * 100}%` }}
+              />
+            </div>
+
+            {goalsModalStep === 1 && (
+              <div className="field">
+                <h3>Calorias</h3>
+                <label>Meta diária (kcal)</label>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={manualGoalsDraft.calories}
+                  onChange={(e) => handleManualGoalsDraftChange('calories', e.target.value)}
+                />
+              </div>
+            )}
+
+            {goalsModalStep === 2 && (
+              <div className="field">
+                <h3>Proteína</h3>
+                <label>Meta diária (g)</label>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={manualGoalsDraft.protein}
+                  onChange={(e) => handleManualGoalsDraftChange('protein', e.target.value)}
+                />
+              </div>
+            )}
+
+            {goalsModalStep === 3 && (
+              <div className="field">
+                <h3>Água</h3>
+                <label>Meta diária (L)</label>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={manualGoalsDraft.water}
+                  onChange={(e) => handleManualGoalsDraftChange('water', e.target.value)}
+                />
+              </div>
+            )}
+
+            <div className="wizard-actions">
+              {goalsModalStep > 1 && (
+                <button
+                  type="button"
+                  className="ghost"
+                  onClick={() => setGoalsModalStep((prev) => prev - 1)}
+                >
+                  ← Voltar
+                </button>
+              )}
+              {goalsModalStep < 3 ? (
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={() => setGoalsModalStep((prev) => prev + 1)}
+                >
+                  Continuar →
+                </button>
+              ) : (
+                <button type="button" className="btn-primary" onClick={handleSaveManualGoals}>
+                  Salvar metas
+                </button>
+              )}
+              <button
+                type="button"
+                className="ghost"
+                onClick={() => setIsGoalsModalOpen(false)}
               >
                 Cancelar
               </button>
