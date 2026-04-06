@@ -1301,6 +1301,55 @@ canvas{ background:transparent; }
   gap: 16px;
 }
 
+.supervisor-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.supervisor-tabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.supervisor-tab-btn {
+  border: 1px solid rgba(59, 130, 246, 0.35);
+}
+
+.supervisor-tab-btn.is-active {
+  border-color: rgba(59, 130, 246, 0.8);
+  box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.5);
+}
+
+.supervisor-toolbar {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.supervisor-search {
+  min-width: 220px;
+  flex: 1;
+}
+
+.supervisor-period {
+  min-width: 130px;
+  max-width: 180px;
+}
+
+.list-container {
+  max-height: 300px;
+  overflow-y: auto;
+  padding-right: 6px;
+}
+
+.separator {
+  border: 0;
+  border-top: 1px solid rgba(59, 130, 246, 0.2);
+  margin: 12px 0;
+}
+
 .finance-actions {
   display: flex;
   gap: 8px;

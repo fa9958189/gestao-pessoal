@@ -1302,6 +1302,91 @@ app.get("/supervisor/users/:id", async (req, res) => {
   }
 });
 
+app.get("/supervisor/user-details/:id", async (req, res) => {
+  try {
+    const authData = await authenticateRequest(req, res, { requireAdmin: false });
+    if (!authData) return;
+
+    const requesterRole = String(authData?.profile?.role || "").toLowerCase();
+    const requesterId = authData?.userId;
+    const { id: targetUserId } = req.params;
+
+    if (!targetUserId) {
+      return res.status(400).json({ error: "id é obrigatório" });
+    }
+
+    if (requesterRole !== "admin" && requesterRole !== "affiliate") {
+      return res.status(403).json({ error: "Sem permissão" });
+    }
+
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("id, affiliate_id")
+      .eq("id", targetUserId)
+      .maybeSingle();
+
+    if (profileError) {
+      console.error("Erro ao validar perfil em GET /supervisor/user-details/:id:", profileError);
+      return res.status(400).json({ error: profileError.message });
+    }
+
+    if (!profile) {
+      return res.status(404).json({ error: "Usuário não encontrado" });
+    }
+
+    if (requesterRole !== "admin" && profile.affiliate_id !== requesterId) {
+      return res.status(403).json({ error: "Sem permissão" });
+    }
+
+    const [workoutsResult, foodLogsResult, weightHistoryResult] = await Promise.all([
+      supabase
+        .from("workout_sessions")
+        .select("*")
+        .eq("user_id", targetUserId)
+        .order("performed_at", { ascending: false })
+        .order("created_at", { ascending: false })
+        .limit(100),
+      supabase
+        .from("food_diary_entries")
+        .select("*")
+        .eq("user_id", targetUserId)
+        .order("entry_date", { ascending: false })
+        .order("created_at", { ascending: false })
+        .limit(100),
+      supabase
+        .from("food_weight_history")
+        .select("*")
+        .eq("user_id", targetUserId)
+        .order("entry_date", { ascending: false })
+        .order("recorded_at", { ascending: false })
+        .limit(100),
+    ]);
+
+    if (workoutsResult.error) {
+      console.error("Erro em workout_sessions do supervisor user-details:", workoutsResult.error);
+    }
+    if (foodLogsResult.error) {
+      console.error("Erro em food_diary_entries do supervisor user-details:", foodLogsResult.error);
+    }
+    if (weightHistoryResult.error) {
+      console.error("Erro em food_weight_history do supervisor user-details:", weightHistoryResult.error);
+    }
+
+    return res.json({
+      treinos: workoutsResult.data || [],
+      alimentacao: foodLogsResult.data || [],
+      peso: weightHistoryResult.data || [],
+    });
+  } catch (err) {
+    console.error("Erro inesperado em GET /supervisor/user-details/:id:", err);
+    return res.status(500).json({
+      treinos: [],
+      alimentacao: [],
+      peso: [],
+    });
+  }
+});
+
 const FINANCE_SELECT_COLUMNS = [
   "id",
   "name",
