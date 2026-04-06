@@ -78,7 +78,7 @@ export default function Supervisor({
   const [users, setUsers] = useState([]);
   const [selectedUser, setSelectedUser] = useState(null);
   const [selectedUserDetail, setSelectedUserDetail] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [tab, setTab] = useState('resumo');
   const [search, setSearch] = useState('');
@@ -89,44 +89,40 @@ export default function Supervisor({
 
   const canSeeSupervisor = isAdmin || isAffiliate;
 
-  useEffect(() => {
-    if (!canSeeSupervisor || !apiBase) return;
+  const fetchUsers = async () => {
+    if (!canSeeSupervisor || !apiBase) {
+      setLoading(false);
+      return;
+    }
 
-    let isMounted = true;
-
-    const fetchUsers = async () => {
+    try {
       setLoading(true);
-      try {
-        const token = await getAccessToken();
-        if (!token) return;
+      const token = await getAccessToken();
+      if (!token) return;
 
-        const response = await fetch(`${apiBase}/supervisor/users`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+      const response = await fetch(`${apiBase}/supervisor/users`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
-        const body = await response.json().catch(() => []);
-        if (!response.ok) {
-          throw new Error(body?.error || 'Erro ao carregar usuários do supervisor.');
-        }
-
-        if (isMounted) {
-          const safeUsers = Array.isArray(body) ? body : [];
-          setUsers(safeUsers);
-        }
-      } catch (err) {
-        console.warn('Erro em /supervisor/users', err);
-        pushToast(err?.message || 'Erro ao carregar usuários do supervisor.', 'danger');
-      } finally {
-        if (isMounted) setLoading(false);
+      const body = await response.json().catch(() => []);
+      if (!response.ok) {
+        throw new Error(body?.error || 'Erro ao carregar usuários do supervisor.');
       }
-    };
 
+      const safeUsers = Array.isArray(body) ? body : [];
+      setUsers(safeUsers);
+    } catch (err) {
+      console.warn('Erro em /supervisor/users', err);
+      pushToast(err?.message || 'Erro ao carregar usuários do supervisor.', 'danger');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchUsers();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [apiBase, canSeeSupervisor, getAccessToken, pushToast]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const visibleUsers = useMemo(() => {
     if (isAdmin) return users;
@@ -300,7 +296,7 @@ export default function Supervisor({
                   </tr>
                 </thead>
                 <tbody>
-                  {loading ? (
+                  {loading && users.length === 0 ? (
                     <tr>
                       <td colSpan={6}>Carregando...</td>
                     </tr>
