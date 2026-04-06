@@ -814,6 +814,7 @@ app.post("/create-user", async (req, res) => {
       trial_status: finalPlanType === USER_PLAN_TYPES.TRIAL ? "trial" : null,
       trial_notified_at: null,
       subscription_status: "active",
+      status_acesso: "ativo",
     });
 
     if (profileError) {
@@ -837,6 +838,7 @@ app.post("/create-user", async (req, res) => {
         trial_status: finalPlanType === USER_PLAN_TYPES.TRIAL ? "trial" : null,
         trial_notified_at: null,
         subscription_status: "active",
+        status_acesso: "ativo",
       });
       await supabase.auth.admin.deleteUser(userId);
       return res.status(500).json({
@@ -864,7 +866,9 @@ const authenticateRequest = async (req, res, { requireAdmin = false } = {}) => {
   if (cachedAuth?.user?.id) {
     logInfo("auth_cache_hit", { userId: cachedAuth.user.id, requireAdmin });
 
-    if (cachedAuth.profile?.billing_status === "inactive") {
+    const cachedRole = String(cachedAuth.profile?.role || "").toLowerCase();
+    const cachedStatusAcesso = String(cachedAuth.profile?.status_acesso || "").toLowerCase();
+    if (cachedRole !== "admin" && cachedStatusAcesso === "bloqueado") {
       res.status(403).json({ error: "Conta inativa" });
       return null;
     }
@@ -922,7 +926,7 @@ const authenticateRequest = async (req, res, { requireAdmin = false } = {}) => {
   try {
     const { data: requesterProfile, error: profileError } = await supabase
       .from("profiles")
-      .select("role, billing_status, affiliate_id")
+      .select("role, billing_status, affiliate_id, status_acesso")
       .eq("id", requesterId)
       .maybeSingle();
 
@@ -940,7 +944,9 @@ const authenticateRequest = async (req, res, { requireAdmin = false } = {}) => {
       throw profileError;
     }
 
-    if (requesterProfile?.billing_status === "inactive") {
+    const requesterRole = String(requesterProfile?.role || "").toLowerCase();
+    const requesterStatusAcesso = String(requesterProfile?.status_acesso || "").toLowerCase();
+    if (requesterRole !== "admin" && requesterStatusAcesso === "bloqueado") {
       res.status(403).json({ error: "Conta inativa" });
       return null;
     }
@@ -1049,7 +1055,7 @@ const fetchProfileWithBilling = async (userId) => {
   const { data: profileAuth, error: profileAuthError } = await supabase
     .from("profiles")
     .select(
-      "id, name, email, role, billing_status, subscription_status, trial_end_at, trial_start_at, trial_status, affiliate_id"
+      "id, name, email, role, billing_status, subscription_status, status_acesso, trial_end_at, trial_start_at, trial_status, affiliate_id"
     )
     .eq("id", userId)
     .maybeSingle();
@@ -1063,7 +1069,7 @@ const fetchProfileWithBilling = async (userId) => {
   const { data: profileData, error: profileError } = await supabase
     .from("profiles")
     .select(
-      "id, name, email, role, billing_status, subscription_status, trial_end_at, trial_start_at, trial_status, affiliate_id"
+      "id, name, email, role, billing_status, subscription_status, status_acesso, trial_end_at, trial_start_at, trial_status, affiliate_id"
     )
     .eq("id", userId)
     .maybeSingle();
@@ -1086,19 +1092,10 @@ app.get("/auth/profile", async (req, res) => {
       return res.status(404).json({ error: "Perfil não encontrado" });
     }
 
-    const billingStatus = profile?.billing_status ?? null;
-    const subscriptionStatus = profile?.subscription_status ?? null;
-    const trialEnd = profile?.trial_end_at || profile?.trialEndAt;
-    const trialActive = Boolean(trialEnd) && Date.now() < new Date(trialEnd).getTime();
-
-    if (billingStatus === "inactive" && !trialActive) {
+    const profileRole = String(profile?.role || "").toLowerCase();
+    const statusAcesso = String(profile?.status_acesso || "").toLowerCase();
+    if (profileRole !== "admin" && statusAcesso === "bloqueado") {
       return res.status(403).json({ error: "Conta inativa" });
-    }
-
-    if ((billingStatus === null || billingStatus === "pending") && !trialActive) {
-      if (subscriptionStatus !== "active") {
-        return res.status(403).json({ error: "Conta inativa" });
-      }
     }
 
     const extraTrialFields = {};

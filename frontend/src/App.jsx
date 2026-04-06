@@ -2023,12 +2023,11 @@ function App() {
 
             if (profileRow) {
               setProfileDetails(profileRow);
-
-              const effectiveStatus = computeEffectiveSubscriptionStatus(profileRow, new Date());
-              if (profile?.role !== 'admin' && profileRow.role !== 'admin' && effectiveStatus !== 'active') {
-                const message = effectiveStatus === 'pending'
-                  ? 'Assinatura pendente. Fale com o administrador.'
-                  : 'Acesso inativo. Fale com o administrador.';
+              const profileRole = String(profileRow?.role || '').toLowerCase();
+              const statusAcesso = String(profileRow?.status_acesso || '').toLowerCase();
+              const isAdminProfile = profileRole === 'admin';
+              if (!isAdminProfile && statusAcesso === 'bloqueado') {
+                const message = 'Seu acesso foi bloqueado. Fale com o administrador.';
                 pushToast(message, 'danger');
                 await client.auth.signOut();
                 setSession(null);
