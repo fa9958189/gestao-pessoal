@@ -1958,6 +1958,12 @@ canvas{ background:transparent; }
   width: 100%;
 }
 
+.goals-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 .goals-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
