@@ -1794,7 +1794,19 @@ const deleteUserFlow = async (userIdToDelete, authUserId) => {
   await deleteByUserId("hydration_logs");
   await deleteByUserId("transactions");
 
-  // 2) Remove profile (se existir).
+  // 2) Remove afiliado relacionado pelo email (se existir).
+  if (targetUser?.email) {
+    const { error: affiliateError } = await supabase
+      .from("affiliates")
+      .delete()
+      .eq("email", targetUser.email);
+
+    if (affiliateError) {
+      console.error("Erro ao deletar afiliado:", affiliateError);
+    }
+  }
+
+  // 3) Remove profile (se existir).
   const { error: deleteProfileError } = await supabase
     .from("profiles")
     .delete()
@@ -1804,7 +1816,7 @@ const deleteUserFlow = async (userIdToDelete, authUserId) => {
     throw buildDeleteError(500, "Falha ao excluir profile do usuário.", deleteProfileError);
   }
 
-  // 3) Por fim, remove no Auth.
+  // 4) Por fim, remove no Auth.
   const { error: deleteAuthError } = await supabase.auth.admin.deleteUser(userIdToDelete);
   if (deleteAuthError) {
     console.error("Erro ao excluir usuário no auth:", deleteAuthError);
