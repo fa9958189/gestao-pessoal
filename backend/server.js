@@ -1092,12 +1092,6 @@ app.get("/auth/profile", async (req, res) => {
       return res.status(404).json({ error: "Perfil não encontrado" });
     }
 
-    const profileRole = String(profile?.role || "").toLowerCase();
-    const statusAcesso = String(profile?.status_acesso || "").toLowerCase();
-    if (profileRole !== "admin" && statusAcesso === "bloqueado") {
-      return res.status(403).json({ error: "Conta inativa" });
-    }
-
     const extraTrialFields = {};
     if (profile?.trial_end_at !== undefined) extraTrialFields.trial_end_at = profile.trial_end_at;
     if (profile?.trial_start_at !== undefined) {

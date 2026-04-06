@@ -2211,7 +2211,7 @@ function App() {
 
 
   useEffect(() => {
-    const validateBillingAccess = async () => {
+    const syncProfileAccess = async () => {
       if (!client || !session || !workoutApiBase || !/^https?:\/\//i.test(workoutApiBase)) return;
 
       try {
@@ -2223,11 +2223,6 @@ function App() {
         const response = await fetch(`${workoutApiBase}/auth/profile`, {
           headers: { Authorization: `Bearer ${accessToken}` },
         });
-
-        if (response.status === 403) {
-          handleApiForbidden();
-          return;
-        }
 
         if (!response.ok) {
           return;
@@ -2260,11 +2255,11 @@ function App() {
           });
         }
       } catch (err) {
-        console.warn('Falha ao validar billing_status', err);
+        console.warn('Falha ao sincronizar perfil de acesso', err);
       }
     };
 
-    validateBillingAccess();
+    syncProfileAccess();
   }, [client, profile?.role, session, setProfile, setSession, workoutApiBase]);
 
   useEffect(() => {
