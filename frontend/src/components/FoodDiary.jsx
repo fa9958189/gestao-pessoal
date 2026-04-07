@@ -1277,8 +1277,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
         water: Number(responseGoals.water_goal_l || 0),
       };
       const responseGoalMode = responseGoals?.goal_mode;
-      const shouldApplyAutomaticGoals =
-        goalMode !== 'manual' && responseGoalMode !== 'manual';
+      const shouldApplyAutomaticGoals = responseGoalMode === 'auto';
 
       if (
         shouldApplyAutomaticGoals &&
@@ -1383,34 +1382,6 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
       setError('Não foi possível atualizar metas manuais.');
       if (typeof notify === 'function') {
         notify(err?.message || 'Não foi possível atualizar metas manuais.', 'error');
-      }
-    }
-  };
-
-  const setAutoGoals = async () => {
-    try {
-      const headers = await getAuthHeaders(supabase);
-      const response = await fetch(buildApiUrl(apiBaseUrl, '/goals/auto'), {
-        method: 'PUT',
-        headers,
-      });
-
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(payload?.error || 'Erro ao voltar para automático');
-      }
-
-      const nextWater = Number(payload?.water_goal_l ?? payload?.goals?.water ?? goals.water);
-      await refreshGoalsFromProfile();
-      await updateHydrationGoal({ goalLiters: nextWater }, supabase);
-      if (typeof notify === 'function') {
-        notify('Metas automáticas reativadas.', 'success');
-      }
-    } catch (err) {
-      console.error('Erro ao voltar metas automáticas:', err);
-      setError('Não foi possível voltar para metas automáticas.');
-      if (typeof notify === 'function') {
-        notify(err?.message || 'Não foi possível voltar para metas automáticas.', 'error');
       }
     }
   };
@@ -2243,9 +2214,6 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
           <div className="goals-actions">
             <button type="button" className="btn-primary" onClick={openGoalsModal}>
               ✏️ Editar Metas
-            </button>
-            <button type="button" className="btn-secondary" onClick={setAutoGoals}>
-              🔄 Voltar para automático
             </button>
           </div>
           <GoalsSummaryCard />
