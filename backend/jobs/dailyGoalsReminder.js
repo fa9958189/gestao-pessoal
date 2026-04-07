@@ -267,48 +267,106 @@ const fetchDailyTotals = async (userId, dayDate) => {
   };
 };
 
-const resolveGoalTypeMessage = (goalType) => {
-  switch (goalType) {
-    case "lose_weight":
-      return "🔥 Você está no caminho certo para perder peso.";
-    case "gain_muscle":
-      return "💪 Continue alimentando seu corpo para crescimento muscular.";
-    case "maintain":
-    default:
-      return "⚖️ Manter equilíbrio é o segredo da saúde.";
+const buildNightMessage = ({ profile, summary }) => {
+  const {
+    calorie_goal,
+    protein_goal,
+    water_goal,
+    objective,
+  } = profile;
+
+  const {
+    calories,
+    protein,
+    water,
+  } = summary;
+
+  const calorieDiff = calories - calorie_goal;
+  const proteinDiff = protein - protein_goal;
+  const waterDiff = water - water_goal;
+
+  function formatDiff(value, unit) {
+    const numericValue = Number(value);
+
+    if (!Number.isFinite(numericValue)) {
+      return "dados inválidos";
+    }
+
+    if (numericValue === 0) return "bateu a meta";
+    if (numericValue > 0) return `+${numericValue}${unit} acima`;
+
+    return `${Math.abs(numericValue)}${unit} abaixo`;
   }
-};
 
-const buildDailyGoalsMessage = ({ name, goalReached, goalType }) => {
-  const userName = name || "";
-  const objectiveLine = resolveGoalTypeMessage(goalType);
+  const resumo = `
+📊 Resumo do dia:
 
-  if (goalReached) {
-    return [
-      `🎉 Parabéns ${userName}!`,
-      "",
-      "Hoje você atingiu suas metas:",
-      "",
-      "Calorias ✔",
-      "Proteína ✔",
-      "Água ✔",
-      "",
-      "Continue assim! Consistência gera resultado.",
-      "",
-      objectiveLine,
-    ].join("\n");
+🔥 Calorias: ${calories} / ${calorie_goal} kcal (${formatDiff(calorieDiff, " kcal")})
+💪 Proteína: ${protein}g / ${protein_goal}g (${formatDiff(proteinDiff, "g")})
+💧 Água: ${water.toFixed(1)}L / ${water_goal}L (${formatDiff(waterDiff.toFixed(1), "L")})
+`;
+
+  let analise = "";
+  let status = "ATENÇÃO";
+
+  if (objective === "perder_peso") {
+    if (calories <= calorie_goal && protein >= protein_goal && water >= water_goal) {
+      status = "EXCELENTE";
+      analise = `
+🔥 Excelente trabalho hoje!
+
+Você manteve as calorias sob controle e bateu suas metas.
+Isso acelera diretamente o emagrecimento.
+
+Continue assim! 💪
+`;
+    } else {
+      analise = `
+⚠️ Hoje não foi ideal para perda de peso.
+
+Revise:
+${calories > calorie_goal ? "❌ Calorias acima da meta\n" : ""}${protein < protein_goal ? "❌ Proteína baixa\n" : ""}${water < water_goal ? "❌ Água insuficiente\n" : ""}
+Ajustes simples amanhã já fazem diferença.
+`;
+    }
   }
 
-  return [
-    `⚠️ ${userName}, hoje suas metas não foram totalmente atingidas.`,
-    "",
-    "Mas não tem problema!",
-    "Amanhã é uma nova oportunidade.",
-    "",
-    "Continue firme!",
-    "",
-    objectiveLine,
-  ].join("\n");
+  if (objective === "ganhar_massa") {
+    if (calories >= calorie_goal && protein >= protein_goal) {
+      status = "EXCELENTE";
+      analise = `
+🔥 Excelente para ganho de massa!
+
+Você bateu suas metas e está no caminho certo para evoluir.
+
+Continue consistente! 💪
+`;
+    } else {
+      analise = `
+⚠️ Hoje faltou estímulo para ganho de massa.
+
+Revise:
+${calories < calorie_goal ? "❌ Calorias baixas\n" : ""}${protein < protein_goal ? "❌ Proteína insuficiente\n" : ""}
+Seu crescimento depende disso.
+`;
+    }
+  }
+
+  if (!analise) {
+    analise = `
+⚖️ Hoje foi um dia de consistência.
+
+Siga acompanhando seus números para manter a evolução.
+`;
+  }
+
+  const statusFinal = `
+🏆 Seu dia foi: ${status}
+`;
+
+  return `${resumo}
+${analise}
+${statusFinal}`;
 };
 
 const runDailyGoalsReminder = async () => {
@@ -329,22 +387,23 @@ const runDailyGoalsReminder = async () => {
         fetchDailyTotals(userId, todayStr),
       ]);
 
-      const calorias_consumidas = totals.calories;
-      const meta_calorias = goals.calories;
-      const proteina_consumida = totals.protein;
-      const meta_proteina = goals.protein;
-      const agua_consumida = totals.waterL;
-      const meta_agua = goals.waterL;
+      const objectiveMap = {
+        lose_weight: "perder_peso",
+        gain_muscle: "ganhar_massa",
+      };
 
-      const goalReached =
-        calorias_consumidas >= meta_calorias &&
-        proteina_consumida >= meta_proteina &&
-        agua_consumida >= meta_agua;
-
-      const message = buildDailyGoalsMessage({
-        name: user.name,
-        goalReached,
-        goalType: user.goal_type,
+      const message = buildNightMessage({
+        profile: {
+          calorie_goal: goals.calories,
+          protein_goal: goals.protein,
+          water_goal: goals.waterL,
+          objective: objectiveMap[user.goal_type] || user.goal_type,
+        },
+        summary: {
+          calories: totals.calories,
+          protein: totals.protein,
+          water: totals.waterL,
+        },
       });
 
       await sendWhatsAppMessage({ phone: user.whatsapp, message });
