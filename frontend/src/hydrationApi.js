@@ -1,27 +1,7 @@
+import { supabase as sharedSupabase } from './supabaseClient';
 const getSupabaseClient = (supabaseClient) => {
   if (supabaseClient) return supabaseClient;
-
-  const { supabaseUrl, supabaseAnonKey, authSchema } = window.APP_CONFIG || {};
-  if (!window.supabase || !supabaseUrl || !supabaseAnonKey) {
-    throw new Error('Supabase não configurado corretamente.');
-  }
-
-  if (!getSupabaseClient.cached) {
-    getSupabaseClient.cached = window.supabase.createClient(
-      supabaseUrl,
-      supabaseAnonKey,
-      {
-        auth: {
-          detectSessionInUrl: true,
-          persistSession: true,
-          storageKey: 'gp-react-session',
-          schema: authSchema || 'public',
-        },
-      },
-    );
-  }
-
-  return getSupabaseClient.cached;
+  return sharedSupabase;
 };
 
 const normalizeBaseUrl = (value) =>
