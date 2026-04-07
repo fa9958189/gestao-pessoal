@@ -3779,6 +3779,7 @@ const handleBodyUpdate = async (req, res) => {
 
     const profileUpdatePayload = {
       weight: normalizedWeight,
+      current_weight: normalizedWeight,
       goal_weight: weightGoalToSave,
       weight_goal: weightGoalToSave,
       height: normalizedHeight,

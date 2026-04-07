@@ -1464,8 +1464,23 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
         }
       }
 
+      const { error: profileSyncError } = await supabase
+        .from('profiles')
+        .update({
+          current_weight: Number(normalizedWeight),
+        })
+        .eq('id', userId);
+
+      if (profileSyncError) {
+        throw profileSyncError;
+      }
+
       const refreshedHistory = await fetchWeightHistoryFromDb(userId);
       setWeightHistory(refreshedHistory);
+      setBody((prev) => ({
+        ...prev,
+        weightKg: String(normalizedWeight),
+      }));
       setIsDailyWeightModalOpen(false);
 
       if (typeof notify === 'function') {
