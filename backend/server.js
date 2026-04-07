@@ -3915,42 +3915,57 @@ app.put("/goals/auto", async (req, res) => {
 
     const { data: profile, error: profileError } = await supabase
       .from("profiles")
-      .select("weight, current_weight")
+      .select("current_weight, height_cm, goal_mode")
       .eq("id", userId)
       .single();
 
-    if (profileError) throw profileError;
-
-    const automaticGoals = buildAutomaticGoalsFromWeight(
-      profile?.weight ?? profile?.current_weight
-    );
-    if (!automaticGoals) {
-      return res.status(400).json({ error: "Peso inválido para cálculo automático." });
+    if (profileError || !profile) {
+      throw new Error("Perfil não encontrado");
     }
 
-    const { error } = await supabase
+    const weight = Number(profile.current_weight);
+    if (!Number.isFinite(weight) || weight <= 0) {
+      return res.status(400).json({
+        message: "Peso não definido. Atualize seus dados corporais.",
+      });
+    }
+
+    const calorieGoal = weight * 20;
+    const proteinGoal = weight * 2;
+    const waterGoal = weight * 0.035;
+
+    const { error: updateError } = await supabase
       .from("profiles")
       .update({
-        calorie_goal: automaticGoals.calories,
-        protein_goal: automaticGoals.protein,
-        water_goal_l: automaticGoals.water,
+        calorie_goal: calorieGoal,
+        protein_goal: proteinGoal,
+        water_goal_l: waterGoal,
         goal_mode: "auto",
       })
       .eq("id", userId);
 
-    if (error) throw error;
+    if (updateError) {
+      console.error("Erro ao salvar metas automáticas:", updateError);
+      return res.status(500).json({ message: "Erro ao salvar metas automáticas" });
+    }
 
     return res.json({
-      success: true,
+      calorie_goal: calorieGoal,
+      protein_goal: proteinGoal,
+      water_goal_l: waterGoal,
+      goal_mode: "auto",
       goals: {
-        calories: automaticGoals.calories,
-        protein: automaticGoals.protein,
-        water: automaticGoals.water,
+        calories: calorieGoal,
+        protein: proteinGoal,
+        water: waterGoal,
       },
     });
   } catch (err) {
     console.error("Erro ao voltar para automático:", err);
-    return res.status(500).json({ error: "Erro ao voltar para automático" });
+    return res.status(500).json({
+      error: "Erro ao voltar para automático",
+      message: "Erro ao voltar para automático",
+    });
   }
 });
 

@@ -413,6 +413,38 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
     };
   }, [userId, supabase, refreshToken]);
 
+  const refreshGoalsFromProfile = async () => {
+    if (!userId || !supabase) return;
+
+    const profile = await loadGoals({ supabase, userId });
+    const nextGoals = {
+      calories:
+        profile?.calorie_goal != null
+          ? Number(profile.calorie_goal)
+          : defaultGoals.calories,
+      protein:
+        profile?.protein_goal != null
+          ? Number(profile.protein_goal)
+          : defaultGoals.protein,
+      water:
+        profile?.water_goal_l != null
+          ? Number(profile.water_goal_l)
+          : defaultGoals.water,
+    };
+
+    setGoals(nextGoals);
+    setGoalMode(profile?.goal_mode === 'manual' ? 'manual' : 'auto');
+    setWaterSummary((prev) => ({
+      ...prev,
+      goalMl: nextGoals.water * 1000,
+    }));
+
+    if (lastSavedWaterGoalRef.current !== nextGoals.water) {
+      setHydrationRefreshToken((prev) => prev + 1);
+      lastSavedWaterGoalRef.current = nextGoals.water;
+    }
+  };
+
   const dayEntries = entriesByDate[selectedDate] || [];
 
   const totals = useMemo(() => {
@@ -1340,16 +1372,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
         throw new Error(payload?.error || 'Erro ao atualizar metas');
       }
 
-      setGoals({
-        calories: Number(calories),
-        protein: Number(protein),
-        water: Number(water),
-      });
-      setGoalMode('manual');
-      setWaterSummary((prev) => ({
-        ...prev,
-        goalMl: Number(water) * 1000,
-      }));
+      await refreshGoalsFromProfile();
       await updateHydrationGoal({ goalLiters: Number(water) }, supabase);
       setIsGoalsModalOpen(false);
       if (typeof notify === 'function') {
@@ -1377,19 +1400,9 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
         throw new Error(payload?.error || 'Erro ao voltar para automático');
       }
 
-      const nextGoals = {
-        calories: Number(payload?.goals?.calories ?? goals.calories),
-        protein: Number(payload?.goals?.protein ?? goals.protein),
-        water: Number(payload?.goals?.water ?? goals.water),
-      };
-
-      setGoals(nextGoals);
-      setGoalMode('auto');
-      setWaterSummary((prev) => ({
-        ...prev,
-        goalMl: nextGoals.water * 1000,
-      }));
-      await updateHydrationGoal({ goalLiters: nextGoals.water }, supabase);
+      const nextWater = Number(payload?.water_goal_l ?? payload?.goals?.water ?? goals.water);
+      await refreshGoalsFromProfile();
+      await updateHydrationGoal({ goalLiters: nextWater }, supabase);
       if (typeof notify === 'function') {
         notify('Metas automáticas reativadas.', 'success');
       }

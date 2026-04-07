@@ -5,6 +5,7 @@ import GeneralReport from './components/GeneralReport.jsx';
 import FinanceReports from './components/FinanceReports.jsx';
 import './styles.css';
 import { loadGoals } from './services/foodDiaryProfile';
+import { supabase as sharedSupabase } from './supabaseClient';
 import Agenda from './pages/Agenda';
 import Supervisor from './pages/Supervisor';
 
@@ -304,21 +305,8 @@ const useSupabaseClient = () => {
   const [configError, setConfigError] = useState('');
 
   useEffect(() => {
-    const { supabaseUrl, supabaseAnonKey, authSchema } = window.APP_CONFIG || {};
-    if (!supabaseUrl || !supabaseAnonKey) {
-      setConfigError('Configure as credenciais do Supabase em env.js.');
-      return;
-    }
     try {
-      const instance = window.supabase.createClient(supabaseUrl, supabaseAnonKey, {
-        auth: {
-          detectSessionInUrl: true,
-          persistSession: true,
-          storageKey: 'gp-react-session',
-          schema: authSchema || 'public'
-        }
-      });
-      setClient(instance);
+      setClient(sharedSupabase);
       setConfigError('');
     } catch (err) {
       console.error('Erro ao iniciar Supabase', err);
