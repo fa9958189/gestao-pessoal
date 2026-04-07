@@ -49,6 +49,19 @@ function HydrationCard({ userId, supabase, notify, selectedDate, onStateChange }
   const goalMl = hydrationGoalMl || DAILY_GOAL_ML;
   const progress = Math.min(100, Math.round((totalMl / goalMl) * 100));
 
+  const loadWater = async () => {
+    if (!userId) return null;
+    const data = await fetchHydrationState({ dayDate: date }, supabase);
+    const normalized = normalizeWaterPayload(data);
+    setHydrationTotalMl(normalized.totalMl);
+    setHydrationGoalMl(normalized.goalMl);
+    setHydrationLastEntryId(normalized.lastEntryId);
+    if (typeof onStateChange === 'function') {
+      onStateChange(normalized);
+    }
+    return normalized;
+  };
+
   useEffect(() => {
     let isMounted = true;
 
@@ -57,15 +70,8 @@ function HydrationCard({ userId, supabase, notify, selectedDate, onStateChange }
       try {
         setIsLoading(true);
         setError(null);
-        const data = await fetchHydrationState({ dayDate: date }, supabase);
-        if (!isMounted) return;
-        const normalized = normalizeWaterPayload(data);
-        setHydrationTotalMl(normalized.totalMl);
-        setHydrationGoalMl(normalized.goalMl);
-        setHydrationLastEntryId(normalized.lastEntryId);
-        if (typeof onStateChange === 'function') {
-          onStateChange(normalized);
-        }
+        const normalized = await loadWater();
+        if (!isMounted || !normalized) return;
       } catch (err) {
         console.error('Erro ao carregar água', err);
         if (isMounted) {
@@ -112,17 +118,8 @@ function HydrationCard({ userId, supabase, notify, selectedDate, onStateChange }
 
     try {
       setIsSaving(true);
-      const result = await addHydrationEntry({ dayDate: date, amountMl }, supabase);
-      const normalized = normalizeWaterPayload(result);
-      setHydrationTotalMl(normalized.totalMl);
-      setHydrationGoalMl(normalized.goalMl || goalMl);
-      setHydrationLastEntryId(normalized.lastEntryId);
-      if (typeof onStateChange === 'function') {
-        onStateChange({
-          ...normalized,
-          goalMl: normalized.goalMl || goalMl,
-        });
-      }
+      await addHydrationEntry({ dayDate: date, amountMl }, supabase);
+      await loadWater();
       if (typeof notify === 'function') {
         notify('Água registrada.', 'success');
       }
@@ -160,12 +157,7 @@ function HydrationCard({ userId, supabase, notify, selectedDate, onStateChange }
         return;
       }
 
-      const normalized = normalizeWaterPayload(result);
-      setHydrationTotalMl(normalized.totalMl);
-      setHydrationLastEntryId(normalized.lastEntryId);
-      if (typeof onStateChange === 'function') {
-        onStateChange(normalized);
-      }
+      await loadWater();
       if (typeof notify === 'function') {
         notify('Último registro removido.', 'success');
       }

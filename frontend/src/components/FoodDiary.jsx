@@ -445,6 +445,50 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
     }
   };
 
+  const loadWater = async () => {
+    if (!userId || !supabase) return;
+
+    const selectedDay = toStorageDateString(selectedDate);
+
+    const { data, error: loadError } = await supabase
+      .from('hydration_logs')
+      .select('*')
+      .eq('user_id', userId);
+
+    if (loadError) {
+      console.error('Erro ao carregar água:', loadError);
+      return;
+    }
+
+    const totalWaterMl = (data || [])
+      .filter((item) => {
+        if (item?.day_date === selectedDay || item?.entry_date === selectedDay) {
+          return true;
+        }
+        if (!item?.created_at) {
+          return false;
+        }
+        return new Date(item.created_at).toDateString() === new Date(selectedDay).toDateString();
+      })
+      .reduce((sum, item) => {
+        const amountMl = Number(item?.amount_ml ?? item?.water_ml);
+        if (Number.isFinite(amountMl)) {
+          return sum + amountMl;
+        }
+        const amountL = Number(item?.amount_l ?? 0);
+        return sum + (Number.isFinite(amountL) ? amountL * 1000 : 0);
+      }, 0);
+
+    setWaterSummary((prev) => ({
+      ...prev,
+      totalMl: totalWaterMl,
+    }));
+  };
+
+  useEffect(() => {
+    loadWater();
+  }, [userId, supabase, selectedDate, refreshToken]);
+
   const dayEntries = entriesByDate[selectedDate] || [];
 
   const totals = useMemo(() => {

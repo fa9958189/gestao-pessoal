@@ -145,9 +145,8 @@ const getHydrationRowsFromDiary = async (supabaseClient, userId, dayDate) => {
 const getHydrationRowsFromLogs = async (supabaseClient, userId, dayDate) => {
   const { data, error } = await supabaseClient
     .from("hydration_logs")
-    .select("id, amount_ml, water_ml, day_date, entry_date, created_at")
+    .select("*")
     .eq("user_id", userId)
-    .or(`day_date.eq.${dayDate},entry_date.eq.${dayDate}`)
     .order("created_at", { ascending: false });
 
   if (error) {
@@ -156,14 +155,22 @@ const getHydrationRowsFromLogs = async (supabaseClient, userId, dayDate) => {
       {
         userId,
         dayDate,
-        columns: "id, amount_ml, water_ml, day_date, entry_date, created_at",
+        columns: "*",
       },
       error
     );
     throw error;
   }
 
-  return data || [];
+  return (data || []).filter((row) => {
+    if (row?.day_date === dayDate || row?.entry_date === dayDate) {
+      return true;
+    }
+    if (!row?.created_at) {
+      return false;
+    }
+    return new Date(row.created_at).toISOString().slice(0, 10) === dayDate;
+  });
 };
 
 const getLatestHydrationEntry = (logRows, diaryRows) => {
@@ -207,7 +214,13 @@ const getHydrationTotals = async (supabaseClient, userId, dayDate) => {
   ]);
 
   const totalFromLogs = (logRows || []).reduce(
-    (sum, row) => sum + Number(row.amount_ml || 0),
+    (sum, row) =>
+      sum +
+      Number(
+        row.amount_ml ??
+          row.water_ml ??
+          (Number.isFinite(Number(row.amount_l)) ? Number(row.amount_l) * 1000 : 0)
+      ),
     0
   );
   const totalFromDiary = (diaryRows || []).reduce(
@@ -456,11 +469,28 @@ export const addHydration = async ({
     payload,
   });
 
-  const { data, error } = await supabaseClient
+  let { data, error } = await supabaseClient
     .from("hydration_logs")
     .insert(payload)
     .select("id")
     .single();
+
+  if (error) {
+    const payloadFallback = {
+      user_id: userId,
+      amount_l: Number((Number(amountMl || 0) / 1000).toFixed(3)),
+      created_at: new Date().toISOString(),
+    };
+
+    const fallbackResult = await supabaseClient
+      .from("hydration_logs")
+      .insert(payloadFallback)
+      .select("id")
+      .single();
+
+    data = fallbackResult.data;
+    error = fallbackResult.error;
+  }
 
   if (error) {
     console.error("[WATER] Erro no insert em hydration_logs", { payload }, error);
