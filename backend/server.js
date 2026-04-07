@@ -3777,6 +3777,20 @@ const handleBodyUpdate = async (req, res) => {
 
     const weightGoalToSave = normalizedGoalWeight;
 
+    let existingGoalMode = null;
+    try {
+      const { data: profileModeData } = await supabase
+        .from("profiles")
+        .select("goal_mode")
+        .eq("id", userId)
+        .maybeSingle();
+      existingGoalMode = profileModeData?.goal_mode ?? null;
+    } catch (goalModeError) {
+      console.warn("Não foi possível carregar goal_mode atual de profiles:", goalModeError);
+    }
+
+    const shouldApplyAutomaticGoals = existingGoalMode !== "manual";
+
     const profileUpdatePayload = {
       weight: normalizedWeight,
       goal_weight: weightGoalToSave,
@@ -3785,11 +3799,16 @@ const handleBodyUpdate = async (req, res) => {
       height_cm: normalizedHeight,
       ...(normalizedAge != null ? { age: normalizedAge } : {}),
       goal_type: normalizedGoalType,
-      calorie_goal: calorieGoal,
-      protein_goal: proteinGoal,
-      water_goal: waterGoalL,
       ...(objective !== undefined ? { objective: normalizedObjective } : {}),
       ...(sex !== undefined ? { sex: normalizedSex } : {}),
+      ...(shouldApplyAutomaticGoals
+        ? {
+            calorie_goal: calorieGoal,
+            protein_goal: proteinGoal,
+            water_goal_l: waterGoalL,
+            goal_mode: "auto",
+          }
+        : {}),
     };
 
     const { error: profileError } = await supabase
@@ -3836,7 +3855,8 @@ const handleBodyUpdate = async (req, res) => {
         weight_goal: normalizedGoalWeight,
         calorie_goal: calorieGoal,
         protein_goal: proteinGoal,
-        water_goal: waterGoalL,
+        water_goal_l: waterGoalL,
+        goal_mode: shouldApplyAutomaticGoals ? "auto" : "manual",
       },
     });
   } catch (error) {
@@ -3868,14 +3888,14 @@ app.put("/goals/manual", async (req, res) => {
     }
 
     const { error } = await supabase
-      .from("profiles_auth")
+      .from("profiles")
       .update({
-        goal_calories: parsedCalories,
-        goal_protein: parsedProtein,
-        goal_water: parsedWater,
+        calorie_goal: parsedCalories,
+        protein_goal: parsedProtein,
+        water_goal_l: parsedWater,
         goal_mode: "manual",
       })
-      .eq("auth_id", userId);
+      .eq("id", userId);
 
     if (error) throw error;
 
@@ -3894,27 +3914,29 @@ app.put("/goals/auto", async (req, res) => {
     const userId = authData.userId;
 
     const { data: profile, error: profileError } = await supabase
-      .from("profiles_auth")
-      .select("weight")
-      .eq("auth_id", userId)
+      .from("profiles")
+      .select("weight, current_weight")
+      .eq("id", userId)
       .single();
 
     if (profileError) throw profileError;
 
-    const automaticGoals = buildAutomaticGoalsFromWeight(profile?.weight);
+    const automaticGoals = buildAutomaticGoalsFromWeight(
+      profile?.weight ?? profile?.current_weight
+    );
     if (!automaticGoals) {
       return res.status(400).json({ error: "Peso inválido para cálculo automático." });
     }
 
     const { error } = await supabase
-      .from("profiles_auth")
+      .from("profiles")
       .update({
-        goal_calories: automaticGoals.calories,
-        goal_protein: automaticGoals.protein,
-        goal_water: automaticGoals.water,
+        calorie_goal: automaticGoals.calories,
+        protein_goal: automaticGoals.protein,
+        water_goal_l: automaticGoals.water,
         goal_mode: "auto",
       })
-      .eq("auth_id", userId);
+      .eq("id", userId);
 
     if (error) throw error;
 

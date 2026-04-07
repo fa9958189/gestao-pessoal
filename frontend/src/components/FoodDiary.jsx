@@ -173,6 +173,7 @@ const getVariationIndicator = (variation) => {
 function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
   const [entriesByDate, setEntriesByDate] = useState({});
   const [goals, setGoals] = useState(defaultGoals);
+  const [goalMode, setGoalMode] = useState('auto');
   const [goalType, setGoalType] = useState('maintain');
   const [objective, setObjective] = useState('manter_peso');
   const [sex, setSex] = useState(null);
@@ -356,6 +357,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
           normalizedProfile?.objective || goalTypeToObjective[normalizedProfile?.goalType] || 'manter_peso';
 
         setGoals(nextGoals);
+        setGoalMode(profile?.goal_mode === 'manual' ? 'manual' : 'auto');
         setObjective(profileObjective);
         setGoalType(objectiveToGoalType[profileObjective] || normalizedProfile?.goalType || 'maintain');
         setSex(normalizedProfile?.sex || null);
@@ -497,6 +499,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
   }, [objective]);
 
   const hasAutomaticGoals = useMemo(() => {
+    if (goalMode !== 'auto') return false;
     const validWeight = Number.isFinite(parseNumberInput(body.weightKg));
     return (
       validWeight &&
@@ -507,7 +510,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
       Number.isFinite(Number(goals.water)) &&
       Number(goals.water) > 0
     );
-  }, [body.weightKg, goals.calories, goals.protein, goals.water]);
+  }, [goalMode, body.weightKg, goals.calories, goals.protein, goals.water]);
 
   const weightChartData = useMemo(
     () =>
@@ -1241,8 +1244,12 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
         protein: Number(responseGoals.protein_goal || 0),
         water: Number(responseGoals.water_goal_l || 0),
       };
+      const responseGoalMode = responseGoals?.goal_mode;
+      const shouldApplyAutomaticGoals =
+        goalMode !== 'manual' && responseGoalMode !== 'manual';
 
       if (
+        shouldApplyAutomaticGoals &&
         Number.isFinite(normalizedGoals.calories) &&
         normalizedGoals.calories > 0 &&
         Number.isFinite(normalizedGoals.protein) &&
@@ -1260,6 +1267,9 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
           lastSavedWaterGoalRef.current = normalizedGoals.water;
         }
         await updateHydrationGoal({ goalLiters: normalizedGoals.water }, supabase);
+      }
+      if (responseGoalMode === 'manual' || responseGoalMode === 'auto') {
+        setGoalMode(responseGoalMode);
       }
 
       const refreshedHistory = await fetchWeightHistoryFromDb(userId);
@@ -1335,6 +1345,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
         protein: Number(protein),
         water: Number(water),
       });
+      setGoalMode('manual');
       setWaterSummary((prev) => ({
         ...prev,
         goalMl: Number(water) * 1000,
@@ -1373,6 +1384,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
       };
 
       setGoals(nextGoals);
+      setGoalMode('auto');
       setWaterSummary((prev) => ({
         ...prev,
         goalMl: nextGoals.water * 1000,
