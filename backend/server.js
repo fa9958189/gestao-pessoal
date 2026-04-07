@@ -3777,20 +3777,6 @@ const handleBodyUpdate = async (req, res) => {
 
     const weightGoalToSave = normalizedGoalWeight;
 
-    let existingGoalMode = null;
-    try {
-      const { data: profileModeData } = await supabase
-        .from("profiles")
-        .select("goal_mode")
-        .eq("id", userId)
-        .maybeSingle();
-      existingGoalMode = profileModeData?.goal_mode ?? null;
-    } catch (goalModeError) {
-      console.warn("Não foi possível carregar goal_mode atual de profiles:", goalModeError);
-    }
-
-    const shouldApplyAutomaticGoals = existingGoalMode !== "manual";
-
     const profileUpdatePayload = {
       weight: normalizedWeight,
       goal_weight: weightGoalToSave,
@@ -3801,14 +3787,10 @@ const handleBodyUpdate = async (req, res) => {
       goal_type: normalizedGoalType,
       ...(objective !== undefined ? { objective: normalizedObjective } : {}),
       ...(sex !== undefined ? { sex: normalizedSex } : {}),
-      ...(shouldApplyAutomaticGoals
-        ? {
-            calorie_goal: calorieGoal,
-            protein_goal: proteinGoal,
-            water_goal_l: waterGoalL,
-            goal_mode: "auto",
-          }
-        : {}),
+      calorie_goal: calorieGoal,
+      protein_goal: proteinGoal,
+      water_goal_l: waterGoalL,
+      goal_mode: "auto",
     };
 
     const { error: profileError } = await supabase
@@ -3856,7 +3838,7 @@ const handleBodyUpdate = async (req, res) => {
         calorie_goal: calorieGoal,
         protein_goal: proteinGoal,
         water_goal_l: waterGoalL,
-        goal_mode: shouldApplyAutomaticGoals ? "auto" : "manual",
+        goal_mode: "auto",
       },
     });
   } catch (error) {
@@ -3907,66 +3889,9 @@ app.put("/goals/manual", async (req, res) => {
 });
 
 app.put("/goals/auto", async (req, res) => {
-  try {
-    const authData = await authenticateRequest(req, res, { requireAdmin: false });
-    if (!authData) return;
-
-    const userId = authData.userId;
-
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select("current_weight, height_cm, goal_mode")
-      .eq("id", userId)
-      .single();
-
-    if (profileError || !profile) {
-      throw new Error("Perfil não encontrado");
-    }
-
-    const weight = Number(profile.current_weight);
-    if (!Number.isFinite(weight) || weight <= 0) {
-      return res.status(400).json({
-        message: "Peso não definido. Atualize seus dados corporais.",
-      });
-    }
-
-    const calorieGoal = weight * 20;
-    const proteinGoal = weight * 2;
-    const waterGoal = weight * 0.035;
-
-    const { error: updateError } = await supabase
-      .from("profiles")
-      .update({
-        calorie_goal: calorieGoal,
-        protein_goal: proteinGoal,
-        water_goal_l: waterGoal,
-        goal_mode: "auto",
-      })
-      .eq("id", userId);
-
-    if (updateError) {
-      console.error("Erro ao salvar metas automáticas:", updateError);
-      return res.status(500).json({ message: "Erro ao salvar metas automáticas" });
-    }
-
-    return res.json({
-      calorie_goal: calorieGoal,
-      protein_goal: proteinGoal,
-      water_goal_l: waterGoal,
-      goal_mode: "auto",
-      goals: {
-        calories: calorieGoal,
-        protein: proteinGoal,
-        water: waterGoal,
-      },
-    });
-  } catch (err) {
-    console.error("Erro ao voltar para automático:", err);
-    return res.status(500).json({
-      error: "Erro ao voltar para automático",
-      message: "Erro ao voltar para automático",
-    });
-  }
+  return res.status(403).json({
+    message: "Função desativada",
+  });
 });
 
 app.put("/api/food-diary/state", async (req, res) => {
