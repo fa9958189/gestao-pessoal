@@ -357,7 +357,7 @@ export async function loadGoals({ supabase, userId }) {
   try {
     const { data: profileData, error: profileError } = await supabase
       .from('profiles')
-      .select('weight_goal, calorie_goal, protein_goal, water_goal_l')
+      .select('weight_goal, calorie_goal, protein_goal, water_goal_l, goal_mode')
       .eq('id', userId)
       .maybeSingle();
 
@@ -404,6 +404,7 @@ export async function loadProfile({ supabase, userId }) {
 
   let profileGoalType = null;
   let profileObjective = null;
+  let profileGoalMode = null;
   try {
     const { data: profileRow } = await supabase
       .from('profiles')
@@ -414,6 +415,7 @@ export async function loadProfile({ supabase, userId }) {
     profileGoalType =
       profileRow?.goal_type ??
       (profileObjective ? OBJECTIVE_TO_GOAL_TYPE[profileObjective] : null);
+    profileGoalMode = profileRow?.goal_mode ?? null;
     if (profileRow?.current_weight != null && diaryNormalized.weightKg == null) {
       diaryNormalized.weightKg = Number(profileRow.current_weight);
     }
@@ -432,6 +434,7 @@ export async function loadProfile({ supabase, userId }) {
     ...diaryNormalized,
     objective: profileObjective || GOAL_TYPE_TO_OBJECTIVE[profileGoalType] || 'manter_peso',
     goalType: profileGoalType || 'maintain',
+    goalMode: profileGoalMode,
   };
 }
 
