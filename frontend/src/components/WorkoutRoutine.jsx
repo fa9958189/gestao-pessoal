@@ -64,6 +64,7 @@ import WeightLineChart from './charts/WeightLineChart.jsx';
 import MuscleDonut from './charts/MuscleDonut.jsx';
 import TrainingHeatmap from './charts/TrainingHeatmap.jsx';
 import MiniStats from './charts/MiniStats.jsx';
+import { EXERCISES_BY_MUSCLE } from '../constants/exercises.js';
 
 const muscleGroups = [
   { id: 'peito', name: 'Peito', image: PeitoImg },
@@ -369,11 +370,15 @@ const buildMuscleConfigState = (selectedMuscles = [], payload = []) => {
   const payloadMap = new Map(
     (Array.isArray(payload) ? payload : [])
       .filter((item) => item?.muscle)
-      .map((item) => [String(item.muscle), String(item.config || '')])
+      .map((item) => [String(item.muscle), item])
   );
 
   return selectedMuscles.reduce((acc, muscle) => {
-    const raw = payloadMap.get(muscle) || DEFAULT_MUSCLE_CONFIG;
+    const rawEntry = payloadMap.get(muscle) || null;
+    const raw = rawEntry?.config
+      || (Number(rawEntry?.sets) > 0 && Number(rawEntry?.reps) > 0
+        ? `${rawEntry.sets}x${rawEntry.reps}`
+        : DEFAULT_MUSCLE_CONFIG);
     const [seriesRaw, repsRaw] = String(raw).split('x');
     const series = Number(seriesRaw);
     const reps = Number(repsRaw);
@@ -393,6 +398,19 @@ const buildMuscleConfigState = (selectedMuscles = [], payload = []) => {
       [muscle]: { type: 'preset', value: raw },
     };
   }, {});
+};
+
+const buildSelectedExercisesState = (selectedMuscles = [], payload = []) => {
+  const payloadMap = new Map(
+    (Array.isArray(payload) ? payload : [])
+      .filter((item) => item?.muscle)
+      .map((item) => [String(item.muscle), Array.isArray(item.exercises) ? item.exercises : []])
+  );
+
+  return selectedMuscles.reduce((acc, muscle) => ({
+    ...acc,
+    [muscle]: payloadMap.get(muscle) || [],
+  }), {});
 };
 
 const ViewWorkoutModal = ({
@@ -417,7 +435,7 @@ const ViewWorkoutModal = ({
   const muscleConfigMap = new Map(
     muscleConfigEntries
       .filter((item) => item?.muscle)
-      .map((item) => [String(item.muscle), String(item.config || DEFAULT_MUSCLE_CONFIG)])
+      .map((item) => [String(item.muscle), item])
   );
 
   return (
@@ -558,10 +576,50 @@ const ViewWorkoutModal = ({
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                   {muscleGroups.map((mg) => {
                     const def = getMuscleGroupByLabel(mg) || muscleMap[mg];
-                    const config = muscleConfigMap.get(mg) || DEFAULT_MUSCLE_CONFIG;
+                    const configEntry = muscleConfigMap.get(mg) || {};
+                    const config = configEntry?.config
+                      || (Number(configEntry?.sets) > 0 && Number(configEntry?.reps) > 0
+                        ? `${configEntry.sets}x${configEntry.reps}`
+                        : DEFAULT_MUSCLE_CONFIG);
                     return (
                       <div key={`${mg}-cfg`} className="muted" style={{ fontSize: 14 }}>
                         {def?.label || mg} — {config}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {muscleGroups.length > 0 && (
+              <div className="field">
+                <label>Exercícios por músculo</label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {muscleGroups.map((mg) => {
+                    const def = getMuscleGroupByLabel(mg) || muscleMap[mg];
+                    const muscleData = muscleConfigEntries.find((m) => m.muscle === mg);
+                    const exercisesToShow = muscleData?.exercises?.length > 0
+                      ? muscleData.exercises
+                      : (EXERCISES_BY_MUSCLE[mg] || []);
+
+                    return (
+                      <div key={`${mg}-exs`}>
+                        <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4 }}>
+                          {def?.label || mg}
+                        </div>
+                        {exercisesToShow.length > 0 ? (
+                          <div className="chips">
+                            {exercisesToShow.map((exercise) => (
+                              <div key={`${mg}-${exercise}`} className="chip">
+                                {exercise}
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="muted" style={{ fontSize: 13 }}>
+                            Nenhum exercício selecionado.
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -681,6 +739,7 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
   const [selecionados, setSelecionados] = useState([]);
   const [nomeTreino, setNomeTreino] = useState('');
   const [muscleConfigs, setMuscleConfigs] = useState({});
+  const [selectedExercises, setSelectedExercises] = useState({});
   const [workoutForm, setWorkoutForm] = useState({
     id: null,
     name: '',
@@ -1234,6 +1293,7 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
     setSelecionados([]);
     setNomeTreino('');
     setMuscleConfigs({});
+    setSelectedExercises({});
   };
   const handleStartCreateTreino = () => {
     resetWorkoutForm();
@@ -1262,6 +1322,9 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
       ? itensSelecionados.map((muscle) => ({
           muscle,
           config: formatMuscleConfigValue(muscleConfigs[muscle]),
+          sets: Number(formatMuscleConfigValue(muscleConfigs[muscle]).split('x')?.[0]) || 0,
+          reps: Number(formatMuscleConfigValue(muscleConfigs[muscle]).split('x')?.[1]) || 0,
+          exercises: selectedExercises[muscle] || [],
         }))
       : [];
     const payloadData = {
@@ -1288,6 +1351,7 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
       muscleConfig: template.muscleConfig || [],
     });
     setMuscleConfigs(buildMuscleConfigState(template.muscleGroups || [], template.muscleConfig || []));
+    setSelectedExercises(buildSelectedExercisesState(template.muscleGroups || [], template.muscleConfig || []));
     setViewWorkout({ ...template, sportsActivities: normalizedSports });
     setIsViewModalOpen(true);
   };
@@ -1600,6 +1664,7 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
   useEffect(() => {
     if (tipoTreino !== 'musculacao') {
       setMuscleConfigs({});
+      setSelectedExercises({});
       return;
     }
 
@@ -1612,10 +1677,34 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
     });
   }, [selecionados, tipoTreino]);
 
+  useEffect(() => {
+    setSelectedExercises((prev) => {
+      const next = {};
+      selecionados.forEach((muscle) => {
+        next[muscle] = prev[muscle] || [];
+      });
+      return next;
+    });
+  }, [selecionados]);
+
+  const toggleExercise = (muscle, exercise) => {
+    setSelectedExercises((prev) => {
+      const current = prev[muscle] || [];
+
+      return {
+        ...prev,
+        [muscle]: current.includes(exercise)
+          ? current.filter((e) => e !== exercise)
+          : [...current, exercise],
+      };
+    });
+  };
+
   const canContinueStep = (
     (step === 1 && Boolean(tipoTreino))
     || (step === 2 && selecionados.length > 0)
     || (step === 3 && Boolean(nomeTreino.trim()))
+    || step === 4
   );
 
   const {
@@ -1777,6 +1866,9 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
                               setMuscleConfigs(
                                 buildMuscleConfigState(normalizedMuscles, template.muscleConfig || [])
                               );
+                              setSelectedExercises(
+                                buildSelectedExercisesState(normalizedMuscles, template.muscleConfig || [])
+                              );
                               setOpenTreinoModal(true);
                               setStep(2);
                             }}
@@ -1815,12 +1907,12 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
               <div className="modal-overlay">
                 <div className="report-modal">
                   <h2>Novo treino</h2>
-                  <p>Passo {step} de 4</p>
+                  <p>Passo {step} de 5</p>
 
                   <div className="progress-bar">
                     <div
                       className="progress-fill"
-                      style={{ width: `${(step / 4) * 100}%` }}
+                      style={{ width: `${(step / 5) * 100}%` }}
                     />
                   </div>
 
@@ -2023,6 +2115,36 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
 
                   {step === 4 && (
                     <div>
+                      <h3>Selecionar exercícios</h3>
+                      {tipoTreino !== 'musculacao' && (
+                        <p className="muted">Seleção de exercícios disponível para treinos de musculação.</p>
+                      )}
+                      {tipoTreino === 'musculacao' && selecionados.length > 0 && (
+                        <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                          {selecionados.map((muscle) => (
+                            <div key={muscle} className="card-padrao" style={{ padding: 12 }}>
+                              <h4 style={{ marginTop: 0, marginBottom: 8 }}>{muscleMap[muscle]?.label || muscle}</h4>
+                              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                                {(EXERCISES_BY_MUSCLE[muscle] || []).map((exercise) => (
+                                  <button
+                                    key={`${muscle}-${exercise}`}
+                                    type="button"
+                                    onClick={() => toggleExercise(muscle, exercise)}
+                                    className={`treino-option ${(selectedExercises[muscle] || []).includes(exercise) ? 'selected' : ''}`}
+                                  >
+                                    {exercise}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {step === 5 && (
+                    <div>
                       <h3>Confirmar treino</h3>
                       <p><strong>Tipo:</strong> {tipoTreino ? tipoTreino[0].toUpperCase() + tipoTreino.slice(1) : 'Não definido'}</p>
                       <p><strong>Nome:</strong> {nomeTreino || 'Sem nome'}</p>
@@ -2037,13 +2159,13 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
                       </button>
                     )}
 
-                    {step < 4 && (
+                    {step < 5 && (
                       <button type="button" onClick={() => setStep(step + 1)} disabled={!canContinueStep}>
                         Continuar →
                       </button>
                     )}
 
-                    {step === 4 && (
+                    {step === 5 && (
                       <button
                         type="button"
                         className="btn-primary"
