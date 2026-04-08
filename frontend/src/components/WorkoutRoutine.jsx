@@ -330,10 +330,69 @@ const defaultSchedule = WEEK_DAYS.map((day) => ({
   reminder: false
 }));
 
+const QUICK_MUSCLE_CONFIG_OPTIONS = ['3x10', '4x12', '3x15'];
+const DEFAULT_MUSCLE_CONFIG = '3x10';
+
 const formatExerciseResume = (exercise) => {
   const base = `${exercise.name || 'Exercício'} ${exercise.sets || 0}x${exercise.reps || 0}`;
   const weightPart = exercise.weight ? ` – ${exercise.weight}kg` : '';
   return `${base}${weightPart}`;
+};
+
+const formatMuscleConfigValue = (entry) => {
+  if (!entry || typeof entry !== 'object') return DEFAULT_MUSCLE_CONFIG;
+  if (entry.type === 'custom') {
+    const series = Number(entry.series) || 0;
+    const reps = Number(entry.reps) || 0;
+    return series > 0 && reps > 0 ? `${series}x${reps}` : DEFAULT_MUSCLE_CONFIG;
+  }
+  if (entry.type === 'preset' && entry.value) return entry.value;
+  return DEFAULT_MUSCLE_CONFIG;
+};
+
+const parseMuscleConfigPayload = (input) => {
+  if (Array.isArray(input)) return input;
+  if (typeof input === 'string') {
+    const trimmed = input.trim();
+    if (!trimmed) return [];
+    try {
+      const parsed = JSON.parse(trimmed);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (err) {
+      return [];
+    }
+  }
+  return [];
+};
+
+const buildMuscleConfigState = (selectedMuscles = [], payload = []) => {
+  const payloadMap = new Map(
+    (Array.isArray(payload) ? payload : [])
+      .filter((item) => item?.muscle)
+      .map((item) => [String(item.muscle), String(item.config || '')])
+  );
+
+  return selectedMuscles.reduce((acc, muscle) => {
+    const raw = payloadMap.get(muscle) || DEFAULT_MUSCLE_CONFIG;
+    const [seriesRaw, repsRaw] = String(raw).split('x');
+    const series = Number(seriesRaw);
+    const reps = Number(repsRaw);
+    if (
+      Number.isFinite(series)
+      && Number.isFinite(reps)
+      && !QUICK_MUSCLE_CONFIG_OPTIONS.includes(raw)
+    ) {
+      return {
+        ...acc,
+        [muscle]: { type: 'custom', series, reps },
+      };
+    }
+
+    return {
+      ...acc,
+      [muscle]: { type: 'preset', value: raw },
+    };
+  }, {});
 };
 
 const ViewWorkoutModal = ({
@@ -354,6 +413,12 @@ const ViewWorkoutModal = ({
   const sportsActivities = Array.isArray(workout.sportsActivities)
     ? workout.sportsActivities
     : [];
+  const muscleConfigEntries = parseMuscleConfigPayload(workout.muscleConfig ?? workout.muscle_config);
+  const muscleConfigMap = new Map(
+    muscleConfigEntries
+      .filter((item) => item?.muscle)
+      .map((item) => [String(item.muscle), String(item.config || DEFAULT_MUSCLE_CONFIG)])
+  );
 
   return (
     <div
@@ -486,6 +551,23 @@ const ViewWorkoutModal = ({
                 )}
               </div>
             </div>
+
+            {muscleGroups.length > 0 && (
+              <div className="field">
+                <label>Séries e repetições</label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {muscleGroups.map((mg) => {
+                    const def = getMuscleGroupByLabel(mg) || muscleMap[mg];
+                    const config = muscleConfigMap.get(mg) || DEFAULT_MUSCLE_CONFIG;
+                    return (
+                      <div key={`${mg}-cfg`} className="muted" style={{ fontSize: 14 }}>
+                        {def?.label || mg} — {config}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
 
           {Array.isArray(workout.exercises) && workout.exercises.length > 0 && (
@@ -598,12 +680,14 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
   const [tipoTreino, setTipoTreino] = useState(null);
   const [selecionados, setSelecionados] = useState([]);
   const [nomeTreino, setNomeTreino] = useState('');
+  const [muscleConfigs, setMuscleConfigs] = useState({});
   const [workoutForm, setWorkoutForm] = useState({
     id: null,
     name: '',
     muscleGroups: [],
     sportsActivities: [],
     exercises: [],
+    muscleConfig: [],
   });
   const [routines, setRoutines] = useState([]);
   const [schedule, setSchedule] = useState(defaultSchedule);
@@ -972,6 +1056,7 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
       item?.sportsActivities,
       item?.sports_list || item?.sports
     );
+    const muscleConfig = parseMuscleConfigPayload(item?.muscleConfig ?? item?.muscle_config);
 
     return {
       ...item,
@@ -979,6 +1064,7 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
       sports: sportsActivities,
       sportsActivities,
       exercises: Array.isArray(item?.exercises) ? item.exercises : [],
+      muscleConfig,
     };
   };
 
@@ -1132,7 +1218,14 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
   };
 
   const resetWorkoutForm = () => {
-    setWorkoutForm({ id: null, name: '', muscleGroups: [], sportsActivities: [], exercises: [] });
+    setWorkoutForm({
+      id: null,
+      name: '',
+      muscleGroups: [],
+      sportsActivities: [],
+      exercises: [],
+      muscleConfig: [],
+    });
   };
 
   const resetCreateFlow = () => {
@@ -1140,6 +1233,7 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
     setTipoTreino(null);
     setSelecionados([]);
     setNomeTreino('');
+    setMuscleConfigs({});
   };
   const handleStartCreateTreino = () => {
     resetWorkoutForm();
@@ -1164,10 +1258,17 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
 
   const salvarTreino = async (nome, itensSelecionados, tipo) => {
     const isMusculacao = tipo === 'musculacao';
+    const muscleConfig = isMusculacao
+      ? itensSelecionados.map((muscle) => ({
+          muscle,
+          config: formatMuscleConfigValue(muscleConfigs[muscle]),
+        }))
+      : [];
     const payloadData = {
       name: nome,
       muscleGroups: isMusculacao ? itensSelecionados : [],
       sportsActivities: isMusculacao ? [] : itensSelecionados,
+      muscleConfig,
     };
 
     await handleSaveRoutine(payloadData);
@@ -1184,7 +1285,9 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
       muscleGroups: template.muscleGroups || [],
       sportsActivities: normalizedSports,
       exercises: template.exercises || [],
+      muscleConfig: template.muscleConfig || [],
     });
+    setMuscleConfigs(buildMuscleConfigState(template.muscleGroups || [], template.muscleConfig || []));
     setViewWorkout({ ...template, sportsActivities: normalizedSports });
     setIsViewModalOpen(true);
   };
@@ -1200,6 +1303,7 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
       name: overrideData?.name ?? workoutForm.name,
       muscleGroups: overrideData?.muscleGroups ?? workoutForm.muscleGroups,
       sportsActivities: overrideData?.sportsActivities ?? workoutForm.sportsActivities,
+      muscleConfig: overrideData?.muscleConfig ?? workoutForm.muscleConfig ?? [],
     };
 
     if (!formData.name.trim()) {
@@ -1216,6 +1320,7 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
       name: formData.name,
       muscleGroups: formData.muscleGroups,
       sportsActivities: formData.sportsActivities,
+      muscleConfig: formData.muscleConfig,
     };
 
     try {
@@ -1492,6 +1597,21 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [treinoTab, historyRange]);
 
+  useEffect(() => {
+    if (tipoTreino !== 'musculacao') {
+      setMuscleConfigs({});
+      return;
+    }
+
+    setMuscleConfigs((prev) => {
+      const next = {};
+      selecionados.forEach((muscle) => {
+        next[muscle] = prev[muscle] || { type: 'preset', value: DEFAULT_MUSCLE_CONFIG };
+      });
+      return next;
+    });
+  }, [selecionados, tipoTreino]);
+
   const canContinueStep = (
     (step === 1 && Boolean(tipoTreino))
     || (step === 2 && selecionados.length > 0)
@@ -1647,12 +1767,16 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
                                 muscleGroups: normalizedMuscles,
                                 sportsActivities,
                                 sports: sportsActivities,
+                                muscleConfig: template.muscleConfig || [],
                               });
                               setTipoTreino(
                                 normalizedMuscles.length ? 'musculacao' : (isCardioTemplate ? 'cardio' : 'esporte')
                               );
                               setSelecionados(normalizedMuscles.length ? normalizedMuscles : sportsActivities);
                               setNomeTreino(template.name || '');
+                              setMuscleConfigs(
+                                buildMuscleConfigState(normalizedMuscles, template.muscleConfig || [])
+                              );
                               setOpenTreinoModal(true);
                               setStep(2);
                             }}
@@ -1797,6 +1921,103 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
                         onChange={(e) => setNomeTreino(e.target.value)}
                         placeholder="Ex: Treino A - Peito e Tríceps"
                       />
+                      {tipoTreino === 'musculacao' && selecionados.length > 0 && (
+                        <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                          {selecionados.map((muscle) => {
+                            const muscleLabel = muscleMap[muscle]?.label || muscle;
+                            const current = muscleConfigs[muscle] || {
+                              type: 'preset',
+                              value: DEFAULT_MUSCLE_CONFIG,
+                            };
+                            const customSeries = current.type === 'custom' ? Number(current.series) || 0 : 0;
+                            const customReps = current.type === 'custom' ? Number(current.reps) || 0 : 0;
+
+                            return (
+                              <div key={muscle} className="card-padrao" style={{ padding: 12 }}>
+                                <div style={{ fontWeight: 600, marginBottom: 8 }}>{muscleLabel}</div>
+                                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                                  {QUICK_MUSCLE_CONFIG_OPTIONS.map((option) => {
+                                    const isSelected = current.type === 'preset' && current.value === option;
+                                    return (
+                                      <button
+                                        key={option}
+                                        type="button"
+                                        className={`treino-option muscle-config-option ${isSelected ? 'selected' : ''}`}
+                                        onClick={() => {
+                                          setMuscleConfigs((prev) => ({
+                                            ...prev,
+                                            [muscle]: { type: 'preset', value: option },
+                                          }));
+                                        }}
+                                      >
+                                        {option}
+                                      </button>
+                                    );
+                                  })}
+                                  <button
+                                    type="button"
+                                    className={`treino-option muscle-config-option ${current.type === 'custom' ? 'selected' : ''}`}
+                                    onClick={() => {
+                                      setMuscleConfigs((prev) => ({
+                                        ...prev,
+                                        [muscle]: {
+                                          type: 'custom',
+                                          series: customSeries || 3,
+                                          reps: customReps || 10,
+                                        },
+                                      }));
+                                    }}
+                                  >
+                                    Personalizar
+                                  </button>
+                                </div>
+                                {current.type === 'custom' && (
+                                  <div className="row" style={{ marginTop: 10, gap: 10 }}>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                      <label>Séries</label>
+                                      <input
+                                        type="number"
+                                        min="1"
+                                        value={customSeries || ''}
+                                        onChange={(e) => {
+                                          const series = Number(e.target.value);
+                                          setMuscleConfigs((prev) => ({
+                                            ...prev,
+                                            [muscle]: {
+                                              type: 'custom',
+                                              series,
+                                              reps: customReps || 10,
+                                            },
+                                          }));
+                                        }}
+                                      />
+                                    </div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                      <label>Reps</label>
+                                      <input
+                                        type="number"
+                                        min="1"
+                                        value={customReps || ''}
+                                        onChange={(e) => {
+                                          const reps = Number(e.target.value);
+                                          setMuscleConfigs((prev) => ({
+                                            ...prev,
+                                            [muscle]: {
+                                              type: 'custom',
+                                              series: customSeries || 3,
+                                              reps,
+                                            },
+                                          }));
+                                        }}
+                                      />
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   )}
 

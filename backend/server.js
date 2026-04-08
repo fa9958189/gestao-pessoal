@@ -2631,6 +2631,18 @@ const mapRoutineRow = (row = {}) => ({
   name: row.name,
   muscleGroups: parseList(row.muscle_groups || row.muscle_group),
   sportsActivities: parseList(row.sports_list || row.sports),
+  muscleConfig: Array.isArray(row.muscle_config)
+    ? row.muscle_config
+    : typeof row.muscle_config === "string"
+      ? (() => {
+          try {
+            const parsed = JSON.parse(row.muscle_config);
+            return Array.isArray(parsed) ? parsed : [];
+          } catch (err) {
+            return [];
+          }
+        })()
+      : [],
   createdAt: row.created_at,
 });
 
@@ -2692,7 +2704,7 @@ app.get("/api/workout/routines", async (req, res) => {
 
     const { data, error } = await supabase
       .from("workout_routines")
-      .select("id, user_id, name, muscle_group, sports, sports_list, created_at")
+      .select("id, user_id, name, muscle_group, sports, sports_list, muscle_config, created_at")
       .eq("user_id", userId)
       .order("created_at", { ascending: true });
 
@@ -2711,7 +2723,7 @@ app.get("/api/workout/routines", async (req, res) => {
 
 app.post("/api/workout/routines", async (req, res) => {
   try {
-    const { userId, name, muscleGroups = [], sportsActivities = [] } = req.body || {};
+    const { userId, name, muscleGroups = [], sportsActivities = [], muscleConfig = [] } = req.body || {};
     if (!userId || !name) {
       return res.status(400).json({ error: "userId e name são obrigatórios" });
     }
@@ -2723,12 +2735,13 @@ app.post("/api/workout/routines", async (req, res) => {
       muscle_groups: joinList(muscleGroups),
       sports: joinList(sportsActivities),
       sports_list: joinList(sportsActivities),
+      muscle_config: Array.isArray(muscleConfig) ? muscleConfig : [],
     };
 
     const { data, error } = await supabase
       .from("workout_routines")
       .insert(insertPayload)
-      .select("id, user_id, name, muscle_group, sports, sports_list, created_at")
+      .select("id, user_id, name, muscle_group, sports, sports_list, muscle_config, created_at")
       .single();
 
     if (error) {
@@ -2746,7 +2759,7 @@ app.post("/api/workout/routines", async (req, res) => {
 app.put("/api/workout/routines/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    const { userId, name, muscleGroups = [], sportsActivities = [] } = req.body || {};
+    const { userId, name, muscleGroups = [], sportsActivities = [], muscleConfig = [] } = req.body || {};
 
     if (!id || !userId || !name) {
       return res.status(400).json({ error: "id, userId e name são obrigatórios" });
@@ -2758,6 +2771,7 @@ app.put("/api/workout/routines/:id", async (req, res) => {
       muscle_groups: joinList(muscleGroups),
       sports: joinList(sportsActivities),
       sports_list: joinList(sportsActivities),
+      muscle_config: Array.isArray(muscleConfig) ? muscleConfig : [],
     };
 
     const { data, error } = await supabase
@@ -2765,7 +2779,7 @@ app.put("/api/workout/routines/:id", async (req, res) => {
       .update(updatePayload)
       .eq("id", id)
       .eq("user_id", userId)
-      .select("id, user_id, name, muscle_group, sports, sports_list, created_at")
+      .select("id, user_id, name, muscle_group, sports, sports_list, muscle_config, created_at")
       .single();
 
     if (error) {
