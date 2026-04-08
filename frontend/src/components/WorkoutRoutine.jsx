@@ -336,56 +336,6 @@ const formatExerciseResume = (exercise) => {
   return `${base}${weightPart}`;
 };
 
-const WorkoutRestTimer = ({
-  restDuration,
-  restCountdown,
-  restFinished,
-  onChangeDuration,
-  onStart,
-}) => (
-  <div
-    style={{
-      border: '1px solid rgba(255,255,255,0.1)',
-      borderRadius: 12,
-      padding: 12,
-      display: 'flex',
-      flexDirection: 'column',
-      gap: 8,
-    }}
-  >
-    <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
-      <div>
-        <div style={{ fontWeight: 600 }}>Timer de descanso</div>
-        <div className="muted" style={{ fontSize: 12 }}>
-          Escolha um tempo e inicie para contar o descanso do exercício.
-        </div>
-      </div>
-      <div className="row" style={{ gap: 8 }}>
-        {[30, 45, 60, 90].map((sec) => (
-          <button
-            key={sec}
-            className={restDuration === sec ? 'primary small' : 'ghost small'}
-            onClick={() => onChangeDuration(sec)}
-          >
-            {sec}s
-          </button>
-        ))}
-      </div>
-    </div>
-    <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
-      <div style={{ fontSize: 28, fontWeight: 700 }}>
-        {restCountdown || restDuration}s
-      </div>
-      <button className="primary" onClick={onStart}>
-        Iniciar descanso
-      </button>
-    </div>
-    {restFinished && (
-      <div style={{ color: '#50be78', fontWeight: 600 }}>Descanso finalizado!</div>
-    )}
-  </div>
-);
-
 const ViewWorkoutModal = ({
   open,
   workout,
@@ -393,11 +343,6 @@ const ViewWorkoutModal = ({
   onCompleteToday,
   muscleMap,
   sportsMap,
-  restDuration,
-  restCountdown,
-  restFinished,
-  onChangeDuration,
-  onStart,
 }) => {
   // novo estado para o “detalhe” selecionado
   const [infoTarget, setInfoTarget] = useState(null);
@@ -629,16 +574,6 @@ const ViewWorkoutModal = ({
           )}
 
           <div className="workout-timer-section">
-            <div className="field">
-              <label>Timer de descanso</label>
-              <WorkoutRestTimer
-                restDuration={restDuration}
-                restCountdown={restCountdown}
-                restFinished={restFinished}
-                onChangeDuration={onChangeDuration}
-                onStart={onStart}
-              />
-            </div>
             <div className="complete-today-wrapper" style={{ marginTop: 12 }}>
               <button
                 type="button"
@@ -679,10 +614,6 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
   const [userId, setUserId] = useState('');
   const [viewWorkout, setViewWorkout] = useState(null);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
-  const [restDuration, setRestDuration] = useState(60);
-  const [restCountdown, setRestCountdown] = useState(0);
-  const [restRunning, setRestRunning] = useState(false);
-  const [restFinished, setRestFinished] = useState(false);
   const [sessions, setSessions] = useState([]);
   const [historyRange, setHistoryRange] = useState({ from: '', to: '' });
   const [progress, setProgress] = useState({ totalSessions: 0, byMuscleGroup: {} });
@@ -1560,23 +1491,6 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [treinoTab, historyRange]);
-
-  useEffect(() => {
-    if (!restRunning) return;
-    if (restCountdown <= 0) {
-      setRestRunning(false);
-      setRestFinished(true);
-      return;
-    }
-    const timer = setTimeout(() => setRestCountdown((prev) => prev - 1), 1000);
-    return () => clearTimeout(timer);
-  }, [restRunning, restCountdown]);
-
-  const startRestTimer = () => {
-    setRestFinished(false);
-    setRestCountdown(restDuration);
-    setRestRunning(true);
-  };
 
   const canContinueStep = (
     (step === 1 && Boolean(tipoTreino))
@@ -2553,11 +2467,6 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
         onCompleteToday={handleCompleteFromModal}
         muscleMap={muscleMap}
         sportsMap={sportsMap}
-        restDuration={restDuration}
-        restCountdown={restCountdown}
-        restFinished={restFinished}
-        onChangeDuration={setRestDuration}
-        onStart={startRestTimer}
       />
     </div>
   );
