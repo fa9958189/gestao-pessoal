@@ -64,8 +64,7 @@ import WeightLineChart from './charts/WeightLineChart.jsx';
 import MuscleDonut from './charts/MuscleDonut.jsx';
 import TrainingHeatmap from './charts/TrainingHeatmap.jsx';
 import MiniStats from './charts/MiniStats.jsx';
-import { EXERCISES_BY_MUSCLE } from '../constants/exercises.js';
-import { EXERCISE_MEDIA } from '../constants/exerciseMedia.js';
+import { EXERCISES_BY_MUSCLE, getExerciseGif } from '../constants/exercisesMap.js';
 
 const muscleGroups = [
   { id: 'peito', name: 'Peito', image: PeitoImg },
@@ -609,22 +608,25 @@ const ViewWorkoutModal = ({
                         {exercisesToShow.length > 0 ? (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                             {exercisesToShow.map((exercise) => {
-                              const media = EXERCISE_MEDIA[exercise];
-
-                              if (!media) return null;
-
+                              const gifPath = getExerciseGif(mg, exercise);
                               return (
                                 <div key={`${mg}-${exercise}`} style={{ marginBottom: '20px' }}>
-                                  <h3 style={{ marginBottom: '10px' }}>{media.name}</h3>
-                                  <img
-                                    src={media.gif}
-                                    alt={media.name}
-                                    style={{
-                                      width: '100%',
-                                      maxWidth: '400px',
-                                      borderRadius: '12px',
-                                    }}
-                                  />
+                                  <h3 style={{ marginBottom: '10px' }}>{exercise}</h3>
+                                  {gifPath ? (
+                                    <img
+                                      src={gifPath}
+                                      alt={exercise}
+                                      style={{
+                                        width: '100%',
+                                        maxWidth: '400px',
+                                        borderRadius: '12px',
+                                      }}
+                                    />
+                                  ) : (
+                                    <div className="muted" style={{ fontSize: 13 }}>
+                                      GIF não encontrado para este exercício.
+                                    </div>
+                                  )}
                                 </div>
                               );
                             })}
