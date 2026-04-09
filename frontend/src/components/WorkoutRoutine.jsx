@@ -65,6 +65,7 @@ import MuscleDonut from './charts/MuscleDonut.jsx';
 import TrainingHeatmap from './charts/TrainingHeatmap.jsx';
 import MiniStats from './charts/MiniStats.jsx';
 import { EXERCISES_BY_MUSCLE } from '../constants/exercises.js';
+import { EXERCISE_MEDIA } from '../constants/exerciseMedia.js';
 
 const muscleGroups = [
   { id: 'peito', name: 'Peito', image: PeitoImg },
@@ -598,9 +599,7 @@ const ViewWorkoutModal = ({
                   {muscleGroups.map((mg) => {
                     const def = getMuscleGroupByLabel(mg) || muscleMap[mg];
                     const muscleData = muscleConfigEntries.find((m) => m.muscle === mg);
-                    const exercisesToShow = muscleData?.exercises?.length > 0
-                      ? muscleData.exercises
-                      : (EXERCISES_BY_MUSCLE[mg] || []);
+                    const exercisesToShow = muscleData?.exercises || [];
 
                     return (
                       <div key={`${mg}-exs`}>
@@ -608,12 +607,27 @@ const ViewWorkoutModal = ({
                           {def?.label || mg}
                         </div>
                         {exercisesToShow.length > 0 ? (
-                          <div className="chips">
-                            {exercisesToShow.map((exercise) => (
-                              <div key={`${mg}-${exercise}`} className="chip">
-                                {exercise}
-                              </div>
-                            ))}
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                            {exercisesToShow.map((exercise) => {
+                              const media = EXERCISE_MEDIA[exercise];
+
+                              if (!media) return null;
+
+                              return (
+                                <div key={`${mg}-${exercise}`} style={{ marginBottom: '20px' }}>
+                                  <h3 style={{ marginBottom: '10px' }}>{media.name}</h3>
+                                  <img
+                                    src={media.gif}
+                                    alt={media.name}
+                                    style={{
+                                      width: '100%',
+                                      maxWidth: '400px',
+                                      borderRadius: '12px',
+                                    }}
+                                  />
+                                </div>
+                              );
+                            })}
                           </div>
                         ) : (
                           <div className="muted" style={{ fontSize: 13 }}>
