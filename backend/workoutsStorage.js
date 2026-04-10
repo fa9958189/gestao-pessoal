@@ -171,3 +171,34 @@ export const listWorkoutSessions = async (userId) => {
     date: toDateOnly(row.performed_at),
   }));
 };
+
+export const deleteWorkoutSession = async (id, userId) => {
+  if (!id || !userId) return false;
+
+  if (supabaseAvailable) {
+    try {
+      const { data, error } = await supabase
+        .from("workout_sessions")
+        .delete()
+        .eq("id", id)
+        .eq("user_id", userId)
+        .select("id");
+
+      if (error) throw error;
+      return Array.isArray(data) && data.length > 0;
+    } catch (err) {
+      console.warn("Erro ao deletar sessão:", err);
+    }
+  }
+
+  const db = await readData();
+  const before = (db.sessions || []).length;
+
+  db.sessions = (db.sessions || []).filter(
+    (s) => !(s.id === id && s.userId === userId)
+  );
+
+  await writeData(db);
+
+  return (db.sessions || []).length !== before;
+};

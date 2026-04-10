@@ -2631,18 +2631,7 @@ const mapRoutineRow = (row = {}) => ({
   name: row.name,
   muscleGroups: parseList(row.muscle_groups || row.muscle_group),
   sportsActivities: parseList(row.sports_list || row.sports),
-  muscleConfig: Array.isArray(row.muscle_config)
-    ? row.muscle_config
-    : typeof row.muscle_config === "string"
-      ? (() => {
-          try {
-            const parsed = JSON.parse(row.muscle_config);
-            return Array.isArray(parsed) ? parsed : [];
-          } catch (err) {
-            return [];
-          }
-        })()
-      : [],
+  muscleConfig: [],
   createdAt: row.created_at,
 });
 
@@ -2704,7 +2693,7 @@ app.get("/api/workout/routines", async (req, res) => {
 
     const { data, error } = await supabase
       .from("workout_routines")
-      .select("id, user_id, name, muscle_group, sports, sports_list, muscle_config, created_at")
+      .select("id, user_id, name, muscle_group, sports, sports_list, created_at")
       .eq("user_id", userId)
       .order("created_at", { ascending: true });
 
@@ -2735,13 +2724,12 @@ app.post("/api/workout/routines", async (req, res) => {
       muscle_groups: joinList(muscleGroups),
       sports: joinList(sportsActivities),
       sports_list: joinList(sportsActivities),
-      muscle_config: Array.isArray(muscleConfig) ? muscleConfig : [],
     };
 
     const { data, error } = await supabase
       .from("workout_routines")
       .insert(insertPayload)
-      .select("id, user_id, name, muscle_group, sports, sports_list, muscle_config, created_at")
+      .select("id, user_id, name, muscle_group, sports, sports_list, created_at")
       .single();
 
     if (error) {
@@ -2771,7 +2759,6 @@ app.put("/api/workout/routines/:id", async (req, res) => {
       muscle_groups: joinList(muscleGroups),
       sports: joinList(sportsActivities),
       sports_list: joinList(sportsActivities),
-      muscle_config: Array.isArray(muscleConfig) ? muscleConfig : [],
     };
 
     const { data, error } = await supabase
@@ -2779,7 +2766,7 @@ app.put("/api/workout/routines/:id", async (req, res) => {
       .update(updatePayload)
       .eq("id", id)
       .eq("user_id", userId)
-      .select("id, user_id, name, muscle_group, sports, sports_list, muscle_config, created_at")
+      .select("id, user_id, name, muscle_group, sports, sports_list, created_at")
       .single();
 
     if (error) {
@@ -3793,7 +3780,6 @@ const handleBodyUpdate = async (req, res) => {
 
     const profileUpdatePayload = {
       weight: normalizedWeight,
-      current_weight: normalizedWeight,
       goal_weight: weightGoalToSave,
       weight_goal: weightGoalToSave,
       height: normalizedHeight,
@@ -3819,27 +3805,27 @@ const handleBodyUpdate = async (req, res) => {
     }
 
     const { data: authProfile, error: authProfileError } = await supabase
-      .from("profiles_auth")
+      .from("profiles")
       .select("goal_mode, weight")
-      .eq("auth_id", userId)
+      .eq("id", userId)
       .maybeSingle();
 
     if (authProfileError) {
-      console.error("Erro ao buscar profiles_auth após salvar corpo:", authProfileError);
+      console.error("Erro ao buscar profiles após salvar corpo:", authProfileError);
     } else if (authProfile?.goal_mode === "auto") {
       const automaticGoals = buildAutomaticGoalsFromWeight(authProfile.weight ?? normalizedWeight);
       if (automaticGoals) {
         const { error: authUpdateError } = await supabase
-          .from("profiles_auth")
+          .from("profiles")
           .update({
             goal_calories: automaticGoals.calories,
             goal_protein: automaticGoals.protein,
             goal_water: automaticGoals.water,
           })
-          .eq("auth_id", userId);
+          .eq("id", userId);
 
         if (authUpdateError) {
-          console.error("Erro ao atualizar metas automáticas em profiles_auth:", authUpdateError);
+          console.error("Erro ao atualizar metas automáticas em profiles:", authUpdateError);
         }
       }
     }
