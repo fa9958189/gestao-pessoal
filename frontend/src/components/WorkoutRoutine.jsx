@@ -334,6 +334,39 @@ const defaultSchedule = WEEK_DAYS.map((day) => ({
 const QUICK_MUSCLE_CONFIG_OPTIONS = ['3x10', '4x12', '3x15'];
 const DEFAULT_MUSCLE_CONFIG = '3x10';
 
+
+const isDateOnlyString = (value) => /^\d{4}-\d{2}-\d{2}$/.test(String(value || '').trim());
+
+const parseWorkoutDate = (value) => {
+  if (!value) return null;
+  const rawValue = typeof value === 'string' ? value.trim() : value;
+  const parsed = isDateOnlyString(rawValue)
+    ? new Date(`${rawValue}T12:00:00`)
+    : new Date(rawValue);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
+const formatWorkoutDatePtBr = (value) => {
+  const date = parseWorkoutDate(value);
+  if (!date) return '-';
+  return date.toLocaleDateString('pt-BR');
+};
+
+const getLocalDateOnly = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const getLocalDateOnlyFromDate = (date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 const formatExerciseResume = (exercise) => {
   const base = `${exercise.name || 'Exercício'} ${exercise.sets || 0}x${exercise.reps || 0}`;
   const weightPart = exercise.weight ? ` – ${exercise.weight}kg` : '';
@@ -800,16 +833,17 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
     // Filtrar sessões do mês atual
     const sessionsThisMonth = sessions.filter((session) => {
       if (!session.date) return false;
-      const d = new Date(session.date);
-      if (Number.isNaN(d.getTime())) return false;
+      const d = parseWorkoutDate(session.date);
+      if (!d) return false;
       return d.getFullYear() === year && d.getMonth() === month;
     });
 
     // Dias treinados (dias únicos no mês)
     const uniqueDays = new Set(
       sessionsThisMonth
-        .map((s) => s.date)
+        .map((s) => parseWorkoutDate(s.date))
         .filter(Boolean)
+        .map((date) => getLocalDateOnlyFromDate(date))
     );
     const daysTrained = uniqueDays.size;
 
@@ -845,8 +879,8 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
     const weeklyBuckets = [0, 0, 0, 0];
     sessionsThisMonth.forEach((s) => {
       if (!s.date) return;
-      const d = new Date(s.date);
-      if (Number.isNaN(d.getTime())) return;
+      const d = parseWorkoutDate(s.date);
+      if (!d) return;
       const dayOfMonth = d.getDate(); // 1..31
       const weekIndex = Math.min(Math.floor((dayOfMonth - 1) / 7), weeklyBuckets.length - 1);
       weeklyBuckets[weekIndex] += 1;
@@ -870,8 +904,8 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
     const weekdayCount = {};
     sessionsThisMonth.forEach((s) => {
       if (!s.date) return;
-      const d = new Date(s.date);
-      if (Number.isNaN(d.getTime())) return;
+      const d = parseWorkoutDate(s.date);
+      if (!d) return;
       const wd = d.getDay();
       weekdayCount[wd] = (weekdayCount[wd] || 0) + 1;
     });
@@ -911,17 +945,17 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
     const buckets = {};
     sessions.forEach((session) => {
       if (!session.date) return;
-      const date = new Date(session.date);
-      if (Number.isNaN(date.getTime())) return;
+      const date = parseWorkoutDate(session.date);
+      if (!date) return;
       if (date < start || date > today) return;
-      const key = date.toISOString().slice(0, 10);
+      const key = getLocalDateOnlyFromDate(date);
       buckets[key] = (buckets[key] || 0) + 1;
     });
 
     return Array.from({ length: 30 }).map((_, index) => {
       const day = new Date(start);
       day.setDate(start.getDate() + index);
-      const key = day.toISOString().slice(0, 10);
+      const key = getLocalDateOnlyFromDate(day);
       return { date: key, count: buckets[key] || 0 };
     });
   }, [sessions]);
@@ -947,8 +981,8 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
 
     sessions.forEach((session) => {
       if (!session.date) return;
-      const date = new Date(session.date);
-      if (Number.isNaN(date.getTime())) return;
+      const date = parseWorkoutDate(session.date);
+      if (!date) return;
       if (date < start || date > today) return;
 
       const diffDays = Math.floor((date - start) / (1000 * 60 * 60 * 24));
@@ -1205,8 +1239,8 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
     try {
       if (!userId) return;
       const query = new URLSearchParams({ userId });
-      if (historyRange.from) query.append('from', historyRange.from);
-      if (historyRange.to) query.append('to', historyRange.to);
+      if (historyRange.from) query.append('from', `${historyRange.from}T00:00:00`);
+      if (historyRange.to) query.append('to', `${historyRange.to}T23:59:59.999`);
       const data = await fetchJson(`${apiBaseUrl}/api/workouts/sessions?${query.toString()}`);
       const raw = Array.isArray(data) ? data : data?.items || [];
       const normalized = raw.map((session) => {
@@ -1425,7 +1459,7 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
         const reminderPayload = {
           type: 'workout',
           workoutName: saved?.name || formData.name,
-          date: new Date().toISOString().slice(0, 10),
+          date: getLocalDateOnly(),
         };
         await fetchJson(`${apiBaseUrl}/api/workouts/reminders`, {
           method: 'POST',
@@ -1549,7 +1583,7 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
     const sessionPayload = {
       userId,
       templateId: source.id || null,
-      date: new Date().toISOString().slice(0, 10),
+      date: getLocalDateOnly(),
       name: source.name,
       muscleGroups: source.muscleGroups || source.muscle_groups || [],
       sportsActivities,
@@ -2215,7 +2249,7 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
                   <div key={treino.id} className="event-card card-padrao">
 
                     <div className="event-date">
-                      {new Date(treino.date).toLocaleDateString('pt-BR')}
+                      {formatWorkoutDatePtBr(treino.date)}
                     </div>
 
                     <div className="event-content">
@@ -2239,7 +2273,7 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
                         type="button"
                         className="btn-delete btn-acao"
                         onClick={() => handleDeleteSession(treino.id)}
-                        aria-label={`Excluir treino de ${new Date(treino.date).toLocaleDateString('pt-BR')}`}
+                        aria-label={`Excluir treino de ${formatWorkoutDatePtBr(treino.date)}`}
                         title="Excluir treino"
                       >
                         🗑️
