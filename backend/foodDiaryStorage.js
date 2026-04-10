@@ -13,10 +13,23 @@ const DEFAULT_BODY = {
 };
 
 const DEFAULT_WATER_GOAL_L = DEFAULT_GOALS.water;
+const BRAZIL_TZ = "America/Sao_Paulo";
 
 const getLocalDateString = (now = new Date()) => {
-  const offsetMs = now.getTimezoneOffset() * 60 * 1000;
-  return new Date(now.getTime() - offsetMs).toISOString().slice(0, 10);
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: BRAZIL_TZ,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  return formatter.format(now);
+};
+
+const getBrazilDateFromTimestamp = (value) => {
+  if (!value) return null;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return getLocalDateString(parsed);
 };
 
 const normalizeEntryFromDb = (row = {}) => ({
@@ -169,7 +182,7 @@ const getHydrationRowsFromLogs = async (supabaseClient, userId, dayDate) => {
     if (!row?.created_at) {
       return false;
     }
-    return new Date(row.created_at).toISOString().slice(0, 10) === dayDate;
+    return getBrazilDateFromTimestamp(row.created_at) === dayDate;
   });
 };
 

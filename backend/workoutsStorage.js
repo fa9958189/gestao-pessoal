@@ -40,6 +40,34 @@ const generateId = () => crypto.randomUUID();
 
 const supabaseAvailable = Boolean(supabase);
 
+function getLocalDateOnly() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+const isDateOnlyString = (value) =>
+  /^\d{4}-\d{2}-\d{2}$/.test(String(value || "").trim());
+
+const toSafePerformedAt = (value) => {
+  if (!value) return new Date().toISOString();
+
+  const raw = String(value).trim();
+
+  if (isDateOnlyString(raw)) {
+    return `${raw}T12:00:00.000`;
+  }
+
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) {
+    return new Date().toISOString();
+  }
+
+  return parsed.toISOString();
+};
+
 const normalizeSportsArray = (sports) => {
   if (Array.isArray(sports)) {
     return sports.map((s) => String(s).trim()).filter(Boolean);
@@ -96,7 +124,7 @@ const saveSessionToSupabase = async (session) => {
       sports_list: Array.isArray(session.sports)
         ? session.sports.join(", ")
         : "",
-      performed_at: session.date ?? new Date().toISOString(),
+      performed_at: toSafePerformedAt(session.date),
     };
 
     const { data, error } = await supabase
@@ -249,11 +277,13 @@ export const upsertWorkoutTemplate = async (template) => {
 
 export const createWorkoutSession = async (session) => {
   const now = new Date().toISOString();
+  const localWorkoutDate = getLocalDateOnly();
   const sportsActivities = normalizeSportsArray(
     session.sportsActivities ?? session.sports ?? session.sports_activities
   );
   const payload = {
     ...session,
+    date: localWorkoutDate,
     id: session.id || generateId(),
     sportsActivities,
     sports: sportsActivities,

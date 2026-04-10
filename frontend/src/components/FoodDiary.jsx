@@ -87,11 +87,37 @@ const parseNumberInput = (value) => {
 
 const isValidDecimalInput = (value) => /^\d*([.,]\d*)?$/.test(value);
 
-const getLocalDateString = () => {
+function getLocalDateOnly() {
   const now = new Date();
-  const offsetMs = now.getTimezoneOffset() * 60 * 1000;
-  return new Date(now.getTime() - offsetMs).toISOString().slice(0, 10);
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+const getLocalDateOnlyFromDate = (date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 };
+
+function parseLocalDate(value) {
+  if (!value) return null;
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return new Date(`${value}T12:00:00`);
+  }
+
+  const d = new Date(value);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function formatWorkoutDatePtBr(value) {
+  const d = parseLocalDate(value);
+  if (!d) return '-';
+  return d.toLocaleDateString('pt-BR');
+}
 
 const toStorageDateString = (selectedDate) => {
   const normalized = String(selectedDate || '').trim();
@@ -101,16 +127,12 @@ const toStorageDateString = (selectedDate) => {
   if (/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
     return normalized;
   }
-  return new Date().toLocaleDateString('pt-BR').split('/').reverse().join('-');
+  return getLocalDateOnly();
 };
 
 const formatDateToPtBr = (date) => {
-  const normalized = String(date || '').trim();
-  if (!normalized) return '';
-  if (normalized.includes('/')) return normalized;
-  const [year, month, day] = normalized.split('-');
-  if (!year || !month || !day) return normalized;
-  return `${day}/${month}/${year}`;
+  const formatted = formatWorkoutDatePtBr(date);
+  return formatted === '-' ? '' : formatted;
 };
 
 const normalizeBaseUrl = (value) => {
@@ -191,7 +213,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
   const [, setProfileLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedDate, setSelectedDate] = useState(
-    () => getLocalDateString()
+    () => getLocalDateOnly()
   );
   const [activeSubTab, setActiveSubTab] = useState('diario');
   const [isAddMealModalOpen, setIsAddMealModalOpen] = useState(false);
@@ -220,7 +242,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
   });
   const [dailyWeightDraft, setDailyWeightDraft] = useState({
     weightKg: '',
-    entryDate: getLocalDateString(),
+    entryDate: getLocalDateOnly(),
   });
 
   const [form, setForm] = useState({
@@ -468,7 +490,12 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
         if (!item?.created_at) {
           return false;
         }
-        return new Date(item.created_at).toDateString() === new Date(selectedDay).toDateString();
+        const createdAtDate = parseLocalDate(item.created_at);
+        const selectedDayDate = parseLocalDate(selectedDay);
+        if (!createdAtDate || !selectedDayDate) {
+          return false;
+        }
+        return createdAtDate.toDateString() === selectedDayDate.toDateString();
       })
       .reduce((sum, item) => {
         const amountMl = Number(item?.amount_ml ?? item?.water_ml);
@@ -489,7 +516,20 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
     loadWater();
   }, [userId, supabase, selectedDate, refreshToken]);
 
-  const dayEntries = entriesByDate[selectedDate] || [];
+  const dayEntries = useMemo(() => {
+    const selected = parseLocalDate(selectedDate);
+    if (!selected) return [];
+    const selectedDay = getLocalDateOnlyFromDate(selected);
+
+    return Object.values(entriesByDate)
+      .flat()
+      .filter((entry) => {
+        const rawDate = entry?.entryDate || entry?.date || entry?.entry_date || entry?.day_date;
+        const parsed = parseLocalDate(rawDate);
+        if (!parsed) return false;
+        return getLocalDateOnlyFromDate(parsed) === selectedDay;
+      });
+  }, [entriesByDate, selectedDate]);
 
   const totals = useMemo(() => {
     const totalCalories = dayEntries.reduce(
@@ -592,7 +632,14 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
     () =>
       weightHistory
         .slice()
-        .sort((a, b) => a.date.localeCompare(b.date))
+        .sort((a, b) => {
+          const aDate = parseLocalDate(a.date);
+          const bDate = parseLocalDate(b.date);
+          if (!aDate && !bDate) return 0;
+          if (!aDate) return -1;
+          if (!bDate) return 1;
+          return aDate.getTime() - bDate.getTime();
+        })
         .map((item) => ({
           date: (() => {
             const formatted = formatDateToPtBr(item.date);
@@ -607,7 +654,14 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
   const weightHistoryWithVariation = useMemo(() => {
     const sorted = weightHistory
       .slice()
-      .sort((a, b) => b.date.localeCompare(a.date));
+      .sort((a, b) => {
+        const aDate = parseLocalDate(a.date);
+        const bDate = parseLocalDate(b.date);
+        if (!aDate && !bDate) return 0;
+        if (!aDate) return 1;
+        if (!bDate) return -1;
+        return bDate.getTime() - aDate.getTime();
+      });
 
     return sorted.map((item, index) => {
       const previousEntry = sorted[index + 1];
@@ -630,7 +684,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
     const currentWeight = parseNumberInput(body.weightKg);
     if (!Number.isFinite(currentWeight)) return null;
 
-    const today = getLocalDateString();
+    const today = getLocalDateOnly();
     const latestEntry = weightHistoryWithVariation[0];
     const referenceEntry =
       latestEntry?.date === today
@@ -1433,7 +1487,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
   const openDailyWeightModal = () => {
     setDailyWeightDraft({
       weightKg: body.weightKg || '',
-      entryDate: getLocalDateString(),
+      entryDate: getLocalDateOnly(),
     });
     setIsDailyWeightModalOpen(true);
   };
@@ -1730,7 +1784,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
 
       {currentBodyVariation?.referenceDate && (
         <div className="muted" style={{ fontSize: 12 }}>
-          Comparado com {new Date(currentBodyVariation.referenceDate).toLocaleDateString('pt-BR')} ({formatNumber(currentBodyVariation.referenceWeight, 1)} kg).
+          Comparado com {formatWorkoutDatePtBr(currentBodyVariation.referenceDate)} ({formatNumber(currentBodyVariation.referenceWeight, 1)} kg).
         </div>
       )}
     </div>
