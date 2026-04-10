@@ -1,5 +1,37 @@
 import React, { useEffect, useMemo, useState } from 'react';
 
+function getLocalDateOnly() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function getLocalDateOnlyFromDate(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function parseLocalDate(value) {
+  if (!value) return null;
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return new Date(`${value}T12:00:00`);
+  }
+
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function formatLocalDatePtBr(value) {
+  const d = parseLocalDate(value);
+  if (!d) return '-';
+  return d.toLocaleDateString('pt-BR');
+}
+
 const getStatusFromGoal = (value, goal) => {
   if (!goal) return 'Sem meta';
   const diffRatio = (value - goal) / goal;
@@ -50,12 +82,12 @@ function FoodDiaryReports({ userId, supabase, selectedDate, goals }) {
       setError(null);
 
       try {
-        const today = new Date(selectedDate || new Date());
+        const today = parseLocalDate(selectedDate) || parseLocalDate(getLocalDateOnly()) || new Date();
         const fromDate = new Date(today);
         fromDate.setDate(today.getDate() - 29);
 
-        const todayStr = today.toISOString().slice(0, 10);
-        const fromDateStr = fromDate.toISOString().slice(0, 10);
+        const todayStr = getLocalDateOnlyFromDate(today);
+        const fromDateStr = getLocalDateOnlyFromDate(fromDate);
 
         const { data, error: dbError } = await supabase
           .from('food_diary_entries')
@@ -99,12 +131,12 @@ function FoodDiaryReports({ userId, supabase, selectedDate, goals }) {
   }, [userId, supabase, selectedDate]);
 
   const daysRange = useMemo(() => {
-    const today = new Date(selectedDate || new Date());
+    const today = parseLocalDate(selectedDate) || parseLocalDate(getLocalDateOnly()) || new Date();
     const dates = [];
     for (let i = 6; i >= 0; i -= 1) {
       const d = new Date(today);
       d.setDate(today.getDate() - i);
-      dates.push(d.toISOString().slice(0, 10));
+      dates.push(getLocalDateOnlyFromDate(d));
     }
     return dates;
   }, [selectedDate]);
@@ -151,12 +183,12 @@ function FoodDiaryReports({ userId, supabase, selectedDate, goals }) {
   const waterGoalLiters = Number(goals?.water) || 0;
 
   const heatmapRange = useMemo(() => {
-    const today = new Date(selectedDate || new Date());
+    const today = parseLocalDate(selectedDate) || parseLocalDate(getLocalDateOnly()) || new Date();
     const dates = [];
     for (let i = 29; i >= 0; i -= 1) {
       const d = new Date(today);
       d.setDate(today.getDate() - i);
-      dates.push(d.toISOString().slice(0, 10));
+      dates.push(getLocalDateOnlyFromDate(d));
     }
     return dates;
   }, [selectedDate]);
@@ -210,7 +242,14 @@ function FoodDiaryReports({ userId, supabase, selectedDate, goals }) {
     return weightHistory
       .slice()
       .filter((item) => item.weightKg > 0)
-      .sort((a, b) => a.date.localeCompare(b.date));
+      .sort((a, b) => {
+        const aDate = parseLocalDate(a.date);
+        const bDate = parseLocalDate(b.date);
+        if (!aDate && !bDate) return 0;
+        if (!aDate) return -1;
+        if (!bDate) return 1;
+        return aDate.getTime() - bDate.getTime();
+      });
   }, [weightHistory]);
 
   const recentWeightTrend = useMemo(() => {
@@ -501,7 +540,7 @@ function FoodDiaryReports({ userId, supabase, selectedDate, goals }) {
             {dailyTotals.map((day) => (
               <div key={day.date}>
                 <div className="row" style={{ justifyContent: 'space-between', fontSize: 12 }}>
-                  <span>{new Date(day.date).toLocaleDateString('pt-BR')}</span>
+                  <span>{formatLocalDatePtBr(day.date)}</span>
                   <span className="muted">{formatNumber(day.totalCalories, 0)} kcal</span>
                 </div>
                 <div
@@ -531,7 +570,7 @@ function FoodDiaryReports({ userId, supabase, selectedDate, goals }) {
             {dailyTotals.map((day) => (
               <div key={`${day.date}-protein`}>
                 <div className="row" style={{ justifyContent: 'space-between', fontSize: 12 }}>
-                  <span>{new Date(day.date).toLocaleDateString('pt-BR')}</span>
+                  <span>{formatLocalDatePtBr(day.date)}</span>
                   <span className="muted">{formatNumber(day.totalProtein, 0)} g</span>
                 </div>
                 <div
@@ -576,7 +615,7 @@ function FoodDiaryReports({ userId, supabase, selectedDate, goals }) {
             {consistency.map((day) => (
               <div
                 key={`consistency-${day.date}`}
-                title={new Date(day.date).toLocaleDateString('pt-BR')}
+                title={formatLocalDatePtBr(day.date)}
                 style={{
                   width: 18,
                   height: 18,
@@ -718,7 +757,7 @@ function FoodDiaryReports({ userId, supabase, selectedDate, goals }) {
                       return (
                         <div
                           key={day.date}
-                          title={`${new Date(day.date).toLocaleDateString('pt-BR')} – ${formatNumber(day.totalCalories, 0)} kcal`}
+                          title={`${formatLocalDatePtBr(day.date)} – ${formatNumber(day.totalCalories, 0)} kcal`}
                           style={{
                             height: 26,
                             borderRadius: 6,
@@ -786,7 +825,7 @@ function FoodDiaryReports({ userId, supabase, selectedDate, goals }) {
                               fill="#50be78"
                             >
                               <title>
-                                {`${new Date(recentWeightTrend[idx].date).toLocaleDateString('pt-BR')} – ${formatNumber(
+                                {`${formatLocalDatePtBr(recentWeightTrend[idx].date)} – ${formatNumber(
                                   recentWeightTrend[idx].weightKg,
                                   1,
                                 )} kg`}
