@@ -453,7 +453,7 @@ export const saveFoodDiaryState = async (userId, state = {}) => {
 
     const { error: profileSyncError } = await supabase
       .from("profiles")
-      .update({ current_weight: Number(latestWeight.weightKg) })
+      .update({ weight: Number(latestWeight.weightKg) })
       .eq("id", userId);
 
     if (profileSyncError) throw profileSyncError;

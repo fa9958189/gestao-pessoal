@@ -1,40 +1,5 @@
-import fs from "fs/promises";
-import path from "path";
-import { fileURLToPath } from "url";
 import { supabase } from "./supabase.js";
 import crypto from "crypto";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const dataDir = path.join(__dirname, "data");
-const dataFile = path.join(dataDir, "workouts.json");
-
-const ensureFile = async () => {
-  try {
-    await fs.mkdir(dataDir, { recursive: true });
-    await fs.access(dataFile);
-  } catch {
-    await fs.writeFile(
-      dataFile,
-      JSON.stringify({ templates: [], sessions: [], reminders: [] }, null, 2)
-    );
-  }
-};
-
-const readData = async () => {
-  await ensureFile();
-  const raw = await fs.readFile(dataFile, "utf-8");
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return { templates: [], sessions: [], reminders: [] };
-  }
-};
-
-const writeData = async (data) => {
-  await ensureFile();
-  await fs.writeFile(dataFile, JSON.stringify(data, null, 2));
-};
 
 const generateId = () => crypto.randomUUID();
 const supabaseAvailable = Boolean(supabase);
@@ -86,74 +51,118 @@ const normalizeSportsArray = (sports) => {
   if (Array.isArray(sports)) {
     return sports.map((s) => String(s).trim()).filter(Boolean);
   }
-
   if (typeof sports === "string") {
     return sports.split(",").map((s) => s.trim()).filter(Boolean);
   }
-
   return [];
 };
 
-const saveSessionToSupabase = async (session) => {
-  try {
-    const normalizedDate = toDateOnly(session.date || getLocalDateOnly());
+const splitList = (value) =>
+  String(value || "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
 
-    const row = {
-      id: session.id,
-      user_id: session.userId,
-      workout_name: session.workoutName || "",
-      muscle_groups: (session.muscleGroups || []).join(", "),
-      sports_list: (session.sports || []).join(", "),
-      performed_at: toSafePerformedAt(normalizedDate),
-    };
+const periodStartFrom = (period) => {
+  const now = new Date();
+  if (period === "week") {
+    return new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  }
+  if (period === "year") {
+    return new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
+  }
+  return new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+};
 
+//
+// =========================
+// TEMPLATES
+// =========================
+//
+
+export const listWorkoutTemplates = async (userId) => {
+  const { data } = await supabase
+    .from("workout_templates")
+    .select("*")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false });
+
+  return data || [];
+};
+
+export const createWorkoutTemplate = async (template) => {
+  const { data, error } = await supabase
+    .from("workout_templates")
+    .insert({
+      id: generateId(),
+      user_id: template.userId,
+      name: template.name,
+      muscle_groups: (template.muscleGroups || []).join(", "),
+      sports_list: normalizeSportsArray(template.sportsActivities || template.sports).join(", "),
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+};
+
+export const upsertWorkoutTemplate = async (template) => {
+  if (template?.id) {
     const { data, error } = await supabase
-      .from("workout_sessions")
-      .insert(row)
-      .select("*")
+      .from("workout_templates")
+      .update({
+        name: template.name,
+        muscle_groups: (template.muscleGroups || []).join(", "),
+        sports_list: normalizeSportsArray(template.sportsActivities || template.sports).join(", "),
+      })
+      .eq("id", template.id)
+      .eq("user_id", template.userId)
+      .select()
       .single();
 
     if (error) throw error;
-
-    return {
-      id: data.id,
-      userId: data.user_id,
-      workoutName: data.workout_name,
-      muscleGroups: data.muscle_groups
-        ? data.muscle_groups.split(",")
-        : [],
-      sports: data.sports_list ? data.sports_list.split(",") : [],
-      date: toDateOnly(data.performed_at),
-    };
-  } catch (error) {
-    console.error("Erro ao salvar sessão:", error);
-    return null;
+    return data;
   }
+
+  return createWorkoutTemplate(template);
 };
 
+//
+// =========================
+// SESSÕES
+// =========================
+//
+
 export const createWorkoutSession = async (session) => {
-  const payload = {
-    ...session,
-    id: session.id || generateId(),
-    date: getLocalDateOnly(),
-    sports: normalizeSportsArray(session.sports),
+  const normalizedDate = toDateOnly(session.date || getLocalDateOnly());
+
+  const { data, error } = await supabase
+    .from("workout_sessions")
+    .insert({
+      id: generateId(),
+      user_id: session.userId,
+      workout_name: session.workoutName || session.name || "",
+      muscle_groups: (session.muscleGroups || []).join(", "),
+      sports_list: normalizeSportsArray(session.sports).join(", "),
+      performed_at: toSafePerformedAt(normalizedDate),
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+
+  return {
+    id: data.id,
+    userId: data.user_id,
+    workoutName: data.workout_name,
+    muscleGroups: data.muscle_groups ? splitList(data.muscle_groups) : [],
+    sports: data.sports_list ? splitList(data.sports_list) : [],
+    date: toDateOnly(data.performed_at),
   };
-
-  if (supabaseAvailable) {
-    const saved = await saveSessionToSupabase(payload);
-    if (saved) return saved;
-  }
-
-  const db = await readData();
-  db.sessions = [payload, ...(db.sessions || [])];
-  await writeData(db);
-
-  return payload;
 };
 
 export const listWorkoutSessions = async (userId) => {
-  if (!userId) return [];
-
   const { data } = await supabase
     .from("workout_sessions")
     .select("*")
@@ -164,10 +173,44 @@ export const listWorkoutSessions = async (userId) => {
     id: row.id,
     userId: row.user_id,
     workoutName: row.workout_name,
-    muscleGroups: row.muscle_groups
-      ? row.muscle_groups.split(",")
-      : [],
-    sports: row.sports_list ? row.sports_list.split(",") : [],
+    muscleGroups: row.muscle_groups ? splitList(row.muscle_groups) : [],
+    sports: row.sports_list ? splitList(row.sports_list) : [],
     date: toDateOnly(row.performed_at),
   }));
 };
+
+export const deleteWorkoutSession = async (id, userId) => {
+  if (!id || !userId) return false;
+
+  const { data, error } = await supabase
+    .from("workout_sessions")
+    .delete()
+    .eq("id", id)
+    .eq("user_id", userId)
+    .select("id");
+
+  if (error) throw error;
+  return Array.isArray(data) && data.length > 0;
+};
+
+export const summarizeProgress = async (userId, period = "month") => {
+  const sessions = await listWorkoutSessions(userId);
+  const start = periodStartFrom(period);
+
+  const filtered = sessions.filter((item) => {
+    const parsed = new Date(item.date || item.performed_at || "");
+    return !Number.isNaN(parsed.getTime()) && parsed >= start;
+  });
+
+  return {
+    period,
+    totalSessions: filtered.length,
+    lastSessionDate: filtered[0]?.date || null,
+  };
+};
+
+export const saveWorkoutReminder = async (reminder) => ({
+  id: reminder.id || generateId(),
+  ...reminder,
+  createdAt: new Date().toISOString(),
+});
