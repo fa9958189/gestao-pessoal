@@ -3202,8 +3202,8 @@ app.delete("/api/workouts/templates/:id", async (req, res) => {
 app.post("/api/workouts/sessions", async (req, res) => {
   try {
     const session = req.body || {};
-    if (!session.userId || !session.date || !session.name) {
-      return res.status(400).json({ error: "userId, date e name são obrigatórios." });
+    if (!session.userId || !session.name) {
+      return res.status(400).json({ error: "userId e name são obrigatórios." });
     }
 
     const saved = await createWorkoutSession(session);

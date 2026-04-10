@@ -40,6 +40,28 @@ const generateId = () => crypto.randomUUID();
 
 const supabaseAvailable = Boolean(supabase);
 
+function getLocalDateOnly() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+const toDateOnly = (value) => {
+  const raw = String(value || "").trim();
+  if (!raw) return getLocalDateOnly();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return getLocalDateOnly();
+
+  const year = parsed.getFullYear();
+  const month = String(parsed.getMonth() + 1).padStart(2, "0");
+  const day = String(parsed.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
 const normalizeSportsArray = (sports) => {
   if (Array.isArray(sports)) {
     return sports.map((s) => String(s).trim()).filter(Boolean);
@@ -96,7 +118,7 @@ const saveSessionToSupabase = async (session) => {
       sports_list: Array.isArray(session.sports)
         ? session.sports.join(", ")
         : "",
-      performed_at: session.date ?? new Date().toISOString(),
+      performed_at: session.date || getLocalDateOnly(),
     };
 
     const { data, error } = await supabase
@@ -119,7 +141,7 @@ const saveSessionToSupabase = async (session) => {
       sports: data.sports_list
         ? data.sports_list.split(",").map((s) => s.trim())
         : [],
-      date: data.performed_at,
+      date: session.date || getLocalDateOnly(),
     };
   } catch (error) {
     console.error("Erro ao salvar sessão no Supabase, usando JSON:", error);
@@ -249,11 +271,13 @@ export const upsertWorkoutTemplate = async (template) => {
 
 export const createWorkoutSession = async (session) => {
   const now = new Date().toISOString();
+  const localWorkoutDate = getLocalDateOnly();
   const sportsActivities = normalizeSportsArray(
     session.sportsActivities ?? session.sports ?? session.sports_activities
   );
   const payload = {
     ...session,
+    date: localWorkoutDate,
     id: session.id || generateId(),
     sportsActivities,
     sports: sportsActivities,
@@ -302,7 +326,7 @@ export const listWorkoutSessions = async (userId, { from, to }) => {
         sports: row.sports_list
           ? row.sports_list.split(",").map((s) => s.trim())
           : [],
-        date: row.performed_at,
+        date: toDateOnly(row.performed_at),
       }));
     } catch (error) {
       console.error(

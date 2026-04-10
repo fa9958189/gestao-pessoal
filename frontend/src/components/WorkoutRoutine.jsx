@@ -335,30 +335,30 @@ const QUICK_MUSCLE_CONFIG_OPTIONS = ['3x10', '4x12', '3x15'];
 const DEFAULT_MUSCLE_CONFIG = '3x10';
 
 
-const isDateOnlyString = (value) => /^\d{4}-\d{2}-\d{2}$/.test(String(value || '').trim());
-
-const parseWorkoutDate = (value) => {
-  if (!value) return null;
-  const rawValue = typeof value === 'string' ? value.trim() : value;
-  const parsed = isDateOnlyString(rawValue)
-    ? new Date(`${rawValue}T12:00:00`)
-    : new Date(rawValue);
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
-};
-
-const formatWorkoutDatePtBr = (value) => {
-  const date = parseWorkoutDate(value);
-  if (!date) return '-';
-  return date.toLocaleDateString('pt-BR');
-};
-
-const getLocalDateOnly = () => {
+function getLocalDateOnly() {
   const now = new Date();
   const year = now.getFullYear();
   const month = String(now.getMonth() + 1).padStart(2, '0');
   const day = String(now.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
-};
+}
+
+function parseWorkoutDate(value) {
+  if (!value) return null;
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return new Date(`${value}T12:00:00`);
+  }
+
+  const d = new Date(value);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function formatWorkoutDatePtBr(value) {
+  const d = parseWorkoutDate(value);
+  if (!d) return '-';
+  return d.toLocaleDateString('pt-BR');
+}
 
 const getLocalDateOnlyFromDate = (date) => {
   const year = date.getFullYear();
