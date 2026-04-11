@@ -1,7 +1,7 @@
 export const EXERCISES_BY_MUSCLE = {
   peito: ['Supino reto', 'Supino inclinado', 'Crucifixo', 'Peck deck'],
-  costas: ['Puxada frontal', 'Remada curvada', 'Remada baixa'],
-  biceps: ['Rosca direta', 'Rosca alternada', 'Rosca martelo'],
+  costas: ['Pulley costas', 'Remada serrote', 'Remada baixa'],
+  biceps: ['Rosca concentrada', 'Rosca inclinada', 'Rosca martelo'],
   triceps: ['Tríceps pulley', 'Tríceps testa', 'Mergulho'],
   ombros: ['Elevação lateral', 'Desenvolvimento', 'Elevação frontal'],
   abdomen: ['Abdominal reto', 'Abdominal infra', 'Prancha'],
