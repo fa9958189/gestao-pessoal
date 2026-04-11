@@ -64,7 +64,7 @@ import WeightLineChart from './charts/WeightLineChart.jsx';
 import MuscleDonut from './charts/MuscleDonut.jsx';
 import TrainingHeatmap from './charts/TrainingHeatmap.jsx';
 import MiniStats from './charts/MiniStats.jsx';
-import { EXERCISES_BY_MUSCLE } from '../constants/exercises.js';
+import { exercises } from '../data/exercises.js';
 
 const muscleGroups = [
   { id: 'peito', name: 'Peito', image: PeitoImg },
@@ -302,6 +302,28 @@ const getSportByLabel = (label) => {
   return SPORTS.find(
     (sport) => sport.label.toLowerCase() === normalized || sport.value.toLowerCase() === normalized
   );
+};
+
+const getExercisesKey = (muscleGroup) => {
+  const normalized = String(muscleGroup || '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '');
+
+  if (normalized === 'ombros' || normalized === 'ombro') return 'ombro';
+  if (normalized === 'gluteos' || normalized === 'gluteo') return 'gluteo';
+  if (normalized === 'posterior de coxa' || normalized === 'posterior_coxa' || normalized === 'posterior' || normalized === 'posterior_de_coxa') return 'posterior_de_coxa';
+  if (normalized === 'quadriceps' || normalized === 'quadricep') return 'quadriceps';
+  if (normalized === 'pernas') return 'quadriceps';
+  if (normalized === 'abdomen') return 'abdomen';
+  if (normalized === 'biceps') return 'biceps';
+  if (normalized === 'costas') return 'costas';
+  if (normalized === 'peito') return 'peito';
+  if (normalized === 'triceps') return 'triceps';
+  if (normalized === 'panturrilha') return 'panturrilha';
+
+  return normalized.replace(/\s+/g, '_');
 };
 
 const WEEK_DAYS = [
@@ -633,7 +655,7 @@ const ViewWorkoutModal = ({
                     const muscleData = muscleConfigEntries.find((m) => m.muscle === mg);
                     const exercisesToShow = muscleData?.exercises?.length > 0
                       ? muscleData.exercises
-                      : (EXERCISES_BY_MUSCLE[mg] || []);
+                      : (exercises[getExercisesKey(mg)] || []);
 
                     return (
                       <div key={`${mg}-exs`}>
@@ -2159,7 +2181,7 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
                             <div key={muscle} className="card-padrao" style={{ padding: 12 }}>
                               <h4 style={{ marginTop: 0, marginBottom: 8 }}>{muscleMap[muscle]?.label || muscle}</h4>
                               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                                {(EXERCISES_BY_MUSCLE[muscle] || []).map((exercise) => (
+                                {(exercises[getExercisesKey(muscle)] || []).map((exercise) => (
                                   <button
                                     key={`${muscle}-${exercise}`}
                                     type="button"
