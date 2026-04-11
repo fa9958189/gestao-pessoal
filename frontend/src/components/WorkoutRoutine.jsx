@@ -652,19 +652,19 @@ const ViewWorkoutModal = ({
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   {muscleGroups.map((mg) => {
                     const def = getMuscleGroupByLabel(mg) || muscleMap[mg];
-                    const muscleData = muscleConfigEntries.find((m) => m.muscle === mg);
-                    const exercisesToShow = muscleData?.exercises?.length > 0
-                      ? muscleData.exercises
-                      : (exercises[getExercisesKey(mg)] || []);
+                    const workoutExercisesByMuscle =
+                      workout.exercicios && !Array.isArray(workout.exercicios)
+                        ? workout.exercicios
+                        : {};
 
                     return (
                       <div key={`${mg}-exs`}>
                         <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4 }}>
                           {def?.label || mg}
                         </div>
-                        {exercisesToShow.length > 0 ? (
+                        {workoutExercisesByMuscle[mg]?.length > 0 ? (
                           <div className="chips">
-                            {exercisesToShow.map((exercise) => (
+                            {workoutExercisesByMuscle[mg].map((exercise) => (
                               <div key={`${mg}-${exercise}`} className="chip">
                                 {exercise}
                               </div>
