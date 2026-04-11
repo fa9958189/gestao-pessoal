@@ -808,13 +808,17 @@ const FinanceTable = ({ items, affiliateNameById, onMarkPaid, onBlock, onUnblock
             user.status_acesso === 'Inativo' ||
             user.access === false;
           const isInactive = isBlocked;
+          const isTrialExpired = String(user?.trial_status || '').toLowerCase() === 'expired';
 
           return (
-            <tr key={user.id}>
+            <tr key={user.id} className={isTrialExpired ? 'finance-row-trial-expired' : ''}>
               <td>{user.name}</td>
               <td>{user.email}</td>
               <td>{user.whatsapp || '-'}</td>
-              <td>{getPlanVisual(user.plan_type).label}</td>
+              <td>
+                {getPlanVisual(user.plan_type).label}
+                {isTrialExpired ? <span className="badge badge-trial-expired">Teste encerrado</span> : null}
+              </td>
               <td>{affiliateNameById[user.affiliate_id] || user.affiliate_name || '-'}</td>
               <td>{user.finance_status}</td>
               <td>{isInactive ? 'Inativo' : 'Ativo'}</td>

@@ -811,7 +811,7 @@ app.post("/create-user", async (req, res) => {
       plan_end_date: planEndDate,
       trial_start_at: trialStartIso,
       trial_end_at: trialEndIso,
-      trial_status: finalPlanType === USER_PLAN_TYPES.TRIAL ? "trial" : null,
+      trial_status: finalPlanType === USER_PLAN_TYPES.TRIAL ? "active" : null,
       trial_notified_at: null,
       subscription_status: "active",
       status_acesso: "ativo",
@@ -835,7 +835,7 @@ app.post("/create-user", async (req, res) => {
         plan_end_date: planEndDate,
         trial_start_at: trialStartIso,
         trial_end_at: trialEndIso,
-        trial_status: finalPlanType === USER_PLAN_TYPES.TRIAL ? "trial" : null,
+        trial_status: finalPlanType === USER_PLAN_TYPES.TRIAL ? "active" : null,
         trial_notified_at: null,
         subscription_status: "active",
         status_acesso: "ativo",
@@ -1437,6 +1437,7 @@ const normalizeFinanceUser = (user, affiliateNameById, today = new Date()) => {
     estimated_monthly_value: planMonthlyValue,
     overdue_days: getOverdueDays(user, today),
     is_trial_active: isTrialActive(user, today),
+    trial_status: user.trial_status || null,
   };
 };
 
@@ -2052,7 +2053,7 @@ app.patch("/admin/users/:userId", async (req, res) => {
         plan_end_date: planEndDate,
         trial_start_at: trialStartIso,
         trial_end_at: trialEndIso,
-        trial_status: normalizedPlanType === USER_PLAN_TYPES.TRIAL ? "trial" : null,
+        trial_status: normalizedPlanType === USER_PLAN_TYPES.TRIAL ? "active" : null,
         ...(isOwner ? getOwnerProtectionUpdatePayload() : {}),
         ...(isOwner ? { is_affiliate: true } : {}),
       })
@@ -2230,7 +2231,7 @@ app.post("/admin/broadcast-whatsapp", async (req, res) => {
       if (audience === "active" && columns.includes("billing_status")) {
         query = query.eq("billing_status", "active");
       } else if (audience === "trial" && columns.includes("trial_status")) {
-        query = query.eq("trial_status", "trial");
+        query = query.in("trial_status", ["trial", "active"]);
       }
 
       return query;
@@ -4016,9 +4017,17 @@ const updateSubscriptionStatus = async (id, subscriptionStatus, actorUserId) => 
     return { status: 200, body: { success: true } };
   }
 
+  const updatePayload = { subscription_status: subscriptionStatus };
+  if (subscriptionStatus === "active") {
+    updatePayload.trial_status = null;
+    updatePayload.trial_notified_at = null;
+    updatePayload.trial_start_at = null;
+    updatePayload.trial_end_at = null;
+  }
+
   const { error } = await supabase
     .from("profiles")
-    .update({ subscription_status: subscriptionStatus })
+    .update(updatePayload)
     .eq("id", id);
   if (error) throw error;
 
@@ -4026,7 +4035,7 @@ const updateSubscriptionStatus = async (id, subscriptionStatus, actorUserId) => 
     userId: id,
     action: subscriptionStatus === "inactive" ? "block" : "unblock",
     oldValue: { subscription_status: user.subscription_status },
-    newValue: { subscription_status: subscriptionStatus },
+    newValue: updatePayload,
     createdBy: actorUserId,
   });
 
