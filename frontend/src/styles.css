@@ -1178,6 +1178,7 @@ canvas{ background:transparent; }
 .badge-plan-trial{ background:rgba(34,197,94,.2); color:#86efac; }
 .badge-plan-normal{ background:rgba(59,130,246,.2); color:#93c5fd; }
 .badge-plan-promo{ background:rgba(168,85,247,.22); color:#d8b4fe; }
+.badge-trial-expired{ background:rgba(239,68,68,.2); color:#fecaca; margin-left:8px; }
 .affiliate-status-button{
   border: none;
   border-radius:999px;
@@ -1234,6 +1235,10 @@ canvas{ background:transparent; }
 
 .finance-table tr:hover {
   background: rgba(59, 130, 246, 0.08);
+}
+
+.finance-table tr.finance-row-trial-expired {
+  box-shadow: inset 0 0 0 1px rgba(239, 68, 68, 0.35);
 }
 
 .supervisor-container {

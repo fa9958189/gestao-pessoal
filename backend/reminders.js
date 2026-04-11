@@ -31,6 +31,97 @@ function formatDateOnlyInSaoPaulo(date) {
   return formatter.format(date);
 }
 
+function getTodayDateOnly() {
+  const now = getNowInSaoPaulo();
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+}
+
+function getDateOnly(date) {
+  const d = new Date(date);
+  if (Number.isNaN(d.getTime())) return null;
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
+function isSameDay(a, b) {
+  return a.getTime() === b.getTime();
+}
+
+function isBefore(a, b) {
+  return a.getTime() < b.getTime();
+}
+
+function hasPaidPlan(user) {
+  const planType = String(user?.plan_type || "").toLowerCase();
+  const billingStatus = String(user?.billing_status || "").toLowerCase();
+  return planType && planType !== "trial" && billingStatus === "paid";
+}
+
+function isTrialLifecycleEligible(user) {
+  if (String(user?.trial_status || "").toLowerCase() !== "active") return false;
+  if (!user?.trial_end_at) return false;
+  if (hasPaidPlan(user)) return false;
+  return true;
+}
+
+function isTrialEndingToday(user) {
+  if (!isTrialLifecycleEligible(user)) return false;
+  const today = getTodayDateOnly();
+  const end = getDateOnly(user.trial_end_at);
+  if (!end) return false;
+  return isSameDay(today, end);
+}
+
+function shouldBlockTrialUser(user) {
+  if (!isTrialLifecycleEligible(user)) return false;
+  const today = getTodayDateOnly();
+  const end = getDateOnly(user.trial_end_at);
+  if (!end) return false;
+  return isBefore(end, today);
+}
+
+async function runTrialLifecycle(users) {
+  for (const user of users || []) {
+    if (!isTrialLifecycleEligible(user)) continue;
+
+    if (isTrialEndingToday(user) && !user?.trial_notified_at && user?.whatsapp) {
+      await sendWhatsApp(user.whatsapp, [
+        "⚠️ Seu período de teste termina hoje.",
+        "Para continuar usando o sistema sem interrupções, entre em contato para ativar seu plano.",
+      ].join("\n"));
+
+      const { error: notifyError } = await supabase
+        .from("profiles")
+        .update({ trial_notified_at: new Date().toISOString() })
+        .eq("id", user.id);
+
+      if (notifyError) {
+        console.error("❌ Erro ao registrar aviso de trial:", {
+          userId: user.id,
+          error: notifyError,
+        });
+      }
+    }
+
+    if (shouldBlockTrialUser(user)) {
+      const { error: blockError } = await supabase
+        .from("profiles")
+        .update({
+          trial_status: "expired",
+          subscription_status: "inactive",
+        })
+        .eq("id", user.id)
+        .eq("trial_status", "active");
+
+      if (blockError) {
+        console.error("❌ Erro ao bloquear usuário com trial expirado:", {
+          userId: user.id,
+          error: blockError,
+        });
+      }
+    }
+  }
+}
+
 
 function getDayOfWeek() {
   const jsDay = getNowInSaoPaulo().getDay();
@@ -397,6 +488,7 @@ export function startMorningAgendaScheduler() {
         if (usersError) {
           console.error("❌ Erro ao buscar usuários para cobrança:", usersError);
         } else {
+          await runTrialLifecycle(users);
           await runDailyBilling(users);
         }
       } catch (err) {
