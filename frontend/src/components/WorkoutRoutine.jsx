@@ -652,7 +652,7 @@ const ViewWorkoutModal = ({
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   {muscleGroups.map((mg) => {
                     const def = getMuscleGroupByLabel(mg) || muscleMap[mg];
-                    const workoutExercisesByMuscle =
+                    const workoutExercises =
                       workout.exercicios && !Array.isArray(workout.exercicios)
                         ? workout.exercicios
                         : {};
@@ -662,15 +662,16 @@ const ViewWorkoutModal = ({
                         <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4 }}>
                           {def?.label || mg}
                         </div>
-                        {workoutExercisesByMuscle[mg]?.length > 0 ? (
+                        {workoutExercises[mg]?.length > 0 && (
                           <div className="chips">
-                            {workoutExercisesByMuscle[mg].map((exercise) => (
+                            {workoutExercises[mg].map((exercise) => (
                               <div key={`${mg}-${exercise}`} className="chip">
                                 {exercise}
                               </div>
                             ))}
                           </div>
-                        ) : (
+                        )}
+                        {(!workoutExercises[mg] || workoutExercises[mg].length === 0) && (
                           <div className="muted" style={{ fontSize: 13 }}>
                             Nenhum exercício selecionado.
                           </div>
