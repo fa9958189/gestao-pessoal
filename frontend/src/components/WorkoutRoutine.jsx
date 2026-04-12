@@ -1510,7 +1510,7 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
     };
 
     if (!formData.name || formData.name.trim() === '') {
-      alert('Informe o nome do treino');
+      alert('Por favor, informe o nome do treino antes de salvar.');
       return;
     }
     if (!formData.muscleGroups.length && !formData.sportsActivities.length) {
