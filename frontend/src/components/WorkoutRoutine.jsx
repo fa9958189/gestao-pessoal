@@ -1872,7 +1872,10 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
     || step === 4
   );
 
-  const totalSteps = tipoTreino === 'musculacao' ? 5 : 3;
+  const isMusculacao = tipoTreino === 'musculacao';
+  const isEsporteOuCardio = tipoTreino === 'esporte' || tipoTreino === 'cardio';
+  const totalSteps = isMusculacao ? 5 : 3;
+  const isLastStep = step === totalSteps;
 
   const handleNextStep = async () => {
     if (step === 3) {
@@ -2345,10 +2348,26 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
                       </button>
                     )}
 
-                    {step < totalSteps && (
-                      <button type="button" onClick={handleNextStep} disabled={!canContinueStep}>
-                        Continuar →
-                      </button>
+                    {(step < totalSteps || (isEsporteOuCardio && isLastStep)) && (
+                      isEsporteOuCardio && isLastStep ? (
+                        <button
+                          type="button"
+                          className="btn-primary"
+                          disabled={!nomeTreino.trim() || loading}
+                          onClick={() => salvarTreino(nomeTreino, selecionados, tipoTreino)}
+                        >
+                          {loading ? 'Salvando...' : 'Salvar treino ✅'}
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          className="btn-secondary"
+                          onClick={handleNextStep}
+                          disabled={!canContinueStep}
+                        >
+                          Continuar →
+                        </button>
+                      )
                     )}
 
                     {step === 5 && (
