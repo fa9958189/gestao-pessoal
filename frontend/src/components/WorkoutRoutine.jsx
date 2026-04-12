@@ -1434,6 +1434,10 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
   };
 
   const salvarTreino = async (nome, itensSelecionados, tipo) => {
+    if (!nome || !String(nome).trim()) {
+      alert('Digite um nome para o treino antes de salvar.');
+      return;
+    }
     const isMusculacao = tipo === 'musculacao';
     const exercicios = isMusculacao ? normalizeGroupedExercisesPayload(selectedExercises) : {};
     const muscleConfig = isMusculacao
@@ -1493,7 +1497,7 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
   };
 
   const handleSaveRoutine = async (overrideData = null) => {
-    if (!nomeTreino || nomeTreino.trim() === '') {
+    if (!nomeTreino || !nomeTreino.trim()) {
       alert('Digite um nome para o treino antes de salvar.');
       return;
     }
@@ -1880,7 +1884,7 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
 
   const handleNextStep = async () => {
     if (step === 3) {
-      if (!nomeTreino || nomeTreino.trim() === '') {
+      if (!nomeTreino || !nomeTreino.trim()) {
         alert('Digite um nome para o treino antes de continuar.');
         return;
       }
@@ -2354,7 +2358,7 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
                         <button
                           type="button"
                           className="btn-primary"
-                          disabled={!nomeTreino.trim() || loading}
+                          disabled={loading}
                           onClick={() => salvarTreino(nomeTreino, selecionados, tipoTreino)}
                         >
                           {loading ? 'Salvando...' : 'Salvar treino ✅'}
@@ -2375,7 +2379,7 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
                       <button
                         type="button"
                         className="btn-primary"
-                        disabled={!nomeTreino.trim() || loading}
+                        disabled={loading}
                         onClick={() => salvarTreino(nomeTreino, selecionados, tipoTreino)}
                       >
                         {loading ? 'Salvando...' : 'Salvar Treino'}
