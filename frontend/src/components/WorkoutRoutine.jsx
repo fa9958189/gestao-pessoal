@@ -1493,6 +1493,11 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
   };
 
   const handleSaveRoutine = async (overrideData = null) => {
+    if (!nomeTreino || nomeTreino.trim() === '') {
+      alert('Digite um nome para o treino antes de salvar.');
+      return;
+    }
+
     const isMusculacao = tipoTreino === 'musculacao';
     const formData = {
       id: workoutForm.id,
@@ -1509,10 +1514,6 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
       ),
     };
 
-    if (!nomeTreino || nomeTreino.trim() === '') {
-      alert('Por favor, informe o nome do treino antes de salvar.');
-      return;
-    }
     if (!formData.muscleGroups.length && !formData.sportsActivities.length) {
       notify('Selecione ao menos uma opção para o treino.', 'warning');
       return;
