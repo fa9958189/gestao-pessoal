@@ -1493,6 +1493,7 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
   };
 
   const handleSaveRoutine = async (overrideData = null) => {
+    const isMusculacao = tipoTreino === 'musculacao';
     const formData = {
       id: workoutForm.id,
       name: overrideData?.name ?? workoutForm.name,
@@ -1508,8 +1509,8 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
       ),
     };
 
-    if (!formData.name.trim()) {
-      notify('Informe o nome do treino.', 'warning');
+    if (!formData.name || formData.name.trim() === '') {
+      alert('Informe o nome do treino');
       return;
     }
     if (!formData.muscleGroups.length && !formData.sportsActivities.length) {
@@ -1523,8 +1524,8 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
       muscleGroups: formData.muscleGroups,
       sportsActivities: formData.sportsActivities,
       muscleConfig: formData.muscleConfig,
-      exercisesByGroup: formData.exercisesByGroup,
-      exercicios: formData.exercisesByGroup,
+      exercisesByGroup: isMusculacao ? formData.exercisesByGroup : {},
+      exercicios: isMusculacao ? formData.exercisesByGroup : {},
     };
 
     try {
@@ -1871,15 +1872,22 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
     || step === 4
   );
 
-  const handleNextStep = () => {
+  const totalSteps = tipoTreino === 'musculacao' ? 5 : 3;
+
+  const handleNextStep = async () => {
     if (step === 3) {
       if (!nomeTreino || nomeTreino.trim() === '') {
         alert('Digite um nome para o treino antes de continuar.');
         return;
       }
+
+      if (tipoTreino === 'esporte' || tipoTreino === 'cardio') {
+        await salvarTreino(nomeTreino, selecionados, tipoTreino);
+        return;
+      }
     }
 
-    setStep((prev) => Math.min(prev + 1, 5));
+    setStep((prev) => Math.min(prev + 1, totalSteps));
   };
 
   const {
@@ -2088,12 +2096,12 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
               <div className="modal-overlay">
                 <div className="report-modal">
                   <h2>Novo treino</h2>
-                  <p>Passo {step} de 5</p>
+                  <p>Passo {step} de {totalSteps}</p>
 
                   <div className="progress-bar">
                     <div
                       className="progress-fill"
-                      style={{ width: `${(step / 5) * 100}%` }}
+                      style={{ width: `${(step / totalSteps) * 100}%` }}
                     />
                   </div>
 
@@ -2294,12 +2302,9 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
                     </div>
                   )}
 
-                  {step === 4 && (
+                  {step === 4 && tipoTreino === 'musculacao' && (
                     <div>
                       <h3>Selecionar exercícios</h3>
-                      {tipoTreino !== 'musculacao' && (
-                        <p className="muted">Seleção de exercícios disponível para treinos de musculação.</p>
-                      )}
                       {tipoTreino === 'musculacao' && selecionados.length > 0 && (
                         <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 12 }}>
                           {selecionados.map((muscle) => (
@@ -2340,7 +2345,7 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
                       </button>
                     )}
 
-                    {step < 5 && (
+                    {step < totalSteps && (
                       <button type="button" onClick={handleNextStep} disabled={!canContinueStep}>
                         Continuar →
                       </button>
