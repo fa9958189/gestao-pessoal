@@ -1846,14 +1846,21 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
     });
   }, [selecionados]);
 
-  const toggleExercise = (grupo, exercicio) => {
-    const groupKey = getExercisesKey(grupo);
+  const handleExerciseToggle = (muscle, exercise) => {
     setSelectedExercises((prev) => {
+      const current = prev || {};
+      const muscleKey = getExercisesKey(muscle);
+      const muscleExercises = current[muscleKey] || [];
+
+      const exists = muscleExercises.includes(exercise);
+
+      const updated = exists
+        ? muscleExercises.filter((e) => e !== exercise)
+        : [...muscleExercises, exercise];
+
       return {
         ...prev,
-        [groupKey]: prev[groupKey]?.includes(exercicio)
-          ? prev[groupKey].filter((name) => name !== exercicio)
-          : [...(prev[groupKey] || []), exercicio],
+        [muscleKey]: updated,
       };
     });
   };
@@ -2293,7 +2300,7 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
                                   <button
                                     key={`${muscle}-${exercise}`}
                                     type="button"
-                                    onClick={() => toggleExercise(muscle, exercise)}
+                                    onClick={() => handleExerciseToggle(muscle, exercise)}
                                     className={`treino-option ${(selectedExercises[getExercisesKey(muscle)] || []).includes(exercise) ? 'selected' : ''}`}
                                   >
                                     {exercise}
