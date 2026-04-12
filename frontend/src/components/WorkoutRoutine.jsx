@@ -455,7 +455,10 @@ const buildMuscleConfigState = (selectedMuscles = [], payload = []) => {
   }, {});
 };
 
-const buildSelectedExercisesState = (selectedMuscles = [], payload = []) => {
+const buildSelectedExercisesState = (selectedMuscles = [], payload = [], selectedMap = {}) => {
+  const normalizedSelectedMap = (selectedMap && typeof selectedMap === 'object' && !Array.isArray(selectedMap))
+    ? selectedMap
+    : {};
   const payloadMap = new Map(
     (Array.isArray(payload) ? payload : [])
       .filter((item) => item?.muscle)
@@ -464,7 +467,9 @@ const buildSelectedExercisesState = (selectedMuscles = [], payload = []) => {
 
   return selectedMuscles.reduce((acc, muscle) => ({
     ...acc,
-    [muscle]: payloadMap.get(muscle) || [],
+    [muscle]: Array.isArray(normalizedSelectedMap[muscle])
+      ? normalizedSelectedMap[muscle]
+      : (payloadMap.get(muscle) || []),
   }), {});
 };
 
@@ -491,6 +496,12 @@ const ViewWorkoutModal = ({
     muscleConfigEntries
       .filter((item) => item?.muscle)
       .map((item) => [String(item.muscle), item])
+  );
+  const workoutExercises = workout.exercicios && !Array.isArray(workout.exercicios)
+    ? workout.exercicios
+    : {};
+  const hasAnySelectedExercise = Object.keys(workoutExercises).some(
+    (grupo) => workoutExercises[grupo]?.length > 0
   );
 
   return (
@@ -650,35 +661,27 @@ const ViewWorkoutModal = ({
               <div className="field">
                 <label>Exercícios por músculo</label>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {muscleGroups.map((mg) => {
-                    const def = getMuscleGroupByLabel(mg) || muscleMap[mg];
-                    const workoutExercises =
-                      workout.exercicios && !Array.isArray(workout.exercicios)
-                        ? workout.exercicios
-                        : {};
-
-                    return (
+                  {Object.keys(workoutExercises).map((mg) => (
+                    workoutExercises[mg]?.length > 0 && (
                       <div key={`${mg}-exs`}>
                         <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4 }}>
-                          {def?.label || mg}
+                          {(getMuscleGroupByLabel(mg) || muscleMap[mg])?.label || mg}
                         </div>
-                        {workoutExercises[mg]?.length > 0 && (
-                          <div className="chips">
-                            {workoutExercises[mg].map((exercise) => (
-                              <div key={`${mg}-${exercise}`} className="chip">
-                                {exercise}
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                        {(!workoutExercises[mg] || workoutExercises[mg].length === 0) && (
-                          <div className="muted" style={{ fontSize: 13 }}>
-                            Nenhum exercício selecionado.
-                          </div>
-                        )}
+                        <div className="chips">
+                          {workout.exercicios?.[mg]?.map((exercise) => (
+                            <div key={`${mg}-${exercise}`} className="chip">
+                              {exercise}
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                    );
-                  })}
+                    )
+                  ))}
+                  {!hasAnySelectedExercise && (
+                    <div className="muted" style={{ fontSize: 13 }}>
+                      Nenhum exercício selecionado.
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -803,6 +806,7 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
     sportsActivities: [],
     exercises: [],
     muscleConfig: [],
+    exercicios: {},
   });
   const [routines, setRoutines] = useState([]);
   const [schedule, setSchedule] = useState(defaultSchedule);
@@ -1173,6 +1177,15 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
       item?.sports_list || item?.sports
     );
     const muscleConfig = parseMuscleConfigPayload(item?.muscleConfig ?? item?.muscle_config);
+    const exercicios = (item?.exercicios && typeof item.exercicios === 'object' && !Array.isArray(item.exercicios))
+      ? item.exercicios
+      : muscleConfig.reduce((acc, entry) => {
+          if (!entry?.muscle) return acc;
+          return {
+            ...acc,
+            [entry.muscle]: Array.isArray(entry.exercises) ? entry.exercises : [],
+          };
+        }, {});
 
     return {
       ...item,
@@ -1181,6 +1194,7 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
       sportsActivities,
       exercises: Array.isArray(item?.exercises) ? item.exercises : [],
       muscleConfig,
+      exercicios,
     };
   };
 
@@ -1341,6 +1355,7 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
       sportsActivities: [],
       exercises: [],
       muscleConfig: [],
+      exercicios: {},
     });
   };
 
@@ -1375,6 +1390,7 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
 
   const salvarTreino = async (nome, itensSelecionados, tipo) => {
     const isMusculacao = tipo === 'musculacao';
+    const exercicios = isMusculacao ? selectedExercises : {};
     const muscleConfig = isMusculacao
       ? itensSelecionados.map((muscle) => ({
           muscle,
@@ -1390,8 +1406,12 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
       sportsActivities: isMusculacao ? [] : itensSelecionados,
       muscleConfig,
     };
+    const novoTreino = {
+      ...payloadData,
+      exercicios,
+    };
 
-    await handleSaveRoutine(payloadData);
+    await handleSaveRoutine(novoTreino);
   };
 
   const handleOpenViewWorkout = (template) => {
@@ -1406,9 +1426,16 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
       sportsActivities: normalizedSports,
       exercises: template.exercises || [],
       muscleConfig: template.muscleConfig || [],
+      exercicios: template.exercicios || {},
     });
     setMuscleConfigs(buildMuscleConfigState(template.muscleGroups || [], template.muscleConfig || []));
-    setSelectedExercises(buildSelectedExercisesState(template.muscleGroups || [], template.muscleConfig || []));
+    setSelectedExercises(
+      buildSelectedExercisesState(
+        template.muscleGroups || [],
+        template.muscleConfig || [],
+        template.exercicios
+      )
+    );
     setViewWorkout({ ...template, sportsActivities: normalizedSports });
     setIsViewModalOpen(true);
   };
@@ -1425,6 +1452,7 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
       muscleGroups: overrideData?.muscleGroups ?? workoutForm.muscleGroups,
       sportsActivities: overrideData?.sportsActivities ?? workoutForm.sportsActivities,
       muscleConfig: overrideData?.muscleConfig ?? workoutForm.muscleConfig ?? [],
+      exercicios: overrideData?.exercicios ?? workoutForm.exercicios ?? {},
     };
 
     if (!formData.name.trim()) {
@@ -1442,6 +1470,7 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
       muscleGroups: formData.muscleGroups,
       sportsActivities: formData.sportsActivities,
       muscleConfig: formData.muscleConfig,
+      exercicios: formData.exercicios,
     };
 
     try {
@@ -1744,15 +1773,13 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
     });
   }, [selecionados]);
 
-  const toggleExercise = (muscle, exercise) => {
+  const toggleExercise = (grupo, exercicio) => {
     setSelectedExercises((prev) => {
-      const current = prev[muscle] || [];
-
       return {
         ...prev,
-        [muscle]: current.includes(exercise)
-          ? current.filter((e) => e !== exercise)
-          : [...current, exercise],
+        [grupo]: prev[grupo]?.includes(exercicio)
+          ? prev[grupo].filter((e) => e !== exercicio)
+          : [...(prev[grupo] || []), exercicio],
       };
     });
   };
@@ -1914,6 +1941,7 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
                                 sportsActivities,
                                 sports: sportsActivities,
                                 muscleConfig: template.muscleConfig || [],
+                                exercicios: template.exercicios || {},
                               });
                               setTipoTreino(
                                 normalizedMuscles.length ? 'musculacao' : (isCardioTemplate ? 'cardio' : 'esporte')
@@ -1924,7 +1952,11 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
                                 buildMuscleConfigState(normalizedMuscles, template.muscleConfig || [])
                               );
                               setSelectedExercises(
-                                buildSelectedExercisesState(normalizedMuscles, template.muscleConfig || [])
+                                buildSelectedExercisesState(
+                                  normalizedMuscles,
+                                  template.muscleConfig || [],
+                                  template.exercicios
+                                )
                               );
                               setOpenTreinoModal(true);
                               setStep(2);
