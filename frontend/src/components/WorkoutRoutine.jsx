@@ -678,45 +678,44 @@ const ViewWorkoutModal = ({
 
             {muscleGroups.length > 0 && (
               <div className="field">
-                <label>Séries e repetições</label>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  {muscleGroups.map((mg) => {
-                    const def = getMuscleGroupByLabel(mg) || muscleMap[mg];
-                    const configEntry = muscleConfigMap.get(mg) || {};
+                <label>Exercícios por músculo</label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {Object.entries(groupedExercises).map(([group, exerciseList]) => {
+                    if (!exerciseList?.length) return null;
+                    const normalizedGroup = getExercisesKey(group);
+                    const configEntry = muscleConfigMap.get(group) || muscleConfigMap.get(normalizedGroup) || {};
                     const config = configEntry?.config
                       || (Number(configEntry?.sets) > 0 && Number(configEntry?.reps) > 0
                         ? `${configEntry.sets}x${configEntry.reps}`
                         : DEFAULT_MUSCLE_CONFIG);
-                    return (
-                      <div key={`${mg}-cfg`} className="muted" style={{ fontSize: 14 }}>
-                        {def?.label || mg} — {config}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
 
-            {muscleGroups.length > 0 && (
-              <div className="field">
-                <label>Exercícios por músculo</label>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {Object.entries(groupedExercises).map(([group, exerciseList]) => (
-                    exerciseList?.length > 0 && (
+                    return (
                       <div key={`${group}-exs`}>
-                        <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4 }}>
+                        <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 6 }}>
                           {formatGroupName(group, muscleMap)}
                         </div>
-                        <div className="chips">
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                           {exerciseList.map((exercise) => (
-                            <div key={`${group}-${exercise}`} className="chip">
-                              {exercise}
+                            <div
+                              key={`${group}-${exercise}`}
+                              style={{
+                                background: '#0f172a',
+                                padding: '8px 12px',
+                                borderRadius: '10px',
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                gap: 12,
+                              }}
+                            >
+                              <span>{exercise}</span>
+                              <strong>{config}</strong>
                             </div>
                           ))}
                         </div>
                       </div>
-                    )
-                  ))}
+                    );
+                  })}
                   {!hasAnySelectedExercise && (
                     <div className="muted" style={{ fontSize: 13 }}>
                       Nenhum exercício selecionado.
