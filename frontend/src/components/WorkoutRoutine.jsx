@@ -1868,9 +1868,20 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
   const canContinueStep = (
     (step === 1 && Boolean(tipoTreino))
     || (step === 2 && selecionados.length > 0)
-    || (step === 3 && Boolean(nomeTreino.trim()))
+    || step === 3
     || step === 4
   );
+
+  const handleNextStep = () => {
+    if (step === 3) {
+      if (!nomeTreino || nomeTreino.trim() === '') {
+        alert('Digite um nome para o treino antes de continuar.');
+        return;
+      }
+    }
+
+    setStep((prev) => Math.min(prev + 1, 5));
+  };
 
   const {
     daysTrained,
@@ -2331,7 +2342,7 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
                     )}
 
                     {step < 5 && (
-                      <button type="button" onClick={() => setStep(step + 1)} disabled={!canContinueStep}>
+                      <button type="button" onClick={handleNextStep} disabled={!canContinueStep}>
                         Continuar →
                       </button>
                     )}
