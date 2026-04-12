@@ -1496,7 +1496,7 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
     const isMusculacao = tipoTreino === 'musculacao';
     const formData = {
       id: workoutForm.id,
-      name: overrideData?.name ?? workoutForm.name,
+      name: overrideData?.name ?? nomeTreino ?? workoutForm.name,
       muscleGroups: overrideData?.muscleGroups ?? workoutForm.muscleGroups,
       sportsActivities: overrideData?.sportsActivities ?? workoutForm.sportsActivities,
       muscleConfig: overrideData?.muscleConfig ?? workoutForm.muscleConfig ?? [],
@@ -1509,7 +1509,7 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
       ),
     };
 
-    if (!formData.name || formData.name.trim() === '') {
+    if (!nomeTreino || nomeTreino.trim() === '') {
       alert('Por favor, informe o nome do treino antes de salvar.');
       return;
     }
@@ -1520,7 +1520,7 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
 
     const payload = {
       userId,
-      name: formData.name,
+      name: nomeTreino,
       muscleGroups: formData.muscleGroups,
       sportsActivities: formData.sportsActivities,
       muscleConfig: formData.muscleConfig,
