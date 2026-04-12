@@ -1546,6 +1546,23 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
       }
 
       const saved = await response.json();
+      const mergedSavedRoutine = normalizeRoutineFromApi({
+        ...saved,
+        name: saved?.name || formData.name,
+        muscleGroups: saved?.muscleGroups || formData.muscleGroups,
+        sportsActivities: saved?.sportsActivities || formData.sportsActivities,
+        muscleConfig: saved?.muscleConfig || formData.muscleConfig,
+        exercisesByGroup:
+          saved?.exercisesByGroup ||
+          saved?.exercises_by_group ||
+          saved?.exercicios ||
+          formData.exercisesByGroup,
+        exercicios:
+          saved?.exercicios ||
+          saved?.exercisesByGroup ||
+          saved?.exercises_by_group ||
+          formData.exercisesByGroup,
+      });
 
       if (!response.ok) {
         throw new Error(saved?.error || 'Não foi possível salvar o treino.');
@@ -1557,9 +1574,9 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
 
       setRoutines((prev) => {
         if (formData.id) {
-          return prev.map((routine) => (routine.id === saved.id ? normalizeRoutineFromApi(saved) : routine));
+          return prev.map((routine) => (routine.id === mergedSavedRoutine.id ? mergedSavedRoutine : routine));
         }
-        return [...prev, normalizeRoutineFromApi(saved)];
+        return [...prev, mergedSavedRoutine];
       });
 
       if (createReminder) {
