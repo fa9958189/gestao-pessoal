@@ -2632,7 +2632,17 @@ const mapRoutineRow = (row = {}) => ({
   name: row.name,
   muscleGroups: parseList(row.muscle_groups || row.muscle_group),
   sportsActivities: parseList(row.sports_list || row.sports),
-  muscleConfig: [],
+  muscleConfig: Array.isArray(row.muscle_config)
+    ? row.muscle_config
+    : row.muscle_config || [],
+  exercisesByGroup:
+    row.exercises_by_group && typeof row.exercises_by_group === "object"
+      ? row.exercises_by_group
+      : {},
+  exercicios:
+    row.exercises_by_group && typeof row.exercises_by_group === "object"
+      ? row.exercises_by_group
+      : {},
   createdAt: row.created_at,
 });
 
@@ -2694,7 +2704,7 @@ app.get("/api/workout/routines", async (req, res) => {
 
     const { data, error } = await supabase
       .from("workout_routines")
-      .select("id, user_id, name, muscle_group, sports, sports_list, created_at")
+      .select("id, user_id, name, muscle_group, muscle_groups, sports, sports_list, muscle_config, exercises_by_group, created_at")
       .eq("user_id", userId)
       .order("created_at", { ascending: true });
 
@@ -2713,10 +2723,25 @@ app.get("/api/workout/routines", async (req, res) => {
 
 app.post("/api/workout/routines", async (req, res) => {
   try {
-    const { userId, name, muscleGroups = [], sportsActivities = [], muscleConfig = [] } = req.body || {};
+    const {
+      userId,
+      name,
+      muscleGroups = [],
+      sportsActivities = [],
+      muscleConfig = [],
+      exercisesByGroup = {},
+      exercicios = {},
+    } = req.body || {};
     if (!userId || !name) {
       return res.status(400).json({ error: "userId e name são obrigatórios" });
     }
+
+    const normalizedExercisesByGroup =
+      exercisesByGroup && typeof exercisesByGroup === "object" && !Array.isArray(exercisesByGroup)
+        ? exercisesByGroup
+        : exercicios && typeof exercicios === "object" && !Array.isArray(exercicios)
+          ? exercicios
+          : {};
 
     const insertPayload = {
       user_id: userId,
@@ -2725,12 +2750,14 @@ app.post("/api/workout/routines", async (req, res) => {
       muscle_groups: joinList(muscleGroups),
       sports: joinList(sportsActivities),
       sports_list: joinList(sportsActivities),
+      muscle_config: muscleConfig,
+      exercises_by_group: normalizedExercisesByGroup,
     };
 
     const { data, error } = await supabase
       .from("workout_routines")
       .insert(insertPayload)
-      .select("id, user_id, name, muscle_group, sports, sports_list, created_at")
+      .select("id, user_id, name, muscle_group, muscle_groups, sports, sports_list, muscle_config, exercises_by_group, created_at")
       .single();
 
     if (error) {
@@ -2748,11 +2775,26 @@ app.post("/api/workout/routines", async (req, res) => {
 app.put("/api/workout/routines/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    const { userId, name, muscleGroups = [], sportsActivities = [], muscleConfig = [] } = req.body || {};
+    const {
+      userId,
+      name,
+      muscleGroups = [],
+      sportsActivities = [],
+      muscleConfig = [],
+      exercisesByGroup = {},
+      exercicios = {},
+    } = req.body || {};
 
     if (!id || !userId || !name) {
       return res.status(400).json({ error: "id, userId e name são obrigatórios" });
     }
+
+    const normalizedExercisesByGroup =
+      exercisesByGroup && typeof exercisesByGroup === "object" && !Array.isArray(exercisesByGroup)
+        ? exercisesByGroup
+        : exercicios && typeof exercicios === "object" && !Array.isArray(exercicios)
+          ? exercicios
+          : {};
 
     const updatePayload = {
       name,
@@ -2760,6 +2802,8 @@ app.put("/api/workout/routines/:id", async (req, res) => {
       muscle_groups: joinList(muscleGroups),
       sports: joinList(sportsActivities),
       sports_list: joinList(sportsActivities),
+      muscle_config: muscleConfig,
+      exercises_by_group: normalizedExercisesByGroup,
     };
 
     const { data, error } = await supabase
@@ -2767,7 +2811,7 @@ app.put("/api/workout/routines/:id", async (req, res) => {
       .update(updatePayload)
       .eq("id", id)
       .eq("user_id", userId)
-      .select("id, user_id, name, muscle_group, sports, sports_list, created_at")
+      .select("id, user_id, name, muscle_group, muscle_groups, sports, sports_list, muscle_config, exercises_by_group, created_at")
       .single();
 
     if (error) {
