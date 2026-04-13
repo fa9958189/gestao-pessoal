@@ -69,6 +69,56 @@ const filterBySearch = (items, searchTerm, searchableKeys = []) => {
   );
 };
 
+const normalizeExercisesGroup = (value) => {
+  if (!value) return {};
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+  return typeof value === 'object' && !Array.isArray(value) ? value : {};
+};
+
+const normalizeMuscleConfigMap = (value) => {
+  let parsed = value;
+
+  if (typeof parsed === 'string') {
+    try {
+      parsed = JSON.parse(parsed);
+    } catch {
+      parsed = [];
+    }
+  }
+
+  if (!Array.isArray(parsed)) return new Map();
+
+  return new Map(
+    parsed
+      .filter((item) => item?.muscle)
+      .map((item) => [String(item.muscle).trim().toLowerCase(), item])
+  );
+};
+
+const formatGroupTitle = (groupName = '') => {
+  const key = String(groupName).trim().toLowerCase();
+  const map = {
+    abdomen: 'Abdômen',
+    biceps: 'Bíceps',
+    costas: 'Costas',
+    gluteo: 'Glúteo',
+    ombro: 'Ombro',
+    panturrilha: 'Panturrilha',
+    peito: 'Peito',
+    posterior_de_coxa: 'Posterior de coxa',
+    quadriceps: 'Quadríceps',
+    triceps: 'Tríceps',
+  };
+  return map[key] || groupName;
+};
+
 function Supervisor({
   apiBase,
   getAccessToken,
@@ -427,15 +477,10 @@ function Supervisor({
                         {treinosFiltrados.map((workout) => {
                           const date = resolveDateValue(workout, ['performed_at', 'created_at']);
                           const group = workout?.grupo || workout?.muscle_group || workout?.muscle_groups || 'Outro';
-
-                          let exercicios = {};
-                          try {
-                            exercicios = typeof workout?.exercicios_por_grupo === 'string'
-                              ? JSON.parse(workout.exercicios_por_grupo)
-                              : workout?.exercicios_por_grupo || {};
-                          } catch (error) {
-                            exercicios = {};
-                          }
+                          const exercicios = normalizeExercisesGroup(
+                            workout?.exercicios_por_grupo || workout?.exercises_by_group
+                          );
+                          const configMap = normalizeMuscleConfigMap(workout?.muscle_config);
 
                           return (
                             <div key={workout.id || `${date}-${group}`}>
@@ -445,33 +490,39 @@ function Supervisor({
 
                               <div style={{ marginTop: '8px' }}>
                                 {Object.keys(exercicios).length > 0 ? (
-                                  Object.entries(exercicios).map(([grupoNome, lista]) => (
-                                    <div key={grupoNome} style={{ marginBottom: '10px' }}>
-                                      <div
-                                        style={{
-                                          fontWeight: 'bold',
-                                          marginBottom: '4px'
-                                        }}
-                                      >
-                                        {grupoNome.charAt(0).toUpperCase() + grupoNome.slice(1)}
-                                      </div>
+                                  Object.entries(exercicios).map(([grupoNome, lista]) => {
+                                    const config = configMap.get(String(grupoNome).trim().toLowerCase())?.config || '3x15';
 
-                                      {Array.isArray(lista) && lista.map((ex, index) => (
-                                        <div
-                                          key={index}
-                                          style={{
-                                            fontSize: '13px',
-                                            opacity: 0.9,
-                                            marginLeft: '10px'
-                                          }}
-                                        >
-                                          {ex?.name} - {ex?.config || ex?.series || '3x15'}
+                                    return (
+                                      <div key={grupoNome} style={{ marginTop: 10, marginBottom: 12 }}>
+                                        <div style={{ fontWeight: 'bold', marginBottom: 6 }}>
+                                          {formatGroupTitle(grupoNome)}
                                         </div>
-                                      ))}
-                                    </div>
-                                  ))
+
+                                        {Array.isArray(lista) && lista.length > 0 ? (
+                                          lista.map((nomeExercicio, index) => (
+                                            <div
+                                              key={`${grupoNome}-${index}-${nomeExercicio}`}
+                                              style={{
+                                                fontSize: '14px',
+                                                opacity: 0.95,
+                                                marginLeft: '10px',
+                                                marginBottom: '4px'
+                                              }}
+                                            >
+                                              {nomeExercicio} - {config}
+                                            </div>
+                                          ))
+                                        ) : (
+                                          <div style={{ marginLeft: '10px', opacity: 0.7 }}>
+                                            Nenhum exercício registrado.
+                                          </div>
+                                        )}
+                                      </div>
+                                    );
+                                  })
                                 ) : (
-                                  <div>{workout.grupos_musculares}</div>
+                                  <div>{workout.grupos_musculares || workout.muscle_groups || '-'}</div>
                                 )}
                               </div>
                             </div>

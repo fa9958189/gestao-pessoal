@@ -148,15 +148,28 @@ export const upsertWorkoutTemplate = async (template) => {
 
 export const createWorkoutSession = async (session) => {
   const normalizedDate = toDateOnly(session.date || getLocalDateOnly());
+  const normalizedExercisesByGroup =
+    session.exercisesByGroup &&
+    typeof session.exercisesByGroup === "object" &&
+    !Array.isArray(session.exercisesByGroup)
+      ? session.exercisesByGroup
+      : {};
+
+  const normalizedMuscleConfig = Array.isArray(session.muscleConfig)
+    ? session.muscleConfig
+    : [];
 
   const { data, error } = await supabase
     .from("workout_sessions")
     .insert({
       id: generateId(),
       user_id: session.userId,
+      template_id: session.templateId || null,
       workout_name: session.workoutName || session.name || "",
       muscle_groups: (session.muscleGroups || []).join(", "),
       sports_list: normalizeSportsArray(session.sports).join(", "),
+      exercises_by_group: normalizedExercisesByGroup,
+      muscle_config: normalizedMuscleConfig,
       performed_at: toSafePerformedAt(normalizedDate),
     })
     .select()
@@ -167,11 +180,19 @@ export const createWorkoutSession = async (session) => {
   return {
     id: data.id,
     userId: data.user_id,
+    templateId: data.template_id || null,
     workoutName: data.workout_name,
     muscleGroups: data.muscle_groups
       ? splitList(data.muscle_groups)
       : [],
     sports: data.sports_list ? splitList(data.sports_list) : [],
+    exercisesByGroup:
+      data.exercises_by_group && typeof data.exercises_by_group === "object"
+        ? data.exercises_by_group
+        : {},
+    muscleConfig: Array.isArray(data.muscle_config)
+      ? data.muscle_config
+      : [],
     date: toDateOnly(data.performed_at),
   };
 };
@@ -186,11 +207,19 @@ export const listWorkoutSessions = async (userId) => {
   return (data || []).map((row) => ({
     id: row.id,
     userId: row.user_id,
+    templateId: row.template_id || null,
     workoutName: row.workout_name,
     muscleGroups: row.muscle_groups
       ? splitList(row.muscle_groups)
       : [],
     sports: row.sports_list ? splitList(row.sports_list) : [],
+    exercisesByGroup:
+      row.exercises_by_group && typeof row.exercises_by_group === "object"
+        ? row.exercises_by_group
+        : {},
+    muscleConfig: Array.isArray(row.muscle_config)
+      ? row.muscle_config
+      : [],
     date: toDateOnly(row.performed_at),
   }));
 };
