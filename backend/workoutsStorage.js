@@ -159,6 +159,10 @@ export const createWorkoutSession = async (session) => {
     ? session.muscleConfig
     : [];
 
+  const normalizedSports = normalizeSportsArray(
+    session.sports || session.sportsActivities || session.sports_activities
+  );
+
   const { data, error } = await supabase
     .from("workout_sessions")
     .insert({
@@ -167,7 +171,7 @@ export const createWorkoutSession = async (session) => {
       template_id: session.templateId || null,
       workout_name: session.workoutName || session.name || "",
       muscle_groups: (session.muscleGroups || []).join(", "),
-      sports_list: normalizeSportsArray(session.sports).join(", "),
+      sports_list: normalizedSports.join(", "),
       exercises_by_group: normalizedExercisesByGroup,
       muscle_config: normalizedMuscleConfig,
       performed_at: toSafePerformedAt(normalizedDate),
@@ -181,6 +185,7 @@ export const createWorkoutSession = async (session) => {
     id: data.id,
     userId: data.user_id,
     templateId: data.template_id || null,
+    name: data.workout_name,
     workoutName: data.workout_name,
     muscleGroups: data.muscle_groups
       ? splitList(data.muscle_groups)

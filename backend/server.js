@@ -389,6 +389,13 @@ const getFinancialStatus = (user) => {
   return "PENDING";
 };
 
+const hasExercisesByGroupContent = (value) => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const keys = Object.keys(value);
+  if (!keys.length) return false;
+  return keys.some((key) => Array.isArray(value[key]) && value[key].length > 0);
+};
+
 const findMainAffiliateFallback = async () => {
   try {
     const ensuredOwner = await ensureOwnerAffiliateExists();
@@ -1399,15 +1406,19 @@ app.get("/supervisor/user-details/:id", async (req, res) => {
         ? matchedRoutine.muscle_config
         : [];
 
+      const resolvedExercises = hasExercisesByGroupContent(directExercises)
+        ? directExercises
+        : hasExercisesByGroupContent(fallbackExercises)
+          ? fallbackExercises
+          : {};
+
       return {
         ...session,
         name: session?.workout_name || "",
         muscle_group: session?.muscle_groups || "",
         groups_musculares: session?.muscle_groups || "",
-        exercises_by_group:
-          Object.keys(directExercises).length > 0 ? directExercises : fallbackExercises,
-        exercicios_por_grupo:
-          Object.keys(directExercises).length > 0 ? directExercises : fallbackExercises,
+        exercises_by_group: resolvedExercises,
+        exercicios_por_grupo: resolvedExercises,
         muscle_config: directConfig.length > 0 ? directConfig : fallbackConfig,
       };
     });
