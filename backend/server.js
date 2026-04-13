@@ -795,7 +795,13 @@ app.post("/create-user", async (req, res) => {
       return res.status(500).json({ error: "Erro interno, tente novamente" });
     }
 
-    const { error: profileError } = await supabase.from("profiles").insert({
+    const generateAffiliateCode = () => {
+      return "AFF" + Math.random().toString(36).substring(2, 8).toUpperCase();
+    };
+
+    const profileAffiliateCode = normalizedRole === "admin" ? "OWNER001" : generateAffiliateCode();
+
+    const createUserPayload = {
       id: userId,
       name,
       username: rawUsername,
@@ -805,7 +811,7 @@ app.post("/create-user", async (req, res) => {
       billing_status: "active",
       billing_due_day: BILLING_DEFAULT_DUE_DAY,
       affiliate_id: affiliate.id,
-      affiliate_code: affiliate.code || null,
+      affiliate_code: profileAffiliateCode,
       plan_type: finalPlanType,
       plan_start_date: planStartDate,
       plan_end_date: planEndDate,
@@ -815,31 +821,13 @@ app.post("/create-user", async (req, res) => {
       trial_notified_at: null,
       subscription_status: "active",
       status_acesso: "ativo",
-    });
+    };
+
+    const { error: profileError } = await supabase.from("profiles").insert(createUserPayload);
 
     if (profileError) {
       console.error("Erro ao gravar em profiles:", profileError);
-      console.error("Payload enviado para profiles:", {
-        id: userId,
-        name,
-        username: rawUsername,
-        email: rawEmail,
-        whatsapp,
-        role: normalizedRole,
-        billing_status: "active",
-        billing_due_day: BILLING_DEFAULT_DUE_DAY,
-        affiliate_id: affiliate.id,
-        affiliate_code: affiliate.code || null,
-        plan_type: finalPlanType,
-        plan_start_date: planStartDate,
-        plan_end_date: planEndDate,
-        trial_start_at: trialStartIso,
-        trial_end_at: trialEndIso,
-        trial_status: finalPlanType === USER_PLAN_TYPES.TRIAL ? "active" : null,
-        trial_notified_at: null,
-        subscription_status: "active",
-        status_acesso: "ativo",
-      });
+      console.error("Payload enviado para profiles:", createUserPayload);
       await supabase.auth.admin.deleteUser(userId);
       return res.status(500).json({
         error: profileError?.message || "Erro ao gravar perfil do usuário",
