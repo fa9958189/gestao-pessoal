@@ -428,16 +428,14 @@ function Supervisor({
                           const date = resolveDateValue(workout, ['performed_at', 'created_at']);
                           const group = workout?.grupo || workout?.muscle_group || workout?.muscle_groups || 'Outro';
 
-                          let exercises = {};
+                          let exercicios = {};
                           try {
-                            exercises = typeof workout?.exercicios_por_grupo === 'string'
+                            exercicios = typeof workout?.exercicios_por_grupo === 'string'
                               ? JSON.parse(workout.exercicios_por_grupo)
                               : workout?.exercicios_por_grupo || {};
                           } catch (error) {
-                            exercises = {};
+                            exercicios = {};
                           }
-
-                          const hasExercises = Object.keys(exercises).length > 0;
 
                           return (
                             <div key={workout.id || `${date}-${group}`}>
@@ -445,17 +443,37 @@ function Supervisor({
                                 • {formatDate(date)} — {group}
                               </p>
 
-                              {hasExercises && Object.keys(exercises).map((exerciseGroup) => (
-                                <div key={exerciseGroup} style={{ marginLeft: '10px', marginTop: '5px' }}>
-                                  <strong>{exerciseGroup}</strong>
+                              <div style={{ marginTop: '8px' }}>
+                                {Object.keys(exercicios).length > 0 ? (
+                                  Object.entries(exercicios).map(([grupoNome, lista]) => (
+                                    <div key={grupoNome} style={{ marginBottom: '10px' }}>
+                                      <div
+                                        style={{
+                                          fontWeight: 'bold',
+                                          marginBottom: '4px'
+                                        }}
+                                      >
+                                        {grupoNome.charAt(0).toUpperCase() + grupoNome.slice(1)}
+                                      </div>
 
-                                  {Array.isArray(exercises[exerciseGroup]) && exercises[exerciseGroup].map((ex, i) => (
-                                    <div key={i} style={{ fontSize: '12px', opacity: 0.8 }}>
-                                      - {ex?.name} ({ex?.series || ex?.config || '3x15'})
+                                      {Array.isArray(lista) && lista.map((ex, index) => (
+                                        <div
+                                          key={index}
+                                          style={{
+                                            fontSize: '13px',
+                                            opacity: 0.9,
+                                            marginLeft: '10px'
+                                          }}
+                                        >
+                                          {ex?.name} - {ex?.config || ex?.series || '3x15'}
+                                        </div>
+                                      ))}
                                     </div>
-                                  ))}
-                                </div>
-                              ))}
+                                  ))
+                                ) : (
+                                  <div>{workout.grupos_musculares}</div>
+                                )}
+                              </div>
                             </div>
                           );
                         })}
