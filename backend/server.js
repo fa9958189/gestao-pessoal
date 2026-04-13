@@ -1336,11 +1336,9 @@ app.get("/supervisor/user-details/:id", async (req, res) => {
     const [workoutsResult, foodLogsResult, weightHistoryResult, routinesResult] = await Promise.all([
       supabase
         .from("workout_sessions")
-        .select("id, user_id, template_id, workout_name, muscle_groups, sports_list, exercises_by_group, muscle_config, performed_at, created_at")
+        .select("*")
         .eq("user_id", targetUserId)
-        .order("performed_at", { ascending: false })
-        .order("created_at", { ascending: false })
-        .limit(100),
+        .order("performed_at", { ascending: false }),
       supabase
         .from("food_diary_entries")
         .select("*")
@@ -1364,6 +1362,7 @@ app.get("/supervisor/user-details/:id", async (req, res) => {
     if (workoutsResult.error) {
       console.error("Erro em workout_sessions do supervisor user-details:", workoutsResult.error);
     }
+    console.log("SESSOES ENCONTRADAS:", workoutsResult.data);
     if (foodLogsResult.error) {
       console.error("Erro em food_diary_entries do supervisor user-details:", foodLogsResult.error);
     }
