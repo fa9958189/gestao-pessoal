@@ -1326,10 +1326,10 @@ app.get("/supervisor/user-details/:id", async (req, res) => {
       return res.status(403).json({ error: "Sem permissão" });
     }
 
-    const [workoutsResult, foodLogsResult, weightHistoryResult] = await Promise.all([
+    const [workoutsResult, foodLogsResult, weightHistoryResult, routinesResult] = await Promise.all([
       supabase
         .from("workout_sessions")
-        .select("*")
+        .select("id, user_id, template_id, workout_name, muscle_groups, sports_list, exercises_by_group, muscle_config, performed_at, created_at")
         .eq("user_id", targetUserId)
         .order("performed_at", { ascending: false })
         .order("created_at", { ascending: false })
@@ -1348,6 +1348,10 @@ app.get("/supervisor/user-details/:id", async (req, res) => {
         .order("entry_date", { ascending: false })
         .order("recorded_at", { ascending: false })
         .limit(100),
+      supabase
+        .from("workout_routines")
+        .select("id, name, muscle_groups, exercises_by_group, muscle_config")
+        .eq("user_id", targetUserId),
     ]);
 
     if (workoutsResult.error) {
@@ -1359,9 +1363,57 @@ app.get("/supervisor/user-details/:id", async (req, res) => {
     if (weightHistoryResult.error) {
       console.error("Erro em food_weight_history do supervisor user-details:", weightHistoryResult.error);
     }
+    if (routinesResult.error) {
+      console.error("Erro em workout_routines do supervisor user-details:", routinesResult.error);
+    }
+
+    const routinesById = new Map(
+      (routinesResult.data || []).map((routine) => [String(routine.id), routine])
+    );
+
+    const routinesByName = new Map(
+      (routinesResult.data || []).map((routine) => [String(routine.name || "").trim().toLowerCase(), routine])
+    );
+
+    const treinosEnriquecidos = (workoutsResult.data || []).map((session) => {
+      const directExercises =
+        session?.exercises_by_group && typeof session.exercises_by_group === "object"
+          ? session.exercises_by_group
+          : {};
+
+      const directConfig = Array.isArray(session?.muscle_config)
+        ? session.muscle_config
+        : [];
+
+      const matchedRoutine =
+        (session?.template_id && routinesById.get(String(session.template_id))) ||
+        routinesByName.get(String(session?.workout_name || "").trim().toLowerCase()) ||
+        null;
+
+      const fallbackExercises =
+        matchedRoutine?.exercises_by_group && typeof matchedRoutine.exercises_by_group === "object"
+          ? matchedRoutine.exercises_by_group
+          : {};
+
+      const fallbackConfig = Array.isArray(matchedRoutine?.muscle_config)
+        ? matchedRoutine.muscle_config
+        : [];
+
+      return {
+        ...session,
+        name: session?.workout_name || "",
+        muscle_group: session?.muscle_groups || "",
+        groups_musculares: session?.muscle_groups || "",
+        exercises_by_group:
+          Object.keys(directExercises).length > 0 ? directExercises : fallbackExercises,
+        exercicios_por_grupo:
+          Object.keys(directExercises).length > 0 ? directExercises : fallbackExercises,
+        muscle_config: directConfig.length > 0 ? directConfig : fallbackConfig,
+      };
+    });
 
     return res.json({
-      treinos: workoutsResult.data || [],
+      treinos: treinosEnriquecidos,
       alimentacao: foodLogsResult.data || [],
       peso: weightHistoryResult.data || [],
     });

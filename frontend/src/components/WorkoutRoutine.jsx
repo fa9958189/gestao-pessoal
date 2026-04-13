@@ -1718,10 +1718,17 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
       sportsActivities,
       sports: sportsActivities,
       sports_activities: sportsActivities,
-      exercises: (source.exercises || []).map((ex) => ({
-        ...ex,
-        completed: true,
-      })),
+      muscleConfig: Array.isArray(source.muscleConfig)
+        ? source.muscleConfig
+        : Array.isArray(source.muscle_config)
+          ? source.muscle_config
+          : [],
+      exercisesByGroup: normalizeGroupedExercisesPayload(
+        source.exercisesByGroup ||
+        source.exercises_by_group ||
+        source.exercicios ||
+        {}
+      ),
       completed: true,
     };
 
