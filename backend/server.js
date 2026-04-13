@@ -3763,6 +3763,18 @@ const handleBodyUpdate = async (req, res) => {
       }
     }
 
+    const { error: profileWeightUpdateError } = await supabase
+      .from("profiles")
+      .update({
+        weight: normalizedWeight,
+      })
+      .eq("id", userId);
+
+    if (profileWeightUpdateError) {
+      console.error("Erro ao atualizar peso no profile:", profileWeightUpdateError);
+      return res.status(500).json({ error: profileWeightUpdateError.message });
+    }
+
     const calorieMultiplierByGoal = {
       lose_weight: 20,
       maintain: 25,
