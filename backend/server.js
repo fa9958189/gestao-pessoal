@@ -354,11 +354,20 @@ const computePlanDates = (planType) => {
 };
 
 const getFinancialStatus = (user) => {
+  const today = new Date();
+
   if (user?.role === "admin") {
     return "PAID";
   }
 
-  const today = new Date();
+  if (String(user?.plan_type || "").toLowerCase() === USER_PLAN_TYPES.TRIAL) {
+    const trialEndDate = getTrialEndDate(user);
+    if (trialEndDate && isTrialActive(user, today)) {
+      return "TRIAL";
+    }
+    return "TRIAL_EXPIRED";
+  }
+
   const dueDay = Number(user?.billing_due_day || user?.due_day || BILLING_DEFAULT_DUE_DAY);
 
   const lastPaymentRaw = user?.last_payment_date || user?.last_payment_at || user?.last_paid_at;

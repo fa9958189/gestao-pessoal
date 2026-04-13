@@ -186,11 +186,20 @@ const getTrialEnd = (user) => {
   const createdAt = parseDateSafe(user.created_at || user.createdAt);
   if (!createdAt) return null;
   const end = new Date(createdAt);
-  end.setDate(end.getDate() + 7);
+  end.setDate(end.getDate() + 30);
   return end;
 };
 
+const formatDateBR = (value) => {
+  const parsed = parseDateSafe(value);
+  if (!parsed) return '-';
+  return parsed.toLocaleDateString('pt-BR');
+};
+
+const isTrialPlan = (user) => String(user?.plan_type || '').toLowerCase() === USER_PLAN_TYPES.TRIAL;
+
 const isTrialActive = (user) => {
+  if (!isTrialPlan(user)) return false;
   const trialEnd = getTrialEnd(user);
   return Boolean(trialEnd && Date.now() < trialEnd.getTime());
 };
@@ -206,6 +215,19 @@ const formatTrialLabel = (daysLeft) => {
   if (daysLeft <= 0) return 'Teste acabou';
   if (daysLeft === 1) return 'Falta 1 dia';
   return `Faltam ${daysLeft} dias`;
+};
+
+const getTrialDaysLeft = (user) => {
+  if (!isTrialPlan(user)) return null;
+  return getDaysLeft(getTrialEnd(user));
+};
+
+const getUserHeaderTrialMessage = (user) => {
+  if (!isTrialPlan(user)) return '';
+  const daysLeft = getTrialDaysLeft(user);
+  if (daysLeft === null || Number.isNaN(daysLeft) || daysLeft <= 0) return 'Seu teste grátis terminou';
+  if (daysLeft === 1) return 'Falta 1 dia para acabar o teste grátis';
+  return `Faltam ${daysLeft} dias para acabar o teste grátis`;
 };
 
 const formatTimeRange = (start, end) => {
@@ -282,6 +304,10 @@ const computeEffectiveSubscriptionStatus = (user, today = new Date()) => {
 
 const renderFinancialStatus = (user) => {
   switch (user?.financial_status) {
+    case 'TRIAL':
+      return <span className="financial-status financial-status-green">🟢 Teste ativo</span>;
+    case 'TRIAL_EXPIRED':
+      return <span className="financial-status financial-status-red">🔴 Teste encerrado</span>;
     case 'PAID':
       return <span className="financial-status financial-status-green">🟢 Pago</span>;
     case 'DUE_TODAY':
@@ -513,26 +539,35 @@ const LoginScreen = ({ form, onChange, onSubmit, loading, error, configError }) 
   </div>
 );
 
-const DashboardHeader = ({ apiUrl, profile, onLogout }) => (
-  <header>
-    <div className="header-info">
-      <h1>Gestão Pessoal – Dashboard</h1>
-      <div
-        className="muted"
-        style={{ visibility: import.meta.env.DEV ? 'visible' : 'hidden' }}
-      >
-        Supabase: <span id="apiUrl">{apiUrl || 'não configurado'}</span>
+const DashboardHeader = ({ apiUrl, profile, onLogout, profileDetails }) => {
+  const trialMessage = getUserHeaderTrialMessage(profileDetails || profile);
+
+  return (
+    <header>
+      <div className="header-info">
+        <h1>Gestão Pessoal – Dashboard</h1>
+        <div
+          className="muted"
+          style={{ visibility: import.meta.env.DEV ? 'visible' : 'hidden' }}
+        >
+          Supabase: <span id="apiUrl">{apiUrl || 'não configurado'}</span>
+        </div>
       </div>
-    </div>
-    <div className="user-session">
-      <div className="user-info">
-        <strong>{profile?.name || 'Usuário'}</strong>
-        <span className="badge" id="userRole">{(profile?.role || 'user').toUpperCase()}</span>
+      <div className="user-session">
+        <div className="user-info">
+          <strong>{profile?.name || 'Usuário'}</strong>
+          <span className="badge" id="userRole">{(profile?.role || 'user').toUpperCase()}</span>
+          {trialMessage ? (
+            <div className="muted" style={{ marginTop: 6, fontSize: 13 }}>
+              {trialMessage}
+            </div>
+          ) : null}
+        </div>
+        <button className="ghost small" onClick={onLogout}>Sair</button>
       </div>
-      <button className="ghost small" onClick={onLogout}>Sair</button>
-    </div>
-  </header>
-);
+    </header>
+  );
+};
 
 const SummaryKpis = ({ totals }) => (
   <div className="summary">
@@ -664,6 +699,9 @@ const UsersTable = ({
           const labelMap = { active: 'ATIVO', pending: 'PENDENTE', inactive: 'INATIVO' };
           const trialEnd = getTrialEnd(user);
           const daysLeft = getDaysLeft(trialEnd);
+          const isTrial = isTrialPlan(user);
+          const isTrialStillActive = isTrialActive(user);
+          const trialEndLabel = formatDateBR(trialEnd);
           const planVisual = getPlanVisual(user.plan_type);
           const affiliateName = affiliateNameById?.[user.affiliate_id] || user.affiliate_name || '-';
 
@@ -699,10 +737,19 @@ const UsersTable = ({
                       Plano: <span className={`badge ${planVisual.className}`}>{planVisual.label}</span>
                     </span>
                     <span>Afiliado: {affiliateName}</span>
-                    <span>Vencimento: dia {user.due_day || BILLING_DUE_DAY}</span>
-                    <span>Último pagamento: {formatDate(user.last_payment_at || user.last_paid_at)}</span>
+                    {isTrial ? (
+                      <>
+                        <span>Vencimento do teste: {trialEndLabel}</span>
+                        <span>Teste: {isTrialStillActive ? formatTrialLabel(daysLeft) : 'Teste acabou'}</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>Vencimento: dia {user.due_day || BILLING_DUE_DAY}</span>
+                        <span>Último pagamento: {formatDate(user.last_payment_at || user.last_paid_at)}</span>
+                        <span>Teste: {formatTrialLabel(daysLeft)}</span>
+                      </>
+                    )}
                     <span>Criado em: {formatDate(user.created_at)}</span>
-                    <span>Teste: {formatTrialLabel(daysLeft)}</span>
                   </div>
                 )}
               </div>
@@ -3475,7 +3522,12 @@ function App() {
       </div>
 
       <div className="main-content">
-        <DashboardHeader apiUrl={window.APP_CONFIG?.supabaseUrl} profile={profile} onLogout={handleLogout} />
+        <DashboardHeader
+          apiUrl={window.APP_CONFIG?.supabaseUrl}
+          profile={profile}
+          onLogout={handleLogout}
+          profileDetails={profileDetails}
+        />
 
         {activeView === 'transactions' && (
         <div className="container single-card app-content">
