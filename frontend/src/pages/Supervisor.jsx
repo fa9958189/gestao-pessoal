@@ -427,10 +427,36 @@ function Supervisor({
                         {treinosFiltrados.map((workout) => {
                           const date = resolveDateValue(workout, ['performed_at', 'created_at']);
                           const group = workout?.grupo || workout?.muscle_group || workout?.muscle_groups || 'Outro';
+
+                          let exercises = {};
+                          try {
+                            exercises = typeof workout?.exercicios_por_grupo === 'string'
+                              ? JSON.parse(workout.exercicios_por_grupo)
+                              : workout?.exercicios_por_grupo || {};
+                          } catch (error) {
+                            exercises = {};
+                          }
+
+                          const hasExercises = Object.keys(exercises).length > 0;
+
                           return (
-                            <p key={workout.id || `${date}-${group}`}>
-                              • {formatDate(date)} — {group}
-                            </p>
+                            <div key={workout.id || `${date}-${group}`}>
+                              <p>
+                                • {formatDate(date)} — {group}
+                              </p>
+
+                              {hasExercises && Object.keys(exercises).map((exerciseGroup) => (
+                                <div key={exerciseGroup} style={{ marginLeft: '10px', marginTop: '5px' }}>
+                                  <strong>{exerciseGroup}</strong>
+
+                                  {Array.isArray(exercises[exerciseGroup]) && exercises[exerciseGroup].map((ex, i) => (
+                                    <div key={i} style={{ fontSize: '12px', opacity: 0.8 }}>
+                                      - {ex?.name} ({ex?.series || ex?.config || '3x15'})
+                                    </div>
+                                  ))}
+                                </div>
+                              ))}
+                            </div>
                           );
                         })}
                         {treinosFiltrados.length === 0 && <p className="muted">Sem treinos no período.</p>}
