@@ -82,6 +82,13 @@ const normalizeExercisesGroup = (value) => {
   return typeof value === 'object' && !Array.isArray(value) ? value : {};
 };
 
+const hasExercisesByGroupContent = (value) => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const keys = Object.keys(value);
+  if (!keys.length) return false;
+  return keys.some((key) => Array.isArray(value[key]) && value[key].length > 0);
+};
+
 const normalizeMuscleConfigMap = (value) => {
   let parsed = value;
 
@@ -118,6 +125,12 @@ const formatGroupTitle = (groupName = '') => {
   };
   return map[key] || groupName;
 };
+
+const splitMuscleGroups = (value) =>
+  String(value || '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
 
 function Supervisor({
   apiBase,
@@ -325,8 +338,16 @@ function Supervisor({
   );
 
   const treinosPorGrupo = treinosFiltrados.reduce((acc, workout) => {
-    const grupo = workout?.grupo || workout?.muscle_group || workout?.muscle_groups || 'Outro';
-    acc[grupo] = (acc[grupo] || 0) + 1;
+    const grupos = splitMuscleGroups(
+      workout?.groups_musculares || workout?.grupo || workout?.muscle_group || workout?.muscle_groups
+    );
+    if (!grupos.length) {
+      acc.Outro = (acc.Outro || 0) + 1;
+      return acc;
+    }
+    grupos.forEach((grupo) => {
+      acc[grupo] = (acc[grupo] || 0) + 1;
+    });
     return acc;
   }, {});
 
@@ -476,11 +497,12 @@ function Supervisor({
                       <div className="list-container">
                         {treinosFiltrados.map((workout) => {
                           const date = resolveDateValue(workout, ['performed_at', 'created_at']);
-                          const group = workout?.grupo || workout?.muscle_group || workout?.muscle_groups || 'Outro';
+                          const group = workout?.groups_musculares || workout?.grupo || workout?.muscle_group || workout?.muscle_groups || 'Outro';
                           const exercicios = normalizeExercisesGroup(
                             workout?.exercicios_por_grupo || workout?.exercises_by_group
                           );
                           const configMap = normalizeMuscleConfigMap(workout?.muscle_config);
+                          const showExerciseBlock = hasExercisesByGroupContent(exercicios);
 
                           return (
                             <div key={workout.id || `${date}-${group}`}>
@@ -489,7 +511,7 @@ function Supervisor({
                               </p>
 
                               <div style={{ marginTop: '8px' }}>
-                                {Object.keys(exercicios).length > 0 ? (
+                                {showExerciseBlock ? (
                                   Object.entries(exercicios).map(([grupoNome, lista]) => {
                                     const config = configMap.get(String(grupoNome).trim().toLowerCase())?.config || '3x15';
 
@@ -522,7 +544,7 @@ function Supervisor({
                                     );
                                   })
                                 ) : (
-                                  <div>{workout.grupos_musculares || workout.muscle_groups || '-'}</div>
+                                  <div>{workout.groups_musculares || workout.grupos_musculares || workout.muscle_groups || '-'}</div>
                                 )}
                               </div>
                             </div>

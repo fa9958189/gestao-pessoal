@@ -1709,26 +1709,36 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
       source.sports || source.sports_activities
     );
 
+    const sourceMuscleGroups = Array.isArray(source.muscleGroups)
+      ? source.muscleGroups
+      : Array.isArray(source.muscle_groups)
+        ? source.muscle_groups
+        : [];
+
+    const sourceMuscleConfig = Array.isArray(source.muscleConfig)
+      ? source.muscleConfig
+      : Array.isArray(source.muscle_config)
+        ? source.muscle_config
+        : [];
+
+    const sourceExercisesByGroup = normalizeGroupedExercisesPayload(
+      source.exercisesByGroup ||
+      source.exercises_by_group ||
+      source.exercicios ||
+      {}
+    );
+
     const sessionPayload = {
       userId,
-      templateId: source.id || null,
+      templateId: source.templateId || source.id || null,
       date: getLocalDateOnly(),
       name: source.name,
-      muscleGroups: source.muscleGroups || source.muscle_groups || [],
+      muscleGroups: sourceMuscleGroups,
       sportsActivities,
       sports: sportsActivities,
       sports_activities: sportsActivities,
-      muscleConfig: Array.isArray(source.muscleConfig)
-        ? source.muscleConfig
-        : Array.isArray(source.muscle_config)
-          ? source.muscle_config
-          : [],
-      exercisesByGroup: normalizeGroupedExercisesPayload(
-        source.exercisesByGroup ||
-        source.exercises_by_group ||
-        source.exercicios ||
-        {}
-      ),
+      muscleConfig: sourceMuscleConfig,
+      exercisesByGroup: sourceExercisesByGroup,
       completed: true,
     };
 
@@ -1740,11 +1750,20 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
 
       const normalizedSaved = {
         ...saved,
+        templateId: saved?.templateId || sessionPayload.templateId || null,
+        exercisesByGroup: normalizeGroupedExercisesPayload(
+          saved?.exercisesByGroup ||
+          saved?.exercises_by_group ||
+          sourceExercisesByGroup
+        ),
+        muscleConfig: Array.isArray(saved?.muscleConfig)
+          ? saved.muscleConfig
+          : Array.isArray(saved?.muscle_config)
+            ? saved.muscle_config
+            : sourceMuscleConfig,
         muscleGroups: Array.isArray(saved?.muscleGroups)
           ? saved.muscleGroups
-          : Array.isArray(source.muscleGroups)
-            ? source.muscleGroups
-            : [],
+          : sourceMuscleGroups,
         sportsActivities: syncSportsFromTemplate(
           saved?.sportsActivities,
           saved?.sports || saved?.sports_activities || sportsActivities
