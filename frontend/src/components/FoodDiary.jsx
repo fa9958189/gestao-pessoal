@@ -87,6 +87,19 @@ const parseNumberInput = (value) => {
 
 const isValidDecimalInput = (value) => /^\d*([.,]\d*)?$/.test(value);
 
+
+const getLatestWeight = (weightHistory, profile) => {
+  if (Array.isArray(weightHistory) && weightHistory.length > 0) {
+    const sorted = [...weightHistory].sort((a, b) => {
+      return new Date(b.date) - new Date(a.date);
+    });
+
+    return sorted[0].weightKg ?? sorted[0].weight;
+  }
+
+  return profile?.weightKg || profile?.weight || 0;
+};
+
 function getLocalDateOnly() {
   const now = new Date();
   const year = now.getFullYear();
@@ -1755,6 +1768,8 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
       ? `${formatNumber(body.goalWeightKg, 1)} kg`
       : '—';
 
+  const latestWeight = parseNumberInput(getLatestWeight(weightHistory, body));
+
   const BodySummaryCard = () => (
     <div className="food-diary-summary-card card-body card-corpo">
       <h5 className="title" style={{ margin: 0, fontSize: 14 }}>
@@ -1764,7 +1779,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
       <div className="body-grid">
         <div className="body-box">
           <span>Peso atual</span>
-          <strong>{body.weightKg ? `${formatNumber(body.weightKg, 1)} kg` : '—'}</strong>
+          <strong>{Number.isFinite(latestWeight) ? `${formatNumber(latestWeight, 1)} kg` : '—'}</strong>
         </div>
         <div className="body-box">
           <span>Meta</span>
