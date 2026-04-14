@@ -1728,9 +1728,20 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
       {}
     );
 
+    const providedTemplateId = source.templateId || null;
+    const fallbackRoutineId = source.id || null;
+    const resolvedTemplateId = providedTemplateId || null;
+    const templateIdSource = providedTemplateId
+      ? 'workout_templates.id (source.templateId)'
+      : fallbackRoutineId
+        ? 'workout_routines.id (source.id)'
+        : 'none';
+
     const sessionPayload = {
       userId,
-      templateId: source.templateId || source.id || null,
+      templateId: resolvedTemplateId,
+      routineId: fallbackRoutineId,
+      templateIdSource,
       date: getLocalDateOnly(),
       name: source.name,
       muscleGroups: sourceMuscleGroups,
@@ -1743,6 +1754,14 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
     };
 
     try {
+      console.info('[WorkoutRoutine] Conclusão de treino -> POST /api/workouts/sessions', {
+        templateId: sessionPayload.templateId,
+        templateIdSource: sessionPayload.templateIdSource,
+        workoutName: sessionPayload.name,
+        userId: sessionPayload.userId,
+        date: sessionPayload.date,
+      });
+
       const saved = await fetchJson(`${apiBaseUrl}/api/workouts/sessions`, {
         method: 'POST',
         body: JSON.stringify(sessionPayload),

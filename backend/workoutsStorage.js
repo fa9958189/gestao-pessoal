@@ -163,10 +163,43 @@ export const createWorkoutSession = async (session) => {
     session.sports || session.sportsActivities || session.sports_activities
   );
 
+  let resolvedTemplateId = session.templateId || null;
+  if (resolvedTemplateId) {
+    const { data: templateExists, error: templateLookupError } = await supabase
+      .from("workout_templates")
+      .select("id")
+      .eq("id", resolvedTemplateId)
+      .maybeSingle();
+
+    if (templateLookupError) {
+      console.error("Erro ao validar template_id para workout_sessions", {
+        template_id: resolvedTemplateId,
+        referenced_table: "workout_templates",
+        template_id_source: session.templateIdSource || "unknown",
+        routine_id_source: session.routineId || null,
+        code: templateLookupError.code,
+        message: templateLookupError.message,
+        details: templateLookupError.details,
+        hint: templateLookupError.hint,
+      });
+      throw templateLookupError;
+    }
+
+    if (!templateExists) {
+      console.warn("template_id inválido para FK workout_sessions.template_id; salvando sessão com template_id null", {
+        template_id: resolvedTemplateId,
+        referenced_table: "workout_templates",
+        template_id_source: session.templateIdSource || "unknown",
+        routine_id_source: session.routineId || null,
+      });
+      resolvedTemplateId = null;
+    }
+  }
+
   const insertPayload = {
     id: generateId(),
     user_id: session.userId,
-    template_id: session.templateId || null,
+    template_id: resolvedTemplateId,
     workout_name: session.workoutName || session.name || "",
     muscle_groups: (session.muscleGroups || []).join(", "),
     sports_list: normalizedSports.join(", "),
@@ -185,6 +218,10 @@ export const createWorkoutSession = async (session) => {
     console.error("Supabase insert error on table workout_sessions", {
       table: "workout_sessions",
       fields: Object.keys(insertPayload),
+      template_id: insertPayload.template_id,
+      referenced_table: "workout_templates",
+      template_id_source: session.templateIdSource || "unknown",
+      routine_id_source: session.routineId || null,
       code: error.code,
       message: error.message,
       details: error.details,

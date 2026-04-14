@@ -3304,6 +3304,10 @@ app.post("/api/workouts/sessions", async (req, res) => {
     console.error("Erro ao registrar sessão no Supabase", {
       table: tableName,
       fields: Object.keys(session || {}),
+      template_id: session?.templateId || null,
+      referenced_table: "workout_templates",
+      template_id_source: session?.templateIdSource || "unknown",
+      routine_id_source: session?.routineId || null,
       code: err?.code,
       message: err?.message,
       details: err?.details,
