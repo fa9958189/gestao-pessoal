@@ -1786,6 +1786,7 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
       return normalizedSaved;
     } catch (err) {
       console.error('Erro ao concluir treino', err);
+      console.error('Payload enviado para /api/workouts/sessions', sessionPayload);
       notify('Não foi possível registrar o treino de hoje.', 'danger');
       return null;
     }

@@ -3291,8 +3291,9 @@ app.delete("/api/workouts/templates/:id", async (req, res) => {
 });
 
 app.post("/api/workouts/sessions", async (req, res) => {
+  const tableName = "workout_sessions";
+  const session = req.body || {};
   try {
-    const session = req.body || {};
     if (!session.userId || !session.name) {
       return res.status(400).json({ error: "userId e name são obrigatórios." });
     }
@@ -3300,7 +3301,15 @@ app.post("/api/workouts/sessions", async (req, res) => {
     const saved = await createWorkoutSession(session);
     return res.json(saved);
   } catch (err) {
-    console.error("Erro ao registrar sessão", err);
+    console.error("Erro ao registrar sessão no Supabase", {
+      table: tableName,
+      fields: Object.keys(session || {}),
+      code: err?.code,
+      message: err?.message,
+      details: err?.details,
+      hint: err?.hint,
+      error: err,
+    });
     return res.status(500).json({ error: "Erro interno ao salvar sessão" });
   }
 });
