@@ -163,23 +163,35 @@ export const createWorkoutSession = async (session) => {
     session.sports || session.sportsActivities || session.sports_activities
   );
 
+  const insertPayload = {
+    id: generateId(),
+    user_id: session.userId,
+    template_id: session.templateId || null,
+    workout_name: session.workoutName || session.name || "",
+    muscle_groups: (session.muscleGroups || []).join(", "),
+    sports_list: normalizedSports.join(", "),
+    exercises_by_group: normalizedExercisesByGroup,
+    muscle_config: normalizedMuscleConfig,
+    performed_at: toSafePerformedAt(normalizedDate),
+  };
+
   const { data, error } = await supabase
     .from("workout_sessions")
-    .insert({
-      id: generateId(),
-      user_id: session.userId,
-      template_id: session.templateId || null,
-      workout_name: session.workoutName || session.name || "",
-      muscle_groups: (session.muscleGroups || []).join(", "),
-      sports_list: normalizedSports.join(", "),
-      exercises_by_group: normalizedExercisesByGroup,
-      muscle_config: normalizedMuscleConfig,
-      performed_at: toSafePerformedAt(normalizedDate),
-    })
+    .insert(insertPayload)
     .select()
     .single();
 
-  if (error) throw error;
+  if (error) {
+    console.error("Supabase insert error on table workout_sessions", {
+      table: "workout_sessions",
+      fields: Object.keys(insertPayload),
+      code: error.code,
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+    });
+    throw error;
+  }
 
   return {
     id: data.id,
