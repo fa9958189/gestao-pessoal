@@ -65,29 +65,216 @@ function isTrialLifecycleEligible(user) {
 
 function isTrialEndingToday(user) {
   if (!isTrialLifecycleEligible(user)) return false;
-  const today = getTodayDateOnly();
-  const end = getDateOnly(user.trial_end_at);
-  if (!end) return false;
-  return isSameDay(today, end);
+  return getTrialDaysDiff(user) === 0;
 }
 
 function shouldBlockTrialUser(user) {
   if (!isTrialLifecycleEligible(user)) return false;
+  return getTrialDaysDiff(user) < 0;
+}
+
+function getTrialEndDateOnly(user) {
+  return getDateOnly(user?.trial_end_at);
+}
+
+function getTrialDaysDiff(user) {
   const today = getTodayDateOnly();
-  const end = getDateOnly(user.trial_end_at);
-  if (!end) return false;
-  return isBefore(end, today);
+  const end = getTrialEndDateOnly(user);
+  if (!end) return null;
+
+  const oneDayMs = 24 * 60 * 60 * 1000;
+  return Math.round((end.getTime() - today.getTime()) / oneDayMs);
+}
+
+async function fetchAdminRecipients() {
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("id, name, whatsapp, role")
+    .eq("role", "admin");
+
+  if (error) {
+    console.error("❌ Erro ao buscar admins para aviso de trial:", error);
+    return [];
+  }
+
+  return (data || []).filter((admin) => Boolean(normalizePhone(admin?.whatsapp)));
+}
+
+async function fetchAffiliateRecipient(user) {
+  if (!user?.affiliate_id) return null;
+
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("id, name, whatsapp, role")
+    .eq("id", user.affiliate_id)
+    .maybeSingle();
+
+  if (error) {
+    console.error("❌ Erro ao buscar afiliado responsável:", {
+      userId: user?.id,
+      affiliateId: user?.affiliate_id,
+      error,
+    });
+    return null;
+  }
+
+  return data || null;
+}
+
+function buildTrialRecipients({ user, admins, affiliate }) {
+  const recipients = [];
+  const seenPhones = new Set();
+  const seenProfileIds = new Set();
+
+  const addRecipient = ({ profileId, roleType, phone, name }) => {
+    const normalizedPhone = normalizePhone(phone);
+    if (!normalizedPhone) return false;
+
+    if (profileId && seenProfileIds.has(profileId)) return false;
+    if (seenPhones.has(normalizedPhone)) return false;
+
+    if (profileId) seenProfileIds.add(profileId);
+    seenPhones.add(normalizedPhone);
+    recipients.push({
+      profileId: profileId || null,
+      roleType,
+      phone: normalizedPhone,
+      name: name || "Sem nome",
+    });
+    return true;
+  };
+
+  addRecipient({
+    profileId: user?.id,
+    roleType: "user",
+    phone: user?.whatsapp,
+    name: user?.name,
+  });
+
+  for (const admin of admins || []) {
+    addRecipient({
+      profileId: admin?.id,
+      roleType: "admin",
+      phone: admin?.whatsapp,
+      name: admin?.name,
+    });
+  }
+
+  if (!affiliate) return recipients;
+
+  const affiliatePhone = normalizePhone(affiliate?.whatsapp);
+  if (!affiliatePhone) return recipients;
+
+  const isAffiliateAdmin = (admins || []).some((admin) => admin?.id === affiliate?.id);
+  if (isAffiliateAdmin) {
+    console.log("ℹ️ Afiliado ignorado por já ser admin:", {
+      userId: user?.id,
+      affiliateId: affiliate?.id,
+    });
+    return recipients;
+  }
+
+  if (affiliate?.id && seenProfileIds.has(affiliate.id)) {
+    console.log("ℹ️ Afiliado ignorado por duplicidade de perfil:", {
+      userId: user?.id,
+      affiliateId: affiliate?.id,
+    });
+    return recipients;
+  }
+
+  if (seenPhones.has(affiliatePhone)) {
+    console.log("ℹ️ Afiliado ignorado por duplicidade de telefone:", {
+      userId: user?.id,
+      affiliateId: affiliate?.id,
+      phone: affiliatePhone,
+    });
+    return recipients;
+  }
+
+  addRecipient({
+    profileId: affiliate?.id,
+    roleType: "affiliate",
+    phone: affiliatePhone,
+    name: affiliate?.name,
+  });
+
+  return recipients;
+}
+
+function getTrialMessage({ user, roleType, kind }) {
+  if (roleType === "user" && kind === "ending_today") {
+    return [
+      "⚠️ Seu período de teste termina hoje.",
+      "Para continuar usando o Gestão Pessoal sem interrupções, entre em contato para ativar seu plano.",
+    ].join("\n");
+  }
+
+  if (roleType === "user" && kind === "expired") {
+    return [
+      "🚫 Seu período de teste expirou.",
+      "Seu acesso ao Gestão Pessoal foi bloqueado até a ativação do plano.",
+      "Entre em contato para regularizar.",
+    ].join("\n");
+  }
+
+  if (roleType === "admin" && kind === "ending_today") {
+    return `📢 Aviso de teste:\nO usuário ${user.name} (${user.email || "sem email"}) termina o período de teste hoje.`;
+  }
+
+  if (roleType === "admin" && kind === "expired") {
+    return `🚨 Teste vencido:\nO usuário ${user.name} (${user.email || "sem email"}) está com o período de teste vencido e teve o acesso bloqueado.`;
+  }
+
+  if (roleType === "affiliate" && kind === "ending_today") {
+    return `📢 Aviso de teste:\nO usuário ${user.name} (${user.email || "sem email"}) vinculado a você termina o período de teste hoje.`;
+  }
+
+  if (roleType === "affiliate" && kind === "expired") {
+    return `🚨 Teste vencido:\nO usuário ${user.name} (${user.email || "sem email"}) vinculado a você está com o período de teste vencido e teve o acesso bloqueado.`;
+  }
+
+  return null;
+}
+
+async function notifyTrialRecipients({ user, kind }) {
+  const [admins, affiliate] = await Promise.all([
+    fetchAdminRecipients(),
+    fetchAffiliateRecipient(user),
+  ]);
+  const recipients = buildTrialRecipients({ user, admins, affiliate });
+
+  for (const recipient of recipients) {
+    const message = getTrialMessage({
+      user,
+      roleType: recipient.roleType,
+      kind,
+    });
+
+    if (!message) continue;
+
+    try {
+      await sendWhatsApp(recipient.phone, message);
+    } catch (error) {
+      console.error("❌ Erro ao enviar aviso de trial:", {
+        userId: user?.id,
+        recipientProfileId: recipient?.profileId,
+        recipientRole: recipient?.roleType,
+        error,
+      });
+    }
+  }
 }
 
 async function runTrialLifecycle(users) {
   for (const user of users || []) {
     if (!isTrialLifecycleEligible(user)) continue;
 
-    if (isTrialEndingToday(user) && !user?.trial_notified_at && user?.whatsapp) {
-      await sendWhatsApp(user.whatsapp, [
-        "⚠️ Seu período de teste termina hoje.",
-        "Para continuar usando o sistema sem interrupções, entre em contato para ativar seu plano.",
-      ].join("\n"));
+    const trialDaysDiff = getTrialDaysDiff(user);
+    if (trialDaysDiff === null) continue;
+
+    if (trialDaysDiff === 0 && !user?.trial_notified_at) {
+      console.log("📢 Enviando aviso de trial vencendo hoje:", { userId: user.id });
+      await notifyTrialRecipients({ user, kind: "ending_today" });
 
       const { error: notifyError } = await supabase
         .from("profiles")
@@ -102,21 +289,43 @@ async function runTrialLifecycle(users) {
       }
     }
 
-    if (shouldBlockTrialUser(user)) {
-      const { error: blockError } = await supabase
+    if (trialDaysDiff < 0) {
+      if (!user?.trial_expired_notified_at) {
+        console.log("🚨 Enviando aviso de trial vencido:", { userId: user.id });
+        await notifyTrialRecipients({ user, kind: "expired" });
+
+        const { error: expiredNotifyError } = await supabase
+          .from("profiles")
+          .update({ trial_expired_notified_at: new Date().toISOString() })
+          .eq("id", user.id);
+
+        if (expiredNotifyError) {
+          console.error("❌ Erro ao registrar aviso de trial vencido:", {
+            userId: user.id,
+            error: expiredNotifyError,
+          });
+        }
+      }
+
+      if (!shouldBlockTrialUser(user)) continue;
+
+      const { data: blockedRows, error: blockError } = await supabase
         .from("profiles")
         .update({
           trial_status: "expired",
           subscription_status: "inactive",
         })
         .eq("id", user.id)
-        .eq("trial_status", "active");
+        .eq("trial_status", "active")
+        .select("id");
 
       if (blockError) {
         console.error("❌ Erro ao bloquear usuário com trial expirado:", {
           userId: user.id,
           error: blockError,
         });
+      } else if (blockedRows?.length) {
+        console.log("⛔ Usuário bloqueado por trial expirado:", { userId: user.id });
       }
     }
   }
