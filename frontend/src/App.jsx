@@ -172,6 +172,28 @@ const formatDate = (value) => {
   }
 };
 
+const formatMetricValue = (value, unit = '', decimals = 1) => {
+  if (value == null || value === '') return '-';
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return String(value);
+  const formatted = numeric.toLocaleString('pt-BR', {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  });
+  return unit ? `${formatted} ${unit}` : formatted;
+};
+
+const resolveUserCurrentWeight = (user) => {
+  const candidate =
+    user?.latest_weight_kg ??
+    user?.current_weight ??
+    user?.weight ??
+    user?.weight_kg ??
+    null;
+  const parsed = Number(candidate);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
 const parseDateSafe = (value) => {
   if (!value) return null;
   const parsed = value instanceof Date ? value : new Date(value);
@@ -685,6 +707,10 @@ const UsersTable = ({
   onPromoteToAffiliate,
   affiliateNameById,
   currentUser,
+  onOpenBodyModal,
+  onOpenDailyWeightModal,
+  onOpenWeightHistoryModal,
+  onOpenGoalsModal,
 }) => {
   const safeItems = items || [];
 
@@ -704,6 +730,7 @@ const UsersTable = ({
             const isAdminUser = user.role === 'admin' || isOwner;
             const isAffiliate = isOwner || Boolean(user.is_affiliate || user.affiliate_id || user.affiliate_code);
             const canPromoteToAffiliate = !isOwner && !isAdminUser && !isAffiliate;
+            const canManageBodyGoals = currentUser?.id === user.id;
             const status = isOwner ? 'active' : (isAdminUser ? 'active' : (user.derived_status || user.subscription_status || 'active'));
             const labelMap = { active: 'ATIVO', pending: 'PENDENTE', inactive: 'INATIVO' };
             const trialEnd = getTrialEnd(user);
@@ -713,6 +740,12 @@ const UsersTable = ({
             const trialEndLabel = formatDateBR(trialEnd);
             const planVisual = getPlanVisual(user.plan_type);
             const affiliateName = affiliateNameById?.[user.affiliate_id] || user.affiliate_name || '-';
+            const currentWeight = resolveUserCurrentWeight(user);
+            const targetWeight = user?.goal_weight ?? user?.weight_goal ?? user?.target_weight_kg ?? null;
+            const activityLevel = user?.activity_level ?? user?.nivel_atividade ?? '-';
+            const goalMode = user?.goal_mode || '-';
+            const weightVariation = Number(user?.weight_variation_kg);
+            const hasVariation = Number.isFinite(weightVariation);
 
             return (
               <div key={user.id} className={`event-card user-event-card card-ui ${user._editing ? 'is-editing' : ''}`}>
@@ -761,6 +794,61 @@ const UsersTable = ({
                       <span>Criado em: {formatDate(user.created_at)}</span>
                     </div>
                   )}
+
+                  <div className="sep" style={{ margin: '10px 0' }}></div>
+                  <div className="event-subtitle">
+                    <strong>📏 Corpo</strong>
+                    <div className="user-event-details" style={{ display: 'grid', gap: 6, marginTop: 8 }}>
+                      <span>Peso atual: <strong>{formatMetricValue(currentWeight, 'kg')}</strong></span>
+                      <span>Meta de peso: <strong>{formatMetricValue(targetWeight, 'kg')}</strong></span>
+                      <span>Altura: <strong>{formatMetricValue(user?.height_cm ?? user?.height, 'cm', 0)}</strong></span>
+                      <span>Sexo: <strong>{user?.sex || '-'}</strong></span>
+                      <span>Idade: <strong>{user?.age || '-'}</strong></span>
+                      <span>Nível de atividade: <strong>{activityLevel}</strong></span>
+                      <span>
+                        Variação de peso:{' '}
+                        <strong>
+                          {hasVariation
+                            ? `${weightVariation > 0 ? '+' : ''}${weightVariation.toLocaleString('pt-BR', {
+                              minimumFractionDigits: 1,
+                              maximumFractionDigits: 1,
+                            })} kg`
+                            : '-'}
+                        </strong>
+                      </span>
+                    </div>
+                    {canManageBodyGoals && (
+                      <div className="user-actions-extra" style={{ marginTop: 10, gap: 8, flexWrap: 'wrap' }}>
+                        <button type="button" className="btn-ui" onClick={() => onOpenWeightHistoryModal?.(user)}>
+                          Abrir histórico de peso
+                        </button>
+                        <button type="button" className="btn-ui" onClick={() => onOpenDailyWeightModal?.(user)}>
+                          Registrar peso do dia
+                        </button>
+                        <button type="button" className="btn-ui" onClick={() => onOpenBodyModal?.(user)}>
+                          Atualizar dados corporais
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="sep" style={{ margin: '10px 0' }}></div>
+                  <div className="event-subtitle">
+                    <strong>🎯 Metas</strong>
+                    <div className="user-event-details" style={{ display: 'grid', gap: 6, marginTop: 8 }}>
+                      <span>Meta de calorias: <strong>{formatMetricValue(user?.calorie_goal, 'kcal', 0)}</strong></span>
+                      <span>Meta de proteína: <strong>{formatMetricValue(user?.protein_goal, 'g', 0)}</strong></span>
+                      <span>Meta de água: <strong>{formatMetricValue(user?.water_goal_l, 'L')}</strong></span>
+                      <span>Modo atual: <strong>{goalMode}</strong></span>
+                    </div>
+                    {canManageBodyGoals && (
+                      <div className="user-actions-extra" style={{ marginTop: 10 }}>
+                        <button type="button" className="btn-ui" onClick={() => onOpenGoalsModal?.(user)}>
+                          Definir metas
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <div className="event-actions">
@@ -2049,6 +2137,29 @@ function App() {
   const [step, setStep] = useState(1);
   const [editingUserId, setEditingUserId] = useState(null);
   const [editingUserOriginal, setEditingUserOriginal] = useState(null);
+  const [bodyModalUser, setBodyModalUser] = useState(null);
+  const [dailyWeightModalUser, setDailyWeightModalUser] = useState(null);
+  const [weightHistoryModalUser, setWeightHistoryModalUser] = useState(null);
+  const [goalsModalUser, setGoalsModalUser] = useState(null);
+  const [bodyDraft, setBodyDraft] = useState({
+    sex: '',
+    age: '',
+    activity_level: '',
+    height_cm: '',
+    weight: '',
+    goal_weight: '',
+    objective: 'manter_peso',
+  });
+  const [dailyWeightDraft, setDailyWeightDraft] = useState({
+    weight_kg: '',
+    entry_date: new Date().toISOString().slice(0, 10),
+  });
+  const [goalsDraft, setGoalsDraft] = useState({
+    calorie_goal: '',
+    protein_goal: '',
+    water_goal_l: '',
+  });
+  const [weightHistoryItems, setWeightHistoryItems] = useState([]);
   const [affiliates, setAffiliates] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [affiliateForm, setAffiliateForm] = useState(createDefaultAffiliateForm);
@@ -2601,6 +2712,175 @@ function App() {
   const getAccessToken = async () => {
     const { data: sessionData } = await client.auth.getSession();
     return sessionData?.session?.access_token || '';
+  };
+
+  const syncUserInList = (userId, patch) => {
+    if (!userId) return;
+    setUsers((prev) => prev.map((item) => (item.id === userId ? { ...item, ...patch } : item)));
+  };
+
+  const openBodyModal = (user) => {
+    if (!user || currentUser?.id !== user.id) return;
+    setBodyModalUser(user);
+    setBodyDraft({
+      sex: user?.sex || '',
+      age: user?.age != null ? String(user.age) : '',
+      activity_level: user?.activity_level || '',
+      height_cm: user?.height_cm != null ? String(user.height_cm) : '',
+      weight: resolveUserCurrentWeight(user) != null ? String(resolveUserCurrentWeight(user)) : '',
+      goal_weight: user?.goal_weight != null ? String(user.goal_weight) : '',
+      objective: user?.objective || 'manter_peso',
+    });
+  };
+
+  const openGoalsModal = (user) => {
+    if (!user || currentUser?.id !== user.id) return;
+    setGoalsModalUser(user);
+    setGoalsDraft({
+      calorie_goal: user?.calorie_goal != null ? String(user.calorie_goal) : '',
+      protein_goal: user?.protein_goal != null ? String(user.protein_goal) : '',
+      water_goal_l: user?.water_goal_l != null ? String(user.water_goal_l) : '',
+    });
+  };
+
+  const openDailyWeightModal = (user) => {
+    if (!user || currentUser?.id !== user.id) return;
+    setDailyWeightModalUser(user);
+    setDailyWeightDraft({
+      weight_kg: resolveUserCurrentWeight(user) != null ? String(resolveUserCurrentWeight(user)) : '',
+      entry_date: new Date().toISOString().slice(0, 10),
+    });
+  };
+
+  const openWeightHistoryModal = async (user) => {
+    if (!user || currentUser?.id !== user.id || !client) return;
+    try {
+      const { data, error } = await client
+        .from('food_weight_history')
+        .select('entry_date, weight_kg, recorded_at')
+        .eq('user_id', user.id)
+        .order('entry_date', { ascending: false })
+        .order('recorded_at', { ascending: false })
+        .limit(30);
+      if (error) throw error;
+      setWeightHistoryItems(data || []);
+      setWeightHistoryModalUser(user);
+    } catch (err) {
+      pushToast(err?.message || 'Não foi possível carregar o histórico de peso.', 'danger');
+    }
+  };
+
+  const saveBodyData = async () => {
+    try {
+      if (!bodyModalUser || currentUser?.id !== bodyModalUser.id) return;
+      const accessToken = await getAccessToken();
+      if (!accessToken) throw new Error('Sessão expirada. Faça login novamente.');
+      const response = await fetch(`${workoutApiBase}/body`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          sex: bodyDraft.sex || null,
+          age: bodyDraft.age ? Number(bodyDraft.age) : null,
+          activity_level: bodyDraft.activity_level || null,
+          height_cm: bodyDraft.height_cm ? Number(bodyDraft.height_cm) : null,
+          weight: bodyDraft.weight ? Number(bodyDraft.weight) : null,
+          goal_weight: bodyDraft.goal_weight ? Number(bodyDraft.goal_weight) : null,
+          objective: bodyDraft.objective || 'manter_peso',
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload?.error || 'Não foi possível atualizar os dados corporais.');
+
+      syncUserInList(bodyModalUser.id, {
+        sex: bodyDraft.sex || null,
+        age: bodyDraft.age ? Number(bodyDraft.age) : null,
+        activity_level: bodyDraft.activity_level || null,
+        height_cm: bodyDraft.height_cm ? Number(bodyDraft.height_cm) : null,
+        weight: bodyDraft.weight ? Number(bodyDraft.weight) : null,
+        goal_weight: bodyDraft.goal_weight ? Number(bodyDraft.goal_weight) : null,
+        objective: bodyDraft.objective || 'manter_peso',
+        calorie_goal: payload?.goals?.calorie_goal,
+        protein_goal: payload?.goals?.protein_goal,
+        water_goal_l: payload?.goals?.water_goal_l,
+        goal_mode: payload?.goals?.goal_mode || 'auto',
+      });
+      setBodyModalUser(null);
+      pushToast('Dados corporais atualizados com sucesso.', 'success');
+    } catch (err) {
+      pushToast(err?.message || 'Erro ao atualizar dados corporais.', 'danger');
+    }
+  };
+
+  const saveDailyWeight = async () => {
+    try {
+      if (!dailyWeightModalUser || currentUser?.id !== dailyWeightModalUser.id || !client) return;
+      const parsedWeight = Number(dailyWeightDraft.weight_kg);
+      if (!Number.isFinite(parsedWeight) || parsedWeight <= 0) {
+        throw new Error('Informe um peso válido.');
+      }
+      const { error } = await client
+        .from('food_weight_history')
+        .upsert({
+          user_id: dailyWeightModalUser.id,
+          entry_date: dailyWeightDraft.entry_date,
+          weight_kg: parsedWeight,
+          recorded_at: new Date().toISOString(),
+        }, { onConflict: 'user_id,entry_date' });
+      if (error) throw error;
+
+      const { error: profileError } = await client
+        .from('profiles')
+        .update({ weight: parsedWeight, weight_kg: parsedWeight, current_weight: parsedWeight })
+        .eq('id', dailyWeightModalUser.id);
+      if (profileError) throw profileError;
+
+      syncUserInList(dailyWeightModalUser.id, {
+        weight: parsedWeight,
+        current_weight: parsedWeight,
+        latest_weight_kg: parsedWeight,
+        latest_weight_date: dailyWeightDraft.entry_date,
+      });
+      setDailyWeightModalUser(null);
+      pushToast('Peso do dia registrado com sucesso.', 'success');
+    } catch (err) {
+      pushToast(err?.message || 'Erro ao registrar peso.', 'danger');
+    }
+  };
+
+  const saveManualGoals = async () => {
+    try {
+      if (!goalsModalUser || currentUser?.id !== goalsModalUser.id) return;
+      const accessToken = await getAccessToken();
+      if (!accessToken) throw new Error('Sessão expirada. Faça login novamente.');
+      const response = await fetch(`${workoutApiBase}/goals/manual`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          calories: Number(goalsDraft.calorie_goal),
+          protein: Number(goalsDraft.protein_goal),
+          water: Number(goalsDraft.water_goal_l),
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload?.error || 'Não foi possível salvar as metas.');
+
+      syncUserInList(goalsModalUser.id, {
+        calorie_goal: Number(goalsDraft.calorie_goal),
+        protein_goal: Number(goalsDraft.protein_goal),
+        water_goal_l: Number(goalsDraft.water_goal_l),
+        goal_mode: 'manual',
+      });
+      setGoalsModalUser(null);
+      pushToast('Metas atualizadas com sucesso.', 'success');
+    } catch (err) {
+      pushToast(err?.message || 'Erro ao salvar metas.', 'danger');
+    }
   };
 
   const loadFinanceData = async (customFilters = financeFilters) => {
@@ -3961,6 +4241,10 @@ function App() {
               items={users.map((user) => ({ ...user, _editing: user.id === editingUserId }))}
               affiliateNameById={affiliateNameById}
               currentUser={currentUser}
+              onOpenBodyModal={openBodyModal}
+              onOpenDailyWeightModal={openDailyWeightModal}
+              onOpenWeightHistoryModal={openWeightHistoryModal}
+              onOpenGoalsModal={openGoalsModal}
               onEdit={(user) => {
                 setEditingUserId(user.id);
                 setEditingUserOriginal(user);
@@ -4193,6 +4477,96 @@ function App() {
                     >
                       Cancelar
                     </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {bodyModalUser && (
+              <div className="modal-overlay" onClick={() => setBodyModalUser(null)}>
+                <div className="report-modal" onClick={(e) => e.stopPropagation()}>
+                  <h2>Atualizar dados corporais</h2>
+                  <label>Sexo</label>
+                  <select value={bodyDraft.sex} onChange={(e) => setBodyDraft((prev) => ({ ...prev, sex: e.target.value }))}>
+                    <option value="">Selecione</option>
+                    <option value="male">Masculino</option>
+                    <option value="female">Feminino</option>
+                  </select>
+                  <label>Idade</label>
+                  <input type="number" value={bodyDraft.age} onChange={(e) => setBodyDraft((prev) => ({ ...prev, age: e.target.value }))} />
+                  <label>Nível de atividade</label>
+                  <input value={bodyDraft.activity_level} onChange={(e) => setBodyDraft((prev) => ({ ...prev, activity_level: e.target.value }))} />
+                  <label>Altura (cm)</label>
+                  <input type="number" value={bodyDraft.height_cm} onChange={(e) => setBodyDraft((prev) => ({ ...prev, height_cm: e.target.value }))} />
+                  <label>Peso atual (kg)</label>
+                  <input type="number" step="0.1" value={bodyDraft.weight} onChange={(e) => setBodyDraft((prev) => ({ ...prev, weight: e.target.value }))} />
+                  <label>Meta de peso (kg)</label>
+                  <input type="number" step="0.1" value={bodyDraft.goal_weight} onChange={(e) => setBodyDraft((prev) => ({ ...prev, goal_weight: e.target.value }))} />
+                  <label>Objetivo</label>
+                  <select value={bodyDraft.objective} onChange={(e) => setBodyDraft((prev) => ({ ...prev, objective: e.target.value }))}>
+                    <option value="perder_peso">Perder peso</option>
+                    <option value="manter_peso">Manter peso</option>
+                    <option value="ganhar_massa">Ganhar massa</option>
+                  </select>
+                  <div className="wizard-actions">
+                    <button className="btn-primary btn-ui" onClick={saveBodyData}>Salvar</button>
+                    <button className="btn-ui" onClick={() => setBodyModalUser(null)}>Cancelar</button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {dailyWeightModalUser && (
+              <div className="modal-overlay" onClick={() => setDailyWeightModalUser(null)}>
+                <div className="report-modal" onClick={(e) => e.stopPropagation()}>
+                  <h2>Registrar peso do dia</h2>
+                  <label>Data</label>
+                  <input type="date" value={dailyWeightDraft.entry_date} onChange={(e) => setDailyWeightDraft((prev) => ({ ...prev, entry_date: e.target.value }))} />
+                  <label>Peso (kg)</label>
+                  <input type="number" step="0.1" value={dailyWeightDraft.weight_kg} onChange={(e) => setDailyWeightDraft((prev) => ({ ...prev, weight_kg: e.target.value }))} />
+                  <div className="wizard-actions">
+                    <button className="btn-primary btn-ui" onClick={saveDailyWeight}>Salvar</button>
+                    <button className="btn-ui" onClick={() => setDailyWeightModalUser(null)}>Cancelar</button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {goalsModalUser && (
+              <div className="modal-overlay" onClick={() => setGoalsModalUser(null)}>
+                <div className="report-modal" onClick={(e) => e.stopPropagation()}>
+                  <h2>Definir metas</h2>
+                  <label>Calorias (kcal)</label>
+                  <input type="number" value={goalsDraft.calorie_goal} onChange={(e) => setGoalsDraft((prev) => ({ ...prev, calorie_goal: e.target.value }))} />
+                  <label>Proteína (g)</label>
+                  <input type="number" value={goalsDraft.protein_goal} onChange={(e) => setGoalsDraft((prev) => ({ ...prev, protein_goal: e.target.value }))} />
+                  <label>Água (L)</label>
+                  <input type="number" step="0.1" value={goalsDraft.water_goal_l} onChange={(e) => setGoalsDraft((prev) => ({ ...prev, water_goal_l: e.target.value }))} />
+                  <div className="wizard-actions">
+                    <button className="btn-primary btn-ui" onClick={saveManualGoals}>Salvar</button>
+                    <button className="btn-ui" onClick={() => setGoalsModalUser(null)}>Cancelar</button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {weightHistoryModalUser && (
+              <div className="modal-overlay" onClick={() => setWeightHistoryModalUser(null)}>
+                <div className="report-modal" onClick={(e) => e.stopPropagation()}>
+                  <h2>Histórico de peso</h2>
+                  <div className="usuarios-scroll-container" style={{ maxHeight: 320 }}>
+                    {weightHistoryItems.length === 0 ? (
+                      <p className="muted">Nenhum peso registrado.</p>
+                    ) : (
+                      weightHistoryItems.map((item) => (
+                        <div key={`${item.entry_date}-${item.recorded_at}`} className="event-subtitle">
+                          <strong>{formatDate(item.entry_date)}</strong> — {formatMetricValue(item.weight_kg, 'kg')}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                  <div className="wizard-actions">
+                    <button className="btn-ui" onClick={() => setWeightHistoryModalUser(null)}>Fechar</button>
                   </div>
                 </div>
               </div>

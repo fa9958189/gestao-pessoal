@@ -1996,8 +1996,6 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
           {[
             { key: 'diario', label: '📖 Diário' },
             { key: 'agua', label: '💧 Água' },
-            { key: 'metas', label: '🎯 Metas' },
-            { key: 'corpo', label: '📏 Corpo' },
             { key: 'relatorios', label: '📊 Relatórios' },
           ].map((subTab) => (
             <button
@@ -2334,55 +2332,6 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
             selectedDate={selectedDate}
             onStateChange={handleHydrationStateChange}
           />
-        </div>
-      )}
-
-      {activeSubTab === 'metas' && (
-        <div className="goals-container">
-          <div className="goals-actions">
-            <button type="button" className="btn-primary" onClick={openGoalsModal}>
-              ✏️ Editar Metas
-            </button>
-          </div>
-          <GoalsSummaryCard />
-          <div className="goals-grid">
-            <BmiCard />
-            <WeightEvolutionCard />
-          </div>
-        </div>
-      )}
-
-      {activeSubTab === 'corpo' && (
-        <div className="body-page">
-          <div className="body-actions">
-            <button
-              type="button"
-              className="btn-primary"
-              onClick={openBodyWizard}
-              style={{ display: 'inline-flex', background: '#16a34a', borderColor: '#16a34a' }}
-            >
-              {hasBodyRegistration ? 'Atualizar Dados Corporais' : '+ Atualizar Dados Corporais'}
-            </button>
-            <button
-              type="button"
-              className="btn-secondary"
-              onClick={openDailyWeightModal}
-              style={{ display: 'inline-flex' }}
-            >
-              Registrar Peso do Dia
-            </button>
-            <button
-              type="button"
-              className="btn-secondary"
-              onClick={() => setIsWeightHistoryModalOpen(true)}
-              style={{ display: 'inline-flex' }}
-            >
-              Abrir histórico de peso
-            </button>
-          </div>
-          <div className="body-main">
-            <BodySummaryCard />
-          </div>
         </div>
       )}
 
