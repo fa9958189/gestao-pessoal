@@ -1121,6 +1121,61 @@ app.get("/users", async (req, res) => {
 
     const requesterId = authData.userId;
     const requesterRole = String(authData?.profile?.role || "").toLowerCase();
+    const appendBodyAndGoalsWithLatestWeight = async (baseUsers) => {
+      const users = Array.isArray(baseUsers) ? baseUsers : [];
+      if (!users.length) return [];
+
+      const userIds = users
+        .map((user) => user?.id)
+        .filter(Boolean);
+
+      if (!userIds.length) return users;
+
+      const { data: weightRows, error: weightError } = await supabase
+        .from("food_weight_history")
+        .select("user_id, entry_date, weight_kg, recorded_at")
+        .in("user_id", userIds)
+        .order("entry_date", { ascending: false })
+        .order("recorded_at", { ascending: false });
+
+      if (weightError) throw weightError;
+
+      const latestByUser = new Map();
+      const previousByUser = new Map();
+
+      for (const row of weightRows || []) {
+        if (!row?.user_id) continue;
+        if (!latestByUser.has(row.user_id)) {
+          latestByUser.set(row.user_id, row);
+          continue;
+        }
+        if (!previousByUser.has(row.user_id)) {
+          previousByUser.set(row.user_id, row);
+        }
+      }
+
+      return users.map((user) => {
+        const latest = latestByUser.get(user.id);
+        const previous = previousByUser.get(user.id);
+        const latestWeight =
+          latest?.weight_kg != null
+            ? Number(latest.weight_kg)
+            : (user?.weight != null ? Number(user.weight) : null);
+        const previousWeight = previous?.weight_kg != null ? Number(previous.weight_kg) : null;
+        const variationKg =
+          Number.isFinite(latestWeight) && Number.isFinite(previousWeight)
+            ? Number((latestWeight - previousWeight).toFixed(2))
+            : null;
+
+        return {
+          ...user,
+          current_weight: latestWeight,
+          latest_weight_kg: latestWeight,
+          latest_weight_date: latest?.entry_date || null,
+          weight_variation_kg: variationKg,
+        };
+      });
+    };
 
     if (requesterRole === "admin") {
       const { data, error } = await supabase
@@ -1128,7 +1183,8 @@ app.get("/users", async (req, res) => {
         .select("*");
 
       if (error) throw error;
-      return res.json(data || []);
+      const usersWithBodyAndGoals = await appendBodyAndGoalsWithLatestWeight(data || []);
+      return res.json(usersWithBodyAndGoals);
     }
 
     const { data, error } = await supabase
@@ -1137,7 +1193,8 @@ app.get("/users", async (req, res) => {
       .eq("id", requesterId);
 
     if (error) throw error;
-    return res.json(data || []);
+    const usersWithBodyAndGoals = await appendBodyAndGoalsWithLatestWeight(data || []);
+    return res.json(usersWithBodyAndGoals);
   } catch (err) {
     console.error("Erro ao buscar usuários:", err);
     return res.status(500).json({ error: "Erro interno" });
