@@ -2132,6 +2132,7 @@ app.put("/admin/users/:userId", async (req, res) => {
       if (affiliate_id !== undefined) updateProfilePayload.affiliate_id = affiliate_id || null;
       if (plan_type !== undefined) updateProfilePayload.plan_type = plan_type || null;
       if (isOwner) Object.assign(updateProfilePayload, getOwnerProtectionUpdatePayload(), { is_affiliate: true });
+      delete updateProfilePayload.affiliate_code;
 
       const { error: upProfileErr } = await supabase
         .from("profiles")
@@ -2230,29 +2231,42 @@ app.patch("/admin/users/:userId", async (req, res) => {
         ? `${planEndDate}T00:00:00.000Z`
         : null;
 
+    const updateData = {
+      name: trimmedName,
+      email: trimmedEmail,
+      username: trimmedEmail,
+      whatsapp: typeof whatsapp === "string" ? whatsapp : null,
+      role: typeof role === "string" ? role : undefined,
+      affiliate_id: affiliate.id,
+      plan_type: normalizedPlanType,
+      plan_start_date: planStartDate,
+      plan_end_date: planEndDate,
+      trial_start_at: trialStartIso,
+      trial_end_at: trialEndIso,
+      trial_status: normalizedPlanType === USER_PLAN_TYPES.TRIAL ? "active" : null,
+      ...(isOwner ? getOwnerProtectionUpdatePayload() : {}),
+      ...(isOwner ? { is_affiliate: true } : {}),
+    };
+
+    delete updateData.affiliate_code;
+
     const { error: upProfileErr } = await supabase
       .from("profiles")
-      .update({
-        name: trimmedName,
-        email: trimmedEmail,
-        username: trimmedEmail,
-        whatsapp: typeof whatsapp === "string" ? whatsapp : null,
-        role: typeof role === "string" ? role : undefined,
-        affiliate_id: affiliate.id,
-        affiliate_code: affiliate.code || null,
-        plan_type: normalizedPlanType,
-        plan_start_date: planStartDate,
-        plan_end_date: planEndDate,
-        trial_start_at: trialStartIso,
-        trial_end_at: trialEndIso,
-        trial_status: normalizedPlanType === USER_PLAN_TYPES.TRIAL ? "active" : null,
-        ...(isOwner ? getOwnerProtectionUpdatePayload() : {}),
-        ...(isOwner ? { is_affiliate: true } : {}),
-      })
+      .update(updateData)
       .eq("id", userId);
 
     if (upProfileErr) {
       console.error("Erro ao atualizar profiles:", upProfileErr);
+      const isDuplicateAffiliateCode =
+        upProfileErr?.code === "23505"
+        && String(upProfileErr?.message || "").includes("unique_affiliate_code");
+
+      if (isDuplicateAffiliateCode) {
+        return res.status(400).json({
+          error: "Erro ao atualizar usuário. Código de afiliado duplicado.",
+        });
+      }
+
       return res.status(isPermissionError(upProfileErr) ? 403 : 500).json({
         error: buildApiErrorMessage(upProfileErr),
       });
