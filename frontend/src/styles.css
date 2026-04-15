@@ -521,6 +521,10 @@ h2.title, h3.title{ margin:0 0 10px; font-weight:600; }
   margin-bottom: 0;
 }
 
+.user-event-card .event-content {
+  padding: 25px;
+}
+
 .user-event-card.is-editing {
   border-color: rgba(96, 165, 250, 0.7);
   box-shadow: 0 0 0 1px rgba(96, 165, 250, 0.25);
@@ -576,6 +580,82 @@ h2.title, h3.title{ margin:0 0 10px; font-weight:600; }
 
 .user-actions-extra button:hover {
   background: rgba(255,255,255,0.1);
+}
+
+.user-list-scrollless {
+  overflow: visible;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.user-body-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin-top: 20px;
+}
+
+.body-card,
+.goals-card {
+  background: rgba(10, 20, 40, 0.8);
+  border-radius: 12px;
+  padding: 20px;
+  border: 1px solid rgba(0, 255, 150, 0.2);
+}
+
+.body-card h3,
+.goals-card h3 {
+  margin: 0 0 10px;
+}
+
+.user-card-details-grid {
+  display: grid;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.body-card p,
+.goals-card p {
+  margin: 6px 0;
+  font-size: 14px;
+}
+
+.body-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 15px;
+}
+
+.body-actions button {
+  width: 100%;
+  min-height: 38px;
+}
+
+.btn-outline {
+  background: transparent;
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  color: #cbd5e1;
+}
+
+.btn-outline:hover {
+  border-color: rgba(148, 163, 184, 0.8);
+  background: rgba(148, 163, 184, 0.12);
+}
+
+.report-modal-compact {
+  width: min(420px, 92vw);
+}
+
+.modal-step-label {
+  margin-bottom: 12px;
+}
+
+@media (max-width: 768px) {
+  .user-body-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 640px) {

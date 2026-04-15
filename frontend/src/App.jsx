@@ -724,7 +724,7 @@ const UsersTable = ({
       {filteredUsers.length === 0 ? (
         <div className="muted user-empty">Nenhum usuário cadastrado além de você.</div>
       ) : (
-        <div className="usuarios-scroll-container">
+        <div className="user-list-scrollless">
           {filteredUsers.map((user) => {
             const isOwner = isOwnerUser(user);
             const isAdminUser = user.role === 'admin' || isOwner;
@@ -796,58 +796,59 @@ const UsersTable = ({
                   )}
 
                   <div className="sep" style={{ margin: '10px 0' }}></div>
-                  <div className="event-subtitle">
-                    <strong>📏 Corpo</strong>
-                    <div className="user-event-details" style={{ display: 'grid', gap: 6, marginTop: 8 }}>
-                      <span>Peso atual: <strong>{formatMetricValue(currentWeight, 'kg')}</strong></span>
-                      <span>Meta de peso: <strong>{formatMetricValue(targetWeight, 'kg')}</strong></span>
-                      <span>Altura: <strong>{formatMetricValue(user?.height_cm ?? user?.height, 'cm', 0)}</strong></span>
-                      <span>Sexo: <strong>{user?.sex || '-'}</strong></span>
-                      <span>Idade: <strong>{user?.age || '-'}</strong></span>
-                      <span>Nível de atividade: <strong>{activityLevel}</strong></span>
-                      <span>
-                        Variação de peso:{' '}
-                        <strong>
-                          {hasVariation
-                            ? `${weightVariation > 0 ? '+' : ''}${weightVariation.toLocaleString('pt-BR', {
-                              minimumFractionDigits: 1,
-                              maximumFractionDigits: 1,
-                            })} kg`
-                            : '-'}
-                        </strong>
-                      </span>
-                    </div>
-                    {canManageBodyGoals && (
-                      <div className="user-actions-extra" style={{ marginTop: 10, gap: 8, flexWrap: 'wrap' }}>
-                        <button type="button" className="btn-ui" onClick={() => onOpenWeightHistoryModal?.(user)}>
-                          Abrir histórico de peso
-                        </button>
-                        <button type="button" className="btn-ui" onClick={() => onOpenDailyWeightModal?.(user)}>
-                          Registrar peso do dia
-                        </button>
-                        <button type="button" className="btn-ui" onClick={() => onOpenBodyModal?.(user)}>
-                          Atualizar dados corporais
-                        </button>
+                  <div className="user-body-grid">
+                    <div className="body-card">
+                      <h3>💪 Corpo</h3>
+                      <div className="user-event-details user-card-details-grid">
+                        <p>Peso atual: <strong>{formatMetricValue(currentWeight, 'kg')}</strong></p>
+                        <p>Meta de peso: <strong>{formatMetricValue(targetWeight, 'kg')}</strong></p>
+                        <p>Altura: <strong>{formatMetricValue(user?.height_cm ?? user?.height, 'cm', 0)}</strong></p>
+                        <p>Sexo: <strong>{user?.sex || '-'}</strong></p>
+                        <p>Idade: <strong>{user?.age || '-'}</strong></p>
+                        <p>Nível de atividade: <strong>{activityLevel}</strong></p>
+                        <p>
+                          Variação de peso:{' '}
+                          <strong>
+                            {hasVariation
+                              ? `${weightVariation > 0 ? '+' : ''}${weightVariation.toLocaleString('pt-BR', {
+                                minimumFractionDigits: 1,
+                                maximumFractionDigits: 1,
+                              })} kg`
+                              : '-'}
+                          </strong>
+                        </p>
                       </div>
-                    )}
-                  </div>
+                      {canManageBodyGoals && (
+                        <div className="body-actions">
+                          <button type="button" className="btn-primary" onClick={() => onOpenDailyWeightModal?.(user)}>
+                            Registrar peso
+                          </button>
+                          <button type="button" className="btn-secondary" onClick={() => onOpenBodyModal?.(user)}>
+                            Atualizar corpo
+                          </button>
+                          <button type="button" className="btn-outline" onClick={() => onOpenWeightHistoryModal?.(user)}>
+                            Ver histórico
+                          </button>
+                        </div>
+                      )}
+                    </div>
 
-                  <div className="sep" style={{ margin: '10px 0' }}></div>
-                  <div className="event-subtitle">
-                    <strong>🎯 Metas</strong>
-                    <div className="user-event-details" style={{ display: 'grid', gap: 6, marginTop: 8 }}>
-                      <span>Meta de calorias: <strong>{formatMetricValue(user?.calorie_goal, 'kcal', 0)}</strong></span>
-                      <span>Meta de proteína: <strong>{formatMetricValue(user?.protein_goal, 'g', 0)}</strong></span>
-                      <span>Meta de água: <strong>{formatMetricValue(user?.water_goal_l, 'L')}</strong></span>
-                      <span>Modo atual: <strong>{goalMode}</strong></span>
-                    </div>
-                    {canManageBodyGoals && (
-                      <div className="user-actions-extra" style={{ marginTop: 10 }}>
-                        <button type="button" className="btn-ui" onClick={() => onOpenGoalsModal?.(user)}>
-                          Definir metas
-                        </button>
+                    <div className="goals-card">
+                      <h3>🎯 Metas</h3>
+                      <div className="user-event-details user-card-details-grid">
+                        <p>Meta de calorias: <strong>{formatMetricValue(user?.calorie_goal, 'kcal', 0)}</strong></p>
+                        <p>Meta de proteína: <strong>{formatMetricValue(user?.protein_goal, 'g', 0)}</strong></p>
+                        <p>Meta de água: <strong>{formatMetricValue(user?.water_goal_l, 'L')}</strong></p>
+                        <p>Modo atual: <strong>{goalMode}</strong></p>
                       </div>
-                    )}
+                      {canManageBodyGoals && (
+                        <div className="body-actions">
+                          <button type="button" className="btn-primary" onClick={() => onOpenGoalsModal?.(user)}>
+                            Definir metas
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
 
@@ -2138,9 +2139,11 @@ function App() {
   const [editingUserId, setEditingUserId] = useState(null);
   const [editingUserOriginal, setEditingUserOriginal] = useState(null);
   const [bodyModalUser, setBodyModalUser] = useState(null);
+  const [bodyModalStep, setBodyModalStep] = useState(1);
   const [dailyWeightModalUser, setDailyWeightModalUser] = useState(null);
   const [weightHistoryModalUser, setWeightHistoryModalUser] = useState(null);
   const [goalsModalUser, setGoalsModalUser] = useState(null);
+  const [goalsModalStep, setGoalsModalStep] = useState(1);
   const [bodyDraft, setBodyDraft] = useState({
     sex: '',
     age: '',
@@ -2155,6 +2158,7 @@ function App() {
     entry_date: new Date().toISOString().slice(0, 10),
   });
   const [goalsDraft, setGoalsDraft] = useState({
+    objective: 'manter_peso',
     calorie_goal: '',
     protein_goal: '',
     water_goal_l: '',
@@ -2722,6 +2726,7 @@ function App() {
   const openBodyModal = (user) => {
     if (!user || currentUser?.id !== user.id) return;
     setBodyModalUser(user);
+    setBodyModalStep(1);
     setBodyDraft({
       sex: user?.sex || '',
       age: user?.age != null ? String(user.age) : '',
@@ -2736,7 +2741,9 @@ function App() {
   const openGoalsModal = (user) => {
     if (!user || currentUser?.id !== user.id) return;
     setGoalsModalUser(user);
+    setGoalsModalStep(1);
     setGoalsDraft({
+      objective: user?.objective || 'manter_peso',
       calorie_goal: user?.calorie_goal != null ? String(user.calorie_goal) : '',
       protein_goal: user?.protein_goal != null ? String(user.protein_goal) : '',
       water_goal_l: user?.water_goal_l != null ? String(user.water_goal_l) : '',
@@ -2808,6 +2815,7 @@ function App() {
         goal_mode: payload?.goals?.goal_mode || 'auto',
       });
       setBodyModalUser(null);
+      setBodyModalStep(1);
       pushToast('Dados corporais atualizados com sucesso.', 'success');
     } catch (err) {
       pushToast(err?.message || 'Erro ao atualizar dados corporais.', 'danger');
@@ -2877,6 +2885,7 @@ function App() {
         goal_mode: 'manual',
       });
       setGoalsModalUser(null);
+      setGoalsModalStep(1);
       pushToast('Metas atualizadas com sucesso.', 'success');
     } catch (err) {
       pushToast(err?.message || 'Erro ao salvar metas.', 'danger');
@@ -4483,34 +4492,47 @@ function App() {
             )}
 
             {bodyModalUser && (
-              <div className="modal-overlay" onClick={() => setBodyModalUser(null)}>
+              <div className="modal-overlay" onClick={() => { setBodyModalUser(null); setBodyModalStep(1); }}>
                 <div className="report-modal" onClick={(e) => e.stopPropagation()}>
                   <h2>Atualizar dados corporais</h2>
-                  <label>Sexo</label>
-                  <select value={bodyDraft.sex} onChange={(e) => setBodyDraft((prev) => ({ ...prev, sex: e.target.value }))}>
-                    <option value="">Selecione</option>
-                    <option value="male">Masculino</option>
-                    <option value="female">Feminino</option>
-                  </select>
-                  <label>Idade</label>
-                  <input type="number" value={bodyDraft.age} onChange={(e) => setBodyDraft((prev) => ({ ...prev, age: e.target.value }))} />
-                  <label>Nível de atividade</label>
-                  <input value={bodyDraft.activity_level} onChange={(e) => setBodyDraft((prev) => ({ ...prev, activity_level: e.target.value }))} />
-                  <label>Altura (cm)</label>
-                  <input type="number" value={bodyDraft.height_cm} onChange={(e) => setBodyDraft((prev) => ({ ...prev, height_cm: e.target.value }))} />
-                  <label>Peso atual (kg)</label>
-                  <input type="number" step="0.1" value={bodyDraft.weight} onChange={(e) => setBodyDraft((prev) => ({ ...prev, weight: e.target.value }))} />
-                  <label>Meta de peso (kg)</label>
-                  <input type="number" step="0.1" value={bodyDraft.goal_weight} onChange={(e) => setBodyDraft((prev) => ({ ...prev, goal_weight: e.target.value }))} />
-                  <label>Objetivo</label>
-                  <select value={bodyDraft.objective} onChange={(e) => setBodyDraft((prev) => ({ ...prev, objective: e.target.value }))}>
-                    <option value="perder_peso">Perder peso</option>
-                    <option value="manter_peso">Manter peso</option>
-                    <option value="ganhar_massa">Ganhar massa</option>
-                  </select>
+                  <p className="muted modal-step-label">{`Passo ${bodyModalStep} de 2 — ${bodyModalStep === 1 ? 'Dados básicos' : 'Objetivo'}`}</p>
+                  {bodyModalStep === 1 && (
+                    <>
+                      <label>Sexo</label>
+                      <select value={bodyDraft.sex} onChange={(e) => setBodyDraft((prev) => ({ ...prev, sex: e.target.value }))}>
+                        <option value="">Selecione</option>
+                        <option value="male">Masculino</option>
+                        <option value="female">Feminino</option>
+                      </select>
+                      <label>Idade</label>
+                      <input type="number" value={bodyDraft.age} onChange={(e) => setBodyDraft((prev) => ({ ...prev, age: e.target.value }))} />
+                      <label>Altura (cm)</label>
+                      <input type="number" value={bodyDraft.height_cm} onChange={(e) => setBodyDraft((prev) => ({ ...prev, height_cm: e.target.value }))} />
+                      <label>Nível de atividade</label>
+                      <input value={bodyDraft.activity_level} onChange={(e) => setBodyDraft((prev) => ({ ...prev, activity_level: e.target.value }))} />
+                    </>
+                  )}
+                  {bodyModalStep === 2 && (
+                    <>
+                      <label>Peso atual (kg)</label>
+                      <input type="number" step="0.1" value={bodyDraft.weight} onChange={(e) => setBodyDraft((prev) => ({ ...prev, weight: e.target.value }))} />
+                      <label>Meta de peso (kg)</label>
+                      <input type="number" step="0.1" value={bodyDraft.goal_weight} onChange={(e) => setBodyDraft((prev) => ({ ...prev, goal_weight: e.target.value }))} />
+                      <label>Objetivo</label>
+                      <select value={bodyDraft.objective} onChange={(e) => setBodyDraft((prev) => ({ ...prev, objective: e.target.value }))}>
+                        <option value="perder_peso">Perder peso</option>
+                        <option value="manter_peso">Manter peso</option>
+                        <option value="ganhar_massa">Ganhar massa</option>
+                      </select>
+                    </>
+                  )}
                   <div className="wizard-actions">
-                    <button className="btn-primary btn-ui" onClick={saveBodyData}>Salvar</button>
-                    <button className="btn-ui" onClick={() => setBodyModalUser(null)}>Cancelar</button>
+                    {bodyModalStep === 1 ? (
+                      <button className="btn-primary btn-ui" onClick={() => setBodyModalStep(2)}>Continuar</button>
+                    ) : (
+                      <button className="btn-primary btn-ui" onClick={saveBodyData}>Salvar</button>
+                    )}
+                    <button className="btn-ui" onClick={() => { setBodyModalUser(null); setBodyModalStep(1); }}>Cancelar</button>
                   </div>
                 </div>
               </div>
@@ -4518,10 +4540,8 @@ function App() {
 
             {dailyWeightModalUser && (
               <div className="modal-overlay" onClick={() => setDailyWeightModalUser(null)}>
-                <div className="report-modal" onClick={(e) => e.stopPropagation()}>
+                <div className="report-modal report-modal-compact" onClick={(e) => e.stopPropagation()}>
                   <h2>Registrar peso do dia</h2>
-                  <label>Data</label>
-                  <input type="date" value={dailyWeightDraft.entry_date} onChange={(e) => setDailyWeightDraft((prev) => ({ ...prev, entry_date: e.target.value }))} />
                   <label>Peso (kg)</label>
                   <input type="number" step="0.1" value={dailyWeightDraft.weight_kg} onChange={(e) => setDailyWeightDraft((prev) => ({ ...prev, weight_kg: e.target.value }))} />
                   <div className="wizard-actions">
@@ -4533,18 +4553,37 @@ function App() {
             )}
 
             {goalsModalUser && (
-              <div className="modal-overlay" onClick={() => setGoalsModalUser(null)}>
+              <div className="modal-overlay" onClick={() => { setGoalsModalUser(null); setGoalsModalStep(1); }}>
                 <div className="report-modal" onClick={(e) => e.stopPropagation()}>
                   <h2>Definir metas</h2>
-                  <label>Calorias (kcal)</label>
-                  <input type="number" value={goalsDraft.calorie_goal} onChange={(e) => setGoalsDraft((prev) => ({ ...prev, calorie_goal: e.target.value }))} />
-                  <label>Proteína (g)</label>
-                  <input type="number" value={goalsDraft.protein_goal} onChange={(e) => setGoalsDraft((prev) => ({ ...prev, protein_goal: e.target.value }))} />
-                  <label>Água (L)</label>
-                  <input type="number" step="0.1" value={goalsDraft.water_goal_l} onChange={(e) => setGoalsDraft((prev) => ({ ...prev, water_goal_l: e.target.value }))} />
+                  <p className="muted modal-step-label">{`Passo ${goalsModalStep} de 2 — ${goalsModalStep === 1 ? 'Objetivo' : 'Metas nutricionais'}`}</p>
+                  {goalsModalStep === 1 && (
+                    <>
+                      <label>Objetivo</label>
+                      <select value={goalsDraft.objective} onChange={(e) => setGoalsDraft((prev) => ({ ...prev, objective: e.target.value }))}>
+                        <option value="perder_peso">Emagrecer</option>
+                        <option value="ganhar_massa">Ganhar massa</option>
+                        <option value="manter_peso">Manter peso</option>
+                      </select>
+                    </>
+                  )}
+                  {goalsModalStep === 2 && (
+                    <>
+                      <label>Calorias (kcal)</label>
+                      <input type="number" value={goalsDraft.calorie_goal} onChange={(e) => setGoalsDraft((prev) => ({ ...prev, calorie_goal: e.target.value }))} />
+                      <label>Proteína (g)</label>
+                      <input type="number" value={goalsDraft.protein_goal} onChange={(e) => setGoalsDraft((prev) => ({ ...prev, protein_goal: e.target.value }))} />
+                      <label>Água (L)</label>
+                      <input type="number" step="0.1" value={goalsDraft.water_goal_l} onChange={(e) => setGoalsDraft((prev) => ({ ...prev, water_goal_l: e.target.value }))} />
+                    </>
+                  )}
                   <div className="wizard-actions">
-                    <button className="btn-primary btn-ui" onClick={saveManualGoals}>Salvar</button>
-                    <button className="btn-ui" onClick={() => setGoalsModalUser(null)}>Cancelar</button>
+                    {goalsModalStep === 1 ? (
+                      <button className="btn-primary btn-ui" onClick={() => setGoalsModalStep(2)}>Continuar</button>
+                    ) : (
+                      <button className="btn-primary btn-ui" onClick={saveManualGoals}>Salvar</button>
+                    )}
+                    <button className="btn-ui" onClick={() => { setGoalsModalUser(null); setGoalsModalStep(1); }}>Cancelar</button>
                   </div>
                 </div>
               </div>
