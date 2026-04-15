@@ -1114,6 +1114,139 @@ app.get("/auth/profile", async (req, res) => {
   }
 });
 
+app.get("/users", async (req, res) => {
+  try {
+    const authData = await authenticateRequest(req, res, { requireAdmin: false });
+    if (!authData) return;
+
+    const requesterId = authData.userId;
+    const requesterRole = String(authData?.profile?.role || "").toLowerCase();
+
+    if (requesterRole === "admin") {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*");
+
+      if (error) throw error;
+      return res.json(data || []);
+    }
+
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", requesterId);
+
+    if (error) throw error;
+    return res.json(data || []);
+  } catch (err) {
+    console.error("Erro ao buscar usuários:", err);
+    return res.status(500).json({ error: "Erro interno" });
+  }
+});
+
+app.put("/users/:id", async (req, res) => {
+  try {
+    const authData = await authenticateRequest(req, res, { requireAdmin: false });
+    if (!authData) return;
+
+    const requesterId = authData.userId;
+    const requesterRole = String(authData?.profile?.role || "").toLowerCase();
+    const targetUserId = req.params.id;
+
+    if (requesterRole !== "admin" && requesterId !== targetUserId) {
+      return res.status(403).json({ error: "Sem permissão" });
+    }
+
+    const { name, whatsapp } = req.body || {};
+    const updatePayload = {};
+    if (typeof name === "string") updatePayload.name = name.trim();
+    if (typeof whatsapp === "string") updatePayload.whatsapp = whatsapp.trim();
+
+    if (!Object.keys(updatePayload).length) {
+      return res.status(400).json({ error: "Nenhum campo válido para atualização." });
+    }
+
+    const { error } = await supabase
+      .from("profiles")
+      .update(updatePayload)
+      .eq("id", targetUserId);
+
+    if (error) throw error;
+    return res.json({ success: true });
+  } catch (err) {
+    console.error("Erro ao atualizar usuário:", err);
+    return res.status(500).json({ error: "Erro interno" });
+  }
+});
+
+app.put("/users/:id/password", async (req, res) => {
+  try {
+    const authData = await authenticateRequest(req, res, { requireAdmin: false });
+    if (!authData) return;
+
+    const requesterId = authData.userId;
+    const requesterRole = String(authData?.profile?.role || "").toLowerCase();
+    const targetUserId = req.params.id;
+    const { password } = req.body || {};
+
+    if (requesterRole !== "admin" && requesterId !== targetUserId) {
+      return res.status(403).json({ error: "Sem permissão" });
+    }
+
+    if (typeof password !== "string" || !password.trim()) {
+      return res.status(400).json({ error: "Senha inválida" });
+    }
+
+    const { error } = await supabase.auth.admin.updateUserById(
+      targetUserId,
+      { password: password.trim() },
+    );
+
+    if (error) throw error;
+    return res.json({ success: true });
+  } catch (err) {
+    console.error("Erro ao atualizar senha:", err);
+    return res.status(500).json({ error: "Erro ao atualizar senha" });
+  }
+});
+
+app.put("/users/:id/email", async (req, res) => {
+  try {
+    const authData = await authenticateRequest(req, res, { requireAdmin: false });
+    if (!authData) return;
+
+    const requesterId = authData.userId;
+    const requesterRole = String(authData?.profile?.role || "").toLowerCase();
+    const targetUserId = req.params.id;
+    const { email } = req.body || {};
+
+    if (requesterRole !== "admin" && requesterId !== targetUserId) {
+      return res.status(403).json({ error: "Sem permissão" });
+    }
+
+    const normalizedEmail = String(email || "").trim().toLowerCase();
+    if (!normalizedEmail) {
+      return res.status(400).json({ error: "Email inválido" });
+    }
+
+    const [authResult, profileResult] = await Promise.all([
+      supabase.auth.admin.updateUserById(targetUserId, { email: normalizedEmail }),
+      supabase
+        .from("profiles")
+        .update({ email: normalizedEmail, username: normalizedEmail })
+        .eq("id", targetUserId),
+    ]);
+
+    if (authResult.error) throw authResult.error;
+    if (profileResult.error) throw profileResult.error;
+
+    return res.json({ success: true });
+  } catch (err) {
+    console.error("Erro ao atualizar email:", err);
+    return res.status(500).json({ error: "Erro ao atualizar email" });
+  }
+});
+
 app.get("/admin/users", async (req, res) => {
   try {
     const authData = await authenticateRequest(req, res, { requireAdmin: true });
