@@ -684,6 +684,7 @@ const UsersTable = ({
   onDelete,
   onPromoteToAffiliate,
   affiliateNameById,
+  currentUser,
 }) => (
   <div className="user-list-wrapper">
     {items.length === 0 ? (
@@ -755,13 +756,13 @@ const UsersTable = ({
               </div>
 
               <div className="event-actions">
-                {!isOwner && (
+                {(currentUser?.role === 'admin' || currentUser?.id === user.id) && !isOwner && (
                   <button className="btn-edit btn-ui" onClick={() => onEdit(user)} title="Editar usuário">
                     ✏️
                   </button>
                 )}
 
-                {!isOwner && (
+                {currentUser?.role === 'admin' && !isOwner && (
                   <button className="btn-delete btn-ui" onClick={() => onDelete(user)} title="Excluir usuário">
                     🗑️
                   </button>
@@ -1949,6 +1950,10 @@ function App() {
   const currentUserRole = profile?.role || session?.user?.role || 'user';
   const isAdmin = currentUserRole === 'admin';
   const isAffiliate = currentUserRole === 'affiliate';
+  const currentUser = {
+    id: session?.user?.id,
+    role: currentUserRole,
+  };
 
   const affiliateRef = useMemo(() => {
     try {
@@ -2137,45 +2142,41 @@ function App() {
 
       if (evError) throw evError;
 
-      // 3) Lista de usuários (só se for admin)
+      // 3) Lista de usuários (admin vê todos, usuário comum vê apenas seu perfil)
       let userData = [];
-      if (profile?.role === 'admin') {
-        try {
-          const { data: sessionData } = await client.auth.getSession();
-          const token = sessionData?.session?.access_token;
-          if (!token || !workoutApiBase || !/^https?:\/\//i.test(workoutApiBase)) {
-            throw new Error('Token/admin API indisponível para listar usuários.');
-          }
-
-          const response = await fetch(`${workoutApiBase}/admin/users`, {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          });
-          const data = await response.json();
-
-          if (!response.ok) {
-            throw new Error(data?.error || 'Erro ao carregar lista de usuários (admin).');
-          }
-
-          userData = (data || []).map((item) => ({
-            ...item,
-            is_affiliate: isOwnerUser(item)
-              ? true
-              : Boolean(item?.is_affiliate || item?.affiliate_id || item?.affiliate_code),
-            payment_status: isUserPaidForCurrentCycle(item, new Date()) ? 'paid' : 'pending',
-            derived_status: isOwnerUser(item) ? 'active' : computeEffectiveSubscriptionStatus(item, new Date()),
-            billing_status: isOwnerUser(item) ? 'paid' : item?.billing_status,
-            role: isOwnerUser(item) ? 'admin' : item?.role,
-          }));
-          setUsers(userData);
-        } catch (err) {
-          console.warn('Erro ao carregar lista de usuários (admin)', err);
-          setUsers([]);
-          pushToast('Sem permissão para listar usuários (admin).', 'warning');
+      try {
+        const { data: sessionData } = await client.auth.getSession();
+        const token = sessionData?.session?.access_token;
+        if (!token || !workoutApiBase || !/^https?:\/\//i.test(workoutApiBase)) {
+          throw new Error('Token/API indisponível para listar usuários.');
         }
-      } else {
+
+        const response = await fetch(`${workoutApiBase}/users`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data?.error || 'Erro ao carregar lista de usuários.');
+        }
+
+        userData = (data || []).map((item) => ({
+          ...item,
+          is_affiliate: isOwnerUser(item)
+            ? true
+            : Boolean(item?.is_affiliate || item?.affiliate_id || item?.affiliate_code),
+          payment_status: isUserPaidForCurrentCycle(item, new Date()) ? 'paid' : 'pending',
+          derived_status: isOwnerUser(item) ? 'active' : computeEffectiveSubscriptionStatus(item, new Date()),
+          billing_status: isOwnerUser(item) ? 'paid' : item?.billing_status,
+          role: isOwnerUser(item) ? 'admin' : item?.role,
+        }));
+        setUsers(userData);
+      } catch (err) {
+        console.warn('Erro ao carregar lista de usuários', err);
         setUsers([]);
+        pushToast('Sem permissão para listar usuários.', 'warning');
       }
 
       // Atualiza estados
@@ -2367,7 +2368,7 @@ function App() {
   }, [client, session?.user?.id]);
 
   useEffect(() => {
-    if (!isAdmin && (activeView === 'users' || activeView === 'affiliates' || activeView === 'finance')) {
+    if (!isAdmin && (activeView === 'affiliates' || activeView === 'finance')) {
       setActiveView('transactions');
       return;
     }
@@ -2910,8 +2911,14 @@ function App() {
   };
 
   const updateUser = async () => {
-    if (!client || profile?.role !== 'admin' || !editingUserId) {
-      pushToast('Somente administradores podem editar usuários.', 'warning');
+    if (!client || !editingUserId) {
+      pushToast('Usuário inválido para edição.', 'warning');
+      return;
+    }
+
+    const canEditTarget = isAdmin || session?.user?.id === editingUserId;
+    if (!canEditTarget) {
+      pushToast('Sem permissão para editar este usuário.', 'warning');
       return;
     }
 
@@ -2929,12 +2936,12 @@ function App() {
         return;
       }
 
-      if (!editUserForm.affiliate_id) {
+      if (isAdmin && !editUserForm.affiliate_id) {
         pushToast('Selecione um afiliado para salvar a edição.', 'warning');
         return;
       }
 
-      if (!editUserForm.plan_type) {
+      if (isAdmin && !editUserForm.plan_type) {
         pushToast('Selecione um plano para salvar a edição.', 'warning');
         return;
       }
@@ -2945,15 +2952,14 @@ function App() {
           return;
         }
 
-        const passwordResponse = await fetch(`${workoutApiBase}/admin/update-user-password`, {
-          method: 'POST',
+        const passwordResponse = await fetch(`${workoutApiBase}/users/${editingUserId}/password`, {
+          method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${accessToken}`
           },
           body: JSON.stringify({
-            userId: editingUserId,
-            newPassword
+            password: newPassword
           })
         });
 
@@ -2967,18 +2973,15 @@ function App() {
         }
       }
 
-      const response = await fetch(`${workoutApiBase}/admin/users/${editingUserId}`, {
-        method: 'PATCH',
+      const response = await fetch(`${workoutApiBase}/users/${editingUserId}`, {
+        method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${accessToken}`
         },
         body: JSON.stringify({
           name: editUserForm.name,
-          email: editUserForm.email,
           whatsapp: editUserForm.whatsapp,
-          affiliate_id: editUserForm.affiliate_id || null,
-          plan_type: editUserForm.plan_type,
         })
       });
 
@@ -2989,6 +2992,50 @@ function App() {
       }
       if (!response.ok) {
         throw new Error(body.error || 'Erro ao atualizar usuário.');
+      }
+
+      const normalizedOriginalEmail = String(editingUserOriginal?.email || '').trim().toLowerCase();
+      const normalizedUpdatedEmail = String(editUserForm.email || '').trim().toLowerCase();
+      if (normalizedUpdatedEmail && normalizedUpdatedEmail !== normalizedOriginalEmail) {
+        const emailResponse = await fetch(`${workoutApiBase}/users/${editingUserId}/email`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${accessToken}`
+          },
+          body: JSON.stringify({
+            email: normalizedUpdatedEmail,
+          })
+        });
+        const emailBody = await emailResponse.json().catch(() => ({}));
+        if (emailResponse.status === 403) {
+          handleApiForbidden();
+          return;
+        }
+        if (!emailResponse.ok) {
+          throw new Error(emailBody.error || 'Erro ao atualizar email.');
+        }
+      }
+
+      if (isAdmin) {
+        const adminPatchResponse = await fetch(`${workoutApiBase}/admin/users/${editingUserId}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${accessToken}`
+          },
+          body: JSON.stringify({
+            name: editUserForm.name,
+            email: editUserForm.email,
+            whatsapp: editUserForm.whatsapp,
+            affiliate_id: editUserForm.affiliate_id || null,
+            plan_type: editUserForm.plan_type,
+          })
+        });
+        const adminPatchBody = await adminPatchResponse.json().catch(() => ({}));
+        if (!adminPatchResponse.ok) {
+          throw new Error(adminPatchBody.error || 'Erro ao atualizar dados administrativos.');
+        }
       }
 
       pushToast('Usuário atualizado com sucesso.', 'success');
@@ -3454,9 +3501,9 @@ function App() {
   const sidebarItems = [
     { key: 'transactions', label: '💰 Transações' },
     { key: 'agenda', label: '📅 Agenda' },
+    { key: 'users', label: '👤 Usuários' },
     ...(isAdmin
         ? [
-          { key: 'users', label: '👤 Usuários' },
           { key: 'finance', label: '💳 Financeiro' },
           { key: 'affiliates', label: '🤝 Afiliados' },
         ]
@@ -3831,30 +3878,37 @@ function App() {
         </div>
       )}
 
-      {activeView === 'users' && isAdmin && (
+      {activeView === 'users' && (
         <div className="container single-card app-content admin-users-container">
           <section className="card admin-card module-card" id="adminUsersSection">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
               <div>
-                <h1 className="title" style={{ marginBottom: 4 }}>Cadastro de Usuários</h1>
-                <p className="muted">Somente administradores podem acessar esta área.</p>
+                <h1 className="title" style={{ marginBottom: 4 }}>
+                  {users.length === 1 ? 'Minha Conta' : 'Cadastro de Usuários'}
+                </h1>
+                <p className="muted">
+                  {isAdmin ? 'Somente administradores podem gerenciar todos os usuários.' : 'Gerencie os dados da sua conta.'}
+                </p>
               </div>
 
-              <button
-                className="btn-primary"
-                onClick={() => {
-                  resetUserWizard();
-                  setOpenUserModal(true);
-                  setStep(1);
-                }}
-              >
-                + Novo Usuário
-              </button>
+              {isAdmin && (
+                <button
+                  className="btn-primary"
+                  onClick={() => {
+                    resetUserWizard();
+                    setOpenUserModal(true);
+                    setStep(1);
+                  }}
+                >
+                  + Novo Usuário
+                </button>
+              )}
             </div>
 
             <UsersTable
               items={users.map((user) => ({ ...user, _editing: user.id === editingUserId }))}
               affiliateNameById={affiliateNameById}
+              currentUser={currentUser}
               onEdit={(user) => {
                 setEditingUserId(user.id);
                 setEditingUserOriginal(user);
@@ -3911,34 +3965,38 @@ function App() {
                     onChange={(e) => setConfirmPassword(e.target.value)}
                   />
 
-                  <label>Afiliado</label>
-                  <select
-                    value={editUserForm.affiliate_id}
-                    onChange={(e) => setEditUserForm((prev) => ({ ...prev, affiliate_id: e.target.value }))}
-                  >
-                    <option value="">Selecione um afiliado</option>
-                    {activeAffiliates.map((affiliate) => (
-                      <option key={affiliate.id} value={affiliate.id}>
-                        {affiliate.name}{affiliate.code ? ` (${affiliate.code})` : ''}
-                      </option>
-                    ))}
-                  </select>
-                  {activeAffiliates.length === 0 && (
-                    <p className="muted">Nenhum afiliado ativo disponível no momento.</p>
-                  )}
+                  {isAdmin && (
+                    <>
+                      <label>Afiliado</label>
+                      <select
+                        value={editUserForm.affiliate_id}
+                        onChange={(e) => setEditUserForm((prev) => ({ ...prev, affiliate_id: e.target.value }))}
+                      >
+                        <option value="">Selecione um afiliado</option>
+                        {activeAffiliates.map((affiliate) => (
+                          <option key={affiliate.id} value={affiliate.id}>
+                            {affiliate.name}{affiliate.code ? ` (${affiliate.code})` : ''}
+                          </option>
+                        ))}
+                      </select>
+                      {activeAffiliates.length === 0 && (
+                        <p className="muted">Nenhum afiliado ativo disponível no momento.</p>
+                      )}
 
-                  <label>Plano</label>
-                  <select
-                    value={editUserForm.plan_type}
-                    onChange={(e) => setEditUserForm((prev) => ({ ...prev, plan_type: e.target.value }))}
-                  >
-                    <option value="">Selecione um plano</option>
-                    {USER_PLAN_OPTIONS.map((plan) => (
-                      <option key={plan.value} value={plan.value}>
-                        {plan.label}
-                      </option>
-                    ))}
-                  </select>
+                      <label>Plano</label>
+                      <select
+                        value={editUserForm.plan_type}
+                        onChange={(e) => setEditUserForm((prev) => ({ ...prev, plan_type: e.target.value }))}
+                      >
+                        <option value="">Selecione um plano</option>
+                        {USER_PLAN_OPTIONS.map((plan) => (
+                          <option key={plan.value} value={plan.value}>
+                            {plan.label}
+                          </option>
+                        ))}
+                      </select>
+                    </>
+                  )}
 
                   <div className="wizard-actions" style={{ marginTop: 16 }}>
                     <button type="button" className="btn-primary btn-ui" onClick={updateUser}>
