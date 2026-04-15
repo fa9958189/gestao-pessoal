@@ -685,109 +685,118 @@ const UsersTable = ({
   onPromoteToAffiliate,
   affiliateNameById,
   currentUser,
-}) => (
-  <div className="user-list-wrapper">
-    {items.length === 0 ? (
-      <div className="muted user-empty">Nenhum usuário cadastrado além de você.</div>
-    ) : (
-      <div className="usuarios-scroll-container">
-        {items.map((user) => {
-          const isOwner = isOwnerUser(user);
-          const isAdminUser = user.role === 'admin' || isOwner;
-          const isAffiliate = isOwner || Boolean(user.is_affiliate || user.affiliate_id || user.affiliate_code);
-          const canPromoteToAffiliate = !isOwner && !isAdminUser && !isAffiliate;
-          const status = isOwner ? 'active' : (isAdminUser ? 'active' : (user.derived_status || user.subscription_status || 'active'));
-          const labelMap = { active: 'ATIVO', pending: 'PENDENTE', inactive: 'INATIVO' };
-          const trialEnd = getTrialEnd(user);
-          const daysLeft = getDaysLeft(trialEnd);
-          const isTrial = isTrialPlan(user);
-          const isTrialStillActive = isTrialActive(user);
-          const trialEndLabel = formatDateBR(trialEnd);
-          const planVisual = getPlanVisual(user.plan_type);
-          const affiliateName = affiliateNameById?.[user.affiliate_id] || user.affiliate_name || '-';
+}) => {
+  const safeItems = items || [];
 
-          return (
-            <div key={user.id} className={`event-card user-event-card card-ui ${user._editing ? 'is-editing' : ''}`}>
-              <div className="event-date user-event-email">
-                {user.email || user.username || '-'}
-              </div>
+  // 🔐 FILTRO DE SEGURANÇA - ADMIN VE TUDO / USUÁRIO VE SÓ ELE
+  const filteredUsers = currentUser?.role === 'admin'
+    ? safeItems
+    : safeItems.filter((u) => u.id === currentUser?.id);
 
-              <div className="event-content">
-                <div className="event-title">{user.name || user.username || 'Sem nome'}</div>
+  return (
+    <div className="user-list-wrapper">
+      {filteredUsers.length === 0 ? (
+        <div className="muted user-empty">Nenhum usuário cadastrado além de você.</div>
+      ) : (
+        <div className="usuarios-scroll-container">
+          {filteredUsers.map((user) => {
+            const isOwner = isOwnerUser(user);
+            const isAdminUser = user.role === 'admin' || isOwner;
+            const isAffiliate = isOwner || Boolean(user.is_affiliate || user.affiliate_id || user.affiliate_code);
+            const canPromoteToAffiliate = !isOwner && !isAdminUser && !isAffiliate;
+            const status = isOwner ? 'active' : (isAdminUser ? 'active' : (user.derived_status || user.subscription_status || 'active'));
+            const labelMap = { active: 'ATIVO', pending: 'PENDENTE', inactive: 'INATIVO' };
+            const trialEnd = getTrialEnd(user);
+            const daysLeft = getDaysLeft(trialEnd);
+            const isTrial = isTrialPlan(user);
+            const isTrialStillActive = isTrialActive(user);
+            const trialEndLabel = formatDateBR(trialEnd);
+            const planVisual = getPlanVisual(user.plan_type);
+            const affiliateName = affiliateNameById?.[user.affiliate_id] || user.affiliate_name || '-';
 
-                <div className="event-subtitle">{user.whatsapp || 'WhatsApp não informado'}</div>
-                <div className="event-subtitle user-event-meta">
-                  <span className="badge">{isOwner ? 'ADMIN' : user.role}</span>
-                  {isAffiliate && <span className="badge">AFILIADO</span>}
-                  {!isOwner && (
-                    <>
-                      <span className={`badge badge-${status}`}>
-                        {labelMap[status] || status.toUpperCase()}
-                      </span>
-                      {isAdminUser ? (
-                        <span className="financial-status financial-status-green">🟢 Pago</span>
-                      ) : (
-                        renderFinancialStatus(user)
-                      )}
-                    </>
-                  )}
+            return (
+              <div key={user.id} className={`event-card user-event-card card-ui ${user._editing ? 'is-editing' : ''}`}>
+                <div className="event-date user-event-email">
+                  {user.email || user.username || '-'}
                 </div>
-                {!isOwner && (
-                  <div className="event-subtitle user-event-details">
-                    <span>
-                      Plano: <span className={`badge ${planVisual.className}`}>{planVisual.label}</span>
-                    </span>
-                    <span>Afiliado: {affiliateName}</span>
-                    {isTrial ? (
+
+                <div className="event-content">
+                  <div className="event-title">{user.name || user.username || 'Sem nome'}</div>
+
+                  <div className="event-subtitle">{user.whatsapp || 'WhatsApp não informado'}</div>
+                  <div className="event-subtitle user-event-meta">
+                    <span className="badge">{isOwner ? 'ADMIN' : user.role}</span>
+                    {isAffiliate && <span className="badge">AFILIADO</span>}
+                    {!isOwner && (
                       <>
-                        <span>Vencimento do teste: {trialEndLabel}</span>
-                        <span>Teste: {isTrialStillActive ? formatTrialLabel(daysLeft) : 'Teste acabou'}</span>
-                      </>
-                    ) : (
-                      <>
-                        <span>Vencimento: dia {user.due_day || BILLING_DUE_DAY}</span>
-                        <span>Último pagamento: {formatDate(user.last_payment_at || user.last_paid_at)}</span>
-                        <span>Teste: {formatTrialLabel(daysLeft)}</span>
+                        <span className={`badge badge-${status}`}>
+                          {labelMap[status] || status.toUpperCase()}
+                        </span>
+                        {isAdminUser ? (
+                          <span className="financial-status financial-status-green">🟢 Pago</span>
+                        ) : (
+                          renderFinancialStatus(user)
+                        )}
                       </>
                     )}
-                    <span>Criado em: {formatDate(user.created_at)}</span>
                   </div>
-                )}
-              </div>
-
-              <div className="event-actions">
-                {(currentUser?.role === 'admin' || currentUser?.id === user.id) && !isOwner && (
-                  <button className="btn-edit btn-ui" onClick={() => onEdit(user)} title="Editar usuário">
-                    ✏️
-                  </button>
-                )}
-
-                {currentUser?.role === 'admin' && !isOwner && (
-                  <button className="btn-delete btn-ui" onClick={() => onDelete(user)} title="Excluir usuário">
-                    🗑️
-                  </button>
-                )}
-
-                <div className="user-actions-extra">
-                  {!isOwner && canPromoteToAffiliate && (
-                    <button
-                      type="button"
-                      className="btn-ui"
-                      onClick={() => onPromoteToAffiliate(user)}
-                      title="Tornar afiliado"
-                    >
-                      🤝
-                    </button>
+                  {!isOwner && (
+                    <div className="event-subtitle user-event-details">
+                      <span>
+                        Plano: <span className={`badge ${planVisual.className}`}>{planVisual.label}</span>
+                      </span>
+                      <span>Afiliado: {affiliateName}</span>
+                      {isTrial ? (
+                        <>
+                          <span>Vencimento do teste: {trialEndLabel}</span>
+                          <span>Teste: {isTrialStillActive ? formatTrialLabel(daysLeft) : 'Teste acabou'}</span>
+                        </>
+                      ) : (
+                        <>
+                          <span>Vencimento: dia {user.due_day || BILLING_DUE_DAY}</span>
+                          <span>Último pagamento: {formatDate(user.last_payment_at || user.last_paid_at)}</span>
+                          <span>Teste: {formatTrialLabel(daysLeft)}</span>
+                        </>
+                      )}
+                      <span>Criado em: {formatDate(user.created_at)}</span>
+                    </div>
                   )}
                 </div>
+
+                <div className="event-actions">
+                  {(currentUser?.role === 'admin' || currentUser?.id === user.id) && (
+                    <button className="btn-edit btn-ui" onClick={() => onEdit(user)} title="Editar usuário">
+                      ✏️
+                    </button>
+                  )}
+
+                  {currentUser?.role === 'admin' && !isOwner && (
+                    <button className="btn-delete btn-ui" onClick={() => onDelete(user)} title="Excluir usuário">
+                      🗑️
+                    </button>
+                  )}
+
+                  <div className="user-actions-extra">
+                    {!isOwner && canPromoteToAffiliate && (
+                      <button
+                        type="button"
+                        className="btn-ui"
+                        onClick={() => onPromoteToAffiliate(user)}
+                        title="Tornar afiliado"
+                      >
+                        🤝
+                      </button>
+                    )}
+                  </div>
+                </div>
               </div>
-            </div>
-          );
-        })}
-      </div>
-    )}
-  </div>
-);
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
 
 const FinanceHistoryModal = ({ user, history, onClose }) => {
   if (!user) return null;
@@ -3884,7 +3893,7 @@ function App() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
               <div>
                 <h1 className="title" style={{ marginBottom: 4 }}>
-                  {users.length === 1 ? 'Minha Conta' : 'Cadastro de Usuários'}
+                  {users?.length === 1 ? 'Minha Conta' : 'Cadastro de Usuários'}
                 </h1>
                 <p className="muted">
                   {isAdmin ? 'Somente administradores podem gerenciar todos os usuários.' : 'Gerencie os dados da sua conta.'}
