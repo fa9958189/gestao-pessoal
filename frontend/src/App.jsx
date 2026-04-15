@@ -828,6 +828,23 @@ const FinanceTable = ({ items, affiliateNameById, onMarkPaid, onBlock, onUnblock
     window.open(whatsappLink, '_blank', 'noopener,noreferrer');
   };
 
+  // ⏳ CALCULAR DIAS RESTANTES PARA VENCIMENTO
+  const calcularDiasRestantes = (dataVencimento) => {
+    if (!dataVencimento) return null;
+
+    const hoje = new Date();
+    const vencimento = new Date(dataVencimento);
+
+    // Zera horário pra evitar bug de 1 dia a menos
+    hoje.setHours(0, 0, 0, 0);
+    vencimento.setHours(0, 0, 0, 0);
+
+    const diffTime = vencimento - hoje;
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    return diffDays;
+  };
+
   return (
   <div className="events-table-container finance-table-scroll scroll-container">
     <table className="finance-table">
@@ -842,6 +859,7 @@ const FinanceTable = ({ items, affiliateNameById, onMarkPaid, onBlock, onUnblock
           <th>Acesso</th>
           <th>Último pagamento</th>
           <th>Próximo vencimento</th>
+          <th>⏳ Dias restantes</th>
           <th>Valor</th>
           <th>Dias atraso</th>
           <th>Ações</th>
@@ -850,7 +868,7 @@ const FinanceTable = ({ items, affiliateNameById, onMarkPaid, onBlock, onUnblock
       <tbody>
         {items.length === 0 && (
           <tr>
-            <td colSpan={12} className="muted">Nenhum usuário encontrado.</td>
+            <td colSpan={13} className="muted">Nenhum usuário encontrado.</td>
           </tr>
         )}
         {items.map((user) => {
@@ -881,6 +899,31 @@ const FinanceTable = ({ items, affiliateNameById, onMarkPaid, onBlock, onUnblock
               <td>{isInactive ? 'Inativo' : 'Ativo'}</td>
               <td>{formatDate(user.last_paid_at)}</td>
               <td>{formatDate(user.billing_next_date)}</td>
+              <td>
+                {(() => {
+                  const dias = calcularDiasRestantes(user.trial_end_at || user.billing_next_date);
+
+                  if (dias === null) return '-';
+
+                  if (dias > 1) {
+                    return <span style={{ color: '#22c55e' }}>Faltam {dias} dias</span>;
+                  }
+
+                  if (dias === 1) {
+                    return <span style={{ color: '#facc15' }}>Vence amanhã</span>;
+                  }
+
+                  if (dias === 0) {
+                    return <span style={{ color: '#facc15' }}>Vence hoje</span>;
+                  }
+
+                  return (
+                    <span style={{ color: '#ef4444' }}>
+                      Venceu há {Math.abs(dias)} dias
+                    </span>
+                  );
+                })()}
+              </td>
               <td>{formatCurrency(getPlanMonthlyValue(user.plan_type))}</td>
               <td>{user.overdue_days || 0}</td>
               <td>
