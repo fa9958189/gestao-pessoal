@@ -3932,6 +3932,9 @@ const buildAutomaticGoalsFromWeight = (weight) => {
 
 const handleBodyUpdate = async (req, res) => {
   try {
+    const authData = await authenticateRequest(req, res, { requireAdmin: false });
+    if (!authData) return;
+
     const {
       user_id,
       userId: userIdFromBody,
@@ -3946,7 +3949,7 @@ const handleBodyUpdate = async (req, res) => {
       sex,
       age,
     } = req.body || {};
-    const userId = user_id || userIdFromBody;
+    const userId = user_id || userIdFromBody || authData.userId;
     const resolvedWeight = weight_kg ?? weight;
     const resolvedGoalWeight = weight_goal ?? goal_weight;
 
@@ -4117,10 +4120,10 @@ const handleBodyUpdate = async (req, res) => {
       weight_goal: weightGoalToSave,
       height: normalizedHeight,
       height_cm: normalizedHeight,
-      ...(normalizedAge != null ? { age: normalizedAge } : {}),
+      age: normalizedAge,
       goal_type: normalizedGoalType,
-      ...(objective !== undefined ? { objective: normalizedObjective } : {}),
-      ...(sex !== undefined ? { sex: normalizedSex } : {}),
+      objective: normalizedObjective,
+      sex: normalizedSex,
       calorie_goal: calorieGoal,
       protein_goal: proteinGoal,
       water_goal_l: waterGoalL,
@@ -4165,6 +4168,21 @@ const handleBodyUpdate = async (req, res) => {
 
     return res.json({
       success: true,
+      user: {
+        id: userId,
+        sex: normalizedSex,
+        age: normalizedAge,
+        height_cm: normalizedHeight,
+        weight: normalizedWeight,
+        current_weight: normalizedWeight,
+        latest_weight_kg: normalizedWeight,
+        goal_weight: normalizedGoalWeight,
+        objective: normalizedObjective,
+        calorie_goal: calorieGoal,
+        protein_goal: proteinGoal,
+        water_goal_l: waterGoalL,
+        goal_mode: "auto",
+      },
       goals: {
         goal_type: normalizedGoalType,
         objective: normalizedObjective,
