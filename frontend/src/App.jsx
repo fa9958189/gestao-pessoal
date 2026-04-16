@@ -2823,8 +2823,7 @@ function App() {
         payload?.user?.current_weight ??
         payload?.user?.weight ??
         (bodyDraft.weight ? Number(bodyDraft.weight) : null);
-
-      syncUserInList(bodyModalUser.id, {
+      const profilePatch = {
         sex: payload?.user?.sex ?? (bodyDraft.sex || null),
         age: payload?.user?.age ?? (bodyDraft.age ? Number(bodyDraft.age) : null),
         height_cm: payload?.user?.height_cm ?? (bodyDraft.height_cm ? Number(bodyDraft.height_cm) : null),
@@ -2837,9 +2836,12 @@ function App() {
         protein_goal: resolvedProteinGoal,
         water_goal_l: resolvedWaterGoal,
         goal_mode: resolvedGoalMode,
-      });
+      };
+
+      syncUserInList(bodyModalUser.id, profilePatch);
 
       await loadRemoteData();
+      syncUserInList(bodyModalUser.id, profilePatch);
 
       setBodyModalUser(null);
       setBodyModalStep(1);
