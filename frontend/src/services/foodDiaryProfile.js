@@ -66,11 +66,10 @@ const normalizeProfileRow = (row) => {
   const heightValue =
     row.height_cm ?? row.altura_cm ?? row.heightCm ?? row.alturaCm ?? null;
   const weightValue =
-    row.current_weight_kg ??
-    row.weight_kg ??
-    row.peso_kg ??
+    row.weight ??
+    row.current_weight ??
+    row.peso ??
     row.pesoKg ??
-    row.currentWeightKg ??
     null;
   const ageValue = row.age ?? row.idade ?? null;
 
@@ -78,7 +77,7 @@ const normalizeProfileRow = (row) => {
     heightCm: heightValue != null ? Number(heightValue) : null,
     weightKg: weightValue != null ? Number(weightValue) : null,
     goalWeightKg:
-      row.target_weight_kg != null ? Number(row.target_weight_kg) : null,
+      row.goal_weight != null ? Number(row.goal_weight) : null,
     sex: normalizeSexForStorage(row.sex ?? row.sexo ?? null),
     age: ageValue != null ? Number.parseInt(ageValue, 10) : null,
     activityLevel: normalizeActivityForStorage(
@@ -173,9 +172,9 @@ export async function saveProfile({
   const profilePayload = {
     user_id: userId,
     ...(resolvedHeightCm !== undefined ? { height_cm: normalizedHeight } : {}),
-    ...(resolvedWeightKg !== undefined ? { current_weight_kg: normalizedWeight } : {}),
+    ...(resolvedWeightKg !== undefined ? { weight: normalizedWeight } : {}),
     ...(resolvedGoalWeight !== undefined
-      ? { target_weight_kg: normalizedGoalWeight }
+      ? { goal_weight: normalizedGoalWeight }
       : {}),
     ...(sex !== undefined ? { sex: normalizedSex } : {}),
     ...(age !== undefined ? { age: normalizedAge } : {}),
@@ -197,36 +196,6 @@ export async function saveProfile({
     }
 
     profileData = initialProfileData ?? null;
-  }
-
-  const legacyPayload = {
-    ...(resolvedHeightCm !== undefined ? { altura_cm: normalizedHeight } : {}),
-    ...(resolvedWeightKg !== undefined ? { weight_kg: normalizedWeight } : {}),
-    ...(resolvedGoalWeight !== undefined
-      ? { target_weight_kg: normalizedGoalWeight }
-      : {}),
-    ...(sex !== undefined ? { sexo: normalizedSex } : {}),
-    ...(age !== undefined ? { idade: normalizedAge } : {}),
-    ...(activityLevel !== undefined
-      ? { nivel_atividade: normalizedActivity }
-      : {}),
-  };
-
-  if (Object.keys(legacyPayload).length > 0) {
-    const { error: legacyError } = await supabase
-      .from('food_diary_profile')
-      .update(legacyPayload)
-      .eq('user_id', userId);
-
-    if (legacyError) {
-      const message = legacyError?.message || '';
-      const missingColumn =
-        message.toLowerCase().includes('column') &&
-        message.toLowerCase().includes('does not exist');
-      if (!missingColumn) {
-        throw legacyError;
-      }
-    }
   }
 
   if (resolvedGoalType !== undefined) {
@@ -277,7 +246,6 @@ export async function saveWeightEntry({
   ensureSupabase(supabase, 'salvar peso');
 
   const resolvedWeightKg = weight_kg !== undefined ? weight_kg : weightKg;
-  const resolvedHeightCm = height_cm !== undefined ? height_cm : heightCm;
 
   const normalizedWeight =
     resolvedWeightKg != null && resolvedWeightKg !== '' ? Number(resolvedWeightKg) : null;
@@ -285,9 +253,6 @@ export async function saveWeightEntry({
   if (!Number.isFinite(normalizedWeight)) {
     throw new Error('Peso inválido para salvar.');
   }
-
-  const normalizedHeight =
-    resolvedHeightCm != null && resolvedHeightCm !== '' ? Number(resolvedHeightCm) : null;
 
   const { data: existing, error: lookupError } = await supabase
     .from('food_weight_history')
@@ -304,7 +269,7 @@ export async function saveWeightEntry({
     user_id: userId,
     entry_date: toStorageDateString(entryDate),
     weight_kg: normalizedWeight,
-    height_cm: normalizedHeight,
+    recorded_at: new Date().toISOString(),
   };
 
   if (existing?.id) {
@@ -319,16 +284,19 @@ export async function saveWeightEntry({
       throw error;
     }
 
-    try {
-      await supabase
-        .from('profiles')
-        .update({
-          height_cm: normalizedHeight,
-          current_weight: normalizedWeight,
-        })
-        .eq('id', userId);
-    } catch (syncError) {
-      console.warn('Não foi possível sincronizar peso na tabela profiles.', syncError);
+    const { error: profileSyncError } = await supabase
+      .from('food_diary_profile')
+      .upsert(
+        {
+          user_id: userId,
+          weight: normalizedWeight,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'user_id' },
+      );
+
+    if (profileSyncError) {
+      throw profileSyncError;
     }
 
     return data ?? null;
@@ -344,16 +312,19 @@ export async function saveWeightEntry({
     throw error;
   }
 
-  try {
-    await supabase
-      .from('profiles')
-      .update({
-        height_cm: normalizedHeight,
-        current_weight: normalizedWeight,
-      })
-      .eq('id', userId);
-  } catch (syncError) {
-    console.warn('Não foi possível sincronizar peso na tabela profiles.', syncError);
+  const { error: profileSyncError } = await supabase
+    .from('food_diary_profile')
+    .upsert(
+      {
+        user_id: userId,
+        weight: normalizedWeight,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'user_id' },
+    );
+
+  if (profileSyncError) {
+    throw profileSyncError;
   }
 
   return data ?? null;
@@ -361,22 +332,6 @@ export async function saveWeightEntry({
 
 export async function loadGoals({ supabase, userId }) {
   ensureSupabase(supabase, 'carregar metas');
-
-  try {
-    const { data: profileData, error: profileError } = await supabase
-      .from('profiles')
-      .select('weight_goal, calorie_goal, protein_goal, water_goal_l, goal_mode')
-      .eq('id', userId)
-      .maybeSingle();
-
-    if (profileError) {
-      throw profileError;
-    }
-
-    return profileData ?? null;
-  } catch (fallbackError) {
-    console.warn('Não foi possível carregar metas pela tabela profiles.', fallbackError);
-  }
 
   const { data, error } = await supabase
     .from('food_diary_profile')
@@ -424,15 +379,8 @@ export async function loadProfile({ supabase, userId }) {
       profileRow?.goal_type ??
       (profileObjective ? OBJECTIVE_TO_GOAL_TYPE[profileObjective] : null);
     profileGoalMode = profileRow?.goal_mode ?? null;
-    if (profileRow?.current_weight != null && diaryNormalized.weightKg == null) {
-      diaryNormalized.weightKg = Number(profileRow.current_weight);
-    }
     if (profileRow?.height_cm != null && diaryNormalized.heightCm == null) {
       diaryNormalized.heightCm = Number(profileRow.height_cm);
-    }
-    const profileGoalWeight = profileRow?.weight_goal ?? null;
-    if (profileGoalWeight != null && diaryNormalized.goalWeightKg == null) {
-      diaryNormalized.goalWeightKg = Number(profileGoalWeight);
     }
   } catch (error) {
     console.warn('Não foi possível carregar goal_type da tabela profiles.', error);

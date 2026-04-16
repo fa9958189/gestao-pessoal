@@ -67,12 +67,12 @@ const mapBodyFromProfile = (profile) => ({
       ? profile.height_cm
       : DEFAULT_BODY.heightCm,
   weightKg:
-    profile?.weight_kg != null && profile.weight_kg !== ""
-      ? profile.weight_kg
+    profile?.weight != null && profile.weight !== ""
+      ? profile.weight
       : DEFAULT_BODY.weightKg,
   goalWeightKg:
-    profile?.target_weight_kg != null && profile.target_weight_kg !== ""
-      ? profile.target_weight_kg
+    profile?.goal_weight != null && profile.goal_weight !== ""
+      ? profile.goal_weight
       : DEFAULT_BODY.goalWeightKg,
 });
 
@@ -88,26 +88,6 @@ const mapWaterGoalFromAuth = (profile) => {
 };
 
 const getWaterGoalL = async (supabaseClient, userId, fallbackProfile) => {
-  const { data: authProfile, error: authError } = await supabaseClient
-    .from("profiles")
-    .select("water_goal_l")
-    .eq("id", userId)
-    .maybeSingle();
-
-  if (authError) {
-    console.error(
-      "[WATER] Falha no select profiles.water_goal_l",
-      { userId, column: "water_goal_l" },
-      authError
-    );
-    throw authError;
-  }
-
-  const authGoal = mapWaterGoalFromAuth(authProfile);
-  if (authGoal != null) {
-    return authGoal;
-  }
-
   if (fallbackProfile?.water_goal_l != null) {
     return Number(fallbackProfile.water_goal_l);
   }
@@ -129,6 +109,26 @@ const getWaterGoalL = async (supabaseClient, userId, fallbackProfile) => {
 
   if (diaryProfile?.water_goal_l != null) {
     return Number(diaryProfile.water_goal_l);
+  }
+
+  const { data: authProfile, error: authError } = await supabaseClient
+    .from("profiles")
+    .select("water_goal_l")
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (authError) {
+    console.error(
+      "[WATER] Falha no select profiles.water_goal_l",
+      { userId, column: "water_goal_l" },
+      authError
+    );
+    throw authError;
+  }
+
+  const authGoal = mapWaterGoalFromAuth(authProfile);
+  if (authGoal != null) {
+    return authGoal;
   }
 
   return DEFAULT_WATER_GOAL_L;
@@ -335,7 +335,7 @@ export const getFoodDiaryState = async (userId, { dayDate } = {}) => {
   const { data: profile, error: profileError } = await supabase
     .from("food_diary_profile")
     .select(
-      "calorie_goal, protein_goal, water_goal_l, height_cm, weight_kg, target_weight_kg"
+      "calorie_goal, protein_goal, water_goal_l, height_cm, weight, goal_weight, objective"
     )
     .eq("user_id", userId)
     .maybeSingle();
@@ -396,8 +396,8 @@ export const saveFoodDiaryState = async (userId, state = {}) => {
     water_goal_l:
       goals.water != null ? Number(goals.water) : DEFAULT_GOALS.water,
     height_cm: body.heightCm !== "" ? body.heightCm : null,
-    weight_kg: body.weightKg !== "" ? body.weightKg : null,
-    target_weight_kg: body.goalWeightKg !== "" ? body.goalWeightKg : null,
+    weight: body.weightKg !== "" ? body.weightKg : null,
+    goal_weight: body.goalWeightKg !== "" ? body.goalWeightKg : null,
   };
 
   const { error: profileError } = await supabase
@@ -452,9 +452,15 @@ export const saveFoodDiaryState = async (userId, state = {}) => {
     }
 
     const { error: profileSyncError } = await supabase
-      .from("profiles")
-      .update({ weight: Number(latestWeight.weightKg) })
-      .eq("id", userId);
+      .from("food_diary_profile")
+      .upsert(
+        {
+          user_id: userId,
+          weight: Number(latestWeight.weightKg),
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "user_id" }
+      );
 
     if (profileSyncError) throw profileSyncError;
   }

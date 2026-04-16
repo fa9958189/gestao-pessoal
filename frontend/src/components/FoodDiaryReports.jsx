@@ -103,7 +103,7 @@ function FoodDiaryReports({ userId, supabase, selectedDate, goals }) {
 
         const { data: weightData, error: weightError } = await supabase
           .from('food_weight_history')
-          .select('*')
+          .select('entry_date, weight_kg, recorded_at')
           .eq('user_id', userId)
           .order('entry_date', { ascending: true })
           .limit(30);

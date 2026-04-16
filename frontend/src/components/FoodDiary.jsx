@@ -1273,10 +1273,10 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
 
     try {
       const { data, error: profileError } = await supabase
-        .from('profiles')
-        .select('sex, weight, height, height_cm, objective, goal_weight')
-        .eq('id', userId)
-        .single();
+        .from('food_diary_profile')
+        .select('sex, weight, height_cm, objective, goal_weight')
+        .eq('user_id', userId)
+        .maybeSingle();
 
       if (profileError) {
         throw profileError;
@@ -1342,19 +1342,17 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
       const bodyPayload = {
         user_id: userId,
         weight: Number(normalizedWeight),
-        weight_kg: Number(normalizedWeight),
         height_cm: normalizedHeight != null ? Number(normalizedHeight) : null,
         goal_weight: normalizedGoalWeight != null ? Number(normalizedGoalWeight) : null,
-        weight_goal: normalizedGoalWeight != null ? Number(normalizedGoalWeight) : null,
         goal_type: bodyDraft.goalType || 'maintain',
         objective: normalizedObjective,
         sex: normalizedSex,
       };
       const data = {
         user_id: userId,
-        weight_kg: normalizedWeight,
+        weight: normalizedWeight,
         height_cm: normalizedHeight,
-        weight_goal: normalizedGoalWeight,
+        goal_weight: normalizedGoalWeight,
         goal_type: bodyDraft.goalType || 'maintain',
         objective: normalizedObjective,
         sex: normalizedSex,
@@ -1553,6 +1551,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
           .from('food_weight_history')
           .update({
             weight_kg: Number(normalizedWeight),
+            recorded_at: new Date().toISOString(),
           })
           .eq('id', existingWeightEntry.id);
 
@@ -1567,6 +1566,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
               user_id: userId,
               weight_kg: Number(normalizedWeight),
               entry_date: normalizedEntryDate,
+              recorded_at: new Date().toISOString(),
             },
           ]);
 
@@ -1576,11 +1576,12 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
       }
 
       const { error: profileSyncError } = await supabase
-        .from('profiles')
-        .update({
-          current_weight: Number(normalizedWeight),
-        })
-        .eq('id', userId);
+        .from('food_diary_profile')
+        .upsert({
+          user_id: userId,
+          weight: Number(normalizedWeight),
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'user_id' });
 
       if (profileSyncError) {
         throw profileSyncError;
