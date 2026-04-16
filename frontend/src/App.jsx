@@ -2765,13 +2765,18 @@ function App() {
     try {
       const { data, error } = await client
         .from('food_weight_history')
-        .select('entry_date, weight_kg, recorded_at')
+        .select('entry_date, weight, weight_kg, recorded_at')
         .eq('user_id', user.id)
         .order('entry_date', { ascending: false })
         .order('recorded_at', { ascending: false })
         .limit(30);
       if (error) throw error;
-      setWeightHistoryItems(data || []);
+      setWeightHistoryItems(
+        (data || []).map((item) => ({
+          ...item,
+          weight_kg: item?.weight_kg ?? item?.weight ?? null,
+        })),
+      );
       setWeightHistoryModalUser(user);
     } catch (err) {
       pushToast(err?.message || 'Não foi possível carregar o histórico de peso.', 'danger');
@@ -2857,20 +2862,20 @@ function App() {
       if (!Number.isFinite(parsedWeight) || parsedWeight <= 0) {
         throw new Error('Informe um peso válido.');
       }
+      const weightHistoryPayload = {
+        user_id: currentUser.id,
+        weight: Number(parsedWeight),
+      };
+
       const { error } = await client
         .from('food_weight_history')
-        .upsert({
-          user_id: dailyWeightModalUser.id,
-          entry_date: dailyWeightDraft.entry_date,
-          weight_kg: parsedWeight,
-          recorded_at: new Date().toISOString(),
-        }, { onConflict: 'user_id,entry_date' });
+        .insert(weightHistoryPayload);
       if (error) throw error;
 
       const { error: profileError } = await client
         .from('profiles')
-        .update({ weight: parsedWeight, weight_kg: parsedWeight, current_weight: parsedWeight })
-        .eq('id', dailyWeightModalUser.id);
+        .update({ weight: Number(parsedWeight) })
+        .eq('id', currentUser.id);
       if (profileError) throw profileError;
 
       syncUserInList(dailyWeightModalUser.id, {
