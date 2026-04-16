@@ -1131,6 +1131,21 @@ app.get("/users", async (req, res) => {
 
       if (!userIds.length) return users;
 
+      const { data: diaryProfiles, error: diaryProfilesError } = await supabase
+        .from("food_diary_profile")
+        .select(
+          "user_id, weight, goal_weight, height_cm, objective, calorie_goal, protein_goal, water_goal_l"
+        )
+        .in("user_id", userIds);
+
+      if (diaryProfilesError) throw diaryProfilesError;
+
+      const diaryByUser = new Map(
+        (diaryProfiles || [])
+          .filter((row) => row?.user_id)
+          .map((row) => [row.user_id, row])
+      );
+
       const { data: weightRows, error: weightError } = await supabase
         .from("food_weight_history")
         .select("user_id, entry_date, weight_kg, recorded_at")
@@ -1155,12 +1170,15 @@ app.get("/users", async (req, res) => {
       }
 
       return users.map((user) => {
+        const diary = diaryByUser.get(user.id);
         const latest = latestByUser.get(user.id);
         const previous = previousByUser.get(user.id);
         const latestWeight =
           latest?.weight_kg != null
             ? Number(latest.weight_kg)
-            : (user?.weight != null ? Number(user.weight) : null);
+            : diary?.weight != null
+              ? Number(diary.weight)
+              : (user?.weight != null ? Number(user.weight) : null);
         const previousWeight = previous?.weight_kg != null ? Number(previous.weight_kg) : null;
         const variationKg =
           Number.isFinite(latestWeight) && Number.isFinite(previousWeight)
@@ -1169,6 +1187,13 @@ app.get("/users", async (req, res) => {
 
         return {
           ...user,
+          weight: diary?.weight ?? user?.weight ?? null,
+          goal_weight: diary?.goal_weight ?? user?.goal_weight ?? user?.weight_goal ?? null,
+          height_cm: diary?.height_cm ?? user?.height_cm ?? user?.height ?? null,
+          objective: diary?.objective ?? user?.objective ?? null,
+          calorie_goal: diary?.calorie_goal ?? user?.calorie_goal ?? null,
+          protein_goal: diary?.protein_goal ?? user?.protein_goal ?? null,
+          water_goal_l: diary?.water_goal_l ?? user?.water_goal_l ?? null,
           current_weight: latestWeight,
           latest_weight_kg: latestWeight,
           latest_weight_date: latest?.entry_date || null,
@@ -3896,18 +3921,6 @@ app.post("/api/hydration/undo", handleHydrationUndo);
 app.get("/api/hydration/state", handleHydrationState);
 app.get("/api/hydration", handleWaterState);
 
-const objectiveToGoalType = {
-  perder_peso: "lose_weight",
-  manter_peso: "maintain",
-  ganhar_massa: "gain_muscle",
-};
-
-const goalTypeToObjective = {
-  lose_weight: "perder_peso",
-  maintain: "manter_peso",
-  gain_muscle: "ganhar_massa",
-};
-
 const normalizeSex = (value) => {
   if (value == null || value === "") return null;
   const normalized = String(value).trim().toLowerCase();
@@ -3939,258 +3952,109 @@ const handleBodyUpdate = async (req, res) => {
       user_id,
       userId: userIdFromBody,
       weight,
-      weight_kg,
       height,
       height_cm,
       goal_weight,
-      weight_goal,
-      goal_type,
       objective,
       sex,
       age,
+      calorie_goal,
+      protein_goal,
+      water_goal_l,
     } = req.body || {};
     const userId = user_id || userIdFromBody || authData.userId;
-    const resolvedWeight = weight_kg ?? weight;
-    const resolvedGoalWeight = weight_goal ?? goal_weight;
+    const resolvedWeight = weight;
+    const resolvedGoalWeight = goal_weight;
 
     console.log("BODY RECEBIDO:", req.body);
     console.log("USER ID:", userId);
 
     if (!userId || !Number.isFinite(Number(resolvedWeight))) {
-      return res.status(400).json({ error: "user_id e weight_kg são obrigatórios." });
+      return res.status(400).json({ error: "user_id e weight são obrigatórios." });
     }
-
-    const rawEntryDate = String(req.body?.entry_date || "").trim();
-    const entryDate = rawEntryDate
-      ? rawEntryDate.includes("/")
-        ? rawEntryDate.split("/").reverse().join("-")
-        : rawEntryDate
-      : new Date().toLocaleDateString("pt-BR").split("/").reverse().join("-");
-
     const normalizedWeight = Number(resolvedWeight);
     const resolvedHeight = height_cm ?? height;
     const normalizedHeight = Number.isFinite(Number(resolvedHeight)) ? Number(resolvedHeight) : null;
-    const normalizedAge = Number.isFinite(Number(age)) ? Number(age) : null;
     const normalizedGoalWeight = Number.isFinite(Number(resolvedGoalWeight))
       ? Number(resolvedGoalWeight)
       : null;
     const normalizedObjective = ["perder_peso", "manter_peso", "ganhar_massa"].includes(objective)
       ? objective
-      : goalTypeToObjective[goal_type] || "manter_peso";
-    const normalizedGoalType = ["lose_weight", "maintain", "gain_muscle"].includes(goal_type)
-      ? goal_type
-      : objectiveToGoalType[normalizedObjective] || "maintain";
+      : "manter_peso";
     const normalizedSex = normalizeSex(sex);
+    const normalizedAge = Number.isFinite(Number(age)) ? Number(age) : null;
 
-    const { data: existingWeightEntry, error: existingWeightEntryError } = await supabase
-      .from("food_weight_history")
-      .select("id")
-      .eq("user_id", userId)
-      .eq("entry_date", entryDate)
-      .maybeSingle();
+    let calorieGoal = Number.isFinite(Number(calorie_goal)) ? Number(calorie_goal) : null;
+    let proteinGoal = Number.isFinite(Number(protein_goal)) ? Number(protein_goal) : null;
+    let waterGoalL = Number.isFinite(Number(water_goal_l)) ? Number(water_goal_l) : null;
 
-    if (existingWeightEntryError) {
-      console.error("Erro ao verificar histórico de peso:", existingWeightEntryError);
-      return res.status(500).json({ error: existingWeightEntryError.message });
-    }
+    if (calorieGoal == null || proteinGoal == null || waterGoalL == null) {
+      const canCalculateByBodyMetrics =
+        Number.isFinite(normalizedWeight) &&
+        Number.isFinite(normalizedHeight) &&
+        Number.isFinite(normalizedAge) &&
+        (normalizedSex === "male" || normalizedSex === "female");
 
-    if (existingWeightEntry?.id) {
-      const { error: updateWeightError } = await supabase
-        .from("food_weight_history")
-        .update({
-          weight_kg: normalizedWeight,
-          height_cm: normalizedHeight,
-        })
-        .eq("id", existingWeightEntry.id);
-
-      if (updateWeightError) {
-        console.error("Erro ao atualizar histórico de peso:", updateWeightError);
-        return res.status(500).json({ error: updateWeightError.message });
-      }
-    } else {
-      const { error: insertWeightError } = await supabase
-        .from("food_weight_history")
-        .insert({
-          user_id: userId,
-          weight_kg: normalizedWeight,
-          height_cm: normalizedHeight,
-          entry_date: entryDate,
-        });
-
-      if (insertWeightError) {
-        if (
-          insertWeightError?.code === "23505" ||
-          String(insertWeightError?.message || "").toLowerCase().includes("duplicate key")
-        ) {
-          const { error: duplicateFallbackUpdateError } = await supabase
-            .from("food_weight_history")
-            .update({
-              weight_kg: normalizedWeight,
-              height_cm: normalizedHeight,
-            })
-            .eq("user_id", userId)
-            .eq("entry_date", entryDate);
-
-          if (duplicateFallbackUpdateError) {
-            console.error(
-              "Erro ao atualizar histórico de peso após duplicidade:",
-              duplicateFallbackUpdateError
-            );
-            return res.status(500).json({ error: duplicateFallbackUpdateError.message });
-          }
+      if (canCalculateByBodyMetrics) {
+        let tmb;
+        if (normalizedSex === "male") {
+          tmb = 10 * normalizedWeight + 6.25 * normalizedHeight - 5 * normalizedAge + 5;
         } else {
-          console.error("Erro ao inserir histórico de peso:", insertWeightError);
-          return res.status(500).json({ error: insertWeightError.message });
+          tmb = 10 * normalizedWeight + 6.25 * normalizedHeight - 5 * normalizedAge - 161;
         }
+        const tdee = tmb * 1.55;
+        calorieGoal = normalizedObjective === "perder_peso" ? tdee - 500 : normalizedObjective === "ganhar_massa" ? tdee + 400 : tdee;
+        proteinGoal = normalizedObjective === "perder_peso" ? normalizedWeight * 2 : normalizedObjective === "ganhar_massa" ? normalizedWeight * 2.2 : normalizedWeight * 1.6;
+        waterGoalL = normalizedWeight * 0.035;
+      } else {
+        const automaticGoals = buildAutomaticGoalsFromWeight(normalizedWeight);
+        calorieGoal = automaticGoals?.calories ?? null;
+        proteinGoal = automaticGoals?.protein ?? null;
+        waterGoalL = automaticGoals?.water ?? null;
       }
     }
 
-    const { error: profileWeightUpdateError } = await supabase
-      .from("profiles")
-      .update({
-        weight: normalizedWeight,
-      })
-      .eq("id", userId);
-
-    if (profileWeightUpdateError) {
-      console.error("Erro ao atualizar peso no profile:", profileWeightUpdateError);
-      return res.status(500).json({ error: profileWeightUpdateError.message });
-    }
-
-    const calorieMultiplierByGoal = {
-      lose_weight: 20,
-      maintain: 25,
-      gain_muscle: 30,
-    };
-
-    const canCalculateByBodyMetrics =
-      Number.isFinite(normalizedWeight) &&
-      Number.isFinite(normalizedHeight) &&
-      Number.isFinite(normalizedAge) &&
-      (normalizedSex === "male" || normalizedSex === "female");
-
-    let calorieGoal;
-    let proteinGoal;
-    let waterGoalL;
-
-    if (canCalculateByBodyMetrics) {
-      let tmb;
-
-      if (normalizedSex === "male") {
-        tmb = 10 * normalizedWeight + 6.25 * normalizedHeight - 5 * normalizedAge + 5;
-      } else {
-        tmb = 10 * normalizedWeight + 6.25 * normalizedHeight - 5 * normalizedAge - 161;
-      }
-
-      const activityFactor = 1.55;
-      const tdee = tmb * activityFactor;
-
-      if (normalizedObjective === "perder_peso") {
-        calorieGoal = tdee - 500;
-      } else if (normalizedObjective === "ganhar_massa") {
-        calorieGoal = tdee + 400;
-      } else {
-        calorieGoal = tdee;
-      }
-
-      if (normalizedObjective === "perder_peso") {
-        proteinGoal = normalizedWeight * 2;
-      } else if (normalizedObjective === "ganhar_massa") {
-        proteinGoal = normalizedWeight * 2.2;
-      } else {
-        proteinGoal = normalizedWeight * 1.6;
-      }
-
-      waterGoalL = normalizedWeight * 0.035;
-    } else {
-      calorieGoal = normalizedWeight * calorieMultiplierByGoal[normalizedGoalType];
-      proteinGoal = normalizedWeight * 2;
-      waterGoalL = (normalizedWeight * 35) / 1000;
-    }
-
-    calorieGoal = Math.round(calorieGoal);
-    proteinGoal = Math.round(proteinGoal);
-    waterGoalL = Number(waterGoalL.toFixed(2));
-
-    const weightGoalToSave = normalizedGoalWeight;
-
-    const profileUpdatePayload = {
+    const bodyProfilePayload = {
+      user_id: userId,
       weight: normalizedWeight,
-      goal_weight: weightGoalToSave,
-      weight_goal: weightGoalToSave,
-      height: normalizedHeight,
+      goal_weight: normalizedGoalWeight,
       height_cm: normalizedHeight,
-      age: normalizedAge,
-      goal_type: normalizedGoalType,
       objective: normalizedObjective,
-      sex: normalizedSex,
-      calorie_goal: calorieGoal,
-      protein_goal: proteinGoal,
-      water_goal_l: waterGoalL,
-      goal_mode: "auto",
+      calorie_goal: calorieGoal != null ? Math.round(calorieGoal) : null,
+      protein_goal: proteinGoal != null ? Math.round(proteinGoal) : null,
+      water_goal_l: waterGoalL != null ? Number(Number(waterGoalL).toFixed(2)) : null,
+      updated_at: new Date().toISOString(),
     };
 
     const { error: profileError } = await supabase
-      .from("profiles")
-      .update(profileUpdatePayload)
-      .eq("id", userId);
+      .from("food_diary_profile")
+      .upsert(bodyProfilePayload, { onConflict: "user_id" });
 
     if (profileError) {
-      console.error("Erro profile:", profileError);
+      console.error("Erro ao salvar food_diary_profile:", profileError);
       return res.status(500).json({ error: profileError.message });
-    }
-
-    const { data: authProfile, error: authProfileError } = await supabase
-      .from("profiles")
-      .select("goal_mode, weight")
-      .eq("id", userId)
-      .maybeSingle();
-
-    if (authProfileError) {
-      console.error("Erro ao buscar profiles após salvar corpo:", authProfileError);
-    } else if (authProfile?.goal_mode === "auto") {
-      const automaticGoals = buildAutomaticGoalsFromWeight(authProfile.weight ?? normalizedWeight);
-      if (automaticGoals) {
-        const { error: authUpdateError } = await supabase
-          .from("profiles")
-          .update({
-            calorie_goal: automaticGoals.calories,
-            protein_goal: automaticGoals.protein,
-            water_goal_l: automaticGoals.water,
-          })
-          .eq("id", userId);
-
-        if (authUpdateError) {
-          console.error("Erro ao atualizar metas automáticas em profiles:", authUpdateError);
-        }
-      }
     }
 
     return res.json({
       success: true,
       user: {
         id: userId,
-        sex: normalizedSex,
-        age: normalizedAge,
         height_cm: normalizedHeight,
         weight: normalizedWeight,
         current_weight: normalizedWeight,
         latest_weight_kg: normalizedWeight,
         goal_weight: normalizedGoalWeight,
         objective: normalizedObjective,
-        calorie_goal: calorieGoal,
-        protein_goal: proteinGoal,
-        water_goal_l: waterGoalL,
-        goal_mode: "auto",
+        calorie_goal: bodyProfilePayload.calorie_goal,
+        protein_goal: bodyProfilePayload.protein_goal,
+        water_goal_l: bodyProfilePayload.water_goal_l,
       },
       goals: {
-        goal_type: normalizedGoalType,
         objective: normalizedObjective,
         weight_goal: normalizedGoalWeight,
-        calorie_goal: calorieGoal,
-        protein_goal: proteinGoal,
-        water_goal_l: waterGoalL,
-        goal_mode: "auto",
+        calorie_goal: bodyProfilePayload.calorie_goal,
+        protein_goal: bodyProfilePayload.protein_goal,
+        water_goal_l: bodyProfilePayload.water_goal_l,
       },
     });
   } catch (error) {
@@ -4232,6 +4096,21 @@ app.put("/goals/manual", async (req, res) => {
       .eq("id", userId);
 
     if (error) throw error;
+
+    const { error: diaryError } = await supabase
+      .from("food_diary_profile")
+      .upsert(
+        {
+          user_id: userId,
+          calorie_goal: parsedCalories,
+          protein_goal: parsedProtein,
+          water_goal_l: parsedWater,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "user_id" }
+      );
+
+    if (diaryError) throw diaryError;
 
     return res.json({ success: true });
   } catch (err) {
