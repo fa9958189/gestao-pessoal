@@ -649,7 +649,28 @@ h2.title, h3.title{ margin:0 0 10px; font-weight:600; }
 }
 
 .modal-step-label {
-  margin-bottom: 12px;
+  margin-bottom: 8px;
+}
+
+.wizard-modal-user {
+  width: min(640px, 96vw);
+  max-height: 88vh;
+  padding: 22px;
+}
+
+.wizard-progress-wrap {
+  margin-bottom: 18px;
+}
+
+.wizard-field-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.wizard-field-stack h3 {
+  margin: 0 0 6px;
+  font-size: 16px;
 }
 
 @media (max-width: 768px) {
@@ -667,6 +688,19 @@ h2.title, h3.title{ margin:0 0 10px; font-weight:600; }
   .user-event-details {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .wizard-modal-user {
+    width: min(100%, 98vw);
+    padding: 18px 14px;
+  }
+
+  .wizard-actions {
+    justify-content: stretch;
+  }
+
+  .wizard-actions button {
+    width: 100%;
   }
 }
 
@@ -821,6 +855,8 @@ button.ghost{ background:transparent; border:1px solid #38425b; }
 
 .wizard-actions{
   display:flex;
+  flex-wrap: wrap;
+  justify-content:flex-end;
   gap:10px;
   margin-top:20px;
 }

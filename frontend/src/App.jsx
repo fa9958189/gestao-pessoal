@@ -742,7 +742,6 @@ const UsersTable = ({
             const affiliateName = affiliateNameById?.[user.affiliate_id] || user.affiliate_name || '-';
             const currentWeight = resolveUserCurrentWeight(user);
             const targetWeight = user?.goal_weight ?? user?.weight_goal ?? user?.target_weight_kg ?? null;
-            const activityLevel = user?.activity_level ?? user?.nivel_atividade ?? '-';
             const goalMode = user?.goal_mode || '-';
             const weightVariation = Number(user?.weight_variation_kg);
             const hasVariation = Number.isFinite(weightVariation);
@@ -805,7 +804,6 @@ const UsersTable = ({
                         <p>Altura: <strong>{formatMetricValue(user?.height_cm ?? user?.height, 'cm', 0)}</strong></p>
                         <p>Sexo: <strong>{user?.sex || '-'}</strong></p>
                         <p>Idade: <strong>{user?.age || '-'}</strong></p>
-                        <p>Nível de atividade: <strong>{activityLevel}</strong></p>
                         <p>
                           Variação de peso:{' '}
                           <strong>
@@ -2136,11 +2134,13 @@ function App() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [openUserModal, setOpenUserModal] = useState(false);
   const [step, setStep] = useState(1);
+  const [editUserStep, setEditUserStep] = useState(1);
   const [editingUserId, setEditingUserId] = useState(null);
   const [editingUserOriginal, setEditingUserOriginal] = useState(null);
   const [bodyModalUser, setBodyModalUser] = useState(null);
   const [bodyModalStep, setBodyModalStep] = useState(1);
   const [dailyWeightModalUser, setDailyWeightModalUser] = useState(null);
+  const [dailyWeightStep, setDailyWeightStep] = useState(1);
   const [weightHistoryModalUser, setWeightHistoryModalUser] = useState(null);
   const [goalsModalUser, setGoalsModalUser] = useState(null);
   const [goalsModalStep, setGoalsModalStep] = useState(1);
@@ -2753,6 +2753,7 @@ function App() {
   const openDailyWeightModal = (user) => {
     if (!user || currentUser?.id !== user.id) return;
     setDailyWeightModalUser(user);
+    setDailyWeightStep(1);
     setDailyWeightDraft({
       weight_kg: resolveUserCurrentWeight(user) != null ? String(resolveUserCurrentWeight(user)) : '',
       entry_date: new Date().toISOString().slice(0, 10),
@@ -2852,6 +2853,7 @@ function App() {
         latest_weight_date: dailyWeightDraft.entry_date,
       });
       setDailyWeightModalUser(null);
+      setDailyWeightStep(1);
       pushToast('Peso do dia registrado com sucesso.', 'success');
     } catch (err) {
       pushToast(err?.message || 'Erro ao registrar peso.', 'danger');
@@ -3115,6 +3117,7 @@ function App() {
     setEditingUserId(null);
     setEditingUserOriginal(null);
     setStep(1);
+    setEditUserStep(1);
     if (closeModal) {
       setOpenUserModal(false);
     }
@@ -3386,6 +3389,42 @@ function App() {
       console.warn('Erro ao atualizar usuário', err);
       pushToast(`Não foi possível atualizar o usuário: ${err?.message || 'erro desconhecido'}`, 'danger');
     }
+  };
+
+  const handleEditUserContinue = () => {
+    if (editUserStep === 1) {
+      if (!editUserForm.name?.trim() || !editUserForm.email?.trim()) {
+        pushToast('Preencha nome e email para continuar.', 'warning');
+        return;
+      }
+      setEditUserStep(2);
+      return;
+    }
+
+    if (!editUserForm.whatsapp?.trim()) {
+      pushToast('Preencha o WhatsApp para continuar.', 'warning');
+      return;
+    }
+
+    if (isAdmin && !editUserForm.affiliate_id) {
+      pushToast('Selecione um afiliado para continuar.', 'warning');
+      return;
+    }
+
+    if (isAdmin && !editUserForm.plan_type) {
+      pushToast('Selecione um plano para continuar.', 'warning');
+      return;
+    }
+
+    setEditUserStep(3);
+  };
+
+  const handleSaveEditedUser = async () => {
+    if (newPassword && newPassword !== confirmPassword) {
+      pushToast('As senhas não conferem.', 'warning');
+      return;
+    }
+    await updateUser();
   };
 
   const handleDeleteUser = async (user) => {
@@ -4257,6 +4296,7 @@ function App() {
               onEdit={(user) => {
                 setEditingUserId(user.id);
                 setEditingUserOriginal(user);
+                setEditUserStep(1);
                 setEditUserForm({
                   name: user.name || '',
                   email: user.email || user.username || '',
@@ -4271,82 +4311,120 @@ function App() {
             />
 
             {openUserModal && editingUserId && (
-              <div className="affiliate-modal-backdrop" onClick={() => resetUserWizard({ closeModal: true })}>
-                <div className="affiliate-modal" onClick={(e) => e.stopPropagation()}>
-                  <h3>Editar usuário</h3>
+              <div className="modal-overlay" onClick={() => resetUserWizard({ closeModal: true })}>
+                <div className="report-modal wizard-modal-user" onClick={(e) => e.stopPropagation()}>
+                  <h2>Editar usuário</h2>
+                  <p className="muted modal-step-label">{`Passo ${editUserStep} de 3`}</p>
 
-                  <label>Nome</label>
-                  <input
-                    value={editUserForm.name}
-                    onChange={(e) => setEditUserForm((prev) => ({ ...prev, name: e.target.value }))}
-                    placeholder="Nome"
-                  />
+                  <div className="progress-bar wizard-progress-wrap">
+                    <div
+                      className="progress-fill"
+                      style={{ width: `${(editUserStep / 3) * 100}%` }}
+                    />
+                  </div>
 
-                  <label>Email</label>
-                  <input
-                    value={editUserForm.email}
-                    onChange={(e) => setEditUserForm((prev) => ({ ...prev, email: e.target.value }))}
-                    placeholder="Email"
-                  />
+                  {editUserStep === 1 && (
+                    <div className="wizard-field-stack">
+                      <h3>Dados básicos</h3>
+                      <label>Nome</label>
+                      <input
+                        value={editUserForm.name}
+                        onChange={(e) => setEditUserForm((prev) => ({ ...prev, name: e.target.value }))}
+                        placeholder="Nome"
+                      />
 
-                  <label>WhatsApp</label>
-                  <input
-                    value={editUserForm.whatsapp}
-                    onChange={(e) => setEditUserForm((prev) => ({ ...prev, whatsapp: e.target.value }))}
-                    placeholder="WhatsApp"
-                  />
-
-                  <input
-                    type="password"
-                    placeholder="Nova senha (opcional)"
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                  />
-
-                  <input
-                    type="password"
-                    placeholder="Confirmar nova senha"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                  />
-
-                  {isAdmin && (
-                    <>
-                      <label>Afiliado</label>
-                      <select
-                        value={editUserForm.affiliate_id}
-                        onChange={(e) => setEditUserForm((prev) => ({ ...prev, affiliate_id: e.target.value }))}
-                      >
-                        <option value="">Selecione um afiliado</option>
-                        {activeAffiliates.map((affiliate) => (
-                          <option key={affiliate.id} value={affiliate.id}>
-                            {affiliate.name}{affiliate.code ? ` (${affiliate.code})` : ''}
-                          </option>
-                        ))}
-                      </select>
-                      {activeAffiliates.length === 0 && (
-                        <p className="muted">Nenhum afiliado ativo disponível no momento.</p>
-                      )}
-
-                      <label>Plano</label>
-                      <select
-                        value={editUserForm.plan_type}
-                        onChange={(e) => setEditUserForm((prev) => ({ ...prev, plan_type: e.target.value }))}
-                      >
-                        <option value="">Selecione um plano</option>
-                        {USER_PLAN_OPTIONS.map((plan) => (
-                          <option key={plan.value} value={plan.value}>
-                            {plan.label}
-                          </option>
-                        ))}
-                      </select>
-                    </>
+                      <label>Email</label>
+                      <input
+                        value={editUserForm.email}
+                        onChange={(e) => setEditUserForm((prev) => ({ ...prev, email: e.target.value }))}
+                        placeholder="Email"
+                      />
+                    </div>
                   )}
 
-                  <div className="wizard-actions" style={{ marginTop: 16 }}>
-                    <button type="button" className="btn-primary btn-ui" onClick={updateUser}>
-                      Salvar
-                    </button>
+                  {editUserStep === 2 && (
+                    <div className="wizard-field-stack">
+                      <h3>Contato e vínculo</h3>
+                      <label>WhatsApp</label>
+                      <input
+                        value={editUserForm.whatsapp}
+                        onChange={(e) => setEditUserForm((prev) => ({ ...prev, whatsapp: e.target.value }))}
+                        placeholder="WhatsApp"
+                      />
+
+                      {isAdmin && (
+                        <>
+                          <label>Afiliado</label>
+                          <select
+                            value={editUserForm.affiliate_id}
+                            onChange={(e) => setEditUserForm((prev) => ({ ...prev, affiliate_id: e.target.value }))}
+                          >
+                            <option value="">Selecione um afiliado</option>
+                            {activeAffiliates.map((affiliate) => (
+                              <option key={affiliate.id} value={affiliate.id}>
+                                {affiliate.name}{affiliate.code ? ` (${affiliate.code})` : ''}
+                              </option>
+                            ))}
+                          </select>
+                          {activeAffiliates.length === 0 && (
+                            <p className="muted">Nenhum afiliado ativo disponível no momento.</p>
+                          )}
+
+                          <label>Plano</label>
+                          <select
+                            value={editUserForm.plan_type}
+                            onChange={(e) => setEditUserForm((prev) => ({ ...prev, plan_type: e.target.value }))}
+                          >
+                            <option value="">Selecione um plano</option>
+                            {USER_PLAN_OPTIONS.map((plan) => (
+                              <option key={plan.value} value={plan.value}>
+                                {plan.label}
+                              </option>
+                            ))}
+                          </select>
+                        </>
+                      )}
+                    </div>
+                  )}
+
+                  {editUserStep === 3 && (
+                    <div className="wizard-field-stack">
+                      <h3>Segurança</h3>
+                      <label>Nova senha (opcional)</label>
+                      <input
+                        type="password"
+                        placeholder="Nova senha (opcional)"
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                      />
+
+                      <label>Confirmar nova senha</label>
+                      <input
+                        type="password"
+                        placeholder="Confirmar nova senha"
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                      />
+                    </div>
+                  )}
+
+                  <div className="wizard-actions">
+                    {editUserStep > 1 && (
+                      <button type="button" className="btn-ui" onClick={() => setEditUserStep((prev) => prev - 1)}>
+                        ← Voltar
+                      </button>
+                    )}
+
+                    {editUserStep < 3 ? (
+                      <button type="button" className="btn-primary btn-ui" onClick={handleEditUserContinue}>
+                        Continuar →
+                      </button>
+                    ) : (
+                      <button type="button" className="btn-primary btn-ui" onClick={handleSaveEditedUser}>
+                        Salvar
+                      </button>
+                    )}
+
                     <button type="button" className="btn-ui" onClick={() => resetUserWizard({ closeModal: true })}>
                       Cancelar
                     </button>
@@ -4493,11 +4571,18 @@ function App() {
 
             {bodyModalUser && (
               <div className="modal-overlay" onClick={() => { setBodyModalUser(null); setBodyModalStep(1); }}>
-                <div className="report-modal" onClick={(e) => e.stopPropagation()}>
+                <div className="report-modal wizard-modal-user" onClick={(e) => e.stopPropagation()}>
                   <h2>Atualizar dados corporais</h2>
-                  <p className="muted modal-step-label">{`Passo ${bodyModalStep} de 2 — ${bodyModalStep === 1 ? 'Dados básicos' : 'Objetivo'}`}</p>
+                  <p className="muted modal-step-label">{`Passo ${bodyModalStep} de 2 — ${bodyModalStep === 1 ? 'Dados básicos' : 'Medidas e objetivo'}`}</p>
+                  <div className="progress-bar wizard-progress-wrap">
+                    <div
+                      className="progress-fill"
+                      style={{ width: `${(bodyModalStep / 2) * 100}%` }}
+                    />
+                  </div>
                   {bodyModalStep === 1 && (
-                    <>
+                    <div className="wizard-field-stack">
+                      <h3>Dados básicos</h3>
                       <label>Sexo</label>
                       <select value={bodyDraft.sex} onChange={(e) => setBodyDraft((prev) => ({ ...prev, sex: e.target.value }))}>
                         <option value="">Selecione</option>
@@ -4506,14 +4591,13 @@ function App() {
                       </select>
                       <label>Idade</label>
                       <input type="number" value={bodyDraft.age} onChange={(e) => setBodyDraft((prev) => ({ ...prev, age: e.target.value }))} />
-                      <label>Altura (cm)</label>
-                      <input type="number" value={bodyDraft.height_cm} onChange={(e) => setBodyDraft((prev) => ({ ...prev, height_cm: e.target.value }))} />
-                      <label>Nível de atividade</label>
-                      <input value={bodyDraft.activity_level} onChange={(e) => setBodyDraft((prev) => ({ ...prev, activity_level: e.target.value }))} />
-                    </>
+                    </div>
                   )}
                   {bodyModalStep === 2 && (
-                    <>
+                    <div className="wizard-field-stack">
+                      <h3>Medidas e objetivo</h3>
+                      <label>Altura (cm)</label>
+                      <input type="number" value={bodyDraft.height_cm} onChange={(e) => setBodyDraft((prev) => ({ ...prev, height_cm: e.target.value }))} />
                       <label>Peso atual (kg)</label>
                       <input type="number" step="0.1" value={bodyDraft.weight} onChange={(e) => setBodyDraft((prev) => ({ ...prev, weight: e.target.value }))} />
                       <label>Meta de peso (kg)</label>
@@ -4524,11 +4608,14 @@ function App() {
                         <option value="manter_peso">Manter peso</option>
                         <option value="ganhar_massa">Ganhar massa</option>
                       </select>
-                    </>
+                    </div>
                   )}
                   <div className="wizard-actions">
+                    {bodyModalStep > 1 && (
+                      <button className="btn-ui" onClick={() => setBodyModalStep(1)}>← Voltar</button>
+                    )}
                     {bodyModalStep === 1 ? (
-                      <button className="btn-primary btn-ui" onClick={() => setBodyModalStep(2)}>Continuar</button>
+                      <button className="btn-primary btn-ui" onClick={() => setBodyModalStep(2)}>Continuar →</button>
                     ) : (
                       <button className="btn-primary btn-ui" onClick={saveBodyData}>Salvar</button>
                     )}
@@ -4539,14 +4626,47 @@ function App() {
             )}
 
             {dailyWeightModalUser && (
-              <div className="modal-overlay" onClick={() => setDailyWeightModalUser(null)}>
-                <div className="report-modal report-modal-compact" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-overlay" onClick={() => { setDailyWeightModalUser(null); setDailyWeightStep(1); }}>
+                <div className="report-modal report-modal-compact wizard-modal-user" onClick={(e) => e.stopPropagation()}>
                   <h2>Registrar peso do dia</h2>
-                  <label>Peso (kg)</label>
-                  <input type="number" step="0.1" value={dailyWeightDraft.weight_kg} onChange={(e) => setDailyWeightDraft((prev) => ({ ...prev, weight_kg: e.target.value }))} />
+                  <p className="muted modal-step-label">{`Passo ${dailyWeightStep} de 2 — ${dailyWeightStep === 1 ? 'Data do registro' : 'Peso'}`}</p>
+                  <div className="progress-bar wizard-progress-wrap">
+                    <div
+                      className="progress-fill"
+                      style={{ width: `${(dailyWeightStep / 2) * 100}%` }}
+                    />
+                  </div>
+
+                  {dailyWeightStep === 1 && (
+                    <div className="wizard-field-stack">
+                      <h3>Data do registro</h3>
+                      <label>Data</label>
+                      <input
+                        type="date"
+                        value={dailyWeightDraft.entry_date}
+                        onChange={(e) => setDailyWeightDraft((prev) => ({ ...prev, entry_date: e.target.value }))}
+                      />
+                    </div>
+                  )}
+
+                  {dailyWeightStep === 2 && (
+                    <div className="wizard-field-stack">
+                      <h3>Peso</h3>
+                      <label>Peso (kg)</label>
+                      <input type="number" step="0.1" value={dailyWeightDraft.weight_kg} onChange={(e) => setDailyWeightDraft((prev) => ({ ...prev, weight_kg: e.target.value }))} />
+                    </div>
+                  )}
+
                   <div className="wizard-actions">
-                    <button className="btn-primary btn-ui" onClick={saveDailyWeight}>Salvar</button>
-                    <button className="btn-ui" onClick={() => setDailyWeightModalUser(null)}>Cancelar</button>
+                    {dailyWeightStep > 1 && (
+                      <button className="btn-ui" onClick={() => setDailyWeightStep(1)}>← Voltar</button>
+                    )}
+                    {dailyWeightStep === 1 ? (
+                      <button className="btn-primary btn-ui" onClick={() => setDailyWeightStep(2)}>Continuar →</button>
+                    ) : (
+                      <button className="btn-primary btn-ui" onClick={saveDailyWeight}>Salvar</button>
+                    )}
+                    <button className="btn-ui" onClick={() => { setDailyWeightModalUser(null); setDailyWeightStep(1); }}>Cancelar</button>
                   </div>
                 </div>
               </div>
@@ -4554,32 +4674,43 @@ function App() {
 
             {goalsModalUser && (
               <div className="modal-overlay" onClick={() => { setGoalsModalUser(null); setGoalsModalStep(1); }}>
-                <div className="report-modal" onClick={(e) => e.stopPropagation()}>
+                <div className="report-modal wizard-modal-user" onClick={(e) => e.stopPropagation()}>
                   <h2>Definir metas</h2>
                   <p className="muted modal-step-label">{`Passo ${goalsModalStep} de 2 — ${goalsModalStep === 1 ? 'Objetivo' : 'Metas nutricionais'}`}</p>
+                  <div className="progress-bar wizard-progress-wrap">
+                    <div
+                      className="progress-fill"
+                      style={{ width: `${(goalsModalStep / 2) * 100}%` }}
+                    />
+                  </div>
                   {goalsModalStep === 1 && (
-                    <>
+                    <div className="wizard-field-stack">
+                      <h3>Objetivo</h3>
                       <label>Objetivo</label>
                       <select value={goalsDraft.objective} onChange={(e) => setGoalsDraft((prev) => ({ ...prev, objective: e.target.value }))}>
                         <option value="perder_peso">Emagrecer</option>
                         <option value="ganhar_massa">Ganhar massa</option>
                         <option value="manter_peso">Manter peso</option>
                       </select>
-                    </>
+                    </div>
                   )}
                   {goalsModalStep === 2 && (
-                    <>
+                    <div className="wizard-field-stack">
+                      <h3>Metas nutricionais</h3>
                       <label>Calorias (kcal)</label>
                       <input type="number" value={goalsDraft.calorie_goal} onChange={(e) => setGoalsDraft((prev) => ({ ...prev, calorie_goal: e.target.value }))} />
                       <label>Proteína (g)</label>
                       <input type="number" value={goalsDraft.protein_goal} onChange={(e) => setGoalsDraft((prev) => ({ ...prev, protein_goal: e.target.value }))} />
                       <label>Água (L)</label>
                       <input type="number" step="0.1" value={goalsDraft.water_goal_l} onChange={(e) => setGoalsDraft((prev) => ({ ...prev, water_goal_l: e.target.value }))} />
-                    </>
+                    </div>
                   )}
                   <div className="wizard-actions">
+                    {goalsModalStep > 1 && (
+                      <button className="btn-ui" onClick={() => setGoalsModalStep(1)}>← Voltar</button>
+                    )}
                     {goalsModalStep === 1 ? (
-                      <button className="btn-primary btn-ui" onClick={() => setGoalsModalStep(2)}>Continuar</button>
+                      <button className="btn-primary btn-ui" onClick={() => setGoalsModalStep(2)}>Continuar →</button>
                     ) : (
                       <button className="btn-primary btn-ui" onClick={saveManualGoals}>Salvar</button>
                     )}
