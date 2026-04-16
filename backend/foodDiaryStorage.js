@@ -357,6 +357,7 @@ export const getFoodDiaryState = async (userId, { dayDate } = {}) => {
     .from("food_weight_history")
     .select("entry_date, weight_kg, recorded_at")
     .eq("user_id", userId)
+    .order("recorded_at", { ascending: false })
     .order("entry_date", { ascending: false });
 
   if (weightError) throw weightError;
@@ -423,33 +424,16 @@ export const saveFoodDiaryState = async (userId, state = {}) => {
   );
 
   if (latestWeight) {
-    const { data: existingEntry, error: findError } = await supabase
+    const { error: insertError } = await supabase
       .from("food_weight_history")
-      .select("id")
-      .eq("user_id", userId)
-      .eq("entry_date", latestWeight.date)
-      .maybeSingle();
+      .insert({
+        user_id: userId,
+        entry_date: latestWeight.date,
+        weight_kg: Number(latestWeight.weightKg),
+        recorded_at: latestWeight.recordedAt || new Date().toISOString(),
+      });
 
-    if (findError) throw findError;
-
-    if (existingEntry) {
-      const { error: updateError } = await supabase
-        .from("food_weight_history")
-        .update({ weight_kg: Number(latestWeight.weightKg) })
-        .eq("id", existingEntry.id);
-
-      if (updateError) throw updateError;
-    } else {
-      const { error: insertError } = await supabase
-        .from("food_weight_history")
-        .insert({
-          user_id: userId,
-          entry_date: latestWeight.date,
-          weight_kg: Number(latestWeight.weightKg),
-        });
-
-      if (insertError) throw insertError;
-    }
+    if (insertError) throw insertError;
 
     const { error: profileSyncError } = await supabase
       .from("food_diary_profile")
