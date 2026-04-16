@@ -2766,8 +2766,8 @@ function App() {
         .from('food_weight_history')
         .select('entry_date, weight_kg, recorded_at')
         .eq('user_id', user.id)
-        .order('entry_date', { ascending: false })
         .order('recorded_at', { ascending: false })
+        .order('entry_date', { ascending: false })
         .limit(30);
       if (error) throw error;
       setWeightHistoryItems(data || []);
@@ -2779,67 +2779,49 @@ function App() {
 
   const saveBodyData = async () => {
     try {
-      if (!bodyModalUser || currentUser?.id !== bodyModalUser.id) return;
-      const accessToken = await getAccessToken();
-      if (!accessToken) throw new Error('Sessão expirada. Faça login novamente.');
-      const response = await fetch(`${workoutApiBase}/body`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify({
-          user_id: bodyModalUser.id,
-          sex: bodyDraft.sex || null,
-          age: bodyDraft.age ? Number(bodyDraft.age) : null,
-          height_cm: bodyDraft.height_cm ? Number(bodyDraft.height_cm) : null,
-          weight: bodyDraft.weight ? Number(bodyDraft.weight) : null,
-          goal_weight: bodyDraft.goal_weight ? Number(bodyDraft.goal_weight) : null,
-          objective: bodyDraft.objective || 'manter_peso',
-        }),
-      });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(payload?.error || 'Não foi possível atualizar os dados corporais.');
+      if (!bodyModalUser || currentUser?.id !== bodyModalUser.id || !client) return;
 
-      const resolvedObjective =
-        payload?.goals?.objective ||
-        payload?.user?.objective ||
-        bodyDraft.objective ||
-        'manter_peso';
-      const resolvedGoalWeight =
-        payload?.goals?.weight_goal ??
-        payload?.user?.goal_weight ??
-        (bodyDraft.goal_weight ? Number(bodyDraft.goal_weight) : null);
+      const parsedWeight = bodyDraft.weight ? Number(bodyDraft.weight) : null;
+      const parsedGoalWeight = bodyDraft.goal_weight ? Number(bodyDraft.goal_weight) : null;
+      const parsedHeight = bodyDraft.height_cm ? Number(bodyDraft.height_cm) : null;
+      const resolvedObjective = bodyDraft.objective || 'manter_peso';
       const resolvedCalorieGoal =
-        payload?.goals?.calorie_goal ?? payload?.user?.calorie_goal;
+        bodyModalUser?.calorie_goal != null ? Number(bodyModalUser.calorie_goal) : null;
       const resolvedProteinGoal =
-        payload?.goals?.protein_goal ?? payload?.user?.protein_goal;
+        bodyModalUser?.protein_goal != null ? Number(bodyModalUser.protein_goal) : null;
       const resolvedWaterGoal =
-        payload?.goals?.water_goal_l ?? payload?.user?.water_goal_l;
-      const resolvedGoalMode =
-        payload?.goals?.goal_mode || payload?.user?.goal_mode || 'auto';
-      const resolvedWeight =
-        payload?.user?.latest_weight_kg ??
-        payload?.user?.current_weight ??
-        payload?.user?.weight ??
-        (bodyDraft.weight ? Number(bodyDraft.weight) : null);
-      const profilePatch = {
-        sex: payload?.user?.sex ?? (bodyDraft.sex || null),
-        age: payload?.user?.age ?? (bodyDraft.age ? Number(bodyDraft.age) : null),
-        height_cm: payload?.user?.height_cm ?? (bodyDraft.height_cm ? Number(bodyDraft.height_cm) : null),
-        weight: resolvedWeight,
-        current_weight: payload?.user?.current_weight ?? resolvedWeight,
-        latest_weight_kg: payload?.user?.latest_weight_kg ?? resolvedWeight,
-        goal_weight: resolvedGoalWeight,
+        bodyModalUser?.water_goal_l != null ? Number(bodyModalUser.water_goal_l) : null;
+
+      const profilePayload = {
+        user_id: bodyModalUser.id,
+        weight: Number.isFinite(parsedWeight) ? parsedWeight : null,
+        goal_weight: Number.isFinite(parsedGoalWeight) ? parsedGoalWeight : null,
+        height_cm: Number.isFinite(parsedHeight) ? parsedHeight : null,
         objective: resolvedObjective,
         calorie_goal: resolvedCalorieGoal,
         protein_goal: resolvedProteinGoal,
         water_goal_l: resolvedWaterGoal,
-        goal_mode: resolvedGoalMode,
+        updated_at: new Date().toISOString(),
+      };
+
+      const { data: savedProfile, error } = await client
+        .from('food_diary_profile')
+        .upsert(profilePayload, { onConflict: 'user_id' })
+        .select('weight, goal_weight, height_cm, objective, calorie_goal, protein_goal, water_goal_l')
+        .maybeSingle();
+      if (error) throw error;
+
+      const profilePatch = {
+        weight: savedProfile?.weight ?? profilePayload.weight,
+        goal_weight: savedProfile?.goal_weight ?? profilePayload.goal_weight,
+        height_cm: savedProfile?.height_cm ?? profilePayload.height_cm,
+        objective: savedProfile?.objective ?? profilePayload.objective,
+        calorie_goal: savedProfile?.calorie_goal ?? profilePayload.calorie_goal,
+        protein_goal: savedProfile?.protein_goal ?? profilePayload.protein_goal,
+        water_goal_l: savedProfile?.water_goal_l ?? profilePayload.water_goal_l,
       };
 
       syncUserInList(bodyModalUser.id, profilePatch);
-
       await loadRemoteData();
       syncUserInList(bodyModalUser.id, profilePatch);
 

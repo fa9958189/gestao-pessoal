@@ -290,6 +290,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
       .from('food_weight_history')
       .select('entry_date, weight_kg, recorded_at')
       .eq('user_id', currentUserId)
+      .order('recorded_at', { ascending: false })
       .order('entry_date', { ascending: false })
       .limit(30);
 
@@ -1535,44 +1536,19 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
 
       const normalizedEntryDate = toStorageDateString(dailyWeightDraft.entryDate);
 
-      const { data: existingWeightEntry, error: existingWeightError } = await supabase
+      const { error: insertError } = await supabase
         .from('food_weight_history')
-        .select('id')
-        .eq('user_id', userId)
-        .eq('entry_date', normalizedEntryDate)
-        .maybeSingle();
-
-      if (existingWeightError) {
-        throw existingWeightError;
-      }
-
-      if (existingWeightEntry?.id) {
-        const { error: updateError } = await supabase
-          .from('food_weight_history')
-          .update({
+        .insert([
+          {
+            user_id: userId,
             weight_kg: Number(normalizedWeight),
+            entry_date: normalizedEntryDate,
             recorded_at: new Date().toISOString(),
-          })
-          .eq('id', existingWeightEntry.id);
+          },
+        ]);
 
-        if (updateError) {
-          throw updateError;
-        }
-      } else {
-        const { error: insertError } = await supabase
-          .from('food_weight_history')
-          .insert([
-            {
-              user_id: userId,
-              weight_kg: Number(normalizedWeight),
-              entry_date: normalizedEntryDate,
-              recorded_at: new Date().toISOString(),
-            },
-          ]);
-
-        if (insertError) {
-          throw insertError;
-        }
+      if (insertError) {
+        throw insertError;
       }
 
       const { error: profileSyncError } = await supabase

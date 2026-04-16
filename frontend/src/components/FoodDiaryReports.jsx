@@ -105,7 +105,8 @@ function FoodDiaryReports({ userId, supabase, selectedDate, goals }) {
           .from('food_weight_history')
           .select('entry_date, weight_kg, recorded_at')
           .eq('user_id', userId)
-          .order('entry_date', { ascending: true })
+          .order('recorded_at', { ascending: false })
+          .order('entry_date', { ascending: false })
           .limit(30);
 
         if (weightError) throw weightError;

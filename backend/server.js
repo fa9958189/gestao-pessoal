@@ -1150,8 +1150,8 @@ app.get("/users", async (req, res) => {
         .from("food_weight_history")
         .select("user_id, entry_date, weight_kg, recorded_at")
         .in("user_id", userIds)
-        .order("entry_date", { ascending: false })
-        .order("recorded_at", { ascending: false });
+        .order("recorded_at", { ascending: false })
+        .order("entry_date", { ascending: false });
 
       if (weightError) throw weightError;
 
@@ -1174,11 +1174,9 @@ app.get("/users", async (req, res) => {
         const latest = latestByUser.get(user.id);
         const previous = previousByUser.get(user.id);
         const latestWeight =
-          latest?.weight_kg != null
-            ? Number(latest.weight_kg)
-            : diary?.weight != null
-              ? Number(diary.weight)
-              : (user?.weight != null ? Number(user.weight) : null);
+          diary?.weight != null
+            ? Number(diary.weight)
+            : (user?.weight != null ? Number(user.weight) : null);
         const previousWeight = previous?.weight_kg != null ? Number(previous.weight_kg) : null;
         const variationKg =
           Number.isFinite(latestWeight) && Number.isFinite(previousWeight)
