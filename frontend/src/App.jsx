@@ -2790,9 +2790,9 @@ function App() {
           Authorization: `Bearer ${accessToken}`,
         },
         body: JSON.stringify({
+          user_id: bodyModalUser.id,
           sex: bodyDraft.sex || null,
           age: bodyDraft.age ? Number(bodyDraft.age) : null,
-          activity_level: bodyDraft.activity_level || null,
           height_cm: bodyDraft.height_cm ? Number(bodyDraft.height_cm) : null,
           weight: bodyDraft.weight ? Number(bodyDraft.weight) : null,
           goal_weight: bodyDraft.goal_weight ? Number(bodyDraft.goal_weight) : null,
@@ -2802,19 +2802,46 @@ function App() {
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload?.error || 'Não foi possível atualizar os dados corporais.');
 
+      const resolvedObjective =
+        payload?.goals?.objective ||
+        payload?.user?.objective ||
+        bodyDraft.objective ||
+        'manter_peso';
+      const resolvedGoalWeight =
+        payload?.goals?.weight_goal ??
+        payload?.user?.goal_weight ??
+        (bodyDraft.goal_weight ? Number(bodyDraft.goal_weight) : null);
+      const resolvedCalorieGoal =
+        payload?.goals?.calorie_goal ?? payload?.user?.calorie_goal;
+      const resolvedProteinGoal =
+        payload?.goals?.protein_goal ?? payload?.user?.protein_goal;
+      const resolvedWaterGoal =
+        payload?.goals?.water_goal_l ?? payload?.user?.water_goal_l;
+      const resolvedGoalMode =
+        payload?.goals?.goal_mode || payload?.user?.goal_mode || 'auto';
+      const resolvedWeight =
+        payload?.user?.latest_weight_kg ??
+        payload?.user?.current_weight ??
+        payload?.user?.weight ??
+        (bodyDraft.weight ? Number(bodyDraft.weight) : null);
+
       syncUserInList(bodyModalUser.id, {
-        sex: bodyDraft.sex || null,
-        age: bodyDraft.age ? Number(bodyDraft.age) : null,
-        activity_level: bodyDraft.activity_level || null,
-        height_cm: bodyDraft.height_cm ? Number(bodyDraft.height_cm) : null,
-        weight: bodyDraft.weight ? Number(bodyDraft.weight) : null,
-        goal_weight: bodyDraft.goal_weight ? Number(bodyDraft.goal_weight) : null,
-        objective: bodyDraft.objective || 'manter_peso',
-        calorie_goal: payload?.goals?.calorie_goal,
-        protein_goal: payload?.goals?.protein_goal,
-        water_goal_l: payload?.goals?.water_goal_l,
-        goal_mode: payload?.goals?.goal_mode || 'auto',
+        sex: payload?.user?.sex ?? (bodyDraft.sex || null),
+        age: payload?.user?.age ?? (bodyDraft.age ? Number(bodyDraft.age) : null),
+        height_cm: payload?.user?.height_cm ?? (bodyDraft.height_cm ? Number(bodyDraft.height_cm) : null),
+        weight: resolvedWeight,
+        current_weight: payload?.user?.current_weight ?? resolvedWeight,
+        latest_weight_kg: payload?.user?.latest_weight_kg ?? resolvedWeight,
+        goal_weight: resolvedGoalWeight,
+        objective: resolvedObjective,
+        calorie_goal: resolvedCalorieGoal,
+        protein_goal: resolvedProteinGoal,
+        water_goal_l: resolvedWaterGoal,
+        goal_mode: resolvedGoalMode,
       });
+
+      await loadRemoteData();
+
       setBodyModalUser(null);
       setBodyModalStep(1);
       pushToast('Dados corporais atualizados com sucesso.', 'success');
