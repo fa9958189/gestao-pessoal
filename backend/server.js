@@ -4154,9 +4154,9 @@ const handleBodyUpdate = async (req, res) => {
         const { error: authUpdateError } = await supabase
           .from("profiles")
           .update({
-            goal_calories: automaticGoals.calories,
-            goal_protein: automaticGoals.protein,
-            goal_water: automaticGoals.water,
+            calorie_goal: automaticGoals.calories,
+            protein_goal: automaticGoals.protein,
+            water_goal_l: automaticGoals.water,
           })
           .eq("id", userId);
 
