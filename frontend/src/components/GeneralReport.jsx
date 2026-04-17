@@ -317,18 +317,6 @@ const buildSummary = ({ foodEntries, workoutSessions, transactions, goals, baseD
   };
 };
 
-const normalizeReportProfile = (row) => {
-  if (!row) return null;
-
-  return {
-    sex: row.sexo ?? null,
-    weight: row.peso ?? null,
-    height: row.altura_cm ?? null,
-    objective: row.objetivo ?? null,
-    goalWeight: row.peso_alvo ?? null,
-  };
-};
-
 const readCache = (userId) => {
   if (!userId) return null;
   try {
@@ -615,56 +603,32 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
     }
   }, [userId]);
 
-  const fetchUserProfile = async () => {
+  const loadProfile = async () => {
     if (!userId || !supabase) return;
 
     try {
       const { data, error } = await supabase
         .from('food_diary_profile')
-        .select('sexo, peso, altura_cm, objetivo, peso_alvo')
+        .select('weight, goal_weight, height_cm, objective, sex')
         .eq('user_id', userId)
-        .maybeSingle();
+        .single();
 
       if (error) {
-        console.error('Erro ao buscar perfil em food_diary_profile:', error);
+        console.error('Erro ao buscar perfil:', error);
         return;
       }
 
-      let sexFallback = null;
-      if (!data?.sexo) {
-        const { data: profileData, error: profileError } = await supabase
-          .from('profiles')
-          .select('sex')
-          .eq('id', userId)
-          .maybeSingle();
-
-        if (!profileError) {
-          sexFallback = profileData?.sex ?? null;
-        }
-      }
-
-      const normalizedProfile = normalizeReportProfile(data);
-      const baseProfile = normalizedProfile || {
-        sex: null,
-        weight: null,
-        height: null,
-        objective: null,
-        goalWeight: null,
-      };
-      setProfile({
-        ...baseProfile,
-        sex: baseProfile.sex ?? sexFallback,
-      });
+      setProfile(data);
     } catch (err) {
       console.error('Erro ao buscar perfil:', err);
     }
   };
 
   useEffect(() => {
-    if (userId && supabase) {
-      fetchUserProfile();
+    if (userId) {
+      loadProfile();
     }
-  }, [userId, refreshToken, supabase]);
+  }, [userId]);
 
   useEffect(() => {
     const loadWeightHistory = async () => {
@@ -1128,12 +1092,9 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
 
       <div className="general-report-card mb-4">
         <h3 style={{ marginTop: 0 }}>Seus dados atuais</h3>
-        <p>
-          👤 {profile?.sex === 'Masculino' ? 'Homem' :
-              profile?.sex === 'Feminino' ? 'Mulher' : '--'}
-        </p>
-        <p>⚖️ Peso: {profile?.weight ? `${profile.weight} kg` : '--'}</p>
-        <p>📏 Altura: {profile?.height ? `${profile.height} cm` : '--'}</p>
+        <p>👤 Sexo: {profile?.sex ?? '--'}</p>
+        <p>⚖️ Peso: {profile?.weight ?? '--'} kg</p>
+        <p>📏 Altura: {profile?.height_cm ?? '--'} cm</p>
         <p>🎯 Objetivo: {profile?.objective ?? '--'}</p>
       </div>
 
