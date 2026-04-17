@@ -290,18 +290,30 @@ export const updateWaterGoal = async ({
     return { ok: false, error: authError };
   }
 
-  const { error: diaryError } = await supabaseClient
+  const { data: updatedRows, error: updateError } = await supabaseClient
     .from("food_diary_profile")
-    .upsert(
-      {
+    .update({
+      user_id: userId,
+      water_goal_l: parsedGoal,
+    })
+    .eq("user_id", userId)
+    .select("user_id");
+
+  if (updateError) {
+    return { ok: false, error: updateError };
+  }
+
+  if (!Array.isArray(updatedRows) || updatedRows.length === 0) {
+    const { error: insertError } = await supabaseClient
+      .from("food_diary_profile")
+      .insert({
         user_id: userId,
         water_goal_l: parsedGoal,
-      },
-      { onConflict: "user_id" }
-    );
+      });
 
-  if (diaryError) {
-    return { ok: false, error: diaryError };
+    if (insertError) {
+      return { ok: false, error: insertError };
+    }
   }
 
   return { ok: true, goalL: parsedGoal };
@@ -343,7 +355,23 @@ export const getFoodDiaryState = async (userId, { dayDate } = {}) => {
   if (profileError) throw profileError;
 
   const goals = mapGoalsFromProfile(profile);
-  const body = mapBodyFromProfile(profile);
+
+  const { data: lastWeight } = await supabase
+    .from("food_weight_history")
+    .select("weight_kg")
+    .eq("user_id", userId)
+    .order("recorded_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const currentWeight = lastWeight?.weight_kg || profile?.weight;
+  const body = {
+    ...mapBodyFromProfile(profile),
+    weightKg:
+      currentWeight != null && currentWeight !== ""
+        ? Number(currentWeight)
+        : DEFAULT_BODY.weightKg,
+  };
   const waterGoalL = await getWaterGoalL(supabase, userId, profile);
   goals.water = waterGoalL;
 
@@ -355,20 +383,19 @@ export const getFoodDiaryState = async (userId, { dayDate } = {}) => {
 
   const { data: weightRows, error: weightError } = await supabase
     .from("food_weight_history")
-    .select("entry_date, weight_kg, recorded_at")
+    .select("weight_kg, recorded_at")
     .eq("user_id", userId)
-    .order("recorded_at", { ascending: false })
-    .order("entry_date", { ascending: false });
+    .order("recorded_at", { ascending: false });
 
   if (weightError) throw weightError;
 
   const weightHistory = (weightRows || [])
     .map((row) => ({
-      date: row.entry_date,
+      date: row.recorded_at,
       weightKg: row.weight_kg != null ? Number(row.weight_kg) : null,
       recordedAt: row.recorded_at,
     }))
-    .filter((item) => item.date && item.weightKg != null);
+    .filter((item) => item.weightKg != null);
 
   return {
     entriesByDate,
@@ -401,11 +428,21 @@ export const saveFoodDiaryState = async (userId, state = {}) => {
     goal_weight: body.goalWeightKg !== "" ? body.goalWeightKg : null,
   };
 
-  const { error: profileError } = await supabase
+  const { data: updatedProfileRows, error: updateProfileError } = await supabase
     .from("food_diary_profile")
-    .upsert(profilePayload, { onConflict: "user_id" });
+    .update(profilePayload)
+    .eq("user_id", userId)
+    .select("user_id");
 
-  if (profileError) throw profileError;
+  if (updateProfileError) throw updateProfileError;
+
+  if (!Array.isArray(updatedProfileRows) || updatedProfileRows.length === 0) {
+    const { error: insertProfileError } = await supabase
+      .from("food_diary_profile")
+      .insert(profilePayload);
+
+    if (insertProfileError) throw insertProfileError;
+  }
 
   if (goals.water != null) {
     const result = await updateWaterGoal({
@@ -419,34 +456,18 @@ export const saveFoodDiaryState = async (userId, state = {}) => {
     }
   }
 
-  const latestWeight = weightHistory.find(
-    (item) => item?.date && item?.weightKg != null
-  );
+  const bodyWeight = body.weightKg !== "" ? Number(body.weightKg) : null;
 
-  if (latestWeight) {
+  if (Number.isFinite(bodyWeight)) {
     const { error: insertError } = await supabase
       .from("food_weight_history")
       .insert({
         user_id: userId,
-        entry_date: latestWeight.date,
-        weight_kg: Number(latestWeight.weightKg),
-        recorded_at: latestWeight.recordedAt || new Date().toISOString(),
+        weight_kg: Number(bodyWeight),
+        recorded_at: new Date().toISOString(),
       });
 
     if (insertError) throw insertError;
-
-    const { error: profileSyncError } = await supabase
-      .from("food_diary_profile")
-      .upsert(
-        {
-          user_id: userId,
-          weight: Number(latestWeight.weightKg),
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "user_id" }
-      );
-
-    if (profileSyncError) throw profileSyncError;
   }
 
   return getFoodDiaryState(userId);

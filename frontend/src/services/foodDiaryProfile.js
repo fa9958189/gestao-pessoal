@@ -239,14 +239,10 @@ export async function saveWeightEntry({
   userId,
   weightKg,
   weight_kg,
-  heightCm,
-  height_cm,
-  entryDate = todayString(),
 }) {
   ensureSupabase(supabase, 'salvar peso');
 
   const resolvedWeightKg = weight_kg !== undefined ? weight_kg : weightKg;
-
   const normalizedWeight =
     resolvedWeightKg != null && resolvedWeightKg !== '' ? Number(resolvedWeightKg) : null;
 
@@ -256,7 +252,6 @@ export async function saveWeightEntry({
 
   const payload = {
     user_id: userId,
-    entry_date: toStorageDateString(entryDate),
     weight_kg: normalizedWeight,
     recorded_at: new Date().toISOString(),
   };
@@ -269,21 +264,6 @@ export async function saveWeightEntry({
 
   if (error) {
     throw error;
-  }
-
-  const { error: profileSyncError } = await supabase
-    .from('food_diary_profile')
-    .upsert(
-      {
-        user_id: userId,
-        weight: normalizedWeight,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: 'user_id' },
-    );
-
-  if (profileSyncError) {
-    throw profileSyncError;
   }
 
   return data ?? null;
