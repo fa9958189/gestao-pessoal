@@ -1174,9 +1174,11 @@ app.get("/users", async (req, res) => {
         const latest = latestByUser.get(user.id);
         const previous = previousByUser.get(user.id);
         const latestWeight =
-          diary?.weight != null
-            ? Number(diary.weight)
-            : (user?.weight != null ? Number(user.weight) : null);
+          latest?.weight_kg != null
+            ? Number(latest.weight_kg)
+            : (diary?.weight != null
+              ? Number(diary.weight)
+              : (user?.weight != null ? Number(user.weight) : null));
         const previousWeight = previous?.weight_kg != null ? Number(previous.weight_kg) : null;
         const variationKg =
           Number.isFinite(latestWeight) && Number.isFinite(previousWeight)
