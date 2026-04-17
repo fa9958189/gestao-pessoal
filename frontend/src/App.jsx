@@ -5,7 +5,6 @@ import GeneralReport from './components/GeneralReport.jsx';
 import FinanceReports from './components/FinanceReports.jsx';
 import './styles.css';
 import { loadGoals } from './services/foodDiaryProfile';
-import { registerWeight } from './weightApi';
 import { supabase as sharedSupabase } from './supabaseClient';
 import Agenda from './pages/Agenda';
 import Supervisor from './pages/Supervisor';
@@ -182,6 +181,14 @@ const formatMetricValue = (value, unit = '', decimals = 1) => {
     maximumFractionDigits: decimals,
   });
   return unit ? `${formatted} ${unit}` : formatted;
+};
+
+const formatSexLabel = (value) => {
+  if (!value) return '-';
+  const normalized = String(value).toLowerCase();
+  if (normalized === 'male') return 'Masculino';
+  if (normalized === 'female') return 'Feminino';
+  return value;
 };
 
 const resolveUserCurrentWeight = (user) => {
@@ -802,7 +809,7 @@ const UsersTable = ({
                         <p>Peso atual: <strong>{formatMetricValue(currentWeight, 'kg')}</strong></p>
                         <p>Meta de peso: <strong>{formatMetricValue(targetWeight, 'kg')}</strong></p>
                         <p>Altura: <strong>{formatMetricValue(user?.height_cm ?? user?.height, 'cm', 0)}</strong></p>
-                        <p>Sexo: <strong>{user?.sex || '-'}</strong></p>
+                        <p>Sexo: <strong>{formatSexLabel(user?.sex)}</strong></p>
                         <p>Idade: <strong>{user?.age || '-'}</strong></p>
                         <p>
                           Variação de peso:{' '}
@@ -2763,7 +2770,7 @@ function App() {
     try {
       const { data, error } = await client
         .from('food_weight_history')
-        .select('weight_kg, recorded_at')
+        .select('entry_date, weight_kg, recorded_at')
         .eq('user_id', user.id)
         .order('recorded_at', { ascending: false })
         .limit(30);
@@ -2832,13 +2839,15 @@ function App() {
         water_goal_l: savedProfile?.water_goal_l ?? profilePayload.water_goal_l,
       };
 
-      if (bodyDraft.weight) {
+      if (parsedWeight != null && Number.isFinite(parsedWeight)) {
+        const now = new Date();
         await client
           .from('food_weight_history')
           .insert({
             user_id: bodyModalUser.id,
-            weight_kg: Number(bodyDraft.weight),
-            recorded_at: new Date().toISOString(),
+            weight_kg: parsedWeight,
+            entry_date: now.toISOString().slice(0, 10),
+            recorded_at: now.toISOString(),
           });
       }
 
@@ -2862,13 +2871,34 @@ function App() {
         throw new Error('Informe um peso válido.');
       }
 
-      await registerWeight(dailyWeightModalUser.id, parsedWeight);
+      const now = new Date();
+      const entryDate = now.toISOString().slice(0, 10);
+      const recordedAt = now.toISOString();
+
+      const { error: weightInsertError } = await client
+        .from('food_weight_history')
+        .insert({
+          user_id: dailyWeightModalUser.id,
+          weight_kg: parsedWeight,
+          entry_date: entryDate,
+          recorded_at: recordedAt,
+        });
+      if (weightInsertError) throw weightInsertError;
+
+      const { error: profileUpsertError } = await client
+        .from('food_diary_profile')
+        .upsert({
+          user_id: dailyWeightModalUser.id,
+          weight: parsedWeight,
+          updated_at: recordedAt,
+        }, { onConflict: 'user_id' });
+      if (profileUpsertError) throw profileUpsertError;
 
       syncUserInList(dailyWeightModalUser.id, {
         weight: parsedWeight,
         current_weight: parsedWeight,
         latest_weight_kg: parsedWeight,
-        latest_weight_date: new Date().toISOString(),
+        latest_weight_date: entryDate,
       });
       setDailyWeightModalUser(null);
       setDailyWeightStep(1);
