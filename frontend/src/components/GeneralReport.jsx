@@ -5,6 +5,7 @@ import nivel2 from '../assets/avatars/nivel2.png';
 import nivel3 from '../assets/avatars/nivel3.png';
 import nivel4 from '../assets/avatars/nivel4.png';
 import nivel5 from '../assets/avatars/nivel5.png';
+import { loadProfile } from '../services/foodDiaryProfile';
 
 const CACHE_PREFIX = 'gp-general-report-cache-v1';
 const CACHE_TTL_MS = 1000 * 60 * 60 * 6;
@@ -134,6 +135,17 @@ const buildWeekRange = (baseDate) => {
     dates.push(d.toISOString().slice(0, 10));
   }
   return dates;
+};
+
+const sexLabelMap = {
+  male: 'Masculino',
+  female: 'Feminino',
+};
+
+const objectiveLabelMap = {
+  perder_peso: 'Perder peso',
+  manter_peso: 'Manter peso',
+  ganhar_massa: 'Ganhar massa',
 };
 
 const buildSummary = ({ foodEntries, workoutSessions, transactions, goals, baseDate }) => {
@@ -603,21 +615,11 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
     }
   }, [userId]);
 
-  const loadProfile = async () => {
+  const loadProfileData = async () => {
     if (!userId || !supabase) return;
 
     try {
-      const { data, error } = await supabase
-        .from('food_diary_profile')
-        .select('weight, goal_weight, height_cm, objective, sex')
-        .eq('user_id', userId)
-        .single();
-
-      if (error) {
-        console.error('Erro ao buscar perfil:', error);
-        return;
-      }
-
+      const data = await loadProfile({ supabase, userId });
       setProfile(data);
     } catch (err) {
       console.error('Erro ao buscar perfil:', err);
@@ -625,10 +627,10 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
   };
 
   useEffect(() => {
-    if (userId) {
-      loadProfile();
+    if (userId && supabase) {
+      loadProfileData();
     }
-  }, [userId]);
+  }, [userId, supabase, refreshToken]);
 
   useEffect(() => {
     const loadWeightHistory = async () => {
@@ -944,14 +946,14 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
   const [levelUpEffect, setLevelUpEffect] = useState(false);
   const getLatestWeight = () => {
     if (!weightHistory || weightHistory.length === 0) {
-      return profile?.weight ?? null;
+      return profile?.weightKg ?? null;
     }
 
     const sorted = [...weightHistory].sort(
       (a, b) => new Date(b.recorded_at) - new Date(a.recorded_at),
     );
 
-    return sorted[0]?.weight_kg ?? profile?.weight ?? null;
+    return sorted[0]?.weight_kg ?? profile?.weightKg ?? null;
   };
 
   useEffect(() => {
@@ -1092,10 +1094,10 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
 
       <div className="general-report-card mb-4">
         <h3 style={{ marginTop: 0 }}>Seus dados atuais</h3>
-        <p>👤 Sexo: {profile?.sex ?? '--'}</p>
-        <p>⚖️ Peso: {profile?.weight ?? '--'} kg</p>
-        <p>📏 Altura: {profile?.height_cm ?? '--'} cm</p>
-        <p>🎯 Objetivo: {profile?.objective ?? '--'}</p>
+        <p>👤 Sexo: {sexLabelMap[profile?.sex] ?? '--'}</p>
+        <p>⚖️ Peso: {profile?.weightKg ?? '--'} kg</p>
+        <p>📏 Altura: {profile?.heightCm ?? '--'} cm</p>
+        <p>🎯 Objetivo: {objectiveLabelMap[profile?.objective] ?? '--'}</p>
       </div>
 
       <div className="general-report-grid">
