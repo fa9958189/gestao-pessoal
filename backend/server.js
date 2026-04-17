@@ -4035,6 +4035,23 @@ const handleBodyUpdate = async (req, res) => {
       return res.status(500).json({ error: profileError.message });
     }
 
+    if (Number.isFinite(normalizedWeight)) {
+      const now = new Date();
+      const { error: historyError } = await supabase
+        .from("food_weight_history")
+        .insert({
+          user_id: userId,
+          weight_kg: normalizedWeight,
+          entry_date: now.toISOString().slice(0, 10),
+          recorded_at: now.toISOString(),
+        });
+
+      if (historyError) {
+        console.error("Erro ao salvar histórico de peso:", historyError);
+        return res.status(500).json({ error: historyError.message });
+      }
+    }
+
     return res.json({
       success: true,
       user: {

@@ -74,12 +74,17 @@ export async function fetchWeightProfile(userId) {
 }
 
 export async function registerWeight(userId, weight) {
+  const now = new Date();
+  const entryDate = now.toISOString().slice(0, 10);
+  const recordedAt = now.toISOString();
+
   const { error } = await supabase
     .from('food_weight_history')
     .insert({
       user_id: userId,
       weight_kg: Number(weight),
-      recorded_at: new Date().toISOString(),
+      entry_date: entryDate,
+      recorded_at: recordedAt,
     });
 
   if (error) throw error;
@@ -92,12 +97,17 @@ export async function saveWeightEntry({
   weight,
   supabaseClient = supabase,
 }) {
+  const now = new Date();
+  const entryDate = now.toISOString().slice(0, 10);
+  const recordedAt = now.toISOString();
+
   const { error } = await supabaseClient
     .from('food_weight_history')
     .insert({
       user_id: userId,
       weight_kg: Number(weightKg ?? weight),
-      recorded_at: new Date().toISOString(),
+      entry_date: entryDate,
+      recorded_at: recordedAt,
     });
 
   if (error) {
