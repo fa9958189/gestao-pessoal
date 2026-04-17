@@ -250,10 +250,15 @@ export async function saveWeightEntry({
     throw new Error('Peso inválido para salvar.');
   }
 
+  const now = new Date();
+  const entryDate = now.toISOString().slice(0, 10);
+  const recordedAt = now.toISOString();
+
   const payload = {
     user_id: userId,
     weight_kg: normalizedWeight,
-    recorded_at: new Date().toISOString(),
+    entry_date: entryDate,
+    recorded_at: recordedAt,
   };
 
   const { data, error } = await supabase

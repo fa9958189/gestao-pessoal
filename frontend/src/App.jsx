@@ -2841,7 +2841,7 @@ function App() {
 
       if (parsedWeight != null && Number.isFinite(parsedWeight)) {
         const now = new Date();
-        await client
+        const { error: weightInsertError } = await client
           .from('food_weight_history')
           .insert({
             user_id: bodyModalUser.id,
@@ -2849,9 +2849,19 @@ function App() {
             entry_date: now.toISOString().slice(0, 10),
             recorded_at: now.toISOString(),
           });
+        if (weightInsertError) throw weightInsertError;
       }
 
+      const latestWeightDate = new Date().toISOString().slice(0, 10);
       syncUserInList(bodyModalUser.id, profilePatch);
+      if (parsedWeight != null && Number.isFinite(parsedWeight)) {
+        syncUserInList(bodyModalUser.id, {
+          weight: parsedWeight,
+          current_weight: parsedWeight,
+          latest_weight_kg: parsedWeight,
+          latest_weight_date: latestWeightDate,
+        });
+      }
       await loadRemoteData();
       syncUserInList(bodyModalUser.id, profilePatch);
 
@@ -2900,9 +2910,9 @@ function App() {
         latest_weight_kg: parsedWeight,
         latest_weight_date: entryDate,
       });
+      await loadRemoteData();
       setDailyWeightModalUser(null);
       setDailyWeightStep(1);
-      await loadRemoteData();
       pushToast('Peso do dia registrado com sucesso.', 'success');
     } catch (err) {
       pushToast(err?.message || 'Erro ao registrar peso.', 'danger');
