@@ -608,6 +608,7 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
     topExpenses: [],
   });
   const [profile, setProfile] = useState(null);
+  const [weightHistory, setWeightHistory] = useState([]);
 
   const baseDate = useMemo(() => new Date(), []);
 
@@ -808,6 +809,20 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
 
       setLoading(true);
       try {
+        const loadWeightHistory = async () => {
+          const { data, error } = await supabase
+            .from('food_weight_history')
+            .select('*')
+            .eq('user_id', userId)
+            .order('entry_date', { ascending: false });
+
+          if (!error) {
+            setWeightHistory(data || []);
+          }
+        };
+
+        await loadWeightHistory();
+
         const today = new Date();
         const weekStart = new Date(today);
         weekStart.setDate(today.getDate() - 6);
@@ -938,6 +953,17 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
   const currentLevel = getLifeLevel(lifeScore);
   const nivel = calcularNivel(lifeScore);
   const [levelUpEffect, setLevelUpEffect] = useState(false);
+  const getLatestWeight = () => {
+    if (!weightHistory || weightHistory.length === 0) {
+      return profile?.weight || 0;
+    }
+
+    const sorted = [...weightHistory].sort(
+      (a, b) => new Date(b.entry_date) - new Date(a.entry_date),
+    );
+
+    return sorted[0].weight;
+  };
 
   useEffect(() => {
     setLevelUpEffect(true);
@@ -1086,7 +1112,7 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
               : '--'
           }
         </p>
-        <p>⚖️ Peso: {profile?.weight != null ? `${profile.weight} kg` : '--'}</p>
+        <p>⚖️ Peso: {getLatestWeight()} kg</p>
         <p>📏 Altura: {profile?.height != null ? `${profile.height} cm` : '--'}</p>
         <p>
           🎯 Objetivo: {
