@@ -324,14 +324,16 @@ const normalizeReportProfile = (row) => {
       weight: null,
       height: null,
       objective: null,
+      goalWeight: null,
     };
   }
 
   return {
     sex: row.sex ?? null,
-    weight: row.weight ?? row.current_weight ?? row.weight_kg ?? null,
-    height: row.height_cm ?? row.height ?? null,
-    objective: row.objective ?? row.goal_type ?? null,
+    weight: row.weight ?? null,
+    height: row.height_cm ?? null,
+    objective: row.objective ?? null,
+    goalWeight: row.goal_weight ?? null,
   };
 };
 
@@ -626,24 +628,62 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
 
     try {
       const { data, error } = await supabase
-        .from('profiles')
-        .select('sex, weight, height, height_cm, objective, goal_weight, weight_goal')
-        .eq('id', userId)
-        .single();
+        .from('food_diary_profile')
+        .select('sex, weight, height_cm, objective, goal_weight')
+        .eq('user_id', userId)
+        .maybeSingle();
 
-      if (!error && data) {
-        setProfile(normalizeReportProfile(data));
+      if (error) {
+        console.error('Erro ao buscar perfil em food_diary_profile:', error);
+        return;
       }
+
+      let sexFallback = null;
+      if (!data?.sex) {
+        const { data: profileData, error: profileError } = await supabase
+          .from('profiles')
+          .select('sex')
+          .eq('id', userId)
+          .maybeSingle();
+
+        if (!profileError) {
+          sexFallback = profileData?.sex ?? null;
+        }
+      }
+
+      const normalizedProfile = normalizeReportProfile(data);
+      setProfile({
+        ...normalizedProfile,
+        sex: normalizedProfile.sex ?? sexFallback,
+      });
     } catch (err) {
       console.error('Erro ao buscar perfil:', err);
     }
   };
 
   useEffect(() => {
-    if (userId) {
+    if (userId && supabase) {
       fetchUserProfile();
     }
-  }, [userId, refreshToken]);
+  }, [userId, refreshToken, supabase]);
+
+  useEffect(() => {
+    const loadWeightHistory = async () => {
+      if (!userId || !supabase) return;
+
+      const { data, error } = await supabase
+        .from('food_weight_history')
+        .select('entry_date, weight_kg, recorded_at')
+        .eq('user_id', userId)
+        .order('recorded_at', { ascending: false });
+
+      if (!error) {
+        setWeightHistory(data || []);
+      }
+    };
+
+    loadWeightHistory();
+  }, [userId, refreshToken, supabase]);
 
   useEffect(() => {
     let isMounted = true;
@@ -809,20 +849,6 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
 
       setLoading(true);
       try {
-        const loadWeightHistory = async () => {
-          const { data, error } = await supabase
-            .from('food_weight_history')
-            .select('*')
-            .eq('user_id', userId)
-            .order('entry_date', { ascending: false });
-
-          if (!error) {
-            setWeightHistory(data || []);
-          }
-        };
-
-        await loadWeightHistory();
-
         const today = new Date();
         const weekStart = new Date(today);
         weekStart.setDate(today.getDate() - 6);
@@ -955,14 +981,14 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
   const [levelUpEffect, setLevelUpEffect] = useState(false);
   const getLatestWeight = () => {
     if (!weightHistory || weightHistory.length === 0) {
-      return profile?.weight || 0;
+      return profile?.weight ?? null;
     }
 
     const sorted = [...weightHistory].sort(
-      (a, b) => new Date(b.entry_date) - new Date(a.entry_date),
+      (a, b) => new Date(b.recorded_at) - new Date(a.recorded_at),
     );
 
-    return sorted[0].weight;
+    return sorted[0]?.weight_kg ?? profile?.weight ?? null;
   };
 
   useEffect(() => {
@@ -1112,7 +1138,7 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
               : '--'
           }
         </p>
-        <p>⚖️ Peso: {getLatestWeight()} kg</p>
+        <p>⚖️ Peso: {getLatestWeight() != null ? `${getLatestWeight()} kg` : '--'}</p>
         <p>📏 Altura: {profile?.height != null ? `${profile.height} cm` : '--'}</p>
         <p>
           🎯 Objetivo: {
