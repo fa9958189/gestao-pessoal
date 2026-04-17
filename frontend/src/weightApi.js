@@ -10,27 +10,43 @@ export async function saveWeightProfile({
   weightKg,
 }) {
   const now = new Date().toISOString();
+  const payload = {
+    user_id: userId,
+    calorie_goal: calorieGoal,
+    protein_goal: proteinGoal,
+    water_goal_l: waterGoalLiters,
+    height_cm: heightCm || null,
+    weight: weightKg || null,
+    updated_at: now,
+  };
 
-  const { data, error } = await supabase
+  const { data: updatedRows, error: updateError } = await supabase
     .from('food_diary_profile')
-    .upsert({
-      user_id: userId,
-      calorie_goal: calorieGoal,
-      protein_goal: proteinGoal,
-      water_goal_l: waterGoalLiters,
-      height_cm: heightCm || null,
-      weight: weightKg || null,
-      updated_at: now,
-    }, { onConflict: 'user_id' })
+    .update(payload)
+    .eq('user_id', userId)
+    .select();
+
+  if (updateError) {
+    console.error('Erro ao salvar perfil de peso no Supabase', updateError);
+    throw updateError;
+  }
+
+  if (Array.isArray(updatedRows) && updatedRows.length > 0) {
+    return updatedRows[0];
+  }
+
+  const { data: insertedRow, error: insertError } = await supabase
+    .from('food_diary_profile')
+    .insert(payload)
     .select()
     .single();
 
-  if (error) {
-    console.error('Erro ao salvar perfil de peso no Supabase', error);
-    throw error;
+  if (insertError) {
+    console.error('Erro ao inserir perfil de peso no Supabase', insertError);
+    throw insertError;
   }
 
-  return data;
+  return insertedRow;
 }
 
 // Busca o perfil mais recente de metas + altura/peso
@@ -57,49 +73,37 @@ export async function fetchWeightProfile(userId) {
   };
 }
 
-// Registra uma entrada no histórico de peso
+export async function registerWeight(userId, weight) {
+  const { error } = await supabase
+    .from('food_weight_history')
+    .insert({
+      user_id: userId,
+      weight_kg: Number(weight),
+      recorded_at: new Date().toISOString(),
+    });
+
+  if (error) throw error;
+}
+
+// Compatibilidade retroativa
 export async function saveWeightEntry({
   userId,
-  entryDate,
   weightKg,
+  weight,
   supabaseClient = supabase,
 }) {
-  if (!supabaseClient) {
-    throw new Error('Supabase client não disponível em saveWeightEntry.');
-  }
-
-  const { data, error } = await supabaseClient
+  const { error } = await supabaseClient
     .from('food_weight_history')
-    .insert([
-      {
-        user_id: userId, // OBRIGATÓRIO, NOT NULL
-        entry_date: entryDate, // string 'YYYY-MM-DD'
-        weight_kg: weightKg, // número
-        recorded_at: new Date().toISOString(),
-      },
-    ])
-    .select()
-    .single();
+    .insert({
+      user_id: userId,
+      weight_kg: Number(weightKg ?? weight),
+      recorded_at: new Date().toISOString(),
+    });
 
   if (error) {
     console.error('Erro ao salvar histórico de peso no Supabase', error);
     throw error;
   }
-
-  const { error: profileError } = await supabaseClient
-    .from('food_diary_profile')
-    .upsert({
-      user_id: userId,
-      weight: weightKg,
-      updated_at: new Date().toISOString(),
-    }, { onConflict: 'user_id' });
-
-  if (profileError) {
-    console.error('Erro ao sincronizar peso atual no perfil', profileError);
-    throw profileError;
-  }
-
-  return data;
 }
 
 // Busca o histórico de peso do usuário (para mostrar na tela)
@@ -109,7 +113,6 @@ export async function fetchWeightHistory(userId) {
     .select('*')
     .eq('user_id', userId)
     .order('recorded_at', { ascending: false })
-    .order('entry_date', { ascending: false })
     .limit(30);
 
   if (error) {
@@ -118,7 +121,7 @@ export async function fetchWeightHistory(userId) {
   }
 
   return (data || []).map((row) => ({
-    date: row.entry_date,
+    date: row.recorded_at,
     weightKg: Number(row.weight_kg),
     recordedAt: row.recorded_at,
   }));
@@ -126,11 +129,10 @@ export async function fetchWeightHistory(userId) {
 
 export async function deleteWeightEntry(
   userId,
-  entryDate,
   recordedAt,
   supabaseClient = supabase,
 ) {
-  if (!userId || !entryDate || !recordedAt) {
+  if (!userId || !recordedAt) {
     throw new Error('Parâmetros inválidos para deleteWeightEntry.');
   }
 
@@ -143,7 +145,6 @@ export async function deleteWeightEntry(
     .delete()
     .match({
       user_id: userId,
-      entry_date: entryDate,
       recorded_at: recordedAt,
     });
 

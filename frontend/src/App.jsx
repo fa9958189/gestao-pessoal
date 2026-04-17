@@ -5,6 +5,7 @@ import GeneralReport from './components/GeneralReport.jsx';
 import FinanceReports from './components/FinanceReports.jsx';
 import './styles.css';
 import { loadGoals } from './services/foodDiaryProfile';
+import { registerWeight } from './weightApi';
 import { supabase as sharedSupabase } from './supabaseClient';
 import Agenda from './pages/Agenda';
 import Supervisor from './pages/Supervisor';
@@ -2154,7 +2155,6 @@ function App() {
   });
   const [dailyWeightDraft, setDailyWeightDraft] = useState({
     weight_kg: '',
-    entry_date: new Date().toISOString().slice(0, 10),
   });
   const [goalsDraft, setGoalsDraft] = useState({
     objective: 'manter_peso',
@@ -2755,7 +2755,6 @@ function App() {
     setDailyWeightStep(1);
     setDailyWeightDraft({
       weight_kg: resolveUserCurrentWeight(user) != null ? String(resolveUserCurrentWeight(user)) : '',
-      entry_date: new Date().toISOString().slice(0, 10),
     });
   };
 
@@ -2764,10 +2763,9 @@ function App() {
     try {
       const { data, error } = await client
         .from('food_weight_history')
-        .select('entry_date, weight_kg, recorded_at')
+        .select('weight_kg, recorded_at')
         .eq('user_id', user.id)
         .order('recorded_at', { ascending: false })
-        .order('entry_date', { ascending: false })
         .limit(30);
       if (error) throw error;
       setWeightHistoryItems(data || []);
@@ -2804,12 +2802,25 @@ function App() {
         updated_at: new Date().toISOString(),
       };
 
-      const { data: savedProfile, error } = await client
+      const profileColumns = 'weight, goal_weight, height_cm, objective, calorie_goal, protein_goal, water_goal_l';
+      const { data: updatedRows, error: updateError } = await client
         .from('food_diary_profile')
-        .upsert(profilePayload, { onConflict: 'user_id' })
-        .select('weight, goal_weight, height_cm, objective, calorie_goal, protein_goal, water_goal_l')
-        .maybeSingle();
-      if (error) throw error;
+        .update(profilePayload)
+        .eq('user_id', bodyModalUser.id)
+        .select(profileColumns);
+      if (updateError) throw updateError;
+
+      let savedProfile = Array.isArray(updatedRows) && updatedRows.length > 0 ? updatedRows[0] : null;
+
+      if (!savedProfile) {
+        const { data: insertedProfile, error: insertError } = await client
+          .from('food_diary_profile')
+          .insert(profilePayload)
+          .select(profileColumns)
+          .maybeSingle();
+        if (insertError) throw insertError;
+        savedProfile = insertedProfile || null;
+      }
 
       const profilePatch = {
         weight: savedProfile?.weight ?? profilePayload.weight,
@@ -2820,6 +2831,16 @@ function App() {
         protein_goal: savedProfile?.protein_goal ?? profilePayload.protein_goal,
         water_goal_l: savedProfile?.water_goal_l ?? profilePayload.water_goal_l,
       };
+
+      if (bodyDraft.weight) {
+        await client
+          .from('food_weight_history')
+          .insert({
+            user_id: bodyModalUser.id,
+            weight_kg: Number(bodyDraft.weight),
+            recorded_at: new Date().toISOString(),
+          });
+      }
 
       syncUserInList(bodyModalUser.id, profilePatch);
       await loadRemoteData();
@@ -2840,35 +2861,18 @@ function App() {
       if (!Number.isFinite(parsedWeight) || parsedWeight <= 0) {
         throw new Error('Informe um peso válido.');
       }
-      const weightHistoryPayload = {
-        user_id: dailyWeightModalUser.id,
-        entry_date: dailyWeightDraft.entry_date,
-        weight_kg: Number(parsedWeight),
-        recorded_at: new Date().toISOString(),
-      };
 
-      const { error } = await client
-        .from('food_weight_history')
-        .insert(weightHistoryPayload);
-      if (error) throw error;
-
-      const { error: profileError } = await client
-        .from('food_diary_profile')
-        .upsert({
-          user_id: dailyWeightModalUser.id,
-          weight: parsedWeight,
-          updated_at: new Date().toISOString(),
-        }, { onConflict: 'user_id' });
-      if (profileError) throw profileError;
+      await registerWeight(dailyWeightModalUser.id, parsedWeight);
 
       syncUserInList(dailyWeightModalUser.id, {
         weight: parsedWeight,
         current_weight: parsedWeight,
         latest_weight_kg: parsedWeight,
-        latest_weight_date: dailyWeightDraft.entry_date,
+        latest_weight_date: new Date().toISOString(),
       });
       setDailyWeightModalUser(null);
       setDailyWeightStep(1);
+      await loadRemoteData();
       pushToast('Peso do dia registrado com sucesso.', 'success');
     } catch (err) {
       pushToast(err?.message || 'Erro ao registrar peso.', 'danger');
@@ -4658,8 +4662,6 @@ function App() {
                       <label>Data</label>
                       <input
                         type="date"
-                        value={dailyWeightDraft.entry_date}
-                        onChange={(e) => setDailyWeightDraft((prev) => ({ ...prev, entry_date: e.target.value }))}
                       />
                     </div>
                   )}
@@ -4744,8 +4746,8 @@ function App() {
                       <p className="muted">Nenhum peso registrado.</p>
                     ) : (
                       weightHistoryItems.map((item) => (
-                        <div key={`${item.entry_date}-${item.recorded_at}`} className="event-subtitle">
-                          <strong>{formatDate(item.entry_date)}</strong> — {formatMetricValue(item.weight_kg, 'kg')}
+                        <div key={item.recorded_at} className="event-subtitle">
+                          <strong>{formatDate(item.recorded_at)}</strong> — {formatMetricValue(item.weight_kg, 'kg')}
                         </div>
                       ))
                     )}
