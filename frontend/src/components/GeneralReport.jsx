@@ -318,22 +318,14 @@ const buildSummary = ({ foodEntries, workoutSessions, transactions, goals, baseD
 };
 
 const normalizeReportProfile = (row) => {
-  if (!row) {
-    return {
-      sex: null,
-      weight: null,
-      height: null,
-      objective: null,
-      goalWeight: null,
-    };
-  }
+  if (!row) return null;
 
   return {
-    sex: row.sex ?? null,
-    weight: row.weight ?? null,
-    height: row.height_cm ?? null,
-    objective: row.objective ?? null,
-    goalWeight: row.goal_weight ?? null,
+    sex: row.sexo ?? null,
+    weight: row.peso ?? null,
+    height: row.altura_cm ?? null,
+    objective: row.objetivo ?? null,
+    goalWeight: row.peso_alvo ?? null,
   };
 };
 
@@ -629,7 +621,7 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
     try {
       const { data, error } = await supabase
         .from('food_diary_profile')
-        .select('sex, weight, height_cm, objective, goal_weight')
+        .select('sexo, peso, altura_cm, objetivo, peso_alvo')
         .eq('user_id', userId)
         .maybeSingle();
 
@@ -639,7 +631,7 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
       }
 
       let sexFallback = null;
-      if (!data?.sex) {
+      if (!data?.sexo) {
         const { data: profileData, error: profileError } = await supabase
           .from('profiles')
           .select('sex')
@@ -652,9 +644,16 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
       }
 
       const normalizedProfile = normalizeReportProfile(data);
+      const baseProfile = normalizedProfile || {
+        sex: null,
+        weight: null,
+        height: null,
+        objective: null,
+        goalWeight: null,
+      };
       setProfile({
-        ...normalizedProfile,
-        sex: normalizedProfile.sex ?? sexFallback,
+        ...baseProfile,
+        sex: baseProfile.sex ?? sexFallback,
       });
     } catch (err) {
       console.error('Erro ao buscar perfil:', err);
@@ -1130,27 +1129,12 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
       <div className="general-report-card mb-4">
         <h3 style={{ marginTop: 0 }}>Seus dados atuais</h3>
         <p>
-          👤 {
-            profile?.sex === 'male'
-              ? 'Homem'
-              : profile?.sex === 'female'
-              ? 'Mulher'
-              : '--'
-          }
+          👤 {profile?.sex === 'Masculino' ? 'Homem' :
+              profile?.sex === 'Feminino' ? 'Mulher' : '--'}
         </p>
-        <p>⚖️ Peso: {getLatestWeight() != null ? `${getLatestWeight()} kg` : '--'}</p>
-        <p>📏 Altura: {profile?.height != null ? `${profile.height} cm` : '--'}</p>
-        <p>
-          🎯 Objetivo: {
-            profile?.objective === 'perder_peso'
-              ? 'Perder peso'
-              : profile?.objective === 'ganhar_massa'
-              ? 'Ganhar massa'
-              : profile?.objective === 'manter_peso'
-              ? 'Manter peso'
-              : '--'
-          }
-        </p>
+        <p>⚖️ Peso: {profile?.weight ? `${profile.weight} kg` : '--'}</p>
+        <p>📏 Altura: {profile?.height ? `${profile.height} cm` : '--'}</p>
+        <p>🎯 Objetivo: {profile?.objective ?? '--'}</p>
       </div>
 
       <div className="general-report-grid">
