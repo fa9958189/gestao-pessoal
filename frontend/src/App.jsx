@@ -2371,6 +2371,14 @@ function App() {
     }
   };
 
+  const refreshUserData = async () => {
+    try {
+      await loadRemoteData();
+    } catch (err) {
+      console.error('Erro ao atualizar dados:', err);
+    }
+  };
+
   const loadRemoteDataRef = useRef(loadRemoteData);
 
   useEffect(() => {
@@ -2862,7 +2870,10 @@ function App() {
           latest_weight_date: latestWeightDate,
         });
       }
-      await loadRemoteData();
+      await refreshUserData();
+      setTimeout(() => {
+        refreshUserData();
+      }, 300);
       syncUserInList(bodyModalUser.id, profilePatch);
 
       setBodyModalUser(null);
@@ -2910,7 +2921,10 @@ function App() {
         latest_weight_kg: parsedWeight,
         latest_weight_date: entryDate,
       });
-      await loadRemoteData();
+      await refreshUserData();
+      setTimeout(() => {
+        refreshUserData();
+      }, 300);
       setDailyWeightModalUser(null);
       setDailyWeightStep(1);
       pushToast('Peso do dia registrado com sucesso.', 'success');
