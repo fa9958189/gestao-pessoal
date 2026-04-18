@@ -454,6 +454,7 @@ export const saveFoodDiaryState = async (userId, state = {}) => {
     height_cm: body.heightCm !== "" ? body.heightCm : null,
     weight: body.weightKg !== "" ? body.weightKg : null,
     goal_weight: body.goalWeightKg !== "" ? body.goalWeightKg : null,
+    age: body.age !== "" ? body.age : null,
   };
 
   const { data: updatedProfileRows, error: updateProfileError } = await supabase
