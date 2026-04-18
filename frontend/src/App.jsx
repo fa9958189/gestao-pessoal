@@ -2890,6 +2890,26 @@ function App() {
           age: savedAge,
         },
       });
+      setSession((prev) => {
+        if (!prev?.user || prev.user.id !== bodyModalUser.id) return prev;
+        return {
+          ...prev,
+          user: {
+            ...prev.user,
+            sex: savedSex,
+            age: savedAge,
+          },
+        };
+      });
+      setProfile((prev) => (prev ? { ...prev, sex: savedSex, age: savedAge } : prev));
+      setProfileDetails((prev) => (prev ? { ...prev, sex: savedSex, age: savedAge } : prev));
+      setUsers((prev) =>
+        prev.map((u) =>
+          u.id === bodyModalUser.id
+            ? { ...u, sex: savedSex, age: savedAge }
+            : u,
+        ),
+      );
       if (parsedWeight != null && Number.isFinite(parsedWeight)) {
         syncUserInList(bodyModalUser.id, {
           weight: parsedWeight,
