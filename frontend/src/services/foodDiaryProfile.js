@@ -271,6 +271,18 @@ export async function saveWeightEntry({
     throw error;
   }
 
+  const { error: profileError } = await supabase
+    .from('food_diary_profile')
+    .upsert({
+      user_id: userId,
+      weight: normalizedWeight,
+      updated_at: recordedAt,
+    }, { onConflict: 'user_id' });
+
+  if (profileError) {
+    throw profileError;
+  }
+
   return data ?? null;
 }
 
