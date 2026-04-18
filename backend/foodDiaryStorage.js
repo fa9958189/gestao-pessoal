@@ -10,6 +10,8 @@ const DEFAULT_BODY = {
   heightCm: "",
   weightKg: "",
   goalWeightKg: "",
+  sex: null,
+  age: null,
 };
 
 const DEFAULT_WATER_GOAL_L = DEFAULT_GOALS.water;
@@ -74,6 +76,8 @@ const mapBodyFromProfile = (profile) => ({
     profile?.goal_weight != null && profile.goal_weight !== ""
       ? profile.goal_weight
       : DEFAULT_BODY.goalWeightKg,
+  sex: profile?.sex ?? DEFAULT_BODY.sex,
+  age: profile?.age ?? DEFAULT_BODY.age,
 });
 
 const loadOrCreateFoodDiaryProfile = async (supabaseClient, userId) => {
@@ -454,6 +458,7 @@ export const saveFoodDiaryState = async (userId, state = {}) => {
     height_cm: body.heightCm !== "" ? body.heightCm : null,
     weight: body.weightKg !== "" ? body.weightKg : null,
     goal_weight: body.goalWeightKg !== "" ? body.goalWeightKg : null,
+    sex: body.sex ?? null,
     age: body.age !== "" ? body.age : null,
   };
 

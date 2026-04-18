@@ -248,6 +248,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
   const [bodyWizardStep, setBodyWizardStep] = useState(1);
   const [bodyDraft, setBodyDraft] = useState({
     sex: null,
+    age: '',
     weightKg: '',
     heightCm: '',
     goalType: 'maintain',
@@ -1274,6 +1275,10 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
   const openBodyWizard = async () => {
     setBodyDraft({
       sex: sex || foodProfile?.sex || null,
+      age:
+        foodProfile?.age != null
+          ? String(foodProfile.age)
+          : '',
       weightKg: body.weightKg || (foodProfile?.weight != null ? String(foodProfile.weight) : ''),
       heightCm: body.heightCm || (foodProfile?.height_cm != null ? String(foodProfile.height_cm) : ''),
       goalType: goalType || 'maintain',
@@ -1290,7 +1295,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
     try {
       const { data, error: profileError } = await supabase
         .from('food_diary_profile')
-        .select('sex, weight, height_cm, objective, goal_weight')
+        .select('sex, age, weight, height_cm, objective, goal_weight')
         .eq('user_id', userId)
         .maybeSingle();
 
@@ -1300,7 +1305,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
 
       const resolvedHeight = data?.height_cm ?? data?.height ?? null;
 
-      if (data?.sex || resolvedHeight != null) {
+      if (data?.sex || data?.age != null || resolvedHeight != null) {
         if (data?.sex) {
           setSex(data.sex);
         }
@@ -1308,6 +1313,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
         setBodyDraft((prev) => ({
           ...prev,
           ...(data?.sex ? { sex: data.sex } : {}),
+          ...(data?.age != null ? { age: String(data.age) } : {}),
           ...(resolvedHeight != null ? { heightCm: String(resolvedHeight) } : {}),
         }));
       }
@@ -1318,6 +1324,9 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
 
   const handleBodyDraftChange = (field, value) => {
     if ((field === 'weightKg' || field === 'heightCm' || field === 'goalWeightKg') && !isValidDecimalInput(value)) {
+      return;
+    }
+    if (field === 'age' && value !== '' && !/^\d+$/.test(value)) {
       return;
     }
     setBodyDraft((prev) => ({ ...prev, [field]: value }));
@@ -1346,11 +1355,22 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
       const normalizedGoalWeight = parseNumberInput(bodyDraft.goalWeightKg);
       const normalizedObjective = goalTypeToObjective[bodyDraft.goalType] || 'manter_peso';
       const normalizedSex = bodyDraft.sex === 'male' || bodyDraft.sex === 'female' ? bodyDraft.sex : null;
+      const normalizedAge =
+        bodyDraft.age != null && String(bodyDraft.age).trim() !== ''
+          ? Number.parseInt(String(bodyDraft.age).trim(), 10)
+          : null;
 
       if (!normalizedSex) {
         setError('Selecione o sexo para continuar.');
         if (typeof notify === 'function') {
           notify('Selecione o sexo para continuar.', 'error');
+        }
+        return;
+      }
+      if (normalizedAge != null && !Number.isInteger(normalizedAge)) {
+        setError('Informe uma idade válida.');
+        if (typeof notify === 'function') {
+          notify('Informe uma idade válida.', 'error');
         }
         return;
       }
@@ -1363,6 +1383,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
         goal_type: bodyDraft.goalType || 'maintain',
         objective: normalizedObjective,
         sex: normalizedSex,
+        age: normalizedAge,
       };
       const data = {
         user_id: userId,
@@ -1372,6 +1393,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
         goal_type: bodyDraft.goalType || 'maintain',
         objective: normalizedObjective,
         sex: normalizedSex,
+        age: normalizedAge,
       };
 
       console.log('ENVIANDO:', data);
@@ -1382,10 +1404,12 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
       });
       console.log('Payload corpo:', data);
 
+      const headers = await getAuthHeaders(supabase);
       const response = await fetch(buildApiUrl(apiBaseUrl, '/body'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...headers,
         },
         body: JSON.stringify(bodyPayload),
       });
@@ -1438,6 +1462,15 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
         heightCm: normalizedHeight != null ? String(normalizedHeight) : '',
         goalWeightKg: normalizedGoalWeight != null ? String(normalizedGoalWeight) : '',
       });
+      setFoodProfile((prev) => ({
+        ...(prev || {}),
+        sex: normalizedSex,
+        age: normalizedAge,
+        weight: Number(normalizedWeight),
+        height_cm: normalizedHeight != null ? Number(normalizedHeight) : null,
+        goal_weight: normalizedGoalWeight != null ? Number(normalizedGoalWeight) : null,
+        objective: normalizedObjective,
+      }));
       setIsBodyWizardOpen(false);
 
       if (typeof notify === 'function') {
@@ -2421,6 +2454,16 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
                   >
                     Mulher
                   </button>
+                </div>
+                <div className="field" style={{ marginTop: 12 }}>
+                  <label>Idade</label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={bodyDraft.age}
+                    onChange={(e) => handleBodyDraftChange('age', e.target.value)}
+                    placeholder="Ex.: 30"
+                  />
                 </div>
               </div>
             )}
