@@ -2811,6 +2811,7 @@ function App() {
         weight: Number.isFinite(parsedWeight) ? parsedWeight : null,
         goal_weight: Number.isFinite(parsedGoalWeight) ? parsedGoalWeight : null,
         height_cm: Number.isFinite(parsedHeight) ? parsedHeight : null,
+        sex: bodyDraft.sex || null,
         age: Number.isFinite(parsedAge) ? parsedAge : null,
         objective: resolvedObjective,
         calorie_goal: resolvedCalorieGoal,
@@ -2820,7 +2821,7 @@ function App() {
       };
 
       const profileColumns =
-        'weight, goal_weight, height_cm, age, objective, calorie_goal, protein_goal, water_goal_l';
+        'weight, goal_weight, height_cm, age, objective, sex, calorie_goal, protein_goal, water_goal_l';
       const { data: updatedRows, error: updateError } = await client
         .from('food_diary_profile')
         .update(profilePayload)
@@ -2844,6 +2845,7 @@ function App() {
         weight: savedProfile?.weight ?? profilePayload.weight,
         goal_weight: savedProfile?.goal_weight ?? profilePayload.goal_weight,
         height_cm: savedProfile?.height_cm ?? profilePayload.height_cm,
+        sex: savedProfile?.sex ?? profilePayload.sex,
         age: savedProfile?.age ?? profilePayload.age,
         objective: savedProfile?.objective ?? profilePayload.objective,
         calorie_goal: savedProfile?.calorie_goal ?? profilePayload.calorie_goal,

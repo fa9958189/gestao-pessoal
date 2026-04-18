@@ -1134,7 +1134,7 @@ app.get("/users", async (req, res) => {
       const { data: diaryProfiles, error: diaryProfilesError } = await supabase
         .from("food_diary_profile")
         .select(
-          "user_id, weight, goal_weight, height_cm, objective, calorie_goal, protein_goal, water_goal_l"
+          "user_id, weight, goal_weight, height_cm, objective, calorie_goal, protein_goal, water_goal_l, age, sex"
         )
         .in("user_id", userIds);
 
@@ -1191,6 +1191,8 @@ app.get("/users", async (req, res) => {
           goal_weight: diary?.goal_weight ?? user?.goal_weight ?? user?.weight_goal ?? null,
           height_cm: diary?.height_cm ?? user?.height_cm ?? user?.height ?? null,
           objective: diary?.objective ?? user?.objective ?? null,
+          age: diary?.age ?? user?.age ?? null,
+          sex: diary?.sex ?? user?.sex ?? null,
           calorie_goal: diary?.calorie_goal ?? user?.calorie_goal ?? null,
           protein_goal: diary?.protein_goal ?? user?.protein_goal ?? null,
           water_goal_l: diary?.water_goal_l ?? user?.water_goal_l ?? null,
@@ -3965,7 +3967,13 @@ const handleBodyUpdate = async (req, res) => {
       protein_goal,
       water_goal_l,
     } = req.body || {};
-    const userId = user_id || userIdFromBody || authData.userId;
+    const requestedUserId = user_id || userIdFromBody || null;
+    const requesterRole = String(authData?.profile?.role || "").toLowerCase();
+    const userId = requestedUserId || authData.userId;
+    const isAdminRequest = requesterRole === "admin";
+    if (!isAdminRequest && userId !== authData.userId) {
+      return res.status(403).json({ error: "Sem permissão para atualizar outro usuário." });
+    }
     const resolvedWeight = weight;
     const resolvedGoalWeight = goal_weight;
 
