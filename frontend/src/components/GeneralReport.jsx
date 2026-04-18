@@ -137,11 +137,6 @@ const buildWeekRange = (baseDate) => {
   return dates;
 };
 
-const sexLabelMap = {
-  male: 'Masculino',
-  female: 'Feminino',
-};
-
 const objectiveLabelMap = {
   perder_peso: 'Perder peso',
   manter_peso: 'Manter peso',
@@ -1063,7 +1058,15 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
 
       <div className="general-report-card mb-4">
         <h3 style={{ marginTop: 0 }}>Seus dados atuais</h3>
-        <p>👤 Sexo: {sexLabelMap[profile?.sex] ?? '--'}</p>
+        <p>
+          👤 Sexo: {
+            profile?.sex === 'male'
+              ? 'Masculino'
+              : profile?.sex === 'female'
+              ? 'Feminino'
+              : '--'
+          }
+        </p>
         <p>🗓️ Idade: {profile?.age ?? '--'}</p>
         <p>⚖️ Peso: {profile?.weightKg ?? '--'} kg</p>
         <p>📏 Altura: {profile?.heightCm ?? '--'} cm</p>
