@@ -4165,6 +4165,8 @@ app.put("/api/food-diary/state", async (req, res) => {
       weightKg = "",
       goalWeightKg = "",
       age = "",
+      sex = null,
+      objective = null,
     } = body || {};
 
     const saved = await saveFoodDiaryState(userId, {
@@ -4175,6 +4177,8 @@ app.put("/api/food-diary/state", async (req, res) => {
         weightKg,
         goalWeightKg,
         age,
+        sex,
+        objective,
       },
       weightHistory,
     });
