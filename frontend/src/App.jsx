@@ -2797,6 +2797,7 @@ function App() {
       const parsedWeight = bodyDraft.weight ? Number(bodyDraft.weight) : null;
       const parsedGoalWeight = bodyDraft.goal_weight ? Number(bodyDraft.goal_weight) : null;
       const parsedHeight = bodyDraft.height_cm ? Number(bodyDraft.height_cm) : null;
+      const parsedAge = bodyDraft.age ? Number(bodyDraft.age) : null;
       const resolvedObjective = bodyDraft.objective || 'manter_peso';
       const resolvedCalorieGoal =
         bodyModalUser?.calorie_goal != null ? Number(bodyModalUser.calorie_goal) : null;
@@ -2810,6 +2811,7 @@ function App() {
         weight: Number.isFinite(parsedWeight) ? parsedWeight : null,
         goal_weight: Number.isFinite(parsedGoalWeight) ? parsedGoalWeight : null,
         height_cm: Number.isFinite(parsedHeight) ? parsedHeight : null,
+        age: Number.isFinite(parsedAge) ? parsedAge : null,
         objective: resolvedObjective,
         calorie_goal: resolvedCalorieGoal,
         protein_goal: resolvedProteinGoal,
@@ -2817,7 +2819,8 @@ function App() {
         updated_at: new Date().toISOString(),
       };
 
-      const profileColumns = 'weight, goal_weight, height_cm, objective, calorie_goal, protein_goal, water_goal_l';
+      const profileColumns =
+        'weight, goal_weight, height_cm, age, objective, calorie_goal, protein_goal, water_goal_l';
       const { data: updatedRows, error: updateError } = await client
         .from('food_diary_profile')
         .update(profilePayload)
@@ -2841,6 +2844,7 @@ function App() {
         weight: savedProfile?.weight ?? profilePayload.weight,
         goal_weight: savedProfile?.goal_weight ?? profilePayload.goal_weight,
         height_cm: savedProfile?.height_cm ?? profilePayload.height_cm,
+        age: savedProfile?.age ?? profilePayload.age,
         objective: savedProfile?.objective ?? profilePayload.objective,
         calorie_goal: savedProfile?.calorie_goal ?? profilePayload.calorie_goal,
         protein_goal: savedProfile?.protein_goal ?? profilePayload.protein_goal,
