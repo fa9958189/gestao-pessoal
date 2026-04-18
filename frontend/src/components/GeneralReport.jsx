@@ -602,7 +602,6 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
     topExpenses: [],
   });
   const [profile, setProfile] = useState(null);
-  const [weightHistory, setWeightHistory] = useState([]);
 
   const baseDate = useMemo(() => new Date(), []);
 
@@ -631,24 +630,6 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
       loadProfileData();
     }
   }, [userId, supabase, refreshToken]);
-
-  useEffect(() => {
-    const loadWeightHistory = async () => {
-      if (!userId || !supabase) return;
-
-      const { data, error } = await supabase
-        .from('food_weight_history')
-        .select('entry_date, weight_kg, recorded_at')
-        .eq('user_id', userId)
-        .order('recorded_at', { ascending: false });
-
-      if (!error) {
-        setWeightHistory(data || []);
-      }
-    };
-
-    loadWeightHistory();
-  }, [userId, refreshToken, supabase]);
 
   useEffect(() => {
     let isMounted = true;
@@ -944,18 +925,6 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
   const currentLevel = getLifeLevel(lifeScore);
   const nivel = calcularNivel(lifeScore);
   const [levelUpEffect, setLevelUpEffect] = useState(false);
-  const getLatestWeight = () => {
-    if (!weightHistory || weightHistory.length === 0) {
-      return profile?.weightKg ?? null;
-    }
-
-    const sorted = [...weightHistory].sort(
-      (a, b) => new Date(b.recorded_at) - new Date(a.recorded_at),
-    );
-
-    return sorted[0]?.weight_kg ?? profile?.weightKg ?? null;
-  };
-
   useEffect(() => {
     setLevelUpEffect(true);
 
@@ -1095,6 +1064,7 @@ function GeneralReport({ userId, supabase, goals, refreshToken }) {
       <div className="general-report-card mb-4">
         <h3 style={{ marginTop: 0 }}>Seus dados atuais</h3>
         <p>👤 Sexo: {sexLabelMap[profile?.sex] ?? '--'}</p>
+        <p>🗓️ Idade: {profile?.age ?? '--'}</p>
         <p>⚖️ Peso: {profile?.weightKg ?? '--'} kg</p>
         <p>📏 Altura: {profile?.heightCm ?? '--'} cm</p>
         <p>🎯 Objetivo: {objectiveLabelMap[profile?.objective] ?? '--'}</p>

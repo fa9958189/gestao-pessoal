@@ -4020,6 +4020,8 @@ const handleBodyUpdate = async (req, res) => {
       goal_weight: normalizedGoalWeight,
       height_cm: normalizedHeight,
       objective: normalizedObjective,
+      sex: normalizedSex,
+      age: normalizedAge,
       calorie_goal: calorieGoal != null ? Math.round(calorieGoal) : null,
       protein_goal: proteinGoal != null ? Math.round(proteinGoal) : null,
       water_goal_l: waterGoalL != null ? Number(Number(waterGoalL).toFixed(2)) : null,
@@ -4035,23 +4037,6 @@ const handleBodyUpdate = async (req, res) => {
       return res.status(500).json({ error: profileError.message });
     }
 
-    if (Number.isFinite(normalizedWeight)) {
-      const now = new Date();
-      const { error: historyError } = await supabase
-        .from("food_weight_history")
-        .insert({
-          user_id: userId,
-          weight_kg: normalizedWeight,
-          entry_date: now.toISOString().slice(0, 10),
-          recorded_at: now.toISOString(),
-        });
-
-      if (historyError) {
-        console.error("Erro ao salvar histórico de peso:", historyError);
-        return res.status(500).json({ error: historyError.message });
-      }
-    }
-
     return res.json({
       success: true,
       user: {
@@ -4062,6 +4047,8 @@ const handleBodyUpdate = async (req, res) => {
         latest_weight_kg: normalizedWeight,
         goal_weight: normalizedGoalWeight,
         objective: normalizedObjective,
+        sex: normalizedSex,
+        age: normalizedAge,
         calorie_goal: bodyProfilePayload.calorie_goal,
         protein_goal: bodyProfilePayload.protein_goal,
         water_goal_l: bodyProfilePayload.water_goal_l,

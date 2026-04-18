@@ -77,17 +77,28 @@ export async function registerWeight(userId, weight) {
   const now = new Date();
   const entryDate = now.toISOString().slice(0, 10);
   const recordedAt = now.toISOString();
+  const normalizedWeight = Number(weight);
 
   const { error } = await supabase
     .from('food_weight_history')
     .insert({
       user_id: userId,
-      weight_kg: Number(weight),
+      weight_kg: normalizedWeight,
       entry_date: entryDate,
       recorded_at: recordedAt,
     });
 
   if (error) throw error;
+
+  const { error: profileError } = await supabase
+    .from('food_diary_profile')
+    .upsert({
+      user_id: userId,
+      weight: normalizedWeight,
+      updated_at: recordedAt,
+    }, { onConflict: 'user_id' });
+
+  if (profileError) throw profileError;
 }
 
 // Compatibilidade retroativa
@@ -100,12 +111,13 @@ export async function saveWeightEntry({
   const now = new Date();
   const entryDate = now.toISOString().slice(0, 10);
   const recordedAt = now.toISOString();
+  const normalizedWeight = Number(weightKg ?? weight);
 
   const { error } = await supabaseClient
     .from('food_weight_history')
     .insert({
       user_id: userId,
-      weight_kg: Number(weightKg ?? weight),
+      weight_kg: normalizedWeight,
       entry_date: entryDate,
       recorded_at: recordedAt,
     });
@@ -113,6 +125,19 @@ export async function saveWeightEntry({
   if (error) {
     console.error('Erro ao salvar histórico de peso no Supabase', error);
     throw error;
+  }
+
+  const { error: profileError } = await supabaseClient
+    .from('food_diary_profile')
+    .upsert({
+      user_id: userId,
+      weight: normalizedWeight,
+      updated_at: recordedAt,
+    }, { onConflict: 'user_id' });
+
+  if (profileError) {
+    console.error('Erro ao sincronizar peso no perfil do diário alimentar', profileError);
+    throw profileError;
   }
 }
 
