@@ -96,6 +96,38 @@ const normalizeProfileRow = (row) => {
   };
 };
 
+const loadOrCreateFoodDiaryProfile = async ({ supabase, userId }) => {
+  const { data, error } = await supabase
+    .from('food_diary_profile')
+    .select('*')
+    .eq('user_id', userId)
+    .single();
+
+  if (!error) {
+    return data;
+  }
+
+  if (error?.code !== 'PGRST116') {
+    throw error;
+  }
+
+  const fallbackPayload = {
+    user_id: userId,
+  };
+
+  const { data: createdData, error: createError } = await supabase
+    .from('food_diary_profile')
+    .insert(fallbackPayload)
+    .select('*')
+    .single();
+
+  if (createError) {
+    throw createError;
+  }
+
+  return createdData;
+};
+
 export async function saveGoals({
   supabase,
   userId,
@@ -298,39 +330,15 @@ export async function saveWeightEntry({
 export async function loadGoals({ supabase, userId }) {
   ensureSupabase(supabase, 'carregar metas');
   ensureUserId(userId, 'carregar metas');
-
-  const { data, error } = await supabase
-    .from('food_diary_profile')
-    .select('*')
-    .eq('user_id', userId)
-    .maybeSingle();
-
-  if (error) {
-    throw error;
-  }
-
-  if (data) {
-    return data;
-  }
-
-  return null;
+  return loadOrCreateFoodDiaryProfile({ supabase, userId });
 }
 
 export async function loadProfile({ supabase, userId }) {
   ensureSupabase(supabase, 'carregar perfil');
   ensureUserId(userId, 'carregar perfil');
 
-  const diaryRowResult = await supabase
-    .from('food_diary_profile')
-    .select('*')
-    .eq('user_id', userId)
-    .maybeSingle();
-
-  if (diaryRowResult.error) {
-    throw diaryRowResult.error;
-  }
-
-  const diaryNormalized = normalizeProfileRow(diaryRowResult.data ?? null);
+  const diaryData = await loadOrCreateFoodDiaryProfile({ supabase, userId });
+  const diaryNormalized = normalizeProfileRow(diaryData ?? null);
 
   let profileGoalType = null;
   let profileObjective = null;
@@ -346,9 +354,6 @@ export async function loadProfile({ supabase, userId }) {
       profileRow?.goal_type ??
       (profileObjective ? OBJECTIVE_TO_GOAL_TYPE[profileObjective] : null);
     profileGoalMode = profileRow?.goal_mode ?? null;
-    if (profileRow?.height_cm != null && diaryNormalized.heightCm == null) {
-      diaryNormalized.heightCm = Number(profileRow.height_cm);
-    }
   } catch (error) {
     console.warn('Não foi possível carregar goal_type da tabela profiles.', error);
   }

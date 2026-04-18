@@ -76,6 +76,41 @@ const mapBodyFromProfile = (profile) => ({
       : DEFAULT_BODY.goalWeightKg,
 });
 
+const loadOrCreateFoodDiaryProfile = async (supabaseClient, userId) => {
+  const { data, error } = await supabaseClient
+    .from("food_diary_profile")
+    .select("*")
+    .eq("user_id", userId)
+    .single();
+
+  if (!error) {
+    return data;
+  }
+
+  if (error.code !== "PGRST116") {
+    throw error;
+  }
+
+  const fallbackPayload = {
+    user_id: userId,
+    calorie_goal: DEFAULT_GOALS.calories,
+    protein_goal: DEFAULT_GOALS.protein,
+    water_goal_l: DEFAULT_GOALS.water,
+  };
+
+  const { data: createdData, error: createError } = await supabaseClient
+    .from("food_diary_profile")
+    .insert(fallbackPayload)
+    .select("*")
+    .single();
+
+  if (createError) {
+    throw createError;
+  }
+
+  return createdData;
+};
+
 const toNumberOrNull = (value) => {
   if (value == null || value === "") return null;
   const parsed = Number(value);
@@ -344,15 +379,7 @@ export const getFoodDiaryState = async (userId, { dayDate } = {}) => {
     entriesByDate[date].push(normalizeEntryFromDb(row));
   });
 
-  const { data: profile, error: profileError } = await supabase
-    .from("food_diary_profile")
-    .select(
-      "calorie_goal, protein_goal, water_goal_l, height_cm, weight, goal_weight, objective"
-    )
-    .eq("user_id", userId)
-    .maybeSingle();
-
-  if (profileError) throw profileError;
+  const profile = await loadOrCreateFoodDiaryProfile(supabase, userId);
 
   const goals = mapGoalsFromProfile(profile);
 
@@ -401,6 +428,7 @@ export const getFoodDiaryState = async (userId, { dayDate } = {}) => {
     entriesByDate,
     goals,
     body,
+    foodProfile: profile || null,
     weightHistory,
     hydrationTotalMl: hydrationTotals.totalMl,
     hydrationGoalMl: Number(waterGoalL || DEFAULT_GOALS.water) * 1000,
