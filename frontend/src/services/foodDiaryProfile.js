@@ -17,6 +17,12 @@ const ensureSupabase = (supabase, context) => {
   }
 };
 
+const ensureUserId = (userId, context) => {
+  if (!userId) {
+    throw new Error(`userId é obrigatório para ${context}.`);
+  }
+};
+
 const normalizeSexForStorage = (value) => {
   if (value == null || value === '') return null;
   const normalized = String(value).trim().toLowerCase();
@@ -99,6 +105,7 @@ export async function saveGoals({
   goalType,
 }) {
   ensureSupabase(supabase, 'salvar metas');
+  ensureUserId(userId, 'salvar metas');
 
   const payload = {
     user_id: userId,
@@ -152,6 +159,7 @@ export async function saveProfile({
   goal_type,
 }) {
   ensureSupabase(supabase, 'salvar perfil');
+  ensureUserId(userId, 'salvar perfil');
 
   const resolvedWeightKg = weight_kg !== undefined ? weight_kg : weightKg;
   const resolvedGoalWeight = weight_goal !== undefined ? weight_goal : goalWeightKg;
@@ -241,6 +249,7 @@ export async function saveWeightEntry({
   weight_kg,
 }) {
   ensureSupabase(supabase, 'salvar peso');
+  ensureUserId(userId, 'salvar peso');
 
   const resolvedWeightKg = weight_kg !== undefined ? weight_kg : weightKg;
   const normalizedWeight =
@@ -288,6 +297,7 @@ export async function saveWeightEntry({
 
 export async function loadGoals({ supabase, userId }) {
   ensureSupabase(supabase, 'carregar metas');
+  ensureUserId(userId, 'carregar metas');
 
   const { data, error } = await supabase
     .from('food_diary_profile')
@@ -308,6 +318,7 @@ export async function loadGoals({ supabase, userId }) {
 
 export async function loadProfile({ supabase, userId }) {
   ensureSupabase(supabase, 'carregar perfil');
+  ensureUserId(userId, 'carregar perfil');
 
   const diaryRowResult = await supabase
     .from('food_diary_profile')
@@ -352,6 +363,7 @@ export async function loadProfile({ supabase, userId }) {
 
 export async function loadTodayWeight({ supabase, userId, entryDate = todayString() }) {
   ensureSupabase(supabase, 'carregar peso do dia');
+  ensureUserId(userId, 'carregar peso do dia');
 
   const { data, error } = await supabase
     .from('food_weight_history')

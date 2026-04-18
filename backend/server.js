@@ -3643,7 +3643,10 @@ CREATE TABLE IF NOT EXISTS public.workout_schedule (
 
 app.get("/api/food-diary/state", async (req, res) => {
   try {
-    const userId = getUserIdFromRequest(req);
+    const authData = await authenticateRequest(req, res, { requireAdmin: false });
+    if (!authData) return;
+
+    const userId = authData.userId;
 
     if (!userId) {
       return res
@@ -4131,7 +4134,10 @@ app.put("/goals/auto", async (req, res) => {
 
 app.put("/api/food-diary/state", async (req, res) => {
   try {
-    const userId = getUserIdFromRequest(req) || req.body?.userId;
+    const authData = await authenticateRequest(req, res, { requireAdmin: false });
+    if (!authData) return;
+
+    const userId = authData.userId;
 
     if (!userId) {
       return res
