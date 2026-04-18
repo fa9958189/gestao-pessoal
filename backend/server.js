@@ -4152,10 +4152,22 @@ app.put("/api/food-diary/state", async (req, res) => {
       weightHistory = [],
     } = req.body || {};
 
+    const {
+      heightCm = "",
+      weightKg = "",
+      goalWeightKg = "",
+      age = "",
+    } = body || {};
+
     const saved = await saveFoodDiaryState(userId, {
       entriesByDate,
       goals,
-      body,
+      body: {
+        heightCm,
+        weightKg,
+        goalWeightKg,
+        age,
+      },
       weightHistory,
     });
 
