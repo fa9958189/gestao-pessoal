@@ -12,7 +12,6 @@ import { updateHydrationGoal } from '../hydrationApi';
 import { scanFood } from '../services/foodScannerApi';
 import {
   loadGoals,
-  loadProfile,
   loadTodayWeight,
 } from '../services/foodDiaryProfile';
 import {
@@ -211,6 +210,7 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
   const [goalMode, setGoalMode] = useState('auto');
   const [goalType, setGoalType] = useState('maintain');
   const [objective, setObjective] = useState('manter_peso');
+  const [foodProfile, setFoodProfile] = useState(null);
   const [sex, setSex] = useState(null);
   const [body, setBody] = useState(defaultBody);
   const [weightHistory, setWeightHistory] = useState(defaultWeightHistory);
@@ -365,9 +365,22 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
         setProfileLoading(true);
         setError(null);
 
-        const [profile, normalizedProfile, todayWeight, history] = await Promise.all([
-          loadGoals({ supabase, userId }),
-          loadProfile({ supabase, userId }),
+        const authHeaders = await getAuthHeaders(supabase);
+        const response = await fetch(buildApiUrl(apiBaseUrl, '/api/food-diary/state'), {
+          headers: {
+            'Content-Type': 'application/json',
+            ...authHeaders,
+          },
+        });
+
+        const statePayload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(statePayload?.error || 'Não foi possível carregar o diário alimentar.');
+        }
+
+        const stateFoodProfile = statePayload?.foodProfile || null;
+
+        const [todayWeight, history] = await Promise.all([
           loadTodayWeight({ supabase, userId }),
           fetchWeightHistoryFromDb(userId),
         ]);
@@ -376,27 +389,28 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
 
         const nextGoals = {
           calories:
-            profile?.calorie_goal != null
-              ? Number(profile.calorie_goal)
+            stateFoodProfile?.calorie_goal != null
+              ? Number(stateFoodProfile.calorie_goal)
               : defaultGoals.calories,
           protein:
-            profile?.protein_goal != null
-              ? Number(profile.protein_goal)
+            stateFoodProfile?.protein_goal != null
+              ? Number(stateFoodProfile.protein_goal)
               : defaultGoals.protein,
           water:
-            profile?.water_goal_l != null
-              ? Number(profile.water_goal_l)
+            stateFoodProfile?.water_goal_l != null
+              ? Number(stateFoodProfile.water_goal_l)
               : defaultGoals.water,
         };
 
         const profileObjective =
-          normalizedProfile?.objective || goalTypeToObjective[normalizedProfile?.goalType] || 'manter_peso';
+          stateFoodProfile?.objective || 'manter_peso';
 
+        setFoodProfile(stateFoodProfile);
         setGoals(nextGoals);
-        setGoalMode(profile?.goal_mode === 'manual' ? 'manual' : 'auto');
+        setGoalMode(stateFoodProfile?.goal_mode === 'manual' ? 'manual' : 'auto');
         setObjective(profileObjective);
-        setGoalType(objectiveToGoalType[profileObjective] || normalizedProfile?.goalType || 'maintain');
-        setSex(normalizedProfile?.sex || null);
+        setGoalType(objectiveToGoalType[profileObjective] || 'maintain');
+        setSex(stateFoodProfile?.sex || null);
         setWaterSummary((prev) => ({
           ...prev,
           goalMl: nextGoals.water * 1000,
@@ -407,20 +421,20 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
             ? String(todayWeight.weight_kg)
             : '';
         const profileWeightValue =
-          normalizedProfile?.weightKg != null && normalizedProfile.weightKg !== ''
-            ? String(normalizedProfile.weightKg)
+          stateFoodProfile?.weight != null && stateFoodProfile.weight !== ''
+            ? String(stateFoodProfile.weight)
             : '';
         const nextBody = {
           heightCm:
-            normalizedProfile?.heightCm != null && normalizedProfile.heightCm !== ''
-              ? String(normalizedProfile.heightCm)
+            stateFoodProfile?.height_cm != null && stateFoodProfile.height_cm !== ''
+              ? String(stateFoodProfile.height_cm)
               : '',
           weightKg:
             todayWeightValue || profileWeightValue,
           goalWeightKg:
-            normalizedProfile?.goalWeightKg != null &&
-            normalizedProfile.goalWeightKg !== ''
-              ? String(normalizedProfile.goalWeightKg)
+            stateFoodProfile?.goal_weight != null &&
+            stateFoodProfile.goal_weight !== ''
+              ? String(stateFoodProfile.goal_weight)
               : '',
         };
 
@@ -1259,11 +1273,12 @@ function FoodDiary({ userId, supabase, notify, refreshToken, apiBaseUrl }) {
 
   const openBodyWizard = async () => {
     setBodyDraft({
-      sex: sex || null,
-      weightKg: body.weightKg || '',
-      heightCm: body.heightCm || '',
+      sex: sex || foodProfile?.sex || null,
+      weightKg: body.weightKg || (foodProfile?.weight != null ? String(foodProfile.weight) : ''),
+      heightCm: body.heightCm || (foodProfile?.height_cm != null ? String(foodProfile.height_cm) : ''),
       goalType: goalType || 'maintain',
-      goalWeightKg: body.goalWeightKg || '',
+      goalWeightKg:
+        body.goalWeightKg || (foodProfile?.goal_weight != null ? String(foodProfile.goal_weight) : ''),
     });
     setBodyWizardStep(1);
     setIsBodyWizardOpen(true);
