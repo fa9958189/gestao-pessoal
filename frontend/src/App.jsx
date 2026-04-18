@@ -809,8 +809,16 @@ const UsersTable = ({
                         <p>Peso atual: <strong>{formatMetricValue(currentWeight, 'kg')}</strong></p>
                         <p>Meta de peso: <strong>{formatMetricValue(targetWeight, 'kg')}</strong></p>
                         <p>Altura: <strong>{formatMetricValue(user?.height_cm ?? user?.height, 'cm', 0)}</strong></p>
-                        <p>Sexo: <strong>{formatSexLabel(user?.sex)}</strong></p>
-                        <p>Idade: <strong>{user?.age || '-'}</strong></p>
+                        <p>
+                          Sexo:{' '}
+                          <strong>
+                            {formatSexLabel(user?.bodyData?.sex || user?.foodProfile?.sex || user?.sex || '-')}
+                          </strong>
+                        </p>
+                        <p>
+                          Idade:{' '}
+                          <strong>{user?.bodyData?.age ?? user?.foodProfile?.age ?? user?.age ?? '-'}</strong>
+                        </p>
                         <p>
                           Variação de peso:{' '}
                           <strong>
@@ -2852,6 +2860,8 @@ function App() {
         protein_goal: savedProfile?.protein_goal ?? profilePayload.protein_goal,
         water_goal_l: savedProfile?.water_goal_l ?? profilePayload.water_goal_l,
       };
+      const savedSex = savedProfile?.sex ?? profilePayload.sex;
+      const savedAge = savedProfile?.age ?? profilePayload.age;
 
       if (parsedWeight != null && Number.isFinite(parsedWeight)) {
         const now = new Date();
@@ -2868,6 +2878,18 @@ function App() {
 
       const latestWeightDate = new Date().toISOString().slice(0, 10);
       syncUserInList(bodyModalUser.id, profilePatch);
+      syncUserInList(bodyModalUser.id, {
+        bodyData: {
+          ...(bodyModalUser?.bodyData || {}),
+          sex: savedSex,
+          age: savedAge,
+        },
+        foodProfile: {
+          ...(bodyModalUser?.foodProfile || {}),
+          sex: savedSex,
+          age: savedAge,
+        },
+      });
       if (parsedWeight != null && Number.isFinite(parsedWeight)) {
         syncUserInList(bodyModalUser.id, {
           weight: parsedWeight,
