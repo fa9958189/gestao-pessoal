@@ -1,5 +1,11 @@
 import { supabase } from './supabaseClient';
 
+function ensureUserId(userId, context) {
+  if (!userId) {
+    throw new Error(`userId é obrigatório para ${context}.`);
+  }
+}
+
 // Salva/atualiza o perfil de metas + altura/peso atual
 export async function saveWeightProfile({
   userId,
@@ -9,6 +15,7 @@ export async function saveWeightProfile({
   heightCm,
   weightKg,
 }) {
+  ensureUserId(userId, 'salvar perfil de peso');
   const now = new Date().toISOString();
   const payload = {
     user_id: userId,
@@ -51,6 +58,7 @@ export async function saveWeightProfile({
 
 // Busca o perfil mais recente de metas + altura/peso
 export async function fetchWeightProfile(userId) {
+  ensureUserId(userId, 'buscar perfil de peso');
   const { data, error } = await supabase
     .from('food_diary_profile')
     .select('*')
@@ -74,6 +82,7 @@ export async function fetchWeightProfile(userId) {
 }
 
 export async function registerWeight(userId, weight) {
+  ensureUserId(userId, 'registrar peso');
   const now = new Date();
   const entryDate = now.toISOString().slice(0, 10);
   const recordedAt = now.toISOString();
@@ -108,6 +117,7 @@ export async function saveWeightEntry({
   weight,
   supabaseClient = supabase,
 }) {
+  ensureUserId(userId, 'salvar histórico de peso');
   const now = new Date();
   const entryDate = now.toISOString().slice(0, 10);
   const recordedAt = now.toISOString();
@@ -143,6 +153,7 @@ export async function saveWeightEntry({
 
 // Busca o histórico de peso do usuário (para mostrar na tela)
 export async function fetchWeightHistory(userId) {
+  ensureUserId(userId, 'buscar histórico de peso');
   const { data, error } = await supabase
     .from('food_weight_history')
     .select('*')
