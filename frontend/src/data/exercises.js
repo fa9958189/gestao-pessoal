@@ -66,5 +66,11 @@ export const exercises = {
     "Mergulho na máquina",
     "Polia alta com corda",
     "Tríceps coice"
+  ],
+
+  "ante braco": [
+    "Rosca martelo",
+    "RoscadePunho",
+    "RoscadePunhoInvertida"
   ]
 };

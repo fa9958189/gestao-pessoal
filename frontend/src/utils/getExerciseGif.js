@@ -1,21 +1,31 @@
-import { exerciseImageMap } from '../data/exerciseImageMap';
+const MUSCLE_FOLDER_ALIASES = {
+  ombros: 'ombro',
+  pernas: 'Quadríceps',
+  posterior_coxa: 'posterior de coxa',
+  posterior_de_coxa: 'posterior de coxa',
+  gluteos: 'gluteo',
+};
 
-export function getExerciseGif(muscle, exerciseName) {
-  if (!muscle || !exerciseName) return null;
+const EXERCISE_FILE_ALIASES = {
+  'Abdominal reto': 'Abdominal reto (tradicional)',
+  'Extensão tríceps deitado': 'Extensao triceps deitado',
+  'Panturrilha': 'panturrilha 1',
+  'Máquina adutora externa': 'Máquina Adutora Externa',
+  'Elevação pélvica com peso': 'Elevação pélvica com peso',
+};
 
-  const normalize = (text) =>
-    text
-      .toLowerCase()
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .trim();
+export function getExerciseGif(muscle, exercise) {
+  if (!muscle || !exercise) return null;
 
-  const normalizedMuscle = normalize(muscle);
-  const normalizedName = exerciseName.trim();
+  const folder = MUSCLE_FOLDER_ALIASES[muscle] || muscle;
+  const fileName = EXERCISE_FILE_ALIASES[exercise] || exercise;
 
-  const muscleData = exerciseImageMap[normalizedMuscle];
-
-  if (!muscleData) return null;
-
-  return muscleData[normalizedName] || null;
+  try {
+    return new URL(
+      `../assets/exercise/${folder}/${fileName}.gif`,
+      import.meta.url
+    ).href;
+  } catch {
+    return null;
+  }
 }
