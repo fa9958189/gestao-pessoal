@@ -7,11 +7,10 @@ export const exercises = {
   ],
 
   biceps: [
-    "Bíceps",
-    "Rosca concentrada",
+    "Rosca direta com halter",
     "Rosca inclinada",
-    "Rosca martelo",
-    "Rosca Scott"
+    "Rosca Scott",
+    "Rosca concentrada"
   ],
 
   costas: [
