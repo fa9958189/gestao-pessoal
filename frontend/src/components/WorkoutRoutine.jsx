@@ -841,6 +841,7 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
   const [selectedExercises, setSelectedExercises] = useState({});
   const [previewExercise, setPreviewExercise] = useState(null);
   const [previewMuscle, setPreviewMuscle] = useState(null);
+  const gif = getExerciseGif(previewMuscle, previewExercise);
   const [workoutForm, setWorkoutForm] = useState({
     id: null,
     name: '',
@@ -2461,14 +2462,13 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
                     >
                       <div className="exercise-modal" onClick={(e) => e.stopPropagation()}>
                         <h3>{previewExercise}</h3>
-                        <img
-                          src={getExerciseGif(previewMuscle, previewExercise)}
-                          alt={previewExercise}
-                          style={{ maxWidth: '100%', borderRadius: '12px' }}
-                          onError={(e) => {
-                            e.currentTarget.src = '/vite.svg';
-                          }}
-                        />
+                        {gif && (
+                          <img
+                            src={gif}
+                            alt={previewExercise}
+                            style={{ width: '100%', borderRadius: '12px' }}
+                          />
+                        )}
                         <button
                           type="button"
                           onClick={() => {
