@@ -19,45 +19,6 @@ import BicicletaImg from '../assets/muscles/bicicleta.png';
 import CorridaAoArLivreImg from '../assets/muscles/Corrida ao ar livre.png';
 import EscadaImg from '../assets/muscles/escada.png';
 import EsteiraImg from '../assets/muscles/esteira.png';
-import PeitoCrossoverGif from '../assets/exercise/peito/Crossover com pegada alta.gif';
-import PeitoSupinoInclinadoGif from '../assets/exercise/peito/Supino inclinado com halteres.gif';
-import PeitoSupinoRetoGif from '../assets/exercise/peito/Supino reto com barra.gif';
-import PeitoVoadorGif from '../assets/exercise/peito/Voador ou peck deck.gif';
-import BicepsBasicoGif from '../assets/exercise/biceps/bíceps.gif';
-import BicepsRoscaConcentradaGif from '../assets/exercise/biceps/Rosca concentrada.gif';
-import BicepsRoscaInclinadaGif from '../assets/exercise/biceps/Rosca inclinada.gif';
-import BicepsRoscaMarteloGif from '../assets/exercise/biceps/Rosca martelo.gif';
-import BicepsRoscaScottGif from '../assets/exercise/biceps/Rosca Scott.gif';
-import CostasPulleyGif from '../assets/exercise/costas/Pulley costas.gif';
-import CostasRemadaBaixaGif from '../assets/exercise/costas/Remada baixa.gif';
-import CostasRemadaSerroteGif from '../assets/exercise/costas/Remada serrote.gif';
-import CostasVoadorInvertidoGif from '../assets/exercise/costas/Voador invertido.gif';
-import PanturrilhaElevacaoEmPeGif from '../assets/exercise/panturrilha/panturrilha 1.gif';
-import OmbroArnoldPressGif from '../assets/exercise/ombro/Arnold press.gif';
-import OmbroCrucifixoInversoGif from '../assets/exercise/ombro/Crucifixo inverso.gif';
-import OmbroElevacaoFrontalGif from '../assets/exercise/ombro/Elevação frontal.gif';
-import OmbroElevacaoLateralGif from '../assets/exercise/ombro/Elevação lateral.gif';
-import TricepsExtensaoGif from "../assets/exercise/triceps/Extensao triceps deitado.gif";
-import TricepsMergulhoGif from "../assets/exercise/triceps/Mergulho na máquina.gif";
-import TricepsPoliaAltaGif from "../assets/exercise/triceps/Polia alta com corda.gif";
-import TricepsCoiceGif from "../assets/exercise/triceps/Tríceps coice.gif";
-import AbdomenInfraGif from "../assets/exercise/abdomen/Abdominal infra nas paralelas.gif";
-import AbdomenMaquinaGif from "../assets/exercise/abdomen/Abdominal na máquina.gif";
-import AbdomenPoliaGif from "../assets/exercise/abdomen/Abdominal na polia.gif";
-import AbdomenRetoGif from "../assets/exercise/abdomen/Abdominal reto (tradicional).gif";
-import PernasAgachamentoBulgaroGif from "../assets/exercise/Quadríceps/Agachamento búlgaro.gif";
-import PernasAgachamentoHackGif from "../assets/exercise/Quadríceps/Agachamento hack.gif";
-import PernasCadeiraExtensoraGif from "../assets/exercise/Quadríceps/Cadeira extensora.gif";
-import PernasLegPressGif from "../assets/exercise/Quadríceps/Leg press.gif";
-import PernasPanturrilhaMaquinaGif from "../assets/exercise/Quadríceps/Panturrilha Sentado na Máquina.gif";
-import GluteoElevacaoComPesoGif from '../assets/exercise/gluteo/Elevação pélvica com peso.gif';
-import GluteoLevantamentoTerraGif from '../assets/exercise/gluteo/Levantamento terra.gif';
-import GluteoMaquinaAbducaoGif from '../assets/exercise/gluteo/Máquina Adutora Externa.gif';
-import GluteoStiffGif from '../assets/exercise/gluteo/Stiff.gif';
-import PosteriorLevantamentoTerraGif from "../assets/exercise/posterior de coxa/Levantamento terra.gif";
-import PosteriorCadeiraFlexoraGif from "../assets/exercise/posterior de coxa/Cadeira flexora.gif";
-import PosteriorFlexoraDeitadaGif from "../assets/exercise/posterior de coxa/Flexora deitada.gif";
-import PosteriorStiffGif from "../assets/exercise/posterior de coxa/Stiff.gif";
 import ProgressRing from './charts/ProgressRing.jsx';
 import GoalBar from './charts/GoalBar.jsx';
 import WeightLineChart from './charts/WeightLineChart.jsx';
@@ -65,7 +26,7 @@ import MuscleDonut from './charts/MuscleDonut.jsx';
 import TrainingHeatmap from './charts/TrainingHeatmap.jsx';
 import MiniStats from './charts/MiniStats.jsx';
 import { exercises } from '../data/exercises.js';
-import { getExerciseGif as getExerciseGifFromAssets } from '../utils/getExerciseGif.js';
+import getExerciseGif from '../utils/getExerciseGif';
 
 const muscleGroups = [
   { id: 'peito', name: 'Peito', image: PeitoImg },
@@ -117,22 +78,10 @@ const MUSCLE_INFO = {
     description:
       'Grupo muscular responsável por empurrar carga à frente do corpo, muito usado em supino, flexões e movimentos de empurrar no dia a dia.',
     exercises: [
-      {
-        name: 'Supino inclinado com halteres',
-        gif: PeitoSupinoInclinadoGif,
-      },
-      {
-        name: 'Supino reto com barra',
-        gif: PeitoSupinoRetoGif,
-      },
-      {
-        name: 'Crossover com pegada alta',
-        gif: PeitoCrossoverGif,
-      },
-      {
-        name: 'Voador ou peck deck',
-        gif: PeitoVoadorGif,
-      },
+      'Supino inclinado com halteres',
+      'Supino reto com barra',
+      'Crossover com pegada alta',
+      'Voador ou peck deck',
     ],
   },
   biceps: {
@@ -140,11 +89,11 @@ const MUSCLE_INFO = {
     description:
       'Músculo da parte da frente do braço, responsável por flexionar o cotovelo. Muito ativado em roscas e movimentos de puxar.',
     exercises: [
-      { name: 'Bíceps', gif: BicepsBasicoGif },
-      { name: 'Rosca concentrada', gif: BicepsRoscaConcentradaGif },
-      { name: 'Rosca inclinada', gif: BicepsRoscaInclinadaGif },
-      { name: 'Rosca martelo', gif: BicepsRoscaMarteloGif },
-      { name: 'Rosca Scott', gif: BicepsRoscaScottGif },
+      'Bíceps',
+      'Rosca concentrada',
+      'Rosca inclinada',
+      'Rosca martelo',
+      'Rosca Scott',
     ],
   },
   costas: {
@@ -152,22 +101,10 @@ const MUSCLE_INFO = {
     description:
       'Grupo muscular importante para postura, estabilidade e movimentos de puxar, muito trabalhado em remadas, puxadas e exercícios de tração.',
     exercises: [
-      {
-        name: 'Pulley costas',
-        gif: CostasPulleyGif,
-      },
-      {
-        name: 'Remada baixa',
-        gif: CostasRemadaBaixaGif,
-      },
-      {
-        name: 'Remada serrote',
-        gif: CostasRemadaSerroteGif,
-      },
-      {
-        name: 'Voador invertido',
-        gif: CostasVoadorInvertidoGif,
-      },
+      'Pulley costas',
+      'Remada baixa',
+      'Remada serrote',
+      'Voador invertido',
     ],
   },
   ombros: {
@@ -175,22 +112,10 @@ const MUSCLE_INFO = {
     description:
       'Envolvidos em praticamente todos os movimentos de braço. Fortalecer ombros ajuda na estabilidade e evita lesões em outros exercícios.',
     exercises: [
-      {
-        name: 'Arnold press',
-        gif: OmbroArnoldPressGif,
-      },
-      {
-        name: 'Crucifixo inverso',
-        gif: OmbroCrucifixoInversoGif,
-      },
-      {
-        name: 'Elevação frontal',
-        gif: OmbroElevacaoFrontalGif,
-      },
-      {
-        name: 'Elevação lateral',
-        gif: OmbroElevacaoLateralGif,
-      },
+      'Arnold press',
+      'Crucifixo inverso',
+      'Elevação frontal',
+      'Elevação lateral',
     ],
   },
   triceps: {
@@ -198,10 +123,10 @@ const MUSCLE_INFO = {
     description:
       'Músculo responsável pela extensão do cotovelo, muito ativado em empurrões, mergulho na máquina, polia alta e movimentos de coice.',
     exercises: [
-      { name: 'Extensão de tríceps deitado', gif: TricepsExtensaoGif },
-      { name: 'Mergulho na máquina', gif: TricepsMergulhoGif },
-      { name: 'Polia alta com corda', gif: TricepsPoliaAltaGif },
-      { name: 'Tríceps coice', gif: TricepsCoiceGif },
+      'Extensão de tríceps deitado',
+      'Mergulho na máquina',
+      'Polia alta com corda',
+      'Tríceps coice',
     ],
   },
   abdomen: {
@@ -209,10 +134,10 @@ const MUSCLE_INFO = {
     description:
       'Grupo muscular responsável pela estabilização do tronco e postura. Muito ativado em exercícios de flexão do tronco, máquinas, polias e movimentos de suspensão.',
     exercises: [
-      { name: 'Abdominal infra nas paralelas', gif: AbdomenInfraGif },
-      { name: 'Abdominal na máquina', gif: AbdomenMaquinaGif },
-      { name: 'Abdominal na polia', gif: AbdomenPoliaGif },
-      { name: 'Abdominal reto (tradicional)', gif: AbdomenRetoGif },
+      'Abdominal infra nas paralelas',
+      'Abdominal na máquina',
+      'Abdominal na polia',
+      'Abdominal reto (tradicional)',
     ],
   },
   pernas: {
@@ -220,10 +145,10 @@ const MUSCLE_INFO = {
     description:
       'Inclui coxas e panturrilhas. Suportam o peso do corpo, ajudam na circulação e são muito exigidas em agachamentos, leg press e corridas.',
     exercises: [
-      { name: 'Agachamento búlgaro', gif: PernasAgachamentoBulgaroGif },
-      { name: 'Agachamento hack', gif: PernasAgachamentoHackGif },
-      { name: 'Cadeira extensora', gif: PernasCadeiraExtensoraGif },
-      { name: 'Leg press', gif: PernasLegPressGif },
+      'Agachamento búlgaro',
+      'Agachamento hack',
+      'Cadeira extensora',
+      'Leg press',
     ],
   },
   panturrilha: {
@@ -231,8 +156,8 @@ const MUSCLE_INFO = {
     description:
       'Fundamental para estabilidade do tornozelo, impulsão em corridas, subidas e saltos. Trabalhada em elevações em pé ou sentado.',
     exercises: [
-      { name: 'Elevação de panturrilha em pé', gif: PanturrilhaElevacaoEmPeGif },
-      { name: 'Panturrilha Sentado na Máquina', gif: PernasPanturrilhaMaquinaGif },
+      'Elevação de panturrilha em pé',
+      'Panturrilha Sentado na Máquina',
     ],
   },
   posterior_coxa: {
@@ -240,10 +165,10 @@ const MUSCLE_INFO = {
     description:
       'Grupo muscular responsável por flexão do joelho e extensão do quadril. Muito acionado em levantamento terra, stiff e exercícios de flexora.',
     exercises: [
-      { name: 'Levantamento terra', gif: PosteriorLevantamentoTerraGif },
-      { name: 'Cadeira flexora', gif: PosteriorCadeiraFlexoraGif },
-      { name: 'Flexora deitada', gif: PosteriorFlexoraDeitadaGif },
-      { name: 'Stiff', gif: PosteriorStiffGif },
+      'Levantamento terra',
+      'Cadeira flexora',
+      'Flexora deitada',
+      'Stiff',
     ],
   },
   gluteos: {
@@ -251,10 +176,10 @@ const MUSCLE_INFO = {
     description:
       'Músculos fortes que estabilizam o quadril e ajudam em agachamentos, subidas, corridas e levantamento terra. Importantes para força, potência e proteção da coluna.',
     exercises: [
-      { name: 'Elevação de quadril com peso', gif: GluteoElevacaoComPesoGif },
-      { name: 'Levantamento terra', gif: GluteoLevantamentoTerraGif },
-      { name: 'Abdução de quadril na máquina', gif: GluteoMaquinaAbducaoGif },
-      { name: 'Stiff', gif: GluteoStiffGif },
+      'Elevação de quadril com peso',
+      'Levantamento terra',
+      'Abdução de quadril na máquina',
+      'Stiff',
     ],
   },
 };
@@ -802,7 +727,7 @@ const ViewWorkoutModal = ({
               {infoTarget.exercises && infoTarget.exercises.length > 0 && (
                 <div style={{ marginTop: '20px' }}>
                   {infoTarget.exercises.map((exercise) => {
-                    const gifSrc = getExerciseGifFromAssets(infoTarget.id, exercise);
+                    const gifSrc = getExerciseGif(infoTarget.id, exercise);
 
                     return (
                       <div key={exercise} style={{ marginBottom: '30px' }}>
@@ -855,7 +780,7 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
   const [selectedExercises, setSelectedExercises] = useState({});
   const [previewExercise, setPreviewExercise] = useState(null);
   const [previewMuscle, setPreviewMuscle] = useState(null);
-  const gif = getExerciseGifFromAssets(previewMuscle, previewExercise);
+  const gif = getExerciseGif(previewMuscle, previewExercise);
   const [workoutForm, setWorkoutForm] = useState({
     id: null,
     name: '',

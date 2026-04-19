@@ -46,3 +46,5 @@ export function getExerciseGif(muscle, exercise) {
     }
   }
 }
+
+export default getExerciseGif;
