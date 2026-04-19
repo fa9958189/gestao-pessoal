@@ -14,11 +14,21 @@ const EXERCISE_FILE_ALIASES = {
   'Elevação pélvica com peso': 'Elevação pélvica com peso',
 };
 
+function normalizeFileName(name) {
+  return name
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, '')
+    .replace(/[^a-z0-9]/g, '');
+}
+
 export function getExerciseGif(muscle, exercise) {
   if (!muscle || !exercise) return null;
 
   const folder = MUSCLE_FOLDER_ALIASES[muscle] || muscle;
-  const fileName = EXERCISE_FILE_ALIASES[exercise] || exercise;
+  const exerciseName = EXERCISE_FILE_ALIASES[exercise] || exercise;
+  const fileName = normalizeFileName(exerciseName);
 
   try {
     return new URL(
@@ -26,6 +36,13 @@ export function getExerciseGif(muscle, exercise) {
       import.meta.url
     ).href;
   } catch {
-    return null;
+    try {
+      return new URL(
+        `../assets/exercise/${folder}/${exerciseName}.gif`,
+        import.meta.url
+      ).href;
+    } catch {
+      return null;
+    }
   }
 }
