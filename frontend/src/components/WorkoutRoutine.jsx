@@ -65,6 +65,7 @@ import MuscleDonut from './charts/MuscleDonut.jsx';
 import TrainingHeatmap from './charts/TrainingHeatmap.jsx';
 import MiniStats from './charts/MiniStats.jsx';
 import { exercises } from '../data/exercises.js';
+import { getExerciseGif } from '../utils/getExerciseGif.js';
 
 const muscleGroups = [
   { id: 'peito', name: 'Peito', image: PeitoImg },
@@ -838,6 +839,8 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
   const [nomeTreino, setNomeTreino] = useState('');
   const [muscleConfigs, setMuscleConfigs] = useState({});
   const [selectedExercises, setSelectedExercises] = useState({});
+  const [previewExercise, setPreviewExercise] = useState(null);
+  const [previewMuscle, setPreviewMuscle] = useState(null);
   const [workoutForm, setWorkoutForm] = useState({
     id: null,
     name: '',
@@ -2366,14 +2369,25 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
                               <h4 style={{ marginTop: 0, marginBottom: 8 }}>{muscleMap[muscle]?.label || muscle}</h4>
                               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                                 {(exercises[getExercisesKey(muscle)] || []).map((exercise) => (
-                                  <button
+                                  <div
                                     key={`${muscle}-${exercise}`}
-                                    type="button"
                                     onClick={() => handleExerciseToggle(muscle, exercise)}
-                                    className={`treino-option ${(selectedExercises[getExercisesKey(muscle)] || []).includes(exercise) ? 'selected' : ''}`}
+                                    className={`exercise-item treino-option ${(selectedExercises[getExercisesKey(muscle)] || []).includes(exercise) ? 'selected' : ''}`}
                                   >
-                                    {exercise}
-                                  </button>
+                                    <span>{exercise}</span>
+                                    <button
+                                      type="button"
+                                      className="preview-btn"
+                                      aria-label={`Visualizar ${exercise}`}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setPreviewExercise(exercise);
+                                        setPreviewMuscle(muscleMap[muscle]?.label || muscle);
+                                      }}
+                                    >
+                                      👁
+                                    </button>
+                                  </div>
                                 ))}
                               </div>
                             </div>
@@ -2436,6 +2450,37 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
                       Cancelar
                     </button>
                   </div>
+
+                  {previewExercise && (
+                    <div
+                      className="exercise-modal-overlay"
+                      onClick={() => {
+                        setPreviewExercise(null);
+                        setPreviewMuscle(null);
+                      }}
+                    >
+                      <div className="exercise-modal" onClick={(e) => e.stopPropagation()}>
+                        <h3>{previewExercise}</h3>
+                        <img
+                          src={getExerciseGif(previewMuscle, previewExercise)}
+                          alt={previewExercise}
+                          style={{ maxWidth: '100%', borderRadius: '12px' }}
+                          onError={(e) => {
+                            e.currentTarget.src = '/vite.svg';
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPreviewExercise(null);
+                            setPreviewMuscle(null);
+                          }}
+                        >
+                          Fechar
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
