@@ -344,6 +344,15 @@ const resolveExerciseGif = (muscle, exerciseName) => {
   return found?.gif || null;
 };
 
+const getExerciseGif = (muscle, exercise) => {
+  try {
+    return resolveExerciseGif(muscle, exercise);
+  } catch (error) {
+    console.warn('GIF não encontrado:', muscle, exercise);
+    return null;
+  }
+};
+
 const getMuscleGroupByLabel = (label) => {
   const normalized = String(label || '').toLowerCase();
   return MUSCLE_GROUPS.find(
@@ -419,24 +428,6 @@ const formatGroupName = (groupKey, muscleMap = {}) => {
   };
 
   return fallbackLabelMap[normalizedKey] || groupKey;
-};
-
-const getExerciseFolderByMuscle = (muscleGroup) => {
-  const muscleKey = getExercisesKey(muscleGroup);
-  const folderMap = {
-    peito: 'peito',
-    costas: 'costas',
-    ombro: 'ombro',
-    biceps: 'biceps',
-    triceps: 'triceps',
-    abdomen: 'abdomen',
-    quadriceps: 'Quadríceps',
-    gluteo: 'gluteo',
-    panturrilha: 'panturrilha',
-    posterior_de_coxa: 'posterior de coxa',
-  };
-
-  return folderMap[muscleKey] || muscleKey;
 };
 
 const WEEK_DAYS = [
@@ -870,24 +861,22 @@ const ViewWorkoutModal = ({
               {infoTarget.exercises && infoTarget.exercises.length > 0 && (
                 <div style={{ marginTop: '20px' }}>
                   {infoTarget.exercises.map((exercise) => {
-                    const muscleFolder = getExerciseFolderByMuscle(infoTarget.id);
-                    const gifSrc = `/assets/exercise/${muscleFolder}/${exercise}.gif`;
+                    const gifSrc = getExerciseGif(infoTarget.id, exercise);
 
                     return (
                       <div key={exercise} style={{ marginBottom: '30px' }}>
                         <h3 style={{ marginBottom: '10px' }}>{exercise}</h3>
-                        <img
-                          src={gifSrc}
-                          alt={exercise}
-                          style={{
-                            width: '100%',
-                            maxWidth: '320px',
-                            height: 'auto',
-                            borderRadius: '10px',
-                            display: 'block',
-                            margin: '0 auto'
-                          }}
-                        />
+                        {gifSrc ? (
+                          <img
+                            src={gifSrc}
+                            alt={exercise}
+                            style={{ width: '100%', borderRadius: '12px' }}
+                          />
+                        ) : (
+                          <div className="muted" style={{ marginBottom: 12 }}>
+                            GIF deste exercício não encontrado.
+                          </div>
+                        )}
                       </div>
                     );
                   })}
