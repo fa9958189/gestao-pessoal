@@ -65,6 +65,7 @@ import MuscleDonut from './charts/MuscleDonut.jsx';
 import TrainingHeatmap from './charts/TrainingHeatmap.jsx';
 import MiniStats from './charts/MiniStats.jsx';
 import { exercises } from '../data/exercises.js';
+import { getExerciseGif as getExerciseGifFromAssets } from '../utils/getExerciseGif.js';
 
 const muscleGroups = [
   { id: 'peito', name: 'Peito', image: PeitoImg },
@@ -77,6 +78,7 @@ const muscleGroups = [
   { id: 'panturrilha', name: 'Panturrilha', image: PanturrilhaImg },
   { id: 'posterior_coxa', name: 'Posterior de Coxa', image: PosteriorCoxaImg },
   { id: 'gluteos', name: 'Glúteos', image: GluteosImg },
+  { id: 'ante braco', name: 'Antebraço', image: new URL('../assets/muscles/Antebraco.png', import.meta.url).href },
 
   // Esportes
   { id: 'natacao', name: 'Natação', image: NatacaoImg },
@@ -91,13 +93,15 @@ const muscleGroups = [
   { id: 'esteira', name: 'Esteira', image: EsteiraImg },
 ];
 
-const MUSCLE_GROUPS = muscleGroups.slice(0, 10).map(({ id, name, image }) => ({
+const SPORT_IDS = new Set(['natacao', 'volei', 'boxe', 'jiujitsu', 'futebol', 'beachtennis', 'bicicleta', 'corrida_ao_ar_livre', 'escada', 'esteira']);
+
+const MUSCLE_GROUPS = muscleGroups.filter(({ id }) => !SPORT_IDS.has(id)).map(({ id, name, image }) => ({
   value: id,
   label: name,
   image
 }));
 
-const SPORTS = muscleGroups.slice(10).map(({ id, name, image }) => ({
+const SPORTS = muscleGroups.filter(({ id }) => SPORT_IDS.has(id)).map(({ id, name, image }) => ({
   value: id,
   label: name,
   image
@@ -288,71 +292,6 @@ const SPORT_INFO = {
   },
 };
 
-const normalizeExerciseLabel = (text) =>
-  String(text || '')
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/\([^)]*\)/g, ' ')
-    .replace(/[^a-z0-9]+/g, ' ')
-    .trim();
-
-const PREVIEW_MUSCLE_ALIASES = {
-  peito: 'peito',
-  costas: 'costas',
-  ombros: 'ombros',
-  ombro: 'ombros',
-  biceps: 'biceps',
-  triceps: 'triceps',
-  abdomen: 'abdomen',
-  abdome: 'abdomen',
-  pernas: 'pernas',
-  quadriceps: 'pernas',
-  panturrilha: 'panturrilha',
-  posterior_de_coxa: 'posterior_coxa',
-  posterior_coxa: 'posterior_coxa',
-  posterior: 'posterior_coxa',
-  gluteos: 'gluteos',
-  gluteo: 'gluteos',
-};
-
-const PREVIEW_EXERCISE_ALIASES = {
-  'abdominal reto': 'abdominal reto tradicional',
-  'extensao triceps deitado': 'extensao de triceps deitado',
-  'panturrilha': 'elevacao de panturrilha em pe',
-  'panturrilha sentado na maquina': 'panturrilha sentado na maquina',
-  'elevacao pelvica com peso': 'elevacao de quadril com peso',
-  'maquina adutora externa': 'abducao de quadril na maquina',
-};
-
-const resolveExerciseGif = (muscle, exerciseName) => {
-  if (!muscle || !exerciseName) return null;
-
-  const normalizedMuscle = normalizeExerciseLabel(muscle).replace(/\s+/g, '_');
-  const muscleKey = PREVIEW_MUSCLE_ALIASES[normalizedMuscle] || normalizedMuscle;
-  const muscleData = MUSCLE_INFO[muscleKey];
-  if (!muscleData?.exercises?.length) return null;
-
-  const requestedName = normalizeExerciseLabel(exerciseName);
-  const requestedAlias = PREVIEW_EXERCISE_ALIASES[requestedName] || requestedName;
-
-  const found = muscleData.exercises.find((exercise) => {
-    const normalized = normalizeExerciseLabel(exercise.name);
-    return normalized === requestedName || normalized === requestedAlias;
-  });
-
-  return found?.gif || null;
-};
-
-const getExerciseGif = (muscle, exercise) => {
-  try {
-    return resolveExerciseGif(muscle, exercise);
-  } catch (error) {
-    console.warn('GIF não encontrado:', muscle, exercise);
-    return null;
-  }
-};
-
 const getMuscleGroupByLabel = (label) => {
   const normalized = String(label || '').toLowerCase();
   return MUSCLE_GROUPS.find(
@@ -387,6 +326,7 @@ const getExercisesKey = (muscleGroup) => {
   if (normalized === 'peito') return 'peito';
   if (normalized === 'triceps') return 'triceps';
   if (normalized === 'panturrilha') return 'panturrilha';
+  if (normalized === 'antebraco' || normalized === 'ante braco') return 'ante braco';
 
   return normalized.replace(/\s+/g, '_');
 };
@@ -425,6 +365,7 @@ const formatGroupName = (groupKey, muscleMap = {}) => {
     biceps: 'Bíceps',
     triceps: 'Tríceps',
     abdomen: 'Abdômen',
+    'ante braco': 'Antebraço',
   };
 
   return fallbackLabelMap[normalizedKey] || groupKey;
@@ -861,7 +802,7 @@ const ViewWorkoutModal = ({
               {infoTarget.exercises && infoTarget.exercises.length > 0 && (
                 <div style={{ marginTop: '20px' }}>
                   {infoTarget.exercises.map((exercise) => {
-                    const gifSrc = getExerciseGif(infoTarget.id, exercise);
+                    const gifSrc = getExerciseGifFromAssets(infoTarget.id, exercise);
 
                     return (
                       <div key={exercise} style={{ marginBottom: '30px' }}>
@@ -914,7 +855,7 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
   const [selectedExercises, setSelectedExercises] = useState({});
   const [previewExercise, setPreviewExercise] = useState(null);
   const [previewMuscle, setPreviewMuscle] = useState(null);
-  const gif = resolveExerciseGif(previewMuscle, previewExercise);
+  const gif = getExerciseGifFromAssets(previewMuscle, previewExercise);
   const [workoutForm, setWorkoutForm] = useState({
     id: null,
     name: '',
