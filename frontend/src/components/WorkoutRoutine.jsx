@@ -421,6 +421,24 @@ const formatGroupName = (groupKey, muscleMap = {}) => {
   return fallbackLabelMap[normalizedKey] || groupKey;
 };
 
+const getExerciseFolderByMuscle = (muscleGroup) => {
+  const muscleKey = getExercisesKey(muscleGroup);
+  const folderMap = {
+    peito: 'peito',
+    costas: 'costas',
+    ombro: 'ombro',
+    biceps: 'biceps',
+    triceps: 'triceps',
+    abdomen: 'abdomen',
+    quadriceps: 'Quadríceps',
+    gluteo: 'gluteo',
+    panturrilha: 'panturrilha',
+    posterior_de_coxa: 'posterior de coxa',
+  };
+
+  return folderMap[muscleKey] || muscleKey;
+};
+
 const WEEK_DAYS = [
   'Segunda',
   'Terça',
@@ -596,6 +614,9 @@ const ViewWorkoutModal = ({
   const groupedExercises = normalizeGroupedExercisesPayload(
     workout.exercisesByGroup || workout.exercises || workout.exercicios || {}
   );
+  const hasWorkoutExercisesPayload = Boolean(
+    workout.exercises || workout.exercisesByGroup || workout.exercicios
+  );
   const hasAnySelectedExercise = Object.keys(groupedExercises).some(
     (grupo) => groupedExercises[grupo]?.length > 0
   );
@@ -665,12 +686,13 @@ const ViewWorkoutModal = ({
                         style={{ cursor: info ? 'pointer' : 'default' }}
                         onClick={() => {
                           if (!info) return;
+                          const selectedMuscleExercises = groupedExercises[getExercisesKey(key)] || [];
                           setInfoTarget({
                             type: 'muscle',
                             id: key,
                             label: def?.label || mg,
                             description: info.description,
-                            exercises: info.exercises || [],
+                            exercises: selectedMuscleExercises,
                           });
                         }}
                       >
@@ -735,10 +757,16 @@ const ViewWorkoutModal = ({
             {muscleGroups.length > 0 && (
               <div className="field">
                 <label>Exercícios por músculo</label>
+                {!hasWorkoutExercisesPayload && (
+                  <p className="muted" style={{ marginBottom: 8 }}>
+                    Nenhum exercício selecionado
+                  </p>
+                )}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {Object.entries(groupedExercises).map(([group, exerciseList]) => {
-                    if (!exerciseList?.length) return null;
+                  {muscleGroups.map((group) => {
                     const normalizedGroup = getExercisesKey(group);
+                    const exerciseList = groupedExercises[normalizedGroup] || [];
+                    if (!exerciseList?.length) return null;
                     const configEntry = muscleConfigMap.get(group) || muscleConfigMap.get(normalizedGroup) || {};
                     const config = configEntry?.config
                       || (Number(configEntry?.sets) > 0 && Number(configEntry?.reps) > 0
@@ -841,15 +869,16 @@ const ViewWorkoutModal = ({
               </p>
               {infoTarget.exercises && infoTarget.exercises.length > 0 && (
                 <div style={{ marginTop: '20px' }}>
-                  {infoTarget.exercises.map((ex, index) => {
-                    const gifSrc = ex.gif || (ex.file ? `/src/assets/exercise/Quadríceps/${ex.file}` : '');
+                  {infoTarget.exercises.map((exercise) => {
+                    const muscleFolder = getExerciseFolderByMuscle(infoTarget.id);
+                    const gifSrc = `/assets/exercise/${muscleFolder}/${exercise}.gif`;
 
                     return (
-                      <div key={index} style={{ marginBottom: '30px' }}>
-                        <h3 style={{ marginBottom: '10px' }}>{ex.name}</h3>
+                      <div key={exercise} style={{ marginBottom: '30px' }}>
+                        <h3 style={{ marginBottom: '10px' }}>{exercise}</h3>
                         <img
                           src={gifSrc}
-                          alt={ex.name}
+                          alt={exercise}
                           style={{
                             width: '100%',
                             maxWidth: '320px',
@@ -1294,7 +1323,10 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
       muscleGroups,
       sports: sportsActivities,
       sportsActivities,
-      exercises: Array.isArray(item?.exercises) ? item.exercises : [],
+      exercises:
+        item?.exercises && typeof item.exercises === 'object' && !Array.isArray(item.exercises)
+          ? normalizeGroupedExercisesPayload(item.exercises)
+          : exercicios,
       exercisesByGroup: exercicios,
       muscleConfig,
       exercicios,
@@ -1513,6 +1545,7 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
       muscleGroups: isMusculacao ? itensSelecionados : [],
       sportsActivities: isMusculacao ? [] : itensSelecionados,
       muscleConfig,
+      exercises: exercicios,
     };
     const novoTreino = {
       ...payloadData,
@@ -1533,7 +1566,7 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
       name: template.name || '',
       muscleGroups: template.muscleGroups || [],
       sportsActivities: normalizedSports,
-      exercises: template.exercises || [],
+      exercises: template.exercises || {},
       muscleConfig: template.muscleConfig || [],
       exercisesByGroup: template.exercisesByGroup || template.exercicios || {},
       exercicios: template.exercicios || {},
@@ -1571,6 +1604,7 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
       exercisesByGroup: normalizeGroupedExercisesPayload(
         overrideData?.exercisesByGroup
           || overrideData?.exercicios
+          || overrideData?.exercises
           || workoutForm.exercisesByGroup
           || workoutForm.exercicios
           || selectedExercises
@@ -1588,6 +1622,7 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
       muscleGroups: formData.muscleGroups,
       sportsActivities: formData.sportsActivities,
       muscleConfig: formData.muscleConfig,
+      exercises: isMusculacao ? formData.exercisesByGroup : {},
       exercisesByGroup: isMusculacao ? formData.exercisesByGroup : {},
       exercicios: isMusculacao ? formData.exercisesByGroup : {},
     };
