@@ -65,7 +65,6 @@ import MuscleDonut from './charts/MuscleDonut.jsx';
 import TrainingHeatmap from './charts/TrainingHeatmap.jsx';
 import MiniStats from './charts/MiniStats.jsx';
 import { exercises } from '../data/exercises.js';
-import { getExerciseGif } from '../utils/getExerciseGif.js';
 
 const muscleGroups = [
   { id: 'peito', name: 'Peito', image: PeitoImg },
@@ -287,6 +286,62 @@ const SPORT_INFO = {
     description:
       'Esporte de areia que exige pernas, core e braços. Ótimo para resistência, agilidade e queima calórica com baixo impacto.'
   },
+};
+
+const normalizeExerciseLabel = (text) =>
+  String(text || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\([^)]*\)/g, ' ')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+
+const PREVIEW_MUSCLE_ALIASES = {
+  peito: 'peito',
+  costas: 'costas',
+  ombros: 'ombros',
+  ombro: 'ombros',
+  biceps: 'biceps',
+  triceps: 'triceps',
+  abdomen: 'abdomen',
+  abdome: 'abdomen',
+  pernas: 'pernas',
+  quadriceps: 'pernas',
+  panturrilha: 'panturrilha',
+  posterior_de_coxa: 'posterior_coxa',
+  posterior_coxa: 'posterior_coxa',
+  posterior: 'posterior_coxa',
+  gluteos: 'gluteos',
+  gluteo: 'gluteos',
+};
+
+const PREVIEW_EXERCISE_ALIASES = {
+  'abdominal reto': 'abdominal reto tradicional',
+  'extensao triceps deitado': 'extensao de triceps deitado',
+  'panturrilha': 'elevacao de panturrilha em pe',
+  'panturrilha sentado na maquina': 'panturrilha sentado na maquina',
+  'elevacao pelvica com peso': 'elevacao de quadril com peso',
+  'maquina adutora externa': 'abducao de quadril na maquina',
+};
+
+const resolveExerciseGif = (muscle, exerciseName) => {
+  if (!muscle || !exerciseName) return null;
+
+  const normalizedMuscle = normalizeExerciseLabel(muscle).replace(/\s+/g, '_');
+  const muscleKey = PREVIEW_MUSCLE_ALIASES[normalizedMuscle] || normalizedMuscle;
+  const muscleData = MUSCLE_INFO[muscleKey];
+  if (!muscleData?.exercises?.length) return null;
+
+  const requestedName = normalizeExerciseLabel(exerciseName);
+  const requestedAlias = PREVIEW_EXERCISE_ALIASES[requestedName] || requestedName;
+
+  const found = muscleData.exercises.find((exercise) => {
+    const normalized = normalizeExerciseLabel(exercise.name);
+    return normalized === requestedName || normalized === requestedAlias;
+  });
+
+  return found?.gif || null;
 };
 
 const getMuscleGroupByLabel = (label) => {
@@ -841,7 +896,7 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
   const [selectedExercises, setSelectedExercises] = useState({});
   const [previewExercise, setPreviewExercise] = useState(null);
   const [previewMuscle, setPreviewMuscle] = useState(null);
-  const gif = getExerciseGif(previewMuscle, previewExercise);
+  const gif = resolveExerciseGif(previewMuscle, previewExercise);
   const [workoutForm, setWorkoutForm] = useState({
     id: null,
     name: '',
@@ -2383,7 +2438,7 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
                                       onClick={(e) => {
                                         e.stopPropagation();
                                         setPreviewExercise(exercise);
-                                        setPreviewMuscle(muscleMap[muscle]?.label || muscle);
+                                        setPreviewMuscle(muscle);
                                       }}
                                     >
                                       👁
@@ -2462,12 +2517,16 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
                     >
                       <div className="exercise-modal" onClick={(e) => e.stopPropagation()}>
                         <h3>{previewExercise}</h3>
-                        {gif && (
+                        {gif ? (
                           <img
                             src={gif}
                             alt={previewExercise}
                             style={{ width: '100%', borderRadius: '12px' }}
                           />
+                        ) : (
+                          <div className="muted" style={{ marginBottom: 12 }}>
+                            GIF deste exercício não encontrado.
+                          </div>
                         )}
                         <button
                           type="button"
