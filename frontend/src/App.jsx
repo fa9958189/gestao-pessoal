@@ -754,7 +754,7 @@ const UsersTable = ({
             const hasVariation = Number.isFinite(weightVariation);
 
             return (
-              <div key={user.id} className={`event-card user-event-card card-ui ${user._editing ? 'is-editing' : ''}`}>
+              <div key={user.id} className={`event-card user-event-card user-card card-ui ${user._editing ? 'is-editing' : ''}`}>
                 <div className="event-date user-event-email">
                   {user.email || user.username || '-'}
                 </div>
@@ -1109,7 +1109,7 @@ const AffiliateCards = ({
           const pendingUsers = totalUsers - paidUsers;
 
           return (
-            <div key={affiliate.id} className="event-card user-event-card card-ui">
+            <div key={affiliate.id} className="event-card user-event-card affiliate-card card-ui">
               <div className="event-date user-event-email">
                 {affiliate.email || affiliate.code || '-'}
               </div>
@@ -2144,6 +2144,7 @@ function App() {
   const [etapaTx, setEtapaTx] = useState('lista');
   const [eventForm, setEventForm] = useState(defaultEventForm);
   const [userForm, setUserForm] = useState(defaultUserForm);
+  const [userSearchTerm, setUserSearchTerm] = useState('');
   const [editUserForm, setEditUserForm] = useState(defaultEditUserForm);
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -2182,6 +2183,7 @@ function App() {
   const [showForm, setShowForm] = useState(false);
   const [affiliateForm, setAffiliateForm] = useState(createDefaultAffiliateForm);
   const [affiliatesLoading, setAffiliatesLoading] = useState(false);
+  const [affiliateSearchTerm, setAffiliateSearchTerm] = useState('');
   const [affiliateUsers, setAffiliateUsers] = useState({});
   const [affiliateUsersLoadingId, setAffiliateUsersLoadingId] = useState(null);
   const [expandedAffiliateId, setExpandedAffiliateId] = useState(null);
@@ -2201,6 +2203,28 @@ function App() {
       return acc;
     }, {});
   }, [affiliatesFinal]);
+  const filteredUsersBySearch = useMemo(() => {
+    const normalizedSearch = String(userSearchTerm || '').trim().toLowerCase();
+    if (!normalizedSearch) return users;
+
+    return (users || []).filter((user) => {
+      const searchableText = [user?.name, user?.email || user?.username, user?.whatsapp]
+        .map((value) => String(value || '').toLowerCase())
+        .join(' ');
+      return searchableText.includes(normalizedSearch);
+    });
+  }, [users, userSearchTerm]);
+  const filteredAffiliatesBySearch = useMemo(() => {
+    const normalizedSearch = String(affiliateSearchTerm || '').trim().toLowerCase();
+    if (!normalizedSearch) return affiliatesFinal;
+
+    return affiliatesFinal.filter((affiliate) => {
+      const searchableText = [affiliate?.name, affiliate?.email, affiliate?.whatsapp, affiliate?.code]
+        .map((value) => String(value || '').toLowerCase())
+        .join(' ');
+      return searchableText.includes(normalizedSearch);
+    });
+  }, [affiliatesFinal, affiliateSearchTerm]);
   const [txFilters, setTxFilters] = useState(defaultTxFilters);
   const [txMonth, setTxMonth] = useState(getTodayMonth());
   const [txAdvancedOpen, setTxAdvancedOpen] = useState(false);
@@ -4406,8 +4430,17 @@ function App() {
               )}
             </div>
 
+            <input
+              type="text"
+              id="userSearch"
+              placeholder="🔍 Buscar por nome, email ou telefone..."
+              className="user-search-input"
+              value={userSearchTerm}
+              onChange={(event) => setUserSearchTerm(event.target.value)}
+            />
+
             <UsersTable
-              items={users.map((user) => ({ ...user, _editing: user.id === editingUserId }))}
+              items={filteredUsersBySearch.map((user) => ({ ...user, _editing: user.id === editingUserId }))}
               affiliateNameById={affiliateNameById}
               currentUser={currentUser}
               onOpenBodyModal={openBodyModal}
@@ -4985,6 +5018,15 @@ function App() {
 
             </div>
 
+            <input
+              type="text"
+              id="affiliateSearch"
+              placeholder="🔍 Buscar afiliado..."
+              className="user-search-input"
+              value={affiliateSearchTerm}
+              onChange={(event) => setAffiliateSearchTerm(event.target.value)}
+            />
+
             {showForm && (
               <div className="modal-overlay">
                 <div className="modal-card">
@@ -5082,7 +5124,7 @@ function App() {
                 {affiliatesLoading && <p className="muted">Carregando afiliados...</p>}
                 {!affiliatesLoading && (
                   <AffiliateCards
-                    items={affiliatesFinal}
+                    items={filteredAffiliatesBySearch}
                     expandedAffiliateId={expandedAffiliateId}
                     affiliateUsers={affiliateUsers}
                     affiliateUsersLoadingId={affiliateUsersLoadingId}
