@@ -1400,18 +1400,26 @@ canvas{ background:transparent; }
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  min-height: 0;
+  min-height: 400px;
+  min-height: max(400px, 50vh);
 }
 
 .financeiro-tabela-scroll {
   flex: 1;
   overflow-y: auto;
   overflow-x: auto;
-  min-height: 0;
+  min-height: 300px;
+  min-height: max(300px, 40vh);
   width: 100%;
   border-radius: 14px;
   background: linear-gradient(180deg, #0b1220, #0f172a);
   border: 1px solid rgba(59, 130, 246, 0.2);
+}
+
+@media (min-width: 1200px) {
+  .financeiro-tabela-wrapper {
+    min-height: 500px;
+  }
 }
 
 .financeiro-relatorios-scroll {
