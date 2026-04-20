@@ -89,7 +89,7 @@ const MUSCLE_INFO = {
     description:
       'Músculo da parte da frente do braço, responsável por flexionar o cotovelo. Muito ativado em roscas e movimentos de puxar.',
     exercises: [
-      'Bíceps',
+      'Rosca direta com halter',
       'Rosca concentrada',
       'Rosca inclinada',
       'Rosca martelo',
