@@ -9,9 +9,7 @@ const MUSCLE_FOLDER_ALIASES = {
   posterior: 'posterior de coxa',
   gluteos: 'gluteo',
   gluteo: 'gluteo',
-  antebraco: 'ante braco',
   'ante braco': 'ante braco',
-  ante_braco: 'ante braco',
 };
 
 const EXERCISE_FILE_ALIASES = {
@@ -38,6 +36,9 @@ export function normalizeFileName(name) {
 
 const resolveMuscleFolder = (muscle) => {
   const normalizedMuscle = normalizeFileName(muscle);
+  if (normalizedMuscle.includes('ante') && normalizedMuscle.includes('braco')) {
+    return 'ante braco';
+  }
 
   for (const [alias, folder] of Object.entries(MUSCLE_FOLDER_ALIASES)) {
     if (normalizeFileName(alias) === normalizedMuscle) return folder;
