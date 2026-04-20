@@ -948,7 +948,7 @@ const FinanceTable = ({ items, affiliateNameById, onMarkPaid, onBlock, onUnblock
   };
 
   return (
-  <div className="events-table-container finance-table-scroll scroll-container">
+  <div className="events-table-container financeiro-tabela-scroll">
     <table className="finance-table">
       <thead>
         <tr>
@@ -1083,7 +1083,7 @@ const FinanceTable = ({ items, affiliateNameById, onMarkPaid, onBlock, onUnblock
       </tbody>
     </table>
   </div>
-);
+  );
 };
 
 
@@ -4868,87 +4868,93 @@ function App() {
         <div className="container single-card app-content admin-users-container">
           <section className="card admin-card module-card finance-container full-height-card">
             <div className="page-content">
-              <div className="page-scroll">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
-              <div>
-                <h1 className="title" style={{ marginBottom: 4 }}>💰 Financeiro</h1>
-                <p className="muted">Controle operacional financeiro centralizado.</p>
-              </div>
-            </div>
+              <div className="financeiro-container">
+                <div className="financeiro-topo">
+                  <div className="financeiro-header">
+                    <div>
+                      <h1 className="title" style={{ marginBottom: 4 }}>💰 Financeiro</h1>
+                      <p className="muted">Controle operacional financeiro centralizado.</p>
+                    </div>
+                  </div>
 
-            <div className="tabs" style={{ marginBottom: 16 }}>
-              <button
-                className={financeTab === 'controle' ? 'subtab active active-tab' : 'subtab'}
-                onClick={() => setFinanceTab('controle')}
-              >
-                📋 Controle
-              </button>
-              <button
-                className={financeTab === 'relatorios' ? 'subtab active active-tab' : 'subtab'}
-                onClick={() => setFinanceTab('relatorios')}
-              >
-                📊 Relatórios
-              </button>
-            </div>
-
-            {financeTab === 'controle' && (
-              <>
-                <div className="financial-summary">
-                  <div className="financial-summary-card card-finance card-success financial-summary-green">Total recebido: {formatCurrency(financeSummary?.totalReceivedMonth || 0)}</div>
-                  <div className="financial-summary-card card-finance card-warning financial-summary-yellow">Total pendente: {formatCurrency(financeSummary?.totalPending || 0)}</div>
-                  <div className="financial-summary-card card-finance card-danger financial-summary-red">Total atrasado: {formatCurrency(financeSummary?.totalOverdue || 0)}</div>
-                  <div className="financial-summary-card card-finance">Usuários pagos: {financeSummary?.paidUsers || 0}</div>
-                  <div className="financial-summary-card card-finance">Vencendo hoje: {financeSummary?.usersDueToday || 0}</div>
-                  <div className="financial-summary-card card-finance">Atrasados: {financeSummary?.usersOverdue || 0}</div>
-                  <div className="financial-summary-card card-finance">Bloqueados: {financeSummary?.usersBlocked || 0}</div>
-                  <div className="financial-summary-card card-finance">Receita estimada: {formatCurrency(financeSummary?.estimatedMonthlyRevenue || 0)}</div>
+                  <div className="tabs finance-tabs">
+                    <button
+                      className={financeTab === 'controle' ? 'subtab active active-tab' : 'subtab'}
+                      onClick={() => setFinanceTab('controle')}
+                    >
+                      📋 Controle
+                    </button>
+                    <button
+                      className={financeTab === 'relatorios' ? 'subtab active active-tab' : 'subtab'}
+                      onClick={() => setFinanceTab('relatorios')}
+                    >
+                      📊 Relatórios
+                    </button>
+                  </div>
                 </div>
 
-                <div className="grid grid-2" style={{ marginBottom: 16 }}>
-                  <input
-                    placeholder="Buscar por nome, email ou whatsapp"
-                    value={financeFilters.search}
-                    onChange={(e) => setFinanceFilters((prev) => ({ ...prev, search: e.target.value }))}
-                  />
-                  <select value={financeFilters.status} onChange={(e) => setFinanceFilters((prev) => ({ ...prev, status: e.target.value }))}>
-                    <option value="todos">todos</option><option value="pagos">pagos</option><option value="pendentes">pendentes</option>
-                    <option value="vencendo hoje">vencendo hoje</option><option value="atrasados">atrasados</option>
-                    <option value="bloqueados">bloqueados</option><option value="ativos">ativos</option><option value="inativos">inativos</option>
-                  </select>
-                  <select value={financeFilters.plan} onChange={(e) => setFinanceFilters((prev) => ({ ...prev, plan: e.target.value }))}>
-                    <option value="">Todos os planos</option>
-                    {USER_PLAN_OPTIONS.map((plan) => <option key={plan.value} value={plan.value}>{plan.label}</option>)}
-                  </select>
-                  <select value={financeFilters.affiliateId} onChange={(e) => setFinanceFilters((prev) => ({ ...prev, affiliateId: e.target.value }))}>
-                    <option value="">Todos os afiliados</option>
-                    {activeAffiliates.map((affiliate) => <option key={affiliate.id} value={affiliate.id}>{affiliate.name}</option>)}
-                  </select>
-                  <select value={financeFilters.sort} onChange={(e) => setFinanceFilters((prev) => ({ ...prev, sort: e.target.value }))}>
-                    <option value="name">nome</option>
-                    <option value="due_date">vencimento mais próximo</option>
-                    <option value="overdue">atraso</option>
-                    <option value="last_payment">último pagamento</option>
-                  </select>
+                <div className="financeiro-tabela-wrapper">
+                  {financeTab === 'controle' && (
+                    <>
+                      <div className="financial-summary">
+                        <div className="financial-summary-card card-finance card-success financial-summary-green">Total recebido: {formatCurrency(financeSummary?.totalReceivedMonth || 0)}</div>
+                        <div className="financial-summary-card card-finance card-warning financial-summary-yellow">Total pendente: {formatCurrency(financeSummary?.totalPending || 0)}</div>
+                        <div className="financial-summary-card card-finance card-danger financial-summary-red">Total atrasado: {formatCurrency(financeSummary?.totalOverdue || 0)}</div>
+                        <div className="financial-summary-card card-finance">Usuários pagos: {financeSummary?.paidUsers || 0}</div>
+                        <div className="financial-summary-card card-finance">Vencendo hoje: {financeSummary?.usersDueToday || 0}</div>
+                        <div className="financial-summary-card card-finance">Atrasados: {financeSummary?.usersOverdue || 0}</div>
+                        <div className="financial-summary-card card-finance">Bloqueados: {financeSummary?.usersBlocked || 0}</div>
+                        <div className="financial-summary-card card-finance">Receita estimada: {formatCurrency(financeSummary?.estimatedMonthlyRevenue || 0)}</div>
+                      </div>
+
+                      <div className="grid grid-2 finance-filters-grid">
+                        <input
+                          placeholder="Buscar por nome, email ou whatsapp"
+                          value={financeFilters.search}
+                          onChange={(e) => setFinanceFilters((prev) => ({ ...prev, search: e.target.value }))}
+                        />
+                        <select value={financeFilters.status} onChange={(e) => setFinanceFilters((prev) => ({ ...prev, status: e.target.value }))}>
+                          <option value="todos">todos</option><option value="pagos">pagos</option><option value="pendentes">pendentes</option>
+                          <option value="vencendo hoje">vencendo hoje</option><option value="atrasados">atrasados</option>
+                          <option value="bloqueados">bloqueados</option><option value="ativos">ativos</option><option value="inativos">inativos</option>
+                        </select>
+                        <select value={financeFilters.plan} onChange={(e) => setFinanceFilters((prev) => ({ ...prev, plan: e.target.value }))}>
+                          <option value="">Todos os planos</option>
+                          {USER_PLAN_OPTIONS.map((plan) => <option key={plan.value} value={plan.value}>{plan.label}</option>)}
+                        </select>
+                        <select value={financeFilters.affiliateId} onChange={(e) => setFinanceFilters((prev) => ({ ...prev, affiliateId: e.target.value }))}>
+                          <option value="">Todos os afiliados</option>
+                          {activeAffiliates.map((affiliate) => <option key={affiliate.id} value={affiliate.id}>{affiliate.name}</option>)}
+                        </select>
+                        <select value={financeFilters.sort} onChange={(e) => setFinanceFilters((prev) => ({ ...prev, sort: e.target.value }))}>
+                          <option value="name">nome</option>
+                          <option value="due_date">vencimento mais próximo</option>
+                          <option value="overdue">atraso</option>
+                          <option value="last_payment">último pagamento</option>
+                        </select>
+                      </div>
+
+                      <FinanceTable
+                        items={financeUsers}
+                        affiliateNameById={affiliateNameById}
+                        onMarkPaid={(id) => runFinanceAction(`/admin/finance/users/${id}/mark-paid`, 'Pagamento registrado com sucesso.').catch((err) => pushToast(err.message, 'danger'))}
+                        onBlock={(id) => runFinanceAction(`/admin/finance/users/${id}/block`, 'Usuário bloqueado com sucesso.').catch((err) => pushToast(err.message, 'danger'))}
+                        onUnblock={(id) => unblockUser(id).catch((err) => pushToast(err.message, 'danger'))}
+                        onHistory={(user) => openFinanceHistory(user).catch((err) => pushToast(err.message, 'danger'))}
+                      />
+                    </>
+                  )}
+
+                  {financeTab === 'relatorios' && (
+                    <div className="financeiro-relatorios-scroll">
+                      <FinanceReports
+                        formatCurrency={formatCurrency}
+                        apiBase={workoutApiBase}
+                        getAccessToken={getAccessToken}
+                      />
+                    </div>
+                  )}
                 </div>
-
-                <FinanceTable
-                  items={financeUsers}
-                  affiliateNameById={affiliateNameById}
-                  onMarkPaid={(id) => runFinanceAction(`/admin/finance/users/${id}/mark-paid`, 'Pagamento registrado com sucesso.').catch((err) => pushToast(err.message, 'danger'))}
-                  onBlock={(id) => runFinanceAction(`/admin/finance/users/${id}/block`, 'Usuário bloqueado com sucesso.').catch((err) => pushToast(err.message, 'danger'))}
-                  onUnblock={(id) => unblockUser(id).catch((err) => pushToast(err.message, 'danger'))}
-                  onHistory={(user) => openFinanceHistory(user).catch((err) => pushToast(err.message, 'danger'))}
-                />
-              </>
-            )}
-
-                {financeTab === 'relatorios' && (
-                  <FinanceReports
-                    formatCurrency={formatCurrency}
-                    apiBase={workoutApiBase}
-                    getAccessToken={getAccessToken}
-                  />
-                )}
               </div>
             </div>
           </section>
