@@ -1550,6 +1550,14 @@ app.get("/supervisor/user-details/:id", async (req, res) => {
       return res.status(403).json({ error: "Sem permissão" });
     }
 
+    const filter = getSupervisorFoodFilter(req.query?.filter);
+    const { start, end } = getLocalDateRange(filter);
+
+    console.log('Filtro:', filter);
+    console.log('User ID:', targetUserId);
+    console.log('Start:', start);
+    console.log('End:', end);
+
     const [workoutsResult, foodLogsResult, weightHistoryResult, routinesResult] = await Promise.all([
       supabase
         .from("workout_sessions")
@@ -1560,6 +1568,8 @@ app.get("/supervisor/user-details/:id", async (req, res) => {
         .from("food_diary_entries")
         .select("*")
         .eq("user_id", targetUserId)
+        .gte("created_at", start.toISOString())
+        .lte("created_at", end.toISOString())
         .order("entry_date", { ascending: false })
         .order("created_at", { ascending: false })
         .limit(100),
@@ -1653,6 +1663,44 @@ app.get("/supervisor/user-details/:id", async (req, res) => {
     });
   }
 });
+
+const getSupervisorFoodFilter = (value) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (normalized === 'today' || normalized === 'hoje') return 'today';
+  if (normalized === 'week' || normalized === 'semana') return 'week';
+  if (normalized === 'month' || normalized === 'mes' || normalized === 'mês') return 'month';
+  return 'week';
+};
+
+const getLocalDateRange = (filter) => {
+  const now = new Date();
+
+  const start = new Date(now);
+  const end = new Date(now);
+
+  if (filter === 'today') {
+    start.setHours(0, 0, 0, 0);
+    end.setHours(23, 59, 59, 999);
+  }
+
+  if (filter === 'week') {
+    const day = now.getDay();
+    const diff = now.getDate() - day;
+    start.setDate(diff);
+    start.setHours(0, 0, 0, 0);
+
+    end.setHours(23, 59, 59, 999);
+  }
+
+  if (filter === 'month') {
+    start.setDate(1);
+    start.setHours(0, 0, 0, 0);
+
+    end.setHours(23, 59, 59, 999);
+  }
+
+  return { start, end };
+};
 
 const FINANCE_SELECT_COLUMNS = [
   "id",
