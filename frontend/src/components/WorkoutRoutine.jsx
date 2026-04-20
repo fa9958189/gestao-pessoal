@@ -182,6 +182,16 @@ const MUSCLE_INFO = {
       'Stiff',
     ],
   },
+  'ante braco': {
+    title: 'Antebraço',
+    description:
+      'Região que auxilia na força de pegada e na estabilidade de punhos e cotovelos, muito exigida em exercícios de tração e roscas.',
+    exercises: [
+      'Rosca martelo',
+      'Rosca de Punho',
+      'Rosca de Punho Invertida',
+    ],
+  },
 };
 
 const SPORT_INFO = {
@@ -251,7 +261,10 @@ const getExercisesKey = (muscleGroup) => {
   if (normalized === 'peito') return 'peito';
   if (normalized === 'triceps') return 'triceps';
   if (normalized === 'panturrilha') return 'panturrilha';
-  if (normalized === 'antebraco' || normalized === 'ante braco') return 'ante braco';
+  if (
+    normalized.includes('ante')
+    && normalized.includes('braco')
+  ) return 'ante braco';
 
   return normalized.replace(/\s+/g, '_');
 };
@@ -533,7 +546,7 @@ const ViewWorkoutModal = ({
                 {muscleGroups.length > 0 ? (
                   muscleGroups.map((mg) => {
                     const def = getMuscleGroupByLabel(mg) || muscleMap[mg];
-                    const key = (def?.value || mg || '').toString().toLowerCase();
+                    const key = getExercisesKey(def?.value || mg);
                     const info = MUSCLE_INFO[key];
 
                     return (
