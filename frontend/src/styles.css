@@ -1370,8 +1370,7 @@ canvas{ background:transparent; }
 .financeiro-container {
   display: flex;
   flex-direction: column;
-  height: 100%;
-  min-height: 0;
+  gap: 20px;
 }
 
 .financeiro-topo {
@@ -1396,26 +1395,17 @@ canvas{ background:transparent; }
 }
 
 .financeiro-tabela-wrapper {
-  flex: 1;
   display: flex;
   flex-direction: column;
-  min-height: 50vh;
 }
 
 .financeiro-tabela-scroll {
-  flex: 1;
-  overflow-y: auto;
+  overflow-y: visible;
   overflow-x: auto;
   width: 100%;
   border-radius: 14px;
   background: linear-gradient(180deg, #0b1220, #0f172a);
   border: 1px solid rgba(59, 130, 246, 0.2);
-}
-
-@media (min-width: 1200px) {
-  .financeiro-tabela-wrapper {
-    min-height: 500px;
-  }
 }
 
 .financeiro-relatorios-scroll {
@@ -1432,19 +1422,10 @@ canvas{ background:transparent; }
 }
 
 @media (max-width: 768px) {
-  .financeiro-container {
-    height: auto;
-  }
-
-  .financeiro-tabela-wrapper {
-    flex: none;
-    min-height: auto;
-  }
-
   .financeiro-tabela-scroll {
     overflow: visible;
     overflow-x: auto;
-    max-height: none;
+    overflow-y: visible;
   }
 }
 
