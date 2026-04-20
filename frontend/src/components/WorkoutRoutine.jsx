@@ -141,10 +141,10 @@ const MUSCLE_INFO = {
       'Abdominal reto (tradicional)',
     ],
   },
-  pernas: {
-    title: 'Pernas',
+  quadriceps: {
+    title: 'Quadríceps',
     description:
-      'Inclui coxas e panturrilhas. Suportam o peso do corpo, ajudam na circulação e são muito exigidas em agachamentos, leg press e corridas.',
+      'Grupo muscular da parte da frente da coxa, muito ativado em agachamentos, leg press, cadeira extensora e movimentos de extensão do joelho.',
     exercises: [
       'Agachamento búlgaro',
       'Agachamento hack',
@@ -737,15 +737,19 @@ const ViewWorkoutModal = ({
               {infoTarget.exercises && infoTarget.exercises.length > 0 && (
                 <div style={{ marginTop: '20px' }}>
                   {infoTarget.exercises.map((exercise) => {
-                    const gifSrc = getExerciseGif(infoTarget.id, exercise);
+                    const displayExercise = exercise;
+                    const normalizedExercise = ['Bíceps', 'Biceps', 'bíceps'].includes(exercise)
+                      ? 'Rosca Direta com Halter'
+                      : exercise;
+                    const gifSrc = getExerciseGif(infoTarget.id, normalizedExercise);
 
                     return (
                       <div key={exercise} style={{ marginBottom: '30px' }}>
-                        <h3 style={{ marginBottom: '10px' }}>{exercise}</h3>
+                        <h3 style={{ marginBottom: '10px' }}>{displayExercise}</h3>
                         {gifSrc ? (
                           <img
                             src={gifSrc}
-                            alt={exercise}
+                            alt={displayExercise}
                             style={{ width: '100%', borderRadius: '12px' }}
                           />
                         ) : (
