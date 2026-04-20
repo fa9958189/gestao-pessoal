@@ -147,6 +147,7 @@ function Supervisor({
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [tab, setTab] = useState('resumo');
   const [search, setSearch] = useState('');
+  const [userSearch, setUserSearch] = useState('');
   const [period, setPeriod] = useState('semana');
 
   const isAdmin = String(role || '').toLowerCase() === 'admin';
@@ -222,6 +223,19 @@ function Supervisor({
     const affiliateReference = currentAffiliateId || currentUserId;
     return users.filter((user) => user?.affiliate_id && user.affiliate_id === affiliateReference);
   }, [users, isAdmin, currentAffiliateId, currentUserId]);
+
+  const filteredUsers = useMemo(() => {
+    const normalizedSearch = String(userSearch || '').trim().toLowerCase();
+    if (!normalizedSearch) return visibleUsers;
+
+    return visibleUsers.filter((user) => {
+      const searchableText = [user?.name, user?.email, user?.whatsapp]
+        .map((value) => String(value || '').toLowerCase())
+        .join(' ');
+
+      return searchableText.includes(normalizedSearch);
+    });
+  }, [userSearch, visibleUsers]);
 
   const fetchUserDetails = useCallback(async (id, filter = period) => {
     if (!id || !apiBase) return;
@@ -396,6 +410,14 @@ function Supervisor({
           </div>
 
           <div className="card-body">
+            <input
+              type="text"
+              id="userSearch"
+              placeholder="🔍 Buscar por nome, email ou telefone..."
+              className="user-search-input"
+              value={userSearch}
+              onChange={(event) => setUserSearch(event.target.value)}
+            />
             <div className="supervisor-table scroll-x">
               <table className="finance-table">
                 <thead>
@@ -413,13 +435,13 @@ function Supervisor({
                     <tr>
                       <td colSpan={6}>Carregando...</td>
                     </tr>
-                  ) : visibleUsers.length === 0 ? (
+                  ) : filteredUsers.length === 0 ? (
                     <tr>
                       <td colSpan={6}>Nenhum usuário encontrado.</td>
                     </tr>
                   ) : (
-                    visibleUsers.map((user) => (
-                      <tr key={user.id}>
+                    filteredUsers.map((user) => (
+                      <tr key={user.id} className="user-card">
                         <td>{user.name || '-'}</td>
                         <td>{user.email || '-'}</td>
                         <td>{user.whatsapp || '-'}</td>
