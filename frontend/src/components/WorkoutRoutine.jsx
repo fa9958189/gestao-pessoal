@@ -375,6 +375,19 @@ const formatExerciseResume = (exercise) => {
   return `${base}${weightPart}`;
 };
 
+const normalizeExerciseDisplayName = (exercise) => {
+  const value = String(exercise || '').trim();
+
+  if (['Bíceps', 'Biceps', 'bíceps', 'biceps'].includes(value)) {
+    return 'Rosca Direta com Halter';
+  }
+
+  if (value === 'RoscadePunho') return 'Rosca de Punho';
+  if (value === 'RoscadePunhoInvertida') return 'Rosca de Punho Invertida';
+
+  return value;
+};
+
 const formatMuscleConfigValue = (entry) => {
   if (!entry || typeof entry !== 'object') return DEFAULT_MUSCLE_CONFIG;
   if (entry.type === 'custom') {
@@ -659,9 +672,7 @@ const ViewWorkoutModal = ({
                                 gap: 12,
                               }}
                             >
-                              <span>{exercise === "Bíceps" || exercise === "Biceps"
-                                ? "Rosca Direta com Halter"
-                                : exercise}</span>
+                              <span>{normalizeExerciseDisplayName(exercise)}</span>
                               <strong>{config}</strong>
                             </div>
                           ))}
@@ -739,11 +750,8 @@ const ViewWorkoutModal = ({
               {infoTarget.exercises && infoTarget.exercises.length > 0 && (
                 <div style={{ marginTop: '20px' }}>
                   {infoTarget.exercises.map((exercise) => {
-                    const displayExercise = exercise;
-                    const normalizedExercise = ['Bíceps', 'Biceps', 'bíceps'].includes(exercise)
-                      ? 'Rosca Direta com Halter'
-                      : exercise;
-                    const gifSrc = getExerciseGif(infoTarget.id, normalizedExercise);
+                    const displayExercise = normalizeExerciseDisplayName(exercise);
+                    const gifSrc = getExerciseGif(infoTarget.id, displayExercise);
 
                     return (
                       <div key={exercise} style={{ marginBottom: '30px' }}>
