@@ -1367,6 +1367,60 @@ canvas{ background:transparent; }
   border: 1px solid rgba(59, 130, 246, 0.2);
 }
 
+.financeiro-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.financeiro-topo {
+  flex-shrink: 0;
+}
+
+.financeiro-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+
+.finance-tabs {
+  margin-bottom: 16px;
+}
+
+.finance-filters-grid {
+  margin-bottom: 16px;
+}
+
+.financeiro-tabela-wrapper {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.financeiro-tabela-scroll {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: auto;
+  min-height: 0;
+  width: 100%;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #0b1220, #0f172a);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+}
+
+.financeiro-relatorios-scroll {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+  padding-right: 6px;
+}
+
 .finance-table {
   min-width: 1200px;
   width: 100%;
@@ -1574,6 +1628,7 @@ canvas{ background:transparent; }
   border-radius: 20px;
   box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.05), 0 16px 32px rgba(2, 6, 23, 0.35);
   padding: 24px;
+  min-height: 0;
 }
 
 .card-finance {
