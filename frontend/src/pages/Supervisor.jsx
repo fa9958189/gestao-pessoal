@@ -223,7 +223,7 @@ function Supervisor({
     return users.filter((user) => user?.affiliate_id && user.affiliate_id === affiliateReference);
   }, [users, isAdmin, currentAffiliateId, currentUserId]);
 
-  const fetchUserDetails = useCallback(async (id) => {
+  const fetchUserDetails = useCallback(async (id, filter = period) => {
     if (!id || !apiBase) return;
 
     setLoadingDetail(true);
@@ -233,7 +233,7 @@ function Supervisor({
       const token = await getAccessToken();
       if (!token) return;
 
-      const response = await fetch(`${apiBase}/supervisor/user-details/${id}`, {
+      const response = await fetch(`${apiBase}/supervisor/user-details/${id}?filter=${encodeURIComponent(filter)}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -250,7 +250,7 @@ function Supervisor({
     } finally {
       setLoadingDetail(false);
     }
-  }, [apiBase, getAccessToken, pushToast]);
+  }, [apiBase, getAccessToken, period, pushToast]);
 
   const openUserDetail = (user) => {
     if (!user?.id || !apiBase) return;
@@ -267,8 +267,13 @@ function Supervisor({
     setTab('resumo');
     setSearch('');
     setPeriod('semana');
-    fetchUserDetails(user.id);
+    fetchUserDetails(user.id, 'semana');
   };
+
+  useEffect(() => {
+    if (!selectedUser?.id) return;
+    fetchUserDetails(selectedUser.id, period);
+  }, [fetchUserDetails, period, selectedUser?.id]);
 
   if (!canSeeSupervisor) {
     return (
@@ -315,7 +320,6 @@ function Supervisor({
 
   const alimentacaoFiltrada = filterBySearch(
     alimentacaoBase
-      .filter((entry) => isWithinPeriod(resolveDateValue(entry, ['entry_date', 'created_at']), period))
       .sort(
         (a, b) =>
           new Date(resolveDateValue(b, ['entry_date', 'created_at']) || 0).getTime() -
