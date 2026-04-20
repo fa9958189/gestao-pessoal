@@ -279,10 +279,12 @@ function Supervisor({
     return (
       <div className="page-container supervisor-page">
         <div className="page-content">
-          <div className="card">
+          <div className="page-scroll">
+            <div className="card full-height-card">
             <div className="card-header">
               <h2>👁️ Supervisor</h2>
               <p>Acesso disponível apenas para admin e afiliado.</p>
+            </div>
             </div>
           </div>
         </div>
@@ -386,7 +388,8 @@ function Supervisor({
   return (
     <div className="page-container supervisor-page">
       <div className="page-content">
-        <div className="card">
+        <div className="page-scroll">
+          <div className="card full-height-card">
           <div className="card-header">
             <h2>👁️ Supervisor</h2>
             <p>Visualização de usuários com escopo por perfil.</p>
@@ -433,6 +436,7 @@ function Supervisor({
                 </tbody>
               </table>
             </div>
+          </div>
           </div>
         </div>
       </div>
