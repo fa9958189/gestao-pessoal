@@ -1,3 +1,5 @@
+import { normalizeKey } from './normalize';
+
 const MUSCLE_FOLDER_ALIASES = {
   ombros: 'ombro',
   ombro: 'ombro',
@@ -35,7 +37,7 @@ export function normalizeFileName(name) {
 }
 
 const resolveMuscleFolder = (muscle) => {
-  const normalizedMuscle = normalizeFileName(muscle);
+  const normalizedMuscle = normalizeFileName(normalizeKey(muscle));
   if (normalizedMuscle.includes('ante') && normalizedMuscle.includes('braco')) {
     return 'ante braco';
   }
