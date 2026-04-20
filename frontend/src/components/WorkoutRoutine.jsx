@@ -659,7 +659,9 @@ const ViewWorkoutModal = ({
                                 gap: 12,
                               }}
                             >
-                              <span>{exercise}</span>
+                              <span>{exercise === "Bíceps" || exercise === "Biceps"
+                                ? "Rosca Direta com Halter"
+                                : exercise}</span>
                               <strong>{config}</strong>
                             </div>
                           ))}
