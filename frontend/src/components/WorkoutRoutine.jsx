@@ -27,6 +27,7 @@ import TrainingHeatmap from './charts/TrainingHeatmap.jsx';
 import MiniStats from './charts/MiniStats.jsx';
 import { exercises } from '../data/exercises.js';
 import getExerciseGif from '../utils/getExerciseGif';
+import { normalizeKey } from '../utils/normalize';
 
 const muscleGroups = [
   { id: 'peito', name: 'Peito', image: PeitoImg },
@@ -228,27 +229,23 @@ const SPORT_INFO = {
 };
 
 const getMuscleGroupByLabel = (label) => {
-  const normalized = String(label || '').toLowerCase();
+  const normalized = normalizeKey(label);
   return MUSCLE_GROUPS.find(
     (group) =>
-      group.label.toLowerCase() === normalized ||
-      group.value.toLowerCase() === normalized
+      normalizeKey(group.label) === normalized ||
+      normalizeKey(group.value) === normalized
   );
 };
 
 const getSportByLabel = (label) => {
-  const normalized = String(label || '').toLowerCase();
+  const normalized = normalizeKey(label);
   return SPORTS.find(
-    (sport) => sport.label.toLowerCase() === normalized || sport.value.toLowerCase() === normalized
+    (sport) => normalizeKey(sport.label) === normalized || normalizeKey(sport.value) === normalized
   );
 };
 
 const getExercisesKey = (muscleGroup) => {
-  const normalized = String(muscleGroup || '')
-    .trim()
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '');
+  const normalized = normalizeKey(muscleGroup);
 
   if (normalized === 'ombros' || normalized === 'ombro') return 'ombro';
   if (normalized === 'gluteos' || normalized === 'gluteo') return 'gluteo';
@@ -2327,11 +2324,11 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
                             <div key={muscle} className="card-padrao" style={{ padding: 12 }}>
                               <h4 style={{ marginTop: 0, marginBottom: 8 }}>{muscleMap[muscle]?.label || muscle}</h4>
                               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                                {(exercises[getExercisesKey(muscle)] || []).map((exercise) => (
+                                {(exercises[normalizeKey(getExercisesKey(muscle))] || []).map((exercise) => (
                                   <div
                                     key={`${muscle}-${exercise}`}
                                     onClick={() => handleExerciseToggle(muscle, exercise)}
-                                    className={`exercise-item treino-option ${(selectedExercises[getExercisesKey(muscle)] || []).includes(exercise) ? 'selected' : ''}`}
+                                    className={`exercise-item treino-option ${(selectedExercises[normalizeKey(getExercisesKey(muscle))] || []).includes(exercise) ? 'selected' : ''}`}
                                   >
                                     <span>{exercise}</span>
                                     <button
