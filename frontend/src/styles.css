@@ -1397,19 +1397,15 @@ canvas{ background:transparent; }
 
 .financeiro-tabela-wrapper {
   flex: 1;
-  overflow: hidden;
   display: flex;
   flex-direction: column;
-  min-height: 400px;
-  min-height: max(400px, 50vh);
+  min-height: 50vh;
 }
 
 .financeiro-tabela-scroll {
   flex: 1;
   overflow-y: auto;
   overflow-x: auto;
-  min-height: 300px;
-  min-height: max(300px, 40vh);
   width: 100%;
   border-radius: 14px;
   background: linear-gradient(180deg, #0b1220, #0f172a);
@@ -1430,9 +1426,26 @@ canvas{ background:transparent; }
 }
 
 .finance-table {
-  min-width: 1200px;
+  min-width: 900px;
   width: 100%;
   border-collapse: collapse;
+}
+
+@media (max-width: 768px) {
+  .financeiro-container {
+    height: auto;
+  }
+
+  .financeiro-tabela-wrapper {
+    flex: none;
+    min-height: auto;
+  }
+
+  .financeiro-tabela-scroll {
+    overflow: visible;
+    overflow-x: auto;
+    max-height: none;
+  }
 }
 
 .finance-table th {
