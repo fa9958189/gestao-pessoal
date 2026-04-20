@@ -38,6 +38,7 @@ import {
   undoLastHydration,
   updateWaterGoal,
 } from "./foodDiaryStorage.js";
+import PLANOS from "./config/planos.js";
 
 const require = createRequire(import.meta.url);
 const sharp = require("sharp");
@@ -59,8 +60,8 @@ const USER_PLAN_TYPES = Object.freeze({
 });
 const PLAN_MONTHLY_VALUES = Object.freeze({
   [USER_PLAN_TYPES.TRIAL]: 0,
-  [USER_PLAN_TYPES.NORMAL]: 120,
-  [USER_PLAN_TYPES.PROMO]: 80,
+  [USER_PLAN_TYPES.NORMAL]: PLANOS.NORMAL.valor,
+  [USER_PLAN_TYPES.PROMO]: PLANOS.PROMO.valor,
   vip: 200,
 });
 const ALLOWED_USER_PLAN_TYPES = new Set(Object.values(USER_PLAN_TYPES));
@@ -1901,7 +1902,7 @@ app.get("/admin/finance/reports", async (req, res) => {
       }
       acc[key].total_users += 1;
       if (String(user?.subscription_status || "").toLowerCase() === "active") {
-        acc[key].total_revenue += 120;
+        acc[key].total_revenue += getPlanMonthlyValue(user?.plan_type);
       }
       return acc;
     }, {});
@@ -1941,7 +1942,7 @@ app.get("/admin/finance/reports", async (req, res) => {
           revenue: 0,
         };
       }
-      acc[monthKey].revenue += 120;
+      acc[monthKey].revenue += getPlanMonthlyValue(user?.plan_type);
       return acc;
     }, {});
 

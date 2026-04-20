@@ -273,13 +273,13 @@ const USER_PLAN_TYPES = Object.freeze({
 
 const USER_PLAN_OPTIONS = [
   { value: USER_PLAN_TYPES.TRIAL, label: '🟢 Teste grátis (30 dias)' },
-  { value: USER_PLAN_TYPES.NORMAL, label: '🔵 Plano normal — R$120/mês' },
-  { value: USER_PLAN_TYPES.PROMO, label: '🟣 Plano promocional — R$80/mês (fidelidade de 4 meses)' },
+  { value: USER_PLAN_TYPES.NORMAL, label: '🔵 Plano Normal — R$80/mês' },
+  { value: USER_PLAN_TYPES.PROMO, label: '🟣 Plano Promocional — R$49,90/mês (fidelidade de 4 meses)' },
 ];
 const PLAN_MONTHLY_VALUES = Object.freeze({
   [USER_PLAN_TYPES.TRIAL]: 0,
-  [USER_PLAN_TYPES.NORMAL]: 120,
-  [USER_PLAN_TYPES.PROMO]: 80,
+  [USER_PLAN_TYPES.NORMAL]: 80,
+  [USER_PLAN_TYPES.PROMO]: 49.9,
   vip: 200,
 });
 
