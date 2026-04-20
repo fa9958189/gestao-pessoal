@@ -4069,7 +4069,7 @@ function App() {
         ))}
       </div>
 
-      <div className="main-content">
+      <div className="main-content main-container">
         <DashboardHeader
           apiUrl={window.APP_CONFIG?.supabaseUrl}
           profile={profile}
@@ -4866,8 +4866,10 @@ function App() {
 
       {activeView === 'finance' && isAdmin && (
         <div className="container single-card app-content admin-users-container">
-          <section className="card admin-card module-card finance-container">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
+          <section className="card admin-card module-card finance-container full-height-card">
+            <div className="page-content">
+              <div className="page-scroll">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
               <div>
                 <h1 className="title" style={{ marginBottom: 4 }}>💰 Financeiro</h1>
                 <p className="muted">Controle operacional financeiro centralizado.</p>
@@ -4940,13 +4942,15 @@ function App() {
               </>
             )}
 
-            {financeTab === 'relatorios' && (
-              <FinanceReports
-                formatCurrency={formatCurrency}
-                apiBase={workoutApiBase}
-                getAccessToken={getAccessToken}
-              />
-            )}
+                {financeTab === 'relatorios' && (
+                  <FinanceReports
+                    formatCurrency={formatCurrency}
+                    apiBase={workoutApiBase}
+                    getAccessToken={getAccessToken}
+                  />
+                )}
+              </div>
+            </div>
           </section>
         </div>
       )}
@@ -4964,8 +4968,10 @@ function App() {
 
       {activeView === 'affiliates' && isAdmin && (
         <div className="container single-card app-content admin-users-container">
-          <section className="card admin-card module-card" id="adminAffiliatesSection">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
+          <section className="card admin-card module-card full-height-card" id="adminAffiliatesSection">
+            <div className="page-content">
+              <div className="page-scroll">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
               <div>
                 <h2 className="title" style={{ marginBottom: 4 }}>Afiliados</h2>
                 <p className="muted">Gerencie parceiros e visualize seus clientes.</p>
@@ -5067,16 +5073,18 @@ function App() {
               </div>
             )}
 
-            {affiliatesLoading && <p className="muted">Carregando afiliados...</p>}
-            {!affiliatesLoading && (
-              <AffiliateCards
-                items={affiliatesFinal}
-                expandedAffiliateId={expandedAffiliateId}
-                affiliateUsers={affiliateUsers}
-                affiliateUsersLoadingId={affiliateUsersLoadingId}
-                onToggleAffiliate={toggleAffiliate}
-              />
-            )}
+                {affiliatesLoading && <p className="muted">Carregando afiliados...</p>}
+                {!affiliatesLoading && (
+                  <AffiliateCards
+                    items={affiliatesFinal}
+                    expandedAffiliateId={expandedAffiliateId}
+                    affiliateUsers={affiliateUsers}
+                    affiliateUsersLoadingId={affiliateUsersLoadingId}
+                    onToggleAffiliate={toggleAffiliate}
+                  />
+                )}
+              </div>
+            </div>
           </section>
         </div>
       )}
