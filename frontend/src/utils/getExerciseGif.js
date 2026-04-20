@@ -15,6 +15,10 @@ const MUSCLE_FOLDER_ALIASES = {
 };
 
 const EXERCISE_FILE_ALIASES = {
+  Bíceps: 'Rosca Direta com Halter',
+  Biceps: 'Rosca Direta com Halter',
+  biceps: 'Rosca Direta com Halter',
+  'Rosca Direta com Halter': 'Rosca Direta com Halter',
   'Abdominal reto': 'Abdominal reto (tradicional)',
   'Extensão de tríceps deitado': 'Extensao triceps deitado',
   'Extensão tríceps deitado': 'Extensao triceps deitado',
