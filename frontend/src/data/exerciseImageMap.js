@@ -1,24 +1,17 @@
-import BicepsBasico from '../assets/exercise/biceps/bíceps.gif';
-import RoscaConcentrada from '../assets/exercise/biceps/Rosca concentrada.gif';
-import RoscaInclinada from '../assets/exercise/biceps/Rosca inclinada.gif';
-import RoscaScott from '../assets/exercise/biceps/Rosca Scott.gif';
-
-import PulleyCostas from '../assets/exercise/costas/Pulley costas.gif';
-import RemadaBaixa from '../assets/exercise/costas/Remada baixa.gif';
-import RemadaSerrote from '../assets/exercise/costas/Remada serrote.gif';
-import VoadorInvertido from '../assets/exercise/costas/Voador invertido.gif';
+import getExerciseGif from '../utils/getExerciseGif';
 
 export const exerciseImageMap = {
   biceps: {
-    'Bíceps': BicepsBasico,
-    'Rosca concentrada': RoscaConcentrada,
-    'Rosca inclinada': RoscaInclinada,
-    'Rosca Scott': RoscaScott,
+    'Rosca direta com halter': getExerciseGif('biceps', 'Rosca direta com halter'),
+    'Rosca concentrada': getExerciseGif('biceps', 'Rosca concentrada'),
+    'Rosca inclinada': getExerciseGif('biceps', 'Rosca inclinada'),
+    'Rosca Scott': getExerciseGif('biceps', 'Rosca Scott'),
+    'Rosca martelo': getExerciseGif('biceps', 'Rosca martelo'),
   },
   costas: {
-    'Pulley costas': PulleyCostas,
-    'Remada baixa': RemadaBaixa,
-    'Remada serrote': RemadaSerrote,
-    'Voador invertido': VoadorInvertido,
+    'Pulley costas': getExerciseGif('costas', 'Pulley costas'),
+    'Remada baixa': getExerciseGif('costas', 'Remada baixa'),
+    'Remada serrote': getExerciseGif('costas', 'Remada serrote'),
+    'Voador invertido': getExerciseGif('costas', 'Voador invertido'),
   },
 };

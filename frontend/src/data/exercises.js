@@ -10,7 +10,8 @@ export const exercises = {
     "Rosca direta com halter",
     "Rosca inclinada",
     "Rosca Scott",
-    "Rosca concentrada"
+    "Rosca concentrada",
+    "Rosca martelo"
   ],
 
   costas: [
