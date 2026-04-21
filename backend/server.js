@@ -3,6 +3,7 @@ import express from "express";
 import cors from "cors";
 import fs from "fs/promises";
 import path from "path";
+import Stripe from "stripe";
 import { createRequire } from "module";
 import { fileURLToPath } from "url";
 import multer from "multer";
@@ -42,9 +43,72 @@ import PLANOS from "./config/planos.js";
 
 const require = createRequire(import.meta.url);
 const sharp = require("sharp");
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
 const app = express();
 app.use(cors());
+
+app.post("/webhook/stripe", express.raw({ type: "application/json" }), async (req, res) => {
+  const sig = req.headers["stripe-signature"];
+
+  let event;
+
+  try {
+    event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET);
+  } catch (err) {
+    console.error("Erro no webhook:", err.message);
+    return res.status(400).send(`Webhook Error: ${err.message}`);
+  }
+
+  const data = event.data.object;
+
+  switch (event.type) {
+    case "checkout.session.completed":
+      console.log("Pagamento concluído");
+
+      await supabase
+        .from("profiles")
+        .update({
+          subscription_status: "active",
+          billing_status: "active",
+          stripe_customer_id: data.customer,
+        })
+        .eq("email", data.customer_details.email);
+
+      break;
+
+    case "customer.subscription.deleted":
+      console.log("Assinatura cancelada");
+
+      await supabase
+        .from("profiles")
+        .update({
+          subscription_status: "canceled",
+          billing_status: "inactive",
+        })
+        .eq("stripe_customer_id", data.customer);
+
+      break;
+
+    case "invoice.payment_failed":
+      console.log("Pagamento falhou");
+
+      await supabase
+        .from("profiles")
+        .update({
+          billing_status: "past_due",
+        })
+        .eq("stripe_customer_id", data.customer);
+
+      break;
+
+    default:
+      console.log(`Evento não tratado: ${event.type}`);
+  }
+
+  res.json({ received: true });
+});
+
 app.use(express.json());
 app.use("/api/foods", foodsRouter);
 app.use("/api/events", eventsRoutes);
