@@ -44,11 +44,45 @@ import PLANOS from "./config/planos.js";
 const require = createRequire(import.meta.url);
 const sharp = require("sharp");
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+const STRIPE_PRICE_ID_NORMAL = String(process.env.STRIPE_PRICE_ID_NORMAL || "").trim();
+const STRIPE_PRICE_ID_PROMO = String(process.env.STRIPE_PRICE_ID_PROMO || "").trim();
+const PAYMENT_ALREADY_USED_MESSAGE = "Este pagamento já foi utilizado para criar um acesso.";
 
 const app = express();
 app.use(cors());
 
-app.post("/webhook/stripe", express.raw({ type: "application/json" }), async (req, res) => {
+const normalizeStripePlanType = ({ priceId, amountTotal }) => {
+  if (priceId && STRIPE_PRICE_ID_NORMAL && priceId === STRIPE_PRICE_ID_NORMAL) return "normal";
+  if (priceId && STRIPE_PRICE_ID_PROMO && priceId === STRIPE_PRICE_ID_PROMO) return "promo";
+  if (Number(amountTotal) === 8000) return "normal";
+  if (Number(amountTotal) === 4990) return "promo";
+  return "normal";
+};
+
+const getStripeSessionPriceId = async (sessionId) => {
+  if (!sessionId) return null;
+  try {
+    const lineItems = await stripe.checkout.sessions.listLineItems(sessionId, { limit: 1 });
+    const firstItem = Array.isArray(lineItems?.data) ? lineItems.data[0] : null;
+    return firstItem?.price?.id || null;
+  } catch (error) {
+    console.error("Erro ao obter line items da sessão Stripe:", error);
+    return null;
+  }
+};
+
+const upsertPaymentAccessToken = async (payload) => {
+  const { error } = await supabase
+    .from("payment_access_tokens")
+    .upsert(payload, { onConflict: "session_id" });
+
+  if (error) {
+    console.error("Erro ao salvar token de ativação por pagamento:", error);
+    throw error;
+  }
+};
+
+app.post("/stripe/webhook", express.raw({ type: "application/json" }), async (req, res) => {
   const sig = req.headers["stripe-signature"];
 
   let event;
@@ -61,47 +95,104 @@ app.post("/webhook/stripe", express.raw({ type: "application/json" }), async (re
   }
 
   const data = event.data.object;
+  console.log("[Stripe webhook] Evento recebido:", event.type);
 
   switch (event.type) {
-    case "checkout.session.completed":
-      console.log("Pagamento concluído");
+    case "checkout.session.completed": {
+      const sessionId = data?.id || null;
+      const stripeCustomerId = data?.customer || null;
+      const email = String(data?.customer_details?.email || data?.customer_email || "").trim().toLowerCase();
+      const stripeSubscriptionId = data?.subscription || null;
+      const amountTotal = Number(data?.amount_total || 0);
+      const priceId = await getStripeSessionPriceId(sessionId);
+      const planType = normalizeStripePlanType({ priceId, amountTotal });
+
+      if (!sessionId || !email) {
+        console.warn("[Stripe webhook] checkout.session.completed sem session_id/email.");
+        break;
+      }
+
+      await upsertPaymentAccessToken({
+        session_id: sessionId,
+        stripe_customer_id: stripeCustomerId,
+        stripe_subscription_id: stripeSubscriptionId,
+        email,
+        plan_type: planType,
+        payment_status: "paid",
+        used: false,
+      });
+
+      console.log("[Stripe webhook] Sessão marcada como paga:", sessionId);
+      break;
+    }
+    case "customer.subscription.deleted": {
+      const stripeCustomerId = data?.customer || null;
+      if (!stripeCustomerId) break;
 
       await supabase
         .from("profiles")
         .update({
-          subscription_status: "active",
-          billing_status: "active",
-          stripe_customer_id: data.customer,
+          subscription_status: "inactive",
+          billing_status: "canceled",
+          status_acesso: "inativo",
         })
-        .eq("email", data.customer_details.email);
-
-      break;
-
-    case "customer.subscription.deleted":
-      console.log("Assinatura cancelada");
+        .eq("stripe_customer_id", stripeCustomerId);
 
       await supabase
-        .from("profiles")
+        .from("payment_access_tokens")
         .update({
-          subscription_status: "canceled",
-          billing_status: "inactive",
+          payment_status: "canceled",
         })
-        .eq("stripe_customer_id", data.customer);
+        .eq("stripe_customer_id", stripeCustomerId);
 
+      console.log("[Stripe webhook] Assinatura cancelada:", stripeCustomerId);
       break;
-
-    case "invoice.payment_failed":
-      console.log("Pagamento falhou");
+    }
+    case "invoice.payment_failed": {
+      const stripeCustomerId = data?.customer || null;
+      if (!stripeCustomerId) break;
 
       await supabase
         .from("profiles")
         .update({
           billing_status: "past_due",
         })
-        .eq("stripe_customer_id", data.customer);
+        .eq("stripe_customer_id", stripeCustomerId);
 
+      await supabase
+        .from("payment_access_tokens")
+        .update({
+          payment_status: "past_due",
+        })
+        .eq("stripe_customer_id", stripeCustomerId);
+
+      console.log("[Stripe webhook] Pagamento falhou:", stripeCustomerId);
       break;
+    }
+    case "invoice.paid": {
+      const stripeCustomerId = data?.customer || null;
+      if (!stripeCustomerId) break;
 
+      await supabase
+        .from("profiles")
+        .update({
+          billing_status: "paid",
+          subscription_status: "active",
+          status_acesso: "ativo",
+          last_paid_at: new Date().toISOString(),
+        })
+        .eq("stripe_customer_id", stripeCustomerId);
+
+      await supabase
+        .from("payment_access_tokens")
+        .update({
+          payment_status: "paid",
+        })
+        .eq("stripe_customer_id", stripeCustomerId);
+
+      console.log("[Stripe webhook] Fatura paga:", stripeCustomerId);
+      break;
+    }
     default:
       console.log(`Evento não tratado: ${event.type}`);
   }
@@ -731,6 +822,259 @@ const scanFoodUpload = (req, res, next) => {
     return next();
   });
 };
+
+app.get("/stripe/checkout/validate", async (req, res) => {
+  try {
+    const sessionId = String(req.query?.session_id || "").trim();
+    if (!sessionId) {
+      return res.status(400).json({
+        valid: false,
+        already_used: false,
+        email: null,
+        plan_type: null,
+        customer_id: null,
+        message: "session_id é obrigatório.",
+      });
+    }
+
+    let { data: tokenRow, error: tokenError } = await supabase
+      .from("payment_access_tokens")
+      .select("*")
+      .eq("session_id", sessionId)
+      .maybeSingle();
+
+    if (tokenError) {
+      console.error("Erro ao buscar token de ativação:", tokenError);
+      return res.status(500).json({
+        valid: false,
+        already_used: false,
+        email: null,
+        plan_type: null,
+        customer_id: null,
+        message: "Erro ao validar sessão de pagamento.",
+      });
+    }
+
+    if (!tokenRow) {
+      const session = await stripe.checkout.sessions.retrieve(sessionId);
+      const paymentStatus = String(session?.payment_status || "").toLowerCase();
+      const isPaid = paymentStatus === "paid";
+
+      if (!isPaid) {
+        console.log("[Stripe validate] Sessão não está paga:", sessionId);
+        return res.json({
+          valid: false,
+          already_used: false,
+          email: null,
+          plan_type: null,
+          customer_id: session?.customer || null,
+          message: "Pagamento ainda não confirmado.",
+        });
+      }
+
+      const priceId = await getStripeSessionPriceId(sessionId);
+      const planType = normalizeStripePlanType({
+        priceId,
+        amountTotal: session?.amount_total,
+      });
+
+      const fallbackEmail = String(
+        session?.customer_details?.email || session?.customer_email || ""
+      ).trim().toLowerCase();
+
+      if (!fallbackEmail) {
+        return res.json({
+          valid: false,
+          already_used: false,
+          email: null,
+          plan_type: null,
+          customer_id: session?.customer || null,
+          message: "Não foi possível identificar o email deste pagamento.",
+        });
+      }
+
+      await upsertPaymentAccessToken({
+        session_id: sessionId,
+        stripe_customer_id: session?.customer || null,
+        stripe_subscription_id: session?.subscription || null,
+        email: fallbackEmail,
+        plan_type: planType,
+        payment_status: "paid",
+        used: false,
+      });
+
+      const { data: insertedToken } = await supabase
+        .from("payment_access_tokens")
+        .select("*")
+        .eq("session_id", sessionId)
+        .maybeSingle();
+      tokenRow = insertedToken;
+    }
+
+    const isPaid = String(tokenRow?.payment_status || "").toLowerCase() === "paid";
+    const alreadyUsed = tokenRow?.used === true;
+    const valid = isPaid;
+
+    console.log("[Stripe validate] Sessão validada:", {
+      sessionId,
+      valid,
+      alreadyUsed,
+    });
+
+    return res.json({
+      valid,
+      already_used: alreadyUsed,
+      email: tokenRow?.email || null,
+      plan_type: tokenRow?.plan_type || null,
+      customer_id: tokenRow?.stripe_customer_id || null,
+      message: alreadyUsed
+        ? "Este pagamento já foi utilizado para criar um acesso."
+        : valid
+        ? "Pagamento confirmado."
+        : "Pagamento ainda não confirmado.",
+    });
+  } catch (error) {
+    console.error("Erro ao validar checkout Stripe:", error);
+    return res.status(500).json({
+      valid: false,
+      already_used: false,
+      email: null,
+      plan_type: null,
+      customer_id: null,
+      message: "Não foi possível validar o pagamento.",
+    });
+  }
+});
+
+app.post("/stripe/checkout/create-account", async (req, res) => {
+  try {
+    const sessionId = String(req.body?.session_id || "").trim();
+    const name = String(req.body?.name || "").trim();
+    const whatsapp = String(req.body?.whatsapp || "").trim();
+    const password = String(req.body?.password || "");
+
+    if (!sessionId || !name || !whatsapp || !password) {
+      return res.status(400).json({ error: "session_id, name, whatsapp e password são obrigatórios." });
+    }
+
+    if (password.trim().length < 6) {
+      return res.status(400).json({ error: "A senha deve ter no mínimo 6 caracteres." });
+    }
+
+    const { data: tokenRow, error: tokenError } = await supabase
+      .from("payment_access_tokens")
+      .select("*")
+      .eq("session_id", sessionId)
+      .maybeSingle();
+
+    if (tokenError) {
+      console.error("Erro ao buscar token de pagamento para criação de conta:", tokenError);
+      return res.status(500).json({ error: "Erro ao validar pagamento." });
+    }
+
+    if (!tokenRow) {
+      return res.status(404).json({ error: "Pagamento não encontrado." });
+    }
+
+    if (tokenRow.used === true) {
+      console.log("[Stripe create-account] Tentativa duplicada:", sessionId);
+      return res.status(409).json({ error: PAYMENT_ALREADY_USED_MESSAGE });
+    }
+
+    if (String(tokenRow.payment_status || "").toLowerCase() !== "paid") {
+      return res.status(400).json({ error: "Pagamento ainda não confirmado." });
+    }
+
+    const { affiliate, error: affiliateResolveError } = await resolveAffiliate(null);
+    if (affiliateResolveError || !affiliate?.id) {
+      return res.status(400).json({ error: affiliateResolveError || "Afiliado padrão não encontrado." });
+    }
+
+    const email = String(tokenRow.email || "").trim().toLowerCase();
+    const planType = String(tokenRow.plan_type || "normal").trim().toLowerCase();
+    const now = new Date();
+    const nowIso = now.toISOString();
+    const { planStartDate, planEndDate } = computePlanDates(planType);
+
+    const { data: authUser, error: authError } = await supabase.auth.admin.createUser({
+      email,
+      password: password.trim(),
+      email_confirm: true,
+    });
+
+    if (authError) {
+      console.error("Erro ao criar usuário no Auth por pagamento:", authError);
+      if (isDuplicateEmailError(authError)) {
+        return res.status(409).json({ error: "Este email já está cadastrado." });
+      }
+      return res.status(500).json({ error: buildApiErrorMessage(authError) });
+    }
+
+    const userId = authUser?.user?.id;
+    if (!userId) {
+      return res.status(500).json({ error: "Erro ao criar usuário no Auth." });
+    }
+
+    const affiliateCode = "AFF" + Math.random().toString(36).substring(2, 8).toUpperCase();
+    const profilePayload = {
+      id: userId,
+      name,
+      username: email,
+      email,
+      whatsapp,
+      role: "user",
+      billing_status: "paid",
+      billing_due_day: BILLING_DEFAULT_DUE_DAY,
+      affiliate_id: affiliate.id,
+      affiliate_code: affiliateCode,
+      plan_type: planType,
+      plan_start_date: planStartDate,
+      plan_end_date: planEndDate,
+      trial_start_at: null,
+      trial_end_at: null,
+      trial_status: null,
+      trial_notified_at: null,
+      stripe_customer_id: tokenRow.stripe_customer_id || null,
+      subscription_status: "active",
+      status_acesso: "ativo",
+      last_paid_at: nowIso,
+    };
+
+    const { error: profileError } = await supabase.from("profiles").insert(profilePayload);
+    if (profileError) {
+      console.error("Erro ao criar profile por pagamento:", profileError);
+      await supabase.auth.admin.deleteUser(userId);
+      return res.status(500).json({ error: "Erro ao criar perfil do usuário." });
+    }
+
+    const { error: updateTokenError } = await supabase
+      .from("payment_access_tokens")
+      .update({
+        used: true,
+        used_at: nowIso,
+        auth_user_id: userId,
+        profile_id: userId,
+      })
+      .eq("session_id", sessionId)
+      .eq("used", false);
+
+    if (updateTokenError) {
+      console.error("Erro ao marcar token como utilizado:", updateTokenError);
+      return res.status(500).json({ error: "Conta criada, mas não foi possível concluir a ativação." });
+    }
+
+    console.log("[Stripe create-account] Conta criada com sucesso:", { sessionId, userId, email });
+    return res.json({
+      success: true,
+      email,
+      auto_login_email: email,
+      message: "Conta criada com sucesso.",
+    });
+  } catch (error) {
+    console.error("Erro ao criar conta por pagamento:", error);
+    return res.status(500).json({ error: "Erro ao criar conta por pagamento." });
+  }
+});
 
 app.post("/scan-food", scanFoodUpload, async (req, res) => {
   try {

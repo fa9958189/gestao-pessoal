@@ -3,6 +3,7 @@ import WorkoutRoutine from './components/WorkoutRoutine.jsx';
 import FoodDiary from './components/FoodDiary.jsx';
 import GeneralReport from './components/GeneralReport.jsx';
 import FinanceReports from './components/FinanceReports.jsx';
+import PaymentActivationScreen from './components/PaymentActivationScreen.jsx';
 import './styles.css';
 import { loadGoals } from './services/foodDiaryProfile';
 import { supabase as sharedSupabase } from './supabaseClient';
@@ -2096,7 +2097,7 @@ const Reports = ({ transactions }) => {
   );
 };
 
-function App() {
+function AppMain() {
   const { client, configError } = useSupabaseClient();
   const { session, profile, loadingSession, setSession, setProfile } = useAuth(client);
   const supabase = client;
@@ -5239,6 +5240,21 @@ function App() {
       </div>
     </>
   );
+}
+
+function App() {
+  const pathname = window.location.pathname;
+  if (pathname === '/ativar-acesso') {
+    const apiBase = normalizeBaseUrl(
+      window.APP_CONFIG?.apiBaseUrl ||
+      import.meta.env.VITE_API_BASE_URL ||
+      import.meta.env.VITE_API_URL ||
+      import.meta.env.VITE_BACKEND_URL
+    );
+    return <PaymentActivationScreen apiBase={apiBase} supabase={sharedSupabase} />;
+  }
+
+  return <AppMain />;
 }
 
 export default App;
