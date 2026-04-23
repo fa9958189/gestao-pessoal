@@ -4,6 +4,7 @@ import FoodDiary from './components/FoodDiary.jsx';
 import GeneralReport from './components/GeneralReport.jsx';
 import FinanceReports from './components/FinanceReports.jsx';
 import PaymentActivationScreen from './components/PaymentActivationScreen.jsx';
+import AtivarAcesso from './pages/AtivarAcesso';
 import './styles.css';
 import { loadGoals } from './services/foodDiaryProfile';
 import { supabase as sharedSupabase } from './supabaseClient';
@@ -5245,6 +5246,10 @@ function AppMain() {
 function App() {
   const pathname = window.location.pathname;
   if (pathname === '/ativar-acesso') {
+    return <AtivarAcesso />;
+  }
+
+  if (pathname === '/ativar-cadastro') {
     const apiBase = normalizeBaseUrl(
       window.APP_CONFIG?.apiBaseUrl ||
       import.meta.env.VITE_API_BASE_URL ||

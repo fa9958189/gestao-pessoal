@@ -946,6 +946,27 @@ app.get("/stripe/checkout/validate", async (req, res) => {
   }
 });
 
+app.get("/stripe/confirm", async (req, res) => {
+  const sessionId = String(req.query?.session_id || "").trim();
+
+  if (!sessionId) {
+    return res.status(400).json({ success: false });
+  }
+
+  try {
+    const session = await stripe.checkout.sessions.retrieve(sessionId);
+
+    if (session?.payment_status === "paid") {
+      return res.json({ success: true });
+    }
+
+    return res.json({ success: false });
+  } catch (err) {
+    console.error("Erro ao confirmar sessão Stripe:", err);
+    return res.status(500).json({ success: false });
+  }
+});
+
 app.post("/stripe/checkout/create-account", async (req, res) => {
   try {
     const sessionId = String(req.body?.session_id || "").trim();
