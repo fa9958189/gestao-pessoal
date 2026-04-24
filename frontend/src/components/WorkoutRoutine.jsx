@@ -1168,17 +1168,12 @@ const WorkoutRoutine = ({
     return data;
   };
 
-  const getAccessToken = async () => {
-    if (!supabase) return null;
-    const { data } = await supabase.auth.getSession();
-    return data?.session?.access_token || null;
-  };
-
   const fetchAffiliateTransferUsers = async () => {
     if (!supabase) return;
     try {
-      const accessToken = await getAccessToken();
-      if (!accessToken) {
+      const session = JSON.parse(localStorage.getItem('gp-session') || '{}');
+      const token = session?.accessToken;
+      if (!token) {
         throw new Error('Sessão inválida. Faça login novamente.');
       }
 
@@ -1188,7 +1183,7 @@ const WorkoutRoutine = ({
 
       const response = await fetch(`${base}/affiliate/supervised-users`, {
         headers: {
-          Authorization: `Bearer ${accessToken}`
+          Authorization: `Bearer ${token}`
         }
       });
 
@@ -1234,15 +1229,16 @@ const WorkoutRoutine = ({
 
     try {
       setTransferringWorkout(true);
-      const accessToken = await getAccessToken();
-      if (!accessToken) {
+      const session = JSON.parse(localStorage.getItem('gp-session') || '{}');
+      const token = session?.accessToken;
+      if (!token) {
         throw new Error('Sessão inválida. Faça login novamente.');
       }
 
       const response = await fetch(`${apiBaseUrl}/workouts/${workoutToTransfer.id}/transfer`, {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${accessToken}`,
+          Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
