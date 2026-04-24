@@ -792,7 +792,7 @@ const ViewWorkoutModal = ({
   );
 };
 
-const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushToast }) => {
+const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushToast, currentUserRole = '' }) => {
   const [treinoTab, setTreinoTab] = useState('treinos');
   const [etapaTreino, setEtapaTreino] = useState('tipo');
   const [openTreinoModal, setOpenTreinoModal] = useState(false);
@@ -829,6 +829,12 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
   const [progress, setProgress] = useState({ totalSessions: 0, byMuscleGroup: {} });
   const [createReminder, setCreateReminder] = useState(false);
   const [sessionReminder, setSessionReminder] = useState(false);
+  const [transferWorkoutModalOpen, setTransferWorkoutModalOpen] = useState(false);
+  const [workoutToTransfer, setWorkoutToTransfer] = useState(null);
+  const [transferUserSearch, setTransferUserSearch] = useState('');
+  const [selectedTransferUser, setSelectedTransferUser] = useState(null);
+  const [transferringWorkout, setTransferringWorkout] = useState(false);
+  const [affiliateTransferUsers, setAffiliateTransferUsers] = useState([]);
 
   const muscleMap = useMemo(
     () =>
@@ -1092,6 +1098,21 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
   }, []);
 
   const hasRoutines = useMemo(() => routines.length > 0, [routines]);
+  const isAffiliateUser = useMemo(
+    () => String(currentUserRole || '').trim().toLowerCase() === 'affiliate',
+    [currentUserRole]
+  );
+  const filteredTransferUsers = useMemo(() => {
+    const normalizedSearch = String(transferUserSearch || '').trim().toLowerCase();
+    if (!normalizedSearch) return affiliateTransferUsers;
+
+    return (affiliateTransferUsers || []).filter((user) => {
+      const searchableText = [user?.name, user?.email, user?.username, user?.whatsapp]
+        .map((value) => String(value || '').toLowerCase())
+        .join(' ');
+      return searchableText.includes(normalizedSearch);
+    });
+  }, [affiliateTransferUsers, transferUserSearch]);
 
   const nextWorkout = useMemo(() => {
     const normalizedSchedule = Array.isArray(schedule) ? schedule : [];
@@ -1140,6 +1161,100 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
     }
     return data;
   };
+
+  const getAccessToken = async () => {
+    if (!supabase) return null;
+    const { data } = await supabase.auth.getSession();
+    return data?.session?.access_token || null;
+  };
+
+  const fetchAffiliateTransferUsers = async () => {
+    if (!supabase) return;
+    try {
+      const accessToken = await getAccessToken();
+      if (!accessToken) {
+        throw new Error('Sessão inválida. Faça login novamente.');
+      }
+
+      const response = await fetch(`${apiBaseUrl}/affiliate/supervised-users`, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`
+        }
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data?.error || 'Erro ao buscar usuários supervisionados.');
+      }
+
+      setAffiliateTransferUsers(Array.isArray(data.users) ? data.users : []);
+    } catch (error) {
+      console.error('Erro ao buscar usuários supervisionados:', error);
+      notify(error.message || 'Erro ao buscar usuários supervisionados.', 'danger');
+      setAffiliateTransferUsers([]);
+    }
+  };
+
+  async function openTransferWorkoutModal(workout) {
+    setWorkoutToTransfer(workout);
+    setTransferWorkoutModalOpen(true);
+    setTransferUserSearch('');
+    setSelectedTransferUser(null);
+    await fetchAffiliateTransferUsers();
+  }
+
+  const closeTransferWorkoutModal = () => {
+    setTransferWorkoutModalOpen(false);
+    setWorkoutToTransfer(null);
+    setSelectedTransferUser(null);
+    setTransferUserSearch('');
+  };
+
+  async function handleTransferWorkout() {
+    if (!workoutToTransfer?.id) {
+      notify('Nenhum treino selecionado.', 'danger');
+      return;
+    }
+
+    if (!selectedTransferUser?.id) {
+      notify('Selecione um usuário para receber o treino.', 'danger');
+      return;
+    }
+
+    try {
+      setTransferringWorkout(true);
+      const accessToken = await getAccessToken();
+      if (!accessToken) {
+        throw new Error('Sessão inválida. Faça login novamente.');
+      }
+
+      const response = await fetch(`${apiBaseUrl}/workouts/${workoutToTransfer.id}/transfer`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          target_user_id: selectedTransferUser.id
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data?.error || 'Erro ao transferir treino.');
+      }
+
+      notify('Treino transferido com sucesso.', 'success');
+      closeTransferWorkoutModal();
+    } catch (error) {
+      console.error('Erro ao transferir treino:', error);
+      notify(error.message || 'Erro ao transferir treino.', 'danger');
+    } finally {
+      setTransferringWorkout(false);
+    }
+  }
 
   const updateWeeklyPlan = async (day, { workoutId, time, reminderEnabled }) => {
     await fetchJson(`${apiBaseUrl}/weekly-plan/${day}`, {
@@ -2104,6 +2219,15 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
                           >
                             Ver treino
                           </button>
+                          {isAffiliateUser && (
+                            <button
+                              type="button"
+                              className="ghost btn-acao"
+                              onClick={() => openTransferWorkoutModal(template)}
+                            >
+                              Transferir treino
+                            </button>
+                          )}
                           <button
                             type="button"
                             className="btn-acao"
@@ -3085,6 +3209,74 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
         muscleMap={muscleMap}
         sportsMap={sportsMap}
       />
+      {transferWorkoutModalOpen && (
+        <div className="modal-overlay" onClick={closeTransferWorkoutModal}>
+          <div className="report-modal" onClick={(event) => event.stopPropagation()}>
+            <h2>Transferir treino</h2>
+            <p>Escolha um usuário supervisionado para receber uma cópia deste treino.</p>
+            <p className="muted" style={{ marginTop: 4 }}>
+              Treino selecionado: <strong>{workoutToTransfer?.name || '-'}</strong>
+            </p>
+
+            <input
+              type="text"
+              placeholder="🔍 Buscar usuário por nome, email ou WhatsApp..."
+              value={transferUserSearch}
+              onChange={(event) => setTransferUserSearch(event.target.value)}
+              style={{ marginTop: 12, marginBottom: 12 }}
+            />
+
+            <div style={{ maxHeight: 280, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {!filteredTransferUsers.length && (
+                <div className="muted">Nenhum usuário supervisionado encontrado.</div>
+              )}
+              {filteredTransferUsers.map((user) => (
+                <div
+                  key={user.id}
+                  className="card-padrao"
+                  style={{
+                    border: selectedTransferUser?.id === user.id ? '1px solid #50be78' : '1px solid #2f2f2f',
+                    padding: 10,
+                    borderRadius: 10,
+                  }}
+                >
+                  <strong>{user.name || 'Usuário sem nome'}</strong>
+                  <div className="muted">{user.email || user.username || '-'}</div>
+                  <div className="muted">WhatsApp: {user.whatsapp || '-'}</div>
+                  <button
+                    type="button"
+                    className="ghost btn-acao"
+                    style={{ marginTop: 8 }}
+                    onClick={() => setSelectedTransferUser(user)}
+                  >
+                    Selecionar
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            {selectedTransferUser && (
+              <p style={{ marginTop: 12 }}>
+                Você vai transferir uma cópia do treino "{workoutToTransfer?.name || '-'}" para "{selectedTransferUser?.name || '-'}".
+              </p>
+            )}
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
+              <button type="button" className="ghost" onClick={closeTransferWorkoutModal} disabled={transferringWorkout}>
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="primary"
+                onClick={handleTransferWorkout}
+                disabled={transferringWorkout || !selectedTransferUser?.id}
+              >
+                {transferringWorkout ? 'Transferindo...' : 'Confirmar transferência'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -4957,7 +4957,11 @@ function AppMain() {
       {activeView === 'workout' && (
         <div className="container single-card app-content workout-page-container">
           <section className="card dashboard-card module-card workout-page-card">
-            <WorkoutRoutine apiBaseUrl={workoutApiBase} pushToast={pushToast} />
+            <WorkoutRoutine
+              apiBaseUrl={workoutApiBase}
+              pushToast={pushToast}
+              currentUserRole={profile?.role}
+            />
           </section>
         </div>
       )}
