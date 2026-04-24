@@ -2491,6 +2491,7 @@ app.post("/admin/users/:id/promote-to-affiliate", async (req, res) => {
     const updatePayload = {
       is_affiliate: true,
       affiliate_code: affiliateCode,
+      affiliate_id: affiliateCreated.id,
       role: "affiliate",
     };
 
