@@ -96,41 +96,6 @@ const defaultEditUserForm = {
   plan_type: '',
 };
 
-const createDefaultAffiliateForm = () => ({
-  name: '',
-  whatsapp: '',
-  email: '',
-  pix_key: '',
-});
-
-const createDefaultAffiliatePromotionDraft = () => ({
-  linkedUserId: '',
-  name: '',
-  email: '',
-  whatsapp: '',
-  code: '',
-  status: 'active',
-});
-
-const normalizeAffiliateCodeBase = (value = '') =>
-  String(value)
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-zA-Z0-9\s]/g, ' ')
-    .trim()
-    .toUpperCase();
-
-const generateAffiliateCodeSuggestion = (name = '') => {
-  const base = normalizeAffiliateCodeBase(name)
-    .split(/\s+/)
-    .filter(Boolean)
-    .join('')
-    .slice(0, 4)
-    .padEnd(3, 'AFI');
-  const suffix = String(Math.floor(1000 + Math.random() * 9000));
-  return `${base}${suffix}`;
-};
-
 const normalizeBaseUrl = (value) => {
   if (!value) return '';
   return String(value).trim().replace(/\/+$/, '');
@@ -737,7 +702,7 @@ const UsersTable = ({
           {filteredUsers.map((user) => {
             const isOwner = isOwnerUser(user);
             const isAdminUser = user.role === 'admin' || isOwner;
-            const isAffiliate = isOwner || Boolean(user.is_affiliate || user.affiliate_id || user.affiliate_code);
+            const isAffiliate = isOwner || Boolean(user.is_affiliate || user.role === 'affiliate');
             const canPromoteToAffiliate = !isOwner && !isAdminUser && !isAffiliate;
             const canManageBodyGoals = currentUser?.id === user.id;
             const status = isOwner ? 'active' : (isAdminUser ? 'active' : (user.derived_status || user.subscription_status || 'active'));
@@ -2182,16 +2147,15 @@ function AppMain() {
   });
   const [weightHistoryItems, setWeightHistoryItems] = useState([]);
   const [affiliates, setAffiliates] = useState([]);
-  const [showForm, setShowForm] = useState(false);
-  const [affiliateForm, setAffiliateForm] = useState(createDefaultAffiliateForm);
   const [affiliatesLoading, setAffiliatesLoading] = useState(false);
   const [affiliateSearchTerm, setAffiliateSearchTerm] = useState('');
   const [affiliateUsers, setAffiliateUsers] = useState({});
   const [affiliateUsersLoadingId, setAffiliateUsersLoadingId] = useState(null);
   const [expandedAffiliateId, setExpandedAffiliateId] = useState(null);
-  const [affiliateModalOpen, setAffiliateModalOpen] = useState(false);
-  const [affiliateDraft, setAffiliateDraft] = useState(createDefaultAffiliatePromotionDraft);
+  const [affiliateUserPickerOpen, setAffiliateUserPickerOpen] = useState(false);
+  const [affiliateUserSearch, setAffiliateUserSearch] = useState('');
   const [selectedUserToPromote, setSelectedUserToPromote] = useState(null);
+  const [promotingAffiliate, setPromotingAffiliate] = useState(false);
   const affiliatesFinal = useMemo(() => {
     return Array.isArray(affiliates) ? affiliates : [];
   }, [affiliates]);
@@ -2227,6 +2191,24 @@ function AppMain() {
       return searchableText.includes(normalizedSearch);
     });
   }, [affiliatesFinal, affiliateSearchTerm]);
+  const promotableUsers = useMemo(() => {
+    return (users || []).filter((user) => (
+      user?.role !== 'admin'
+      && user?.role !== 'affiliate'
+      && user?.is_affiliate !== true
+    ));
+  }, [users]);
+  const filteredPromotableUsers = useMemo(() => {
+    const normalizedSearch = String(affiliateUserSearch || '').trim().toLowerCase();
+    if (!normalizedSearch) return promotableUsers;
+
+    return promotableUsers.filter((user) => {
+      const searchableText = [user?.name, user?.email, user?.username, user?.whatsapp]
+        .map((value) => String(value || '').toLowerCase())
+        .join(' ');
+      return searchableText.includes(normalizedSearch);
+    });
+  }, [promotableUsers, affiliateUserSearch]);
   const [txFilters, setTxFilters] = useState(defaultTxFilters);
   const [txMonth, setTxMonth] = useState(getTodayMonth());
   const [txAdvancedOpen, setTxAdvancedOpen] = useState(false);
@@ -3270,14 +3252,6 @@ function AppMain() {
     }
   };
 
-  const resetAffiliateWizard = ({ closeModal = false } = {}) => {
-    setAffiliateForm(createDefaultAffiliateForm());
-    setStep(1);
-    if (closeModal) {
-      setShowForm(false);
-    }
-  };
-
   const handleSaveUser = async () => {
     if (!client || profile?.role !== 'admin') {
       pushToast('Somente administradores podem gerenciar usuários.', 'warning');
@@ -3746,24 +3720,15 @@ function AppMain() {
     }
   };
 
-  const openPromoteAffiliateModal = (user) => {
-    const suggestedCode = generateAffiliateCodeSuggestion(user?.name || user?.username || '');
+  const openPromoteAffiliateModal = (user = null) => {
     setSelectedUserToPromote(user);
-    setAffiliateDraft({
-      linkedUserId: user?.id || '',
-      name: user?.name || '',
-      email: user?.email || user?.username || '',
-      whatsapp: user?.whatsapp || '',
-      code: suggestedCode,
-      status: 'active',
-    });
-    setAffiliateModalOpen(true);
+    setAffiliateUserPickerOpen(true);
   };
 
   const closePromoteAffiliateModal = () => {
-    setAffiliateModalOpen(false);
+    setAffiliateUserPickerOpen(false);
+    setAffiliateUserSearch('');
     setSelectedUserToPromote(null);
-    setAffiliateDraft(createDefaultAffiliatePromotionDraft());
   };
 
   const handlePromoteToAffiliate = async () => {
@@ -3773,6 +3738,7 @@ function AppMain() {
       return;
     }
 
+    setPromotingAffiliate(true);
     try {
       const accessToken = await getAccessToken();
       if (!accessToken) {
@@ -3781,11 +3747,9 @@ function AppMain() {
       }
 
       const payload = {
-        name: affiliateDraft.name?.trim(),
-        email: affiliateDraft.email?.trim(),
-        whatsapp: affiliateDraft.whatsapp?.trim(),
-        affiliate_code: affiliateDraft.code?.trim(),
-        status: affiliateDraft.status || 'active',
+        name: selectedUserToPromote.name,
+        email: selectedUserToPromote.email || selectedUserToPromote.username,
+        whatsapp: selectedUserToPromote.whatsapp,
       };
 
       const response = await fetch(
@@ -3810,11 +3774,13 @@ function AppMain() {
       }
 
       closePromoteAffiliateModal();
-      pushToast('Usuário promovido para afiliado com sucesso', 'success');
+      pushToast('Usuário promovido para afiliado com sucesso.', 'success');
       await Promise.all([loadRemoteData(), fetchAffiliates()]);
     } catch (err) {
       console.warn('Erro ao promover usuário para afiliado', err);
       pushToast(err?.message || 'Não foi possível promover o usuário.', 'danger');
+    } finally {
+      setPromotingAffiliate(false);
     }
   };
 
@@ -3868,65 +3834,6 @@ function AppMain() {
       pushToast('Não foi possível carregar afiliados.', 'warning');
     } finally {
       setAffiliatesLoading(false);
-    }
-  };
-
-  const handleSaveAffiliate = async () => {
-    if (!client || profile?.role !== 'admin') {
-      pushToast('Somente administradores podem criar afiliados.', 'warning');
-      return;
-    }
-
-    if (!workoutApiBase || !/^https?:\/\//i.test(workoutApiBase)) {
-      pushToast('Backend não configurado para afiliados.', 'warning');
-      return;
-    }
-
-    if (!affiliateForm.name.trim() || !affiliateForm.email.trim()) {
-      pushToast('Informe nome e e-mail do afiliado.', 'warning');
-      return;
-    }
-
-    try {
-      const accessToken = await getAccessToken();
-      if (!accessToken) {
-        pushToast('Sessão expirada. Faça login novamente.', 'warning');
-        return;
-      }
-
-      const payload = {
-        name: affiliateForm.name.trim(),
-        whatsapp: affiliateForm.whatsapp || undefined,
-        email: affiliateForm.email.trim(),
-        pix_key: affiliateForm.pix_key || undefined,
-      };
-
-      const response = await fetch(`${workoutApiBase}/admin/affiliates`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${accessToken}`
-        },
-        body: JSON.stringify(payload)
-      });
-
-      const body = await response.json().catch(() => ({}));
-
-      if (response.status === 403) {
-        handleApiForbidden();
-        return;
-      }
-
-      if (!response.ok) {
-        throw new Error(body?.error || 'Erro ao criar afiliado.');
-      }
-
-      pushToast('Afiliado criado.', 'success');
-      resetAffiliateWizard({ closeModal: true });
-      fetchAffiliates();
-    } catch (err) {
-      console.warn('Erro ao salvar afiliado', err);
-      pushToast(err?.message || 'Erro ao salvar afiliado.', 'danger');
     }
   };
 
@@ -5013,115 +4920,23 @@ function AppMain() {
             <div className="page-content">
               <div className="page-scroll">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
-              <div>
-                <h2 className="title" style={{ marginBottom: 4 }}>Afiliados</h2>
-                <p className="muted">Gerencie parceiros e visualize seus clientes.</p>
-              </div>
-
-            </div>
-
-            <input
-              type="text"
-              id="affiliateSearch"
-              placeholder="🔍 Buscar afiliado..."
-              className="user-search-input"
-              value={affiliateSearchTerm}
-              onChange={(event) => setAffiliateSearchTerm(event.target.value)}
-            />
-
-            {showForm && (
-              <div className="modal-overlay">
-                <div className="modal-card">
-                  <h2>Novo Afiliado</h2>
-                  <p>Passo {step} de 3</p>
-
-                  <div className="progress-bar">
-                    <div
-                      className="progress-fill"
-                      style={{ width: `${(step / 3) * 100}%` }}
-                    />
+                  <div>
+                    <h2 className="title" style={{ marginBottom: 4 }}>Afiliados</h2>
+                    <p className="muted">Gerencie parceiros e visualize seus clientes.</p>
                   </div>
-
-                  {step === 1 && (
-                    <>
-                      <h3>Dados básicos</h3>
-
-                      <label>Nome</label>
-                      <input
-                        value={affiliateForm.name}
-                        onChange={(e) => setAffiliateForm({ ...affiliateForm, name: e.target.value })}
-                        placeholder="Nome do afiliado"
-                      />
-
-                      <p className="muted" style={{ marginTop: 8 }}>
-                        O código será gerado automaticamente no cadastro.
-                      </p>
-                    </>
-                  )}
-
-                  {step === 2 && (
-                    <>
-                      <h3>Contato</h3>
-
-                      <label>WhatsApp</label>
-                      <input
-                        value={affiliateForm.whatsapp}
-                        onChange={(e) => setAffiliateForm({ ...affiliateForm, whatsapp: e.target.value })}
-                        placeholder="WhatsApp"
-                      />
-
-                      <label>E-mail</label>
-                      <input
-                        value={affiliateForm.email}
-                        onChange={(e) => setAffiliateForm({ ...affiliateForm, email: e.target.value })}
-                        placeholder="E-mail"
-                      />
-                    </>
-                  )}
-
-                  {step === 3 && (
-                    <>
-                      <h3>Dados adicionais</h3>
-
-                      <label>Chave PIX</label>
-                      <input
-                        value={affiliateForm.pix_key}
-                        onChange={(e) => setAffiliateForm({ ...affiliateForm, pix_key: e.target.value })}
-                        placeholder="Chave PIX"
-                      />
-                    </>
-                  )}
-
-                  <div className="wizard-actions">
-                    {step > 1 && (
-                      <button type="button" className="btn-ui" onClick={() => setStep(step - 1)}>
-                        ← Voltar
-                      </button>
-                    )}
-
-                    {step < 3 ? (
-                      <button type="button" className="btn-primary btn-ui" onClick={() => setStep(step + 1)}>
-                        Continuar →
-                      </button>
-                    ) : (
-                      <button type="button" className="btn-primary btn-ui" onClick={handleSaveAffiliate}>
-                        Criar afiliado
-                      </button>
-                    )}
-
-                    <button
-                      type="button"
-                      className="btn-ui"
-                      onClick={() => {
-                        resetAffiliateWizard({ closeModal: true });
-                      }}
-                    >
-                      Cancelar
-                    </button>
-                  </div>
+                  <button type="button" className="btn-primary" onClick={() => openPromoteAffiliateModal()}>
+                    + Criar afiliado
+                  </button>
                 </div>
-              </div>
-            )}
+
+                <input
+                  type="text"
+                  id="affiliateSearch"
+                  placeholder="🔍 Buscar afiliado..."
+                  className="user-search-input"
+                  value={affiliateSearchTerm}
+                  onChange={(event) => setAffiliateSearchTerm(event.target.value)}
+                />
 
                 {affiliatesLoading && <p className="muted">Carregando afiliados...</p>}
                 {!affiliatesLoading && (
@@ -5174,54 +4989,59 @@ function AppMain() {
         </div>
       )}
 
-      {affiliateModalOpen && selectedUserToPromote && (
+      {affiliateUserPickerOpen && (
         <div className="affiliate-modal-backdrop" onClick={closePromoteAffiliateModal}>
           <div className="affiliate-modal" onClick={(e) => e.stopPropagation()}>
-            <h3>Tornar usuário em afiliado</h3>
-
-            <label>Nome do afiliado</label>
+            <h3>Criar afiliado</h3>
+            <p className="muted">Escolha um usuário já cadastrado para promover a afiliado.</p>
             <input
-              value={affiliateDraft.name}
-              onChange={(e) => setAffiliateDraft((prev) => ({ ...prev, name: e.target.value }))}
-              placeholder="Nome do afiliado"
+              value={affiliateUserSearch}
+              onChange={(e) => setAffiliateUserSearch(e.target.value)}
+              placeholder="🔍 Buscar usuário por nome, email ou WhatsApp..."
             />
-
-            <label>WhatsApp</label>
-            <input
-              value={affiliateDraft.whatsapp}
-              onChange={(e) => setAffiliateDraft((prev) => ({ ...prev, whatsapp: e.target.value }))}
-              placeholder="WhatsApp"
-            />
-
-            <label>Email</label>
-            <input
-              value={affiliateDraft.email}
-              onChange={(e) => setAffiliateDraft((prev) => ({ ...prev, email: e.target.value }))}
-              placeholder="Email"
-            />
-
-            <label>Código do afiliado</label>
-            <input
-              value={affiliateDraft.code}
-              onChange={(e) => setAffiliateDraft((prev) => ({ ...prev, code: e.target.value.toUpperCase() }))}
-              placeholder="Código do afiliado"
-            />
-
-            <label>Status</label>
-            <select
-              value={affiliateDraft.status}
-              onChange={(e) => setAffiliateDraft((prev) => ({ ...prev, status: e.target.value }))}
-            >
-              <option value="active">Ativo</option>
-              <option value="inactive">Inativo</option>
-            </select>
+            <div style={{ maxHeight: 320, overflowY: 'auto', marginTop: 10 }}>
+              {filteredPromotableUsers.length === 0 && (
+                <p className="muted">Nenhum usuário disponível para promoção.</p>
+              )}
+              {filteredPromotableUsers.map((user) => {
+                const isSelected = selectedUserToPromote?.id === user.id;
+                return (
+                  <div key={user.id} className="event-card user-event-card card-ui" style={{ marginBottom: 8 }}>
+                    <div className="event-title">{user.name || user.username || 'Sem nome'}</div>
+                    <div className="event-subtitle">{user.email || user.username || '-'}</div>
+                    <div className="event-subtitle">{user.whatsapp || 'WhatsApp não informado'}</div>
+                    <div className="event-subtitle">
+                      <span className="badge">{user.role || 'user'}</span>
+                      <span className="badge">
+                        {user.is_affiliate ? 'Já afiliado' : 'Disponível'}
+                      </span>
+                    </div>
+                    <div className="wizard-actions" style={{ marginTop: 8 }}>
+                      <button type="button" className={isSelected ? 'btn-primary btn-ui' : 'btn-ui'} onClick={() => setSelectedUserToPromote(user)}>
+                        {isSelected ? 'Selecionado' : 'Selecionar'}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            {selectedUserToPromote && (
+              <p style={{ marginTop: 12 }}>
+                Você está promovendo <strong>{selectedUserToPromote.name || selectedUserToPromote.username}</strong> para afiliado.
+              </p>
+            )}
 
             <div className="wizard-actions" style={{ marginTop: 16 }}>
-              <button type="button" className="btn-primary btn-ui" onClick={handlePromoteToAffiliate}>
-                Promover para afiliado
-              </button>
               <button type="button" className="btn-ui" onClick={closePromoteAffiliateModal}>
                 Cancelar
+              </button>
+              <button
+                type="button"
+                className="btn-primary btn-ui"
+                onClick={handlePromoteToAffiliate}
+                disabled={!selectedUserToPromote || promotingAffiliate}
+              >
+                {promotingAffiliate ? 'Promovendo...' : 'Confirmar promoção'}
               </button>
             </div>
           </div>

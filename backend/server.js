@@ -2397,20 +2397,15 @@ app.post("/admin/users/:id/promote-to-affiliate", async (req, res) => {
     if (!authData) return;
 
     const userId = String(req.params?.id || "").trim();
-    const payload = req.body || {};
-    console.log("[promote-to-affiliate] payload recebido:", payload);
-
     if (!userId) {
       return res.status(400).json({ error: "ID do usuário é obrigatório." });
     }
 
     const { data: user, error: userError } = await supabase
       .from("profiles")
-      .select("id, name, username, email, whatsapp, role, is_affiliate, affiliate_id, affiliate_code")
+      .select("id, name, username, email, whatsapp, role, is_affiliate, affiliate_code")
       .eq("id", userId)
       .maybeSingle();
-
-    console.log("[promote-to-affiliate] usuário recebido:", user);
 
     if (userError) {
       console.error("Erro ao buscar usuário para promoção:", userError);
@@ -2422,29 +2417,75 @@ app.post("/admin/users/:id/promote-to-affiliate", async (req, res) => {
     if (user.role === "admin") {
       return res.status(400).json({ error: "Usuário owner/admin não pode ser promovido para afiliado." });
     }
-    if (user.is_affiliate === true || user.affiliate_id || user.affiliate_code) {
+    if (user.is_affiliate === true || user.role === "affiliate") {
       return res.status(400).json({ error: "Usuário já é afiliado." });
     }
 
-    const candidateCode = String(payload?.affiliate_code || "").trim().toUpperCase();
-    if (!candidateCode) {
-      return res.status(400).json({ error: "Código de afiliado é obrigatório." });
-    }
-    const affiliateCode = candidateCode;
-    console.log("[promote-to-affiliate] affiliate_code final:", affiliateCode);
+    const generateUniqueAffiliateCode = async () => {
+      const maxAttempts = 20;
+      for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+        const code = `AF${Math.floor(100000 + Math.random() * 900000)}`;
 
-    const { data: existingCode, error: existingCodeError } = await supabase
-      .from("profiles")
-      .select("id")
-      .eq("affiliate_code", affiliateCode)
-      .maybeSingle();
+        const [{ data: codeInAffiliates, error: affiliatesCodeError }, { data: codeInProfiles, error: profilesCodeError }] = await Promise.all([
+          supabase.from("affiliates").select("id").eq("code", code).maybeSingle(),
+          supabase.from("profiles").select("id").eq("affiliate_code", code).maybeSingle(),
+        ]);
 
-    if (existingCodeError && existingCodeError.code !== "PGRST116") {
-      console.error("Erro ao validar código de afiliado:", existingCodeError);
-      return res.status(400).json({ error: existingCodeError.message || "Erro ao validar código." });
+        if (affiliatesCodeError && affiliatesCodeError.code !== "PGRST116") {
+          throw new Error(affiliatesCodeError.message || "Erro ao validar código em afiliados.");
+        }
+        if (profilesCodeError && profilesCodeError.code !== "PGRST116") {
+          throw new Error(profilesCodeError.message || "Erro ao validar código em usuários.");
+        }
+
+        if (!codeInAffiliates?.id && !codeInProfiles?.id) {
+          return code;
+        }
+      }
+
+      throw new Error("Não foi possível gerar um código de afiliado único.");
+    };
+
+    const affiliateCode = await generateUniqueAffiliateCode();
+
+    const affiliatePayloadBase = {
+      code: affiliateCode,
+      name: user.name || user.username || user.email,
+      email: user.email || user.username || null,
+      whatsapp: user.whatsapp || null,
+      is_active: true,
+      status: "active",
+    };
+
+    let affiliateCreated = null;
+    let affiliateInsertError = null;
+
+    const insertWithStatus = await supabase
+      .from("affiliates")
+      .insert(affiliatePayloadBase)
+      .select("id, code, name, email, whatsapp, is_active, created_at, status")
+      .single();
+
+    affiliateCreated = insertWithStatus.data;
+    affiliateInsertError = insertWithStatus.error;
+
+    if (affiliateInsertError && String(affiliateInsertError.message || "").toLowerCase().includes("status")) {
+      const { status: ignoredStatus, ...affiliatePayloadWithoutStatus } = affiliatePayloadBase;
+      const insertWithoutStatus = await supabase
+        .from("affiliates")
+        .insert(affiliatePayloadWithoutStatus)
+        .select("id, code, name, email, whatsapp, is_active, created_at")
+        .single();
+
+      affiliateCreated = insertWithoutStatus.data
+        ? { ...insertWithoutStatus.data, status: "active" }
+        : null;
+      affiliateInsertError = insertWithoutStatus.error;
     }
-    if (existingCode?.id) {
-      return res.status(400).json({ error: "Já existe um afiliado com esse código" });
+
+    if (affiliateInsertError) {
+      console.error("Erro ao criar afiliado na tabela affiliates:", affiliateInsertError);
+      return res.status(400).json({ error: affiliateInsertError.message || "Erro ao criar afiliado." });
     }
 
     const updatePayload = {
@@ -2464,10 +2505,9 @@ app.post("/admin/users/:id/promote-to-affiliate", async (req, res) => {
       console.error("Erro ao atualizar profile após promoção:", updateProfileError);
       return res.status(400).json({ error: updateProfileError.message || "Erro ao atualizar usuário." });
     }
-    console.log("[promote-to-affiliate] profile atualizado:", updatedProfile);
-
     return res.status(201).json({
       ok: true,
+      affiliate: affiliateCreated,
       profile: updatedProfile,
     });
   } catch (err) {
@@ -3100,10 +3140,22 @@ app.get("/admin/affiliates", async (req, res) => {
 
     await ensureOwnerAffiliateExists();
 
-    const { data: affiliates, error } = await supabase
+    let { data: affiliates, error } = await supabase
       .from("affiliates")
-      .select("id, code, name, email, whatsapp, pix_key, commission_cents, is_active, created_at")
+      .select("id, code, name, email, whatsapp, pix_key, commission_cents, is_active, created_at, status")
       .order("created_at", { ascending: false });
+
+    if (error && String(error.message || "").toLowerCase().includes("status")) {
+      const fallback = await supabase
+        .from("affiliates")
+        .select("id, code, name, email, whatsapp, pix_key, commission_cents, is_active, created_at")
+        .order("created_at", { ascending: false });
+
+      affiliates = Array.isArray(fallback.data)
+        ? fallback.data.map((item) => ({ ...item, status: "active" }))
+        : [];
+      error = fallback.error;
+    }
 
     if (error) {
       if (error.code === "42P01") return res.json([]);
