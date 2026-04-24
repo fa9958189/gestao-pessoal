@@ -1182,7 +1182,11 @@ const WorkoutRoutine = ({
         throw new Error('Sessão inválida. Faça login novamente.');
       }
 
-      const response = await fetch(`${apiBaseUrl}/affiliate/supervised-users`, {
+      const base = apiBaseUrl.endsWith('/api')
+        ? apiBaseUrl.replace('/api', '')
+        : apiBaseUrl;
+
+      const response = await fetch(`${base}/affiliate/supervised-users`, {
         headers: {
           Authorization: `Bearer ${accessToken}`
         }
