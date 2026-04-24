@@ -3498,19 +3498,26 @@ app.get("/affiliate/supervised-users", async (req, res) => {
     }
 
     if (!profile.affiliate_id) {
-      return res.status(200).json([]);
+      return res.status(200).json({ users: [] });
     }
 
     const { data: users, error: usersError } = await supabase
       .from("profiles")
-      .select("id, name, email, whatsapp")
-      .eq("affiliate_id", profile.affiliate_id);
+      .select("id, name, username, email, whatsapp, role, is_affiliate, affiliate_id")
+      .eq("affiliate_id", profile.affiliate_id)
+      .neq("id", authData.userId)
+      .neq("role", "admin")
+      .neq("role", "affiliate")
+      .or("is_affiliate.is.null,is_affiliate.eq.false")
+      .order("name", { ascending: true });
 
     if (usersError) {
       return res.status(400).json({ error: "Erro ao buscar usuários." });
     }
 
-    return res.json(users);
+    return res.json({
+      users: Array.isArray(users) ? users : [],
+    });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ error: "Erro interno." });
