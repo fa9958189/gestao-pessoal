@@ -1489,7 +1489,7 @@ const fetchProfileWithBilling = async (userId) => {
   const { data: profileAuth, error: profileAuthError } = await supabase
     .from("profiles")
     .select(
-      "id, name, email, role, billing_status, subscription_status, status_acesso, trial_end_at, trial_start_at, trial_status, affiliate_id"
+      "id, name, email, role, is_affiliate, affiliate_id, affiliate_code, billing_status, subscription_status, status_acesso, trial_end_at, trial_start_at, trial_status"
     )
     .eq("id", userId)
     .maybeSingle();
@@ -1503,7 +1503,7 @@ const fetchProfileWithBilling = async (userId) => {
   const { data: profileData, error: profileError } = await supabase
     .from("profiles")
     .select(
-      "id, name, email, role, billing_status, subscription_status, status_acesso, trial_end_at, trial_start_at, trial_status, affiliate_id"
+      "id, name, email, role, is_affiliate, affiliate_id, affiliate_code, billing_status, subscription_status, status_acesso, trial_end_at, trial_start_at, trial_status"
     )
     .eq("id", userId)
     .maybeSingle();

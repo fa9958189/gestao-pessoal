@@ -362,6 +362,9 @@ const useAuth = (client) => {
         id: parsed.user.profile_id || parsed.user.id,
         name: parsed.user.name,
         role: parsed.user.role,
+        is_affiliate: Boolean(parsed.user.is_affiliate),
+        affiliate_id: parsed.user.affiliate_id || null,
+        affiliate_code: parsed.user.affiliate_code || null,
       });
     } catch (err) {
       console.warn('Erro ao carregar sessão local', err);
@@ -413,6 +416,9 @@ const useAuth = (client) => {
             supabaseSession.user.email ||
             'Usuário',
           role: profileRow?.role || 'user',
+          is_affiliate: Boolean(profileRow?.is_affiliate),
+          affiliate_id: profileRow?.affiliate_id || null,
+          affiliate_code: profileRow?.affiliate_code || null,
           email: profileRow?.email || supabaseSession.user.email,
         },
       };
@@ -435,6 +441,9 @@ const useAuth = (client) => {
           id: nextSession.user.profile_id || nextSession.user.id,
           name: nextSession.user.name,
           role: nextSession.user.role,
+          is_affiliate: Boolean(nextSession.user.is_affiliate),
+          affiliate_id: nextSession.user.affiliate_id || null,
+          affiliate_code: nextSession.user.affiliate_code || null,
         });
         window.localStorage.setItem('gp-session', JSON.stringify(nextSession));
       } catch (err) {
@@ -467,6 +476,9 @@ const useAuth = (client) => {
           id: nextSession.user.profile_id || nextSession.user.id,
           name: nextSession.user.name,
           role: nextSession.user.role,
+          is_affiliate: Boolean(nextSession.user.is_affiliate),
+          affiliate_id: nextSession.user.affiliate_id || null,
+          affiliate_code: nextSession.user.affiliate_code || null,
         });
         window.localStorage.setItem('gp-session', JSON.stringify(nextSession));
       }
@@ -4961,6 +4973,8 @@ function AppMain() {
               apiBaseUrl={workoutApiBase}
               pushToast={pushToast}
               currentUserRole={profile?.role}
+              currentUserIsAffiliate={profile?.is_affiliate === true}
+              currentAffiliateId={profile?.affiliate_id || null}
             />
           </section>
         </div>

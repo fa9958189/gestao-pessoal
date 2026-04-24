@@ -792,7 +792,13 @@ const ViewWorkoutModal = ({
   );
 };
 
-const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushToast, currentUserRole = '' }) => {
+const WorkoutRoutine = ({
+  apiBaseUrl = import.meta.env.VITE_API_BASE_URL,
+  pushToast,
+  currentUserRole = '',
+  currentUserIsAffiliate = false,
+  currentAffiliateId = null
+}) => {
   const [treinoTab, setTreinoTab] = useState('treinos');
   const [etapaTreino, setEtapaTreino] = useState('tipo');
   const [openTreinoModal, setOpenTreinoModal] = useState(false);
@@ -1098,10 +1104,10 @@ const WorkoutRoutine = ({ apiBaseUrl = import.meta.env.VITE_API_BASE_URL, pushTo
   }, []);
 
   const hasRoutines = useMemo(() => routines.length > 0, [routines]);
-  const isAffiliateUser = useMemo(
-    () => String(currentUserRole || '').trim().toLowerCase() === 'affiliate',
-    [currentUserRole]
-  );
+  const isAffiliateUser = useMemo(() => {
+    const normalizedRole = String(currentUserRole || '').trim().toLowerCase();
+    return normalizedRole === 'affiliate' || currentUserIsAffiliate === true;
+  }, [currentUserRole, currentUserIsAffiliate]);
   const filteredTransferUsers = useMemo(() => {
     const normalizedSearch = String(transferUserSearch || '').trim().toLowerCase();
     if (!normalizedSearch) return affiliateTransferUsers;
