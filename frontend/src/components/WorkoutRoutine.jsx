@@ -1182,9 +1182,9 @@ const WorkoutRoutine = ({
         throw new Error('Sessão inválida. Faça login novamente.');
       }
 
-      const base = apiBaseUrl.endsWith('/api')
-        ? apiBaseUrl.replace('/api', '')
-        : apiBaseUrl;
+      const base = apiBaseUrl
+        .replace(/\/api\/?$/, '') // remove /api ou /api/
+        .replace(/\/$/, ''); // remove barra final
 
       const response = await fetch(`${base}/affiliate/supervised-users`, {
         headers: {
