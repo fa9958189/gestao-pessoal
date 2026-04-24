@@ -2717,11 +2717,14 @@ function AppMain() {
                       'gp-session',
                       JSON.stringify({
                         user: {
-                          id: authUser.id,          // <-- esse vai pra transactions.user_id
+                          id: authUser.id,
                           profile_id: authProfile.id,
                           name: authProfile.name,
                           role: authProfile.role,
-                          email: loginForm.email,
+                          is_affiliate: Boolean(authProfile.is_affiliate),
+                          affiliate_id: authProfile.affiliate_id || null,
+                          affiliate_code: authProfile.affiliate_code || null,
+                          email: authProfile.email || loginForm.email,
                         },
                       }),
                     );
