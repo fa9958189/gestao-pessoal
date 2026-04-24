@@ -3482,45 +3482,59 @@ const sanitizeWorkoutForClone = (workout = {}, targetUserId) => {
   return clone;
 };
 
-app.get("/affiliate/supervised-users", async (req, res) => {
+app.get('/affiliate/supervised-users', async (req, res) => {
   try {
-    const authData = await authenticateRequest(req, res);
-    if (!authData) return;
+    const userId = req.user?.id;
 
+    if (!userId) {
+      return res.status(401).json({ error: 'Usuário não autenticado' });
+    }
+
+    console.log('🔍 Buscando usuários supervisionados do user:', userId);
+
+    // Buscar affiliate_id do usuário logado
     const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select("affiliate_id")
-      .eq("id", authData.userId)
+      .from('profiles')
+      .select('affiliate_id, role, is_affiliate')
+      .eq('id', userId)
       .single();
 
     if (profileError) {
-      return res.status(400).json({ error: "Erro ao buscar perfil." });
+      console.error('Erro ao buscar perfil:', profileError);
+      return res.status(400).json({ error: 'Erro ao buscar perfil' });
     }
 
-    if (!profile.affiliate_id) {
-      return res.status(200).json({ users: [] });
+    console.log('📌 Profile encontrado:', profile);
+
+    if (!profile?.affiliate_id) {
+      console.log('⚠️ Usuário não possui affiliate_id');
+      return res.json({ users: [] });
     }
 
+    // Buscar usuários vinculados ao afiliado
     const { data: users, error: usersError } = await supabase
-      .from("profiles")
-      .select("id, name, username, email, whatsapp, role, is_affiliate, affiliate_id")
-      .eq("affiliate_id", profile.affiliate_id)
-      .neq("id", authData.userId)
-      .neq("role", "admin")
-      .neq("role", "affiliate")
-      .or("is_affiliate.is.null,is_affiliate.eq.false")
-      .order("name", { ascending: true });
+      .from('profiles')
+      .select('id, name, username, email, whatsapp, role, is_affiliate, affiliate_id')
+      .eq('affiliate_id', profile.affiliate_id)
+      .neq('id', userId)
+      .or('is_affiliate.is.null,is_affiliate.eq.false')
+      .neq('role', 'admin')
+      .order('name', { ascending: true });
 
     if (usersError) {
-      return res.status(400).json({ error: "Erro ao buscar usuários." });
+      console.error('Erro ao buscar usuários:', usersError);
+      return res.status(400).json({ error: 'Erro ao buscar usuários' });
     }
 
+    console.log('✅ Usuários encontrados:', users?.length || 0);
+
     return res.json({
-      users: Array.isArray(users) ? users : [],
+      users: Array.isArray(users) ? users : []
     });
+
   } catch (err) {
-    console.error(err);
-    return res.status(500).json({ error: "Erro interno." });
+    console.error('Erro interno:', err);
+    return res.status(500).json({ error: 'Erro interno' });
   }
 });
 
