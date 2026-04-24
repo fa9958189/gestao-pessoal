@@ -810,7 +810,7 @@ const UsersTable = ({
                       <div className="user-event-details user-card-details-grid">
                         <p>Peso atual: <strong>{formatMetricValue(currentWeight, 'kg')}</strong></p>
                         <p>Meta de peso: <strong>{formatMetricValue(targetWeight, 'kg')}</strong></p>
-                        <p>Altura: <strong>{formatMetricValue(user?.height_cm ?? user?.height, 'cm', 0)}</strong></p>
+                        <p>Altura: <strong>{formatMetricValue(user?.height_cm, 'cm', 0)}</strong></p>
                         <p>
                           Sexo:{' '}
                           <strong>
