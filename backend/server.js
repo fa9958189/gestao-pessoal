@@ -3467,6 +3467,151 @@ const mapRoutineRow = (row = {}) => ({
   createdAt: row.created_at,
 });
 
+const isAffiliateProfile = (profile = {}) => {
+  const normalizedRole = String(profile?.role || "").toLowerCase();
+  return normalizedRole === "affiliate" || profile?.is_affiliate === true;
+};
+
+const isAdminProfile = (profile = {}) => String(profile?.role || "").toLowerCase() === "admin";
+
+const sanitizeWorkoutForClone = (workout = {}, targetUserId) => {
+  const clone = { ...workout, user_id: targetUserId };
+  delete clone.id;
+  delete clone.created_at;
+  delete clone.updated_at;
+  return clone;
+};
+
+app.get("/affiliate/supervised-users", async (req, res) => {
+  try {
+    const authData = await authenticateRequest(req, res);
+    if (!authData) return;
+
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("id, role, is_affiliate, affiliate_id")
+      .eq("id", authData.userId)
+      .maybeSingle();
+
+    if (profileError) {
+      return res.status(400).json({ error: profileError.message || "Erro ao buscar perfil do afiliado." });
+    }
+
+    if (!profile?.id || !isAffiliateProfile(profile)) {
+      return res.status(403).json({ error: "Apenas afiliados podem acessar esta rota." });
+    }
+
+    if (!profile?.affiliate_id) {
+      return res.json({ users: [] });
+    }
+
+    const { data: users, error: usersError } = await supabase
+      .from("profiles")
+      .select("id, name, username, email, whatsapp, role, is_affiliate, affiliate_id, created_at")
+      .eq("affiliate_id", profile.affiliate_id)
+      .neq("id", profile.id)
+      .neq("role", "admin")
+      .neq("is_affiliate", true)
+      .order("created_at", { ascending: true });
+
+    if (usersError) {
+      return res.status(400).json({ error: usersError.message || "Erro ao buscar usuários supervisionados." });
+    }
+
+    return res.json({ users: users || [] });
+  } catch (err) {
+    console.error("Erro inesperado em GET /affiliate/supervised-users:", err);
+    return res.status(500).json({ error: "Erro interno ao buscar usuários supervisionados." });
+  }
+});
+
+app.post("/workouts/:id/transfer", async (req, res) => {
+  try {
+    const authData = await authenticateRequest(req, res);
+    if (!authData) return;
+
+    const workoutId = req.params?.id;
+    const targetUserId = req.body?.target_user_id;
+    if (!workoutId || !targetUserId) {
+      return res.status(400).json({ error: "id do treino e target_user_id são obrigatórios." });
+    }
+
+    const { data: loggedProfile, error: loggedProfileError } = await supabase
+      .from("profiles")
+      .select("id, role, is_affiliate, affiliate_id")
+      .eq("id", authData.userId)
+      .maybeSingle();
+
+    if (loggedProfileError) {
+      return res.status(400).json({ error: loggedProfileError.message || "Erro ao validar afiliado." });
+    }
+
+    if (!loggedProfile?.id || !isAffiliateProfile(loggedProfile)) {
+      return res.status(403).json({ error: "Apenas afiliados podem transferir treino." });
+    }
+
+    if (!loggedProfile.affiliate_id) {
+      return res.status(400).json({ error: "Afiliado sem vínculo válido para transferência." });
+    }
+
+    const { data: workout, error: workoutError } = await supabase
+      .from("workout_routines")
+      .select("*")
+      .eq("id", workoutId)
+      .eq("user_id", loggedProfile.id)
+      .maybeSingle();
+
+    if (workoutError) {
+      return res.status(400).json({ error: workoutError.message || "Erro ao buscar treino de origem." });
+    }
+
+    if (!workout?.id) {
+      return res.status(404).json({ error: "Treino não encontrado ou não pertence ao afiliado." });
+    }
+
+    const { data: targetUser, error: targetUserError } = await supabase
+      .from("profiles")
+      .select("id, name, username, email, whatsapp, role, is_affiliate, affiliate_id")
+      .eq("id", targetUserId)
+      .maybeSingle();
+
+    if (targetUserError) {
+      return res.status(400).json({ error: targetUserError.message || "Erro ao validar usuário destino." });
+    }
+
+    if (!targetUser?.id) {
+      return res.status(404).json({ error: "Usuário destino não encontrado." });
+    }
+
+    if (isAdminProfile(targetUser) || isAffiliateProfile(targetUser)) {
+      return res.status(403).json({ error: "Transferência permitida apenas para usuários supervisionados comuns." });
+    }
+
+    if (targetUser.affiliate_id !== loggedProfile.affiliate_id) {
+      return res.status(403).json({ error: "Usuário destino não está vinculado a este afiliado." });
+    }
+
+    const clonedWorkout = sanitizeWorkoutForClone(workout, targetUser.id);
+    const { data: createdWorkout, error: cloneError } = await supabase
+      .from("workout_routines")
+      .insert(clonedWorkout)
+      .select("*")
+      .single();
+
+    if (cloneError) {
+      return res.status(400).json({ error: cloneError.message || "Erro ao transferir treino." });
+    }
+
+    return res.status(201).json({
+      ok: true,
+      workout: mapRoutineRow(createdWorkout),
+    });
+  } catch (err) {
+    console.error("Erro inesperado em POST /workouts/:id/transfer:", err);
+    return res.status(500).json({ error: "Erro interno ao transferir treino." });
+  }
+});
+
 const normalizeMuscleGroups = (muscleGroups) => {
   if (Array.isArray(muscleGroups)) return muscleGroups.join(",");
   if (typeof muscleGroups === "string") return muscleGroups;
