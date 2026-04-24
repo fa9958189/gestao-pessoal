@@ -2355,7 +2355,7 @@ function AppMain() {
           ...item,
           is_affiliate: isOwnerUser(item)
             ? true
-            : Boolean(item?.is_affiliate || item?.affiliate_id || item?.affiliate_code),
+            : Boolean(item?.is_affiliate || item?.role === 'affiliate'),
           payment_status: isUserPaidForCurrentCycle(item, new Date()) ? 'paid' : 'pending',
           derived_status: isOwnerUser(item) ? 'active' : computeEffectiveSubscriptionStatus(item, new Date()),
           billing_status: isOwnerUser(item) ? 'paid' : item?.billing_status,
