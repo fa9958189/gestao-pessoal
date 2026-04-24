@@ -1104,9 +1104,9 @@ const WorkoutRoutine = ({
   }, []);
 
   const hasRoutines = useMemo(() => routines.length > 0, [routines]);
-  const isAffiliateUser = useMemo(() => {
+  const canTransferWorkout = useMemo(() => {
     const normalizedRole = String(currentUserRole || '').trim().toLowerCase();
-    return normalizedRole === 'affiliate' || currentUserIsAffiliate === true;
+    return normalizedRole === 'admin' || normalizedRole === 'affiliate' || currentUserIsAffiliate === true;
   }, [currentUserRole, currentUserIsAffiliate]);
   const filteredTransferUsers = useMemo(() => {
     const normalizedSearch = String(transferUserSearch || '').trim().toLowerCase();
@@ -2225,7 +2225,7 @@ const WorkoutRoutine = ({
                           >
                             Ver treino
                           </button>
-                          {isAffiliateUser && (
+                          {canTransferWorkout && (
                             <button
                               type="button"
                               className="ghost btn-acao"
