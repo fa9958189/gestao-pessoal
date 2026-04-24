@@ -3517,8 +3517,8 @@ app.get('/affiliate/supervised-users', async (req, res) => {
       .select('id, name, username, email, whatsapp, role, is_affiliate, affiliate_id')
       .eq('affiliate_id', profile.affiliate_id)
       .neq('id', userId)
-      .or('is_affiliate.is.null,is_affiliate.eq.false')
       .neq('role', 'admin')
+      .neq('role', 'affiliate')
       .order('name', { ascending: true });
 
     if (usersError) {
