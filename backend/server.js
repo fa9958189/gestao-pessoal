@@ -3489,39 +3489,31 @@ app.get("/affiliate/supervised-users", async (req, res) => {
 
     const { data: profile, error: profileError } = await supabase
       .from("profiles")
-      .select("id, role, is_affiliate, affiliate_id")
+      .select("affiliate_id")
       .eq("id", authData.userId)
-      .maybeSingle();
+      .single();
 
     if (profileError) {
-      return res.status(400).json({ error: profileError.message || "Erro ao buscar perfil do afiliado." });
+      return res.status(400).json({ error: "Erro ao buscar perfil." });
     }
 
-    if (!profile?.id || !isAffiliateProfile(profile)) {
-      return res.status(403).json({ error: "Apenas afiliados podem acessar esta rota." });
-    }
-
-    if (!profile?.affiliate_id) {
-      return res.json({ users: [] });
+    if (!profile.affiliate_id) {
+      return res.status(200).json([]);
     }
 
     const { data: users, error: usersError } = await supabase
       .from("profiles")
-      .select("id, name, username, email, whatsapp, role, is_affiliate, affiliate_id, created_at")
-      .eq("affiliate_id", profile.affiliate_id)
-      .neq("id", profile.id)
-      .neq("role", "admin")
-      .neq("is_affiliate", true)
-      .order("created_at", { ascending: true });
+      .select("id, name, email, whatsapp")
+      .eq("affiliate_id", profile.affiliate_id);
 
     if (usersError) {
-      return res.status(400).json({ error: usersError.message || "Erro ao buscar usuários supervisionados." });
+      return res.status(400).json({ error: "Erro ao buscar usuários." });
     }
 
-    return res.json({ users: users || [] });
+    return res.json(users);
   } catch (err) {
-    console.error("Erro inesperado em GET /affiliate/supervised-users:", err);
-    return res.status(500).json({ error: "Erro interno ao buscar usuários supervisionados." });
+    console.error(err);
+    return res.status(500).json({ error: "Erro interno." });
   }
 });
 
