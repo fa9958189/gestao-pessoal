@@ -1617,12 +1617,12 @@ app.get("/users", async (req, res) => {
 
         return {
           ...user,
-          weight: diary?.weight ?? user?.weight ?? null,
+          weight: diary?.weight ?? null,
           goal_weight: diary?.goal_weight ?? user?.goal_weight ?? user?.weight_goal ?? null,
-          height_cm: diary?.height_cm ?? user?.height_cm ?? user?.height ?? null,
+          height_cm: diary?.height_cm ?? null,
           objective: diary?.objective ?? user?.objective ?? null,
-          age: diary?.age ?? user?.age ?? null,
-          sex: diary?.sex ?? user?.sex ?? null,
+          age: diary?.age ?? null,
+          sex: diary?.sex ?? null,
           calorie_goal: diary?.calorie_goal ?? user?.calorie_goal ?? null,
           protein_goal: diary?.protein_goal ?? user?.protein_goal ?? null,
           water_goal_l: diary?.water_goal_l ?? user?.water_goal_l ?? null,
