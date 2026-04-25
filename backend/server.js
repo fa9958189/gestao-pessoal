@@ -3392,7 +3392,7 @@ app.post("/public/affiliate/apply", async (req, res) => {
     const { data: profileRow, error: profileErr } = await supabase
       .from("profiles")
       .select("id, affiliate_id")
-      .eq("auth_id", authData.userId)
+      .eq("id", authData.userId)
       .maybeSingle();
 
     if (profileErr) {
@@ -3467,13 +3467,6 @@ const mapRoutineRow = (row = {}) => ({
   createdAt: row.created_at,
 });
 
-const isAffiliateProfile = (profile = {}) => {
-  const normalizedRole = String(profile?.role || "").toLowerCase();
-  return normalizedRole === "affiliate" || profile?.is_affiliate === true;
-};
-
-const isAdminProfile = (profile = {}) => String(profile?.role || "").toLowerCase() === "admin";
-
 const sanitizeWorkoutForClone = (workout = {}, targetUserId) => {
   const clone = { ...workout, user_id: targetUserId };
   delete clone.id;
@@ -3482,154 +3475,81 @@ const sanitizeWorkoutForClone = (workout = {}, targetUserId) => {
   return clone;
 };
 
-app.get('/affiliate/supervised-users', async (req, res) => {
-  try {
-    // 🔐 Autenticação correta
-    const authData = await authenticateRequest(req, res);
-    if (!authData) return;
-
-    const userId = authData.userId;
-
-    console.log('🔐 USER LOGADO:', userId);
-
-    // 🔎 Buscar perfil REAL do usuário logado
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('auth_id', userId)
-      .single();
-
-    console.log('📄 PROFILE ENCONTRADO:', profile);
-
-    if (profileError || !profile) {
-      console.error('Erro ao buscar perfil:', profileError);
-      return res.status(400).json({ error: 'Perfil não encontrado' });
-    }
-
-    // 🚨 Se não tiver affiliate_id → não tem usuários
-    if (!profile.affiliate_id) {
-      console.warn('⚠️ Usuário sem affiliate_id');
-      return res.json({ users: [] });
-    }
-
-    console.log('🔗 AFFILIATE_ID DO USUÁRIO:', profile.affiliate_id);
-
-    // 🔎 Buscar usuários vinculados
-    const { data: users, error: usersError } = await supabase
-      .from('profiles')
-      .select('id, name, username, email, whatsapp, role, is_affiliate, affiliate_id')
-      .eq('affiliate_id', profile.affiliate_id)
-      .neq('id', profile.id) // não incluir ele mesmo
-      .order('name', { ascending: true });
-
-    if (usersError) {
-      console.error('Erro ao buscar usuários:', usersError);
-      return res.status(400).json({ error: 'Erro ao buscar usuários' });
-    }
-
-    console.log('👥 USUÁRIOS ENCONTRADOS:', users);
-
-    return res.json({
-      users: Array.isArray(users) ? users : []
-    });
-
-  } catch (err) {
-    console.error('Erro interno:', err);
-    return res.status(500).json({ error: 'Erro interno' });
-  }
-});
-
 const transferWorkoutToSupervisedUser = async ({ workoutId, targetUserId, authData }) => {
   if (!workoutId || !targetUserId) {
     return {
       status: 400,
-      body: { error: "workoutId e targetUserId são obrigatórios." },
+      body: { error: "Dados inválidos" },
     };
   }
 
   const { data: loggedProfile, error: loggedProfileError } = await supabase
     .from("profiles")
-    .select("id, role, is_affiliate, affiliate_id")
-    .eq("auth_id", authData.userId)
+    .select("id, role")
+    .eq("id", authData.userId)
     .maybeSingle();
 
   if (loggedProfileError) {
     return {
-      status: 400,
-      body: { error: loggedProfileError.message || "Erro ao validar afiliado." },
+      status: 500,
+      body: { error: loggedProfileError.message || "Erro ao buscar usuário logado." },
     };
   }
 
-  if (!loggedProfile?.id || !isAffiliateProfile(loggedProfile)) {
+  if (!loggedProfile?.id) {
     return {
-      status: 403,
-      body: { error: "Apenas afiliados podem transferir treino." },
+      status: 404,
+      body: { error: "Usuário logado não encontrado" },
     };
   }
 
-  if (!loggedProfile.affiliate_id) {
-    return {
-      status: 400,
-      body: { error: "Afiliado sem vínculo válido para transferência." },
-    };
+  const requesterRole = String(loggedProfile.role || "").toLowerCase();
+  const isAdmin = requesterRole === "admin";
+
+  if (!isAdmin) {
+    const { data: supervisedUser, error: supervisedUserError } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("id", targetUserId)
+      .eq("affiliate_id", authData.userId)
+      .maybeSingle();
+
+    if (supervisedUserError) {
+      return {
+        status: 500,
+        body: { error: supervisedUserError.message || "Erro ao validar usuário supervisionado." },
+      };
+    }
+
+    if (!supervisedUser?.id) {
+      return {
+        status: 403,
+        body: { error: "Sem permissão para transferir" },
+      };
+    }
   }
 
   const { data: workout, error: workoutError } = await supabase
     .from("workout_routines")
     .select("*")
     .eq("id", workoutId)
-    .eq("user_id", loggedProfile.id)
     .maybeSingle();
 
   if (workoutError) {
     return {
-      status: 400,
-      body: { error: workoutError.message || "Erro ao buscar treino de origem." },
+      status: 500,
+      body: { error: workoutError.message || "Erro ao buscar treino." },
     };
   }
 
   if (!workout?.id) {
     return {
       status: 404,
-      body: { error: "Treino não encontrado ou não pertence ao afiliado." },
+      body: { error: "Treino não encontrado" },
     };
   }
 
-  const { data: targetUser, error: targetUserError } = await supabase
-    .from("profiles")
-    .select("id, name, username, email, whatsapp, role, is_affiliate, affiliate_id")
-    .eq("id", targetUserId)
-    .maybeSingle();
-
-  if (targetUserError) {
-    return {
-      status: 400,
-      body: { error: targetUserError.message || "Erro ao validar usuário destino." },
-    };
-  }
-
-  if (!targetUser?.id) {
-    return {
-      status: 404,
-      body: { error: "Usuário destino não encontrado." },
-    };
-  }
-
-  if (isAdminProfile(targetUser) || isAffiliateProfile(targetUser)) {
-    return {
-      status: 403,
-      body: { error: "Transferência permitida apenas para usuários supervisionados comuns." },
-    };
-  }
-
-  if (targetUser.affiliate_id !== loggedProfile.affiliate_id) {
-    return {
-      status: 403,
-      body: { error: "Usuário destino não está vinculado a este afiliado." },
-    };
-  }
-
-  const clonedWorkout = sanitizeWorkoutForClone(workout, targetUser.id);
+  const clonedWorkout = sanitizeWorkoutForClone(workout, targetUserId);
   const { data: createdWorkout, error: cloneError } = await supabase
     .from("workout_routines")
     .insert(clonedWorkout)
@@ -3638,17 +3558,14 @@ const transferWorkoutToSupervisedUser = async ({ workoutId, targetUserId, authDa
 
   if (cloneError) {
     return {
-      status: 400,
-      body: { error: cloneError.message || "Erro ao transferir treino." },
+      status: 500,
+      body: { error: cloneError.message || "Erro ao transferir treino" },
     };
   }
 
   return {
-    status: 201,
-    body: {
-      ok: true,
-      workout: mapRoutineRow(createdWorkout),
-    },
+    status: 200,
+    body: mapRoutineRow(createdWorkout),
   };
 };
 

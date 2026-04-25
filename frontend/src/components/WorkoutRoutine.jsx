@@ -1191,7 +1191,7 @@ const WorkoutRoutine = ({
       }
 
       const responseData = await response.json();
-      setAffiliateTransferUsers(responseData || []);
+      setAffiliateTransferUsers(Array.isArray(responseData) ? responseData : []);
     } catch (error) {
       console.error('Erro ao buscar usuários supervisionados:', error);
       notify(error.message || 'Erro ao buscar usuários supervisionados.', 'danger');
@@ -1253,6 +1253,8 @@ const WorkoutRoutine = ({
       }
 
       notify('Treino transferido com sucesso.', 'success');
+      alert('Treino transferido com sucesso!');
+      await loadRoutines();
       closeTransferWorkoutModal();
     } catch (error) {
       console.error('Erro ao transferir treino:', error);
