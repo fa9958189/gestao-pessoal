@@ -3484,6 +3484,7 @@ const sanitizeWorkoutForClone = (workout = {}, targetUserId) => {
 
 app.get('/affiliate/supervised-users', async (req, res) => {
   try {
+    console.log('AUTH HEADER:', req.headers.authorization);
     const userId = req.user?.id;
 
     if (!userId) {
