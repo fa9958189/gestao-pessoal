@@ -1178,7 +1178,7 @@ const WorkoutRoutine = ({
       }
 
 
-      const response = await fetch('https://api.gestao-pessoal.com/affiliate/supervised-users', {
+      const response = await fetch(`${API_URL}/supervisor/users`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -1191,7 +1191,7 @@ const WorkoutRoutine = ({
       }
 
       const responseData = await response.json();
-      setAffiliateTransferUsers(responseData.users || []);
+      setAffiliateTransferUsers(responseData || []);
     } catch (error) {
       console.error('Erro ao buscar usuários supervisionados:', error);
       notify(error.message || 'Erro ao buscar usuários supervisionados.', 'danger');
@@ -1234,14 +1234,15 @@ const WorkoutRoutine = ({
         throw new Error('Usuário não autenticado. Faça login novamente.');
       }
 
-      const response = await fetch(`${API_URL}/workouts/${workoutToTransfer.id}/transfer`, {
+      const response = await fetch(`${API_URL}/workouts/transfer`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          target_user_id: selectedTransferUser.id
+          workoutId: workoutToTransfer.id,
+          targetUserId: selectedTransferUser.id
         })
       });
 
