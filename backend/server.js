@@ -3484,12 +3484,10 @@ const sanitizeWorkoutForClone = (workout = {}, targetUserId) => {
 
 app.get('/affiliate/supervised-users', async (req, res) => {
   try {
-    console.log('AUTH HEADER:', req.headers.authorization);
-    const userId = req.user?.id;
+    const authData = await authenticateRequest(req, res);
+    if (!authData) return;
 
-    if (!userId) {
-      return res.status(401).json({ error: 'Usuário não autenticado' });
-    }
+    const userId = authData.userId;
 
     console.log('🔍 Buscando usuários supervisionados do user:', userId);
 
