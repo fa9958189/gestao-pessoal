@@ -407,6 +407,7 @@ const useAuth = (client) => {
       }
 
       return {
+        accessToken: supabaseSession.access_token,
         user: {
           id: supabaseSession.user.id,
           profile_id: profileRow?.id,
@@ -2716,6 +2717,7 @@ function AppMain() {
                     window.localStorage.setItem(
                       'gp-session',
                       JSON.stringify({
+                        accessToken,
                         user: {
                           id: authUser.id,
                           profile_id: authProfile.id,
