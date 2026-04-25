@@ -33,19 +33,32 @@ export const transferWorkoutToSupervisedUser = async ({
   authData,
 }) => {
   try {
-    if (!workoutId || !targetUserId) {
+    const safeWorkoutId = String(workoutId || '');
+
+    if (!safeWorkoutId || safeWorkoutId === 'undefined') {
+      throw new Error('ID do treino inválido');
+    }
+
+    if (!targetUserId) {
       throw new Error("Dados inválidos");
     }
 
     // 🔎 Buscar treino original
-    const { data: workout, error: workoutError } = await supabase
+    console.log('🔥 BUSCANDO TREINO ID:', workoutId);
+    const { data, error: workoutError } = await supabase
       .from("workout_routines")
       .select("*")
-      .eq("id", workoutId)
-      .single();
+      .eq("id", safeWorkoutId)
+      .limit(1);
+
+    const workout = data?.[0];
 
     if (workoutError || !workout) {
       throw new Error("Treino não encontrado");
+    }
+
+    if (!workout.name) {
+      throw new Error('Treino inválido (sem nome)');
     }
 
     // 🧹 LIMPAR DADOS (ESSENCIAL)
