@@ -793,7 +793,6 @@ const ViewWorkoutModal = ({
 };
 
 const WorkoutRoutine = ({
-  apiBaseUrl = import.meta.env.VITE_API_BASE_URL,
   pushToast,
   currentUserRole = '',
   currentUserIsAffiliate = false,
@@ -1170,32 +1169,28 @@ const WorkoutRoutine = ({
   };
 
   const fetchAffiliateTransferUsers = async () => {
-    if (!supabase) return;
     try {
-      const supabaseSession = await supabase?.auth?.getSession?.();
-      const supabaseToken = supabaseSession?.data?.session?.access_token;
-      const localSession = JSON.parse(localStorage.getItem('gp-session') || '{}');
-      const token = supabaseToken || localSession?.accessToken;
+      const session = JSON.parse(localStorage.getItem('gp-session'));
+      const token = session?.accessToken;
 
       if (!token) {
-        throw new Error('Sessão inválida. Faça login novamente.');
+        throw new Error('Token não encontrado');
       }
 
-      const response = await fetch(`${API_URL}/affiliate/supervised-users`, {
+      const response = await fetch('https://api.gestao-pessoal.com/affiliate/supervised-users', {
         method: 'GET',
         headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
         }
       });
 
-      const data = await response.json();
-
       if (!response.ok) {
-        throw new Error(data?.error || 'Erro ao buscar usuários supervisionados.');
+        throw new Error('Erro ao buscar usuários supervisionados');
       }
 
-      setAffiliateTransferUsers(Array.isArray(data.users) ? data.users : []);
+      const data = await response.json();
+      setAffiliateTransferUsers(data.users || []);
     } catch (error) {
       console.error('Erro ao buscar usuários supervisionados:', error);
       notify(error.message || 'Erro ao buscar usuários supervisionados.', 'danger');
@@ -1237,7 +1232,7 @@ const WorkoutRoutine = ({
         throw new Error('Sessão inválida. Faça login novamente.');
       }
 
-      const response = await fetch(`${apiBaseUrl}/workouts/${workoutToTransfer.id}/transfer`, {
+      const response = await fetch(`${API_URL}/workouts/${workoutToTransfer.id}/transfer`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -1265,7 +1260,7 @@ const WorkoutRoutine = ({
   }
 
   const updateWeeklyPlan = async (day, { workoutId, time, reminderEnabled }) => {
-    await fetchJson(`${apiBaseUrl}/weekly-plan/${day}`, {
+    await fetchJson(`${API_URL}/weekly-plan/${day}`, {
       method: 'PATCH',
       body: JSON.stringify({
         userId,
@@ -1342,7 +1337,7 @@ const WorkoutRoutine = ({
         return;
       }
       setLoading(true);
-      const response = await fetch(`${apiBaseUrl}/api/workout/routines?userId=${userId}`);
+      const response = await fetch(`${API_URL}/api/workout/routines?userId=${userId}`);
       const data = await response.json();
       if (!response.ok) {
         throw new Error(data?.error || 'Não foi possível carregar os treinos.');
@@ -1364,7 +1359,7 @@ const WorkoutRoutine = ({
         return;
       }
 
-      const data = await fetchJson(`${apiBaseUrl}/weekly-plan?user_id=${userId}`);
+      const data = await fetchJson(`${API_URL}/weekly-plan?user_id=${userId}`);
 
       const rows = Array.isArray(data)
         ? data
@@ -1415,7 +1410,7 @@ const WorkoutRoutine = ({
       const query = new URLSearchParams({ userId });
       if (historyRange.from) query.append('from', `${historyRange.from}T00:00:00`);
       if (historyRange.to) query.append('to', `${historyRange.to}T23:59:59.999`);
-      const data = await fetchJson(`${apiBaseUrl}/api/workouts/sessions?${query.toString()}`);
+      const data = await fetchJson(`${API_URL}/api/workouts/sessions?${query.toString()}`);
       const raw = Array.isArray(data) ? data : data?.items || [];
       const normalized = raw.map((session) => {
         const normalizedSports = syncSportsFromTemplate(
@@ -1445,7 +1440,7 @@ const WorkoutRoutine = ({
   const loadProgress = async () => {
     try {
       if (!userId) return;
-      const data = await fetchJson(`${apiBaseUrl}/api/workouts/progress?userId=${userId}&period=month`);
+      const data = await fetchJson(`${API_URL}/api/workouts/progress?userId=${userId}&period=month`);
       setProgress(data || { totalSessions: 0, byMuscleGroup: {} });
     } catch (err) {
       console.error('Erro ao carregar progresso', err);
@@ -1633,13 +1628,13 @@ const WorkoutRoutine = ({
       setLoading(true);
       let response;
       if (formData.id) {
-        response = await fetch(`${apiBaseUrl}/api/workout/routines/${formData.id}`, {
+        response = await fetch(`${API_URL}/api/workout/routines/${formData.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
         });
       } else {
-        response = await fetch(`${apiBaseUrl}/api/workout/routines`, {
+        response = await fetch(`${API_URL}/api/workout/routines`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
@@ -1686,7 +1681,7 @@ const WorkoutRoutine = ({
           workoutName: saved?.name || formData.name,
           date: getLocalDateOnly(),
         };
-        await fetchJson(`${apiBaseUrl}/api/workouts/reminders`, {
+        await fetchJson(`${API_URL}/api/workouts/reminders`, {
           method: 'POST',
           body: JSON.stringify(reminderPayload),
         });
@@ -1714,7 +1709,7 @@ const WorkoutRoutine = ({
 
       // Agora enviando o userId na query string para o backend
       const response = await fetch(
-        `${apiBaseUrl}/api/workout/routines/${id}?userId=${userId}`,
+        `${API_URL}/api/workout/routines/${id}?userId=${userId}`,
         { method: 'DELETE' }
       );
 
@@ -1749,7 +1744,7 @@ const WorkoutRoutine = ({
     try {
       setLoading(true);
       const response = await fetch(
-        `${apiBaseUrl}/api/workouts/sessions/${sessionId}?userId=${userId}`,
+        `${API_URL}/api/workouts/sessions/${sessionId}?userId=${userId}`,
         { method: 'DELETE' }
       );
 
@@ -1858,7 +1853,7 @@ const WorkoutRoutine = ({
         date: sessionPayload.date,
       });
 
-      const saved = await fetchJson(`${apiBaseUrl}/api/workouts/sessions`, {
+      const saved = await fetchJson(`${API_URL}/api/workouts/sessions`, {
         method: 'POST',
         body: JSON.stringify(sessionPayload),
       });
@@ -1892,7 +1887,7 @@ const WorkoutRoutine = ({
           workoutName: normalizedSaved?.name || source.name,
           date: normalizedSaved?.date || sessionPayload.date,
         };
-        await fetchJson(`${apiBaseUrl}/api/workouts/reminders`, {
+        await fetchJson(`${API_URL}/api/workouts/reminders`, {
           method: 'POST',
           body: JSON.stringify(reminderPayload),
         });
