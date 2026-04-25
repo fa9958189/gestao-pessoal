@@ -30,35 +30,39 @@ const mapRoutineRow = (row = {}) => ({
 export const transferWorkoutToSupervisedUser = async ({
   workoutId,
   targetUserId,
-  authData,
+  authData: _authData,
 }) => {
   try {
     const safeWorkoutId = String(workoutId || "").trim();
     const safeTargetUserId = String(targetUserId || "").trim();
 
     if (!safeWorkoutId || safeWorkoutId === "undefined" || safeWorkoutId === "null") {
-      throw new Error("ID do treino inválido");
+      return {
+        status: 400,
+        body: { error: "ID do treino inválido." },
+      };
     }
 
     if (!safeTargetUserId || safeTargetUserId === "undefined" || safeTargetUserId === "null") {
-      throw new Error("ID do usuário de destino inválido");
+      return {
+        status: 400,
+        body: { error: "ID do usuário de destino inválido." },
+      };
     }
 
-    // 🔎 Buscar treino original
-    console.log("🔥 BUSCANDO TREINO ID:", safeWorkoutId);
-    const { data, error: workoutError } = await supabase
+    const { data: workout, error: workoutError } = await supabase
       .from("workout_routines")
       .select("*")
       .eq("id", safeWorkoutId)
-      .limit(1);
-
-    const workout = data?.[0];
+      .maybeSingle();
 
     if (workoutError || !workout) {
-      throw new Error("Treino não encontrado");
+      return {
+        status: 404,
+        body: { error: "Treino não encontrado." },
+      };
     }
 
-    // 🧹 LIMPAR DADOS (ESSENCIAL)
     const newWorkout = {
       name: workout.name,
       user_id: safeTargetUserId,
@@ -69,7 +73,6 @@ export const transferWorkoutToSupervisedUser = async ({
       created_at: new Date().toISOString(),
     };
 
-    // 📦 Criar novo treino
     const { data: createdWorkout, error: createError } = await supabase
       .from("workout_routines")
       .insert(newWorkout)
@@ -77,20 +80,27 @@ export const transferWorkoutToSupervisedUser = async ({
       .single();
 
     if (createError) {
-      console.error(createError);
-      throw new Error("Erro ao criar treino");
+      return {
+        status: 500,
+        body: { error: "Não foi possível transferir o treino." },
+      };
     }
 
-    // 🔁 (OPCIONAL) copiar exercícios depois
-    // se tiver tabela separada
-
     return {
-      success: true,
-      message: "Treino transferido com sucesso",
-      workout: createdWorkout,
+      status: 200,
+      body: {
+        success: true,
+        message: "Treino transferido com sucesso",
+        workout: createdWorkout,
+      },
     };
   } catch (error) {
-    console.error("🔥 SERVICE ERROR:", error);
-    throw error;
+    console.error("Erro no serviço de transferência de treino:", error);
+    return {
+      status: 500,
+      body: {
+        error: "Não foi possível transferir o treino. Verifique o usuário selecionado e tente novamente.",
+      },
+    };
   }
 };

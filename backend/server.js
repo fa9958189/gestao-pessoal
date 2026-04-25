@@ -11,6 +11,7 @@ import foodsRouter from "./routes/foods.js";
 import eventsRoutes from "./routes/events.js";
 import treinosRoutes from "./routes/treinos.js";
 import workoutRoutes from './routes/workoutRoutes.js';
+import { transferWorkoutToSupervisedUser } from "./services/workoutService.js";
 import {
   getCircuitBreakerState,
   supabase,
@@ -3470,116 +3471,7 @@ const mapRoutineRow = (row = {}) => ({
   createdAt: row.created_at,
 });
 
-const sanitizeWorkoutForClone = (workout = {}, targetUserId) => {
-  const clone = { ...workout, user_id: targetUserId };
-  delete clone.id;
-  delete clone.created_at;
-  delete clone.updated_at;
-  return clone;
-};
-
-const transferWorkoutToSupervisedUser = async ({ workoutId, targetUserId, authData }) => {
-  if (!workoutId || !targetUserId) {
-    return {
-      status: 400,
-      body: { error: "Dados inválidos" },
-    };
-  }
-
-  if (typeof workoutId !== "string") {
-    return {
-      status: 400,
-      body: { error: "ID do treino inválido" },
-    };
-  }
-
-  const { data: loggedProfile, error: loggedProfileError } = await supabase
-    .from("profiles")
-    .select("id, role")
-    .eq("id", authData.userId)
-    .maybeSingle();
-
-  if (loggedProfileError) {
-    return {
-      status: 500,
-      body: { error: loggedProfileError.message || "Erro ao buscar usuário logado." },
-    };
-  }
-
-  if (!loggedProfile?.id) {
-    return {
-      status: 404,
-      body: { error: "Usuário logado não encontrado" },
-    };
-  }
-
-  const requesterRole = String(loggedProfile.role || "").toLowerCase();
-  const isAdmin = requesterRole === "admin";
-
-  if (!isAdmin) {
-    const { data: supervisedUser, error: supervisedUserError } = await supabase
-      .from("profiles")
-      .select("id")
-      .eq("id", targetUserId)
-      .eq("affiliate_id", authData.userId)
-      .maybeSingle();
-
-    if (supervisedUserError) {
-      return {
-        status: 500,
-        body: { error: supervisedUserError.message || "Erro ao validar usuário supervisionado." },
-      };
-    }
-
-    if (!supervisedUser?.id) {
-      return {
-        status: 403,
-        body: { error: "Sem permissão para transferir" },
-      };
-    }
-  }
-
-  const { data: workout, error: workoutError } = await supabase
-    .from("workout_routines")
-    .select("*")
-    .eq("id", workoutId)
-    .maybeSingle();
-
-  if (workoutError) {
-    return {
-      status: 500,
-      body: { error: workoutError.message || "Erro ao buscar treino." },
-    };
-  }
-
-  if (!workout?.id) {
-    return {
-      status: 404,
-      body: { error: "Treino não encontrado" },
-    };
-  }
-
-  const clonedWorkout = sanitizeWorkoutForClone(workout, targetUserId);
-  const { data: createdWorkout, error: cloneError } = await supabase
-    .from("workout_routines")
-    .insert(clonedWorkout)
-    .select("*")
-    .single();
-
-  if (cloneError) {
-    return {
-      status: 500,
-      body: { error: cloneError.message || "Erro ao transferir treino" },
-    };
-  }
-
-  return {
-    status: 200,
-    body: mapRoutineRow(createdWorkout),
-  };
-};
-
-app.post("/workouts/transfer", async (req, res) => {
+async function handleWorkoutTransferRequest(req, res) {
   try {
     const authData = await authenticateRequest(req, res);
     if (!authData) return;
@@ -3590,12 +3482,17 @@ app.post("/workouts/transfer", async (req, res) => {
       authData,
     });
 
-    return res.status(result.status).json(result.body);
+    return res.status(result?.status || 200).json(result?.body || result);
   } catch (err) {
-    console.error("Erro inesperado em POST /workouts/transfer:", err);
-    return res.status(500).json({ error: "Erro interno ao transferir treino." });
+    console.error("Erro inesperado ao transferir treino:", err);
+    return res.status(500).json({
+      error: "Não foi possível transferir o treino. Verifique o usuário selecionado e tente novamente.",
+    });
   }
-});
+}
+
+app.post("/api/workouts/transfer", handleWorkoutTransferRequest);
+app.post("/workouts/transfer", handleWorkoutTransferRequest);
 
 app.post("/workouts/:id/transfer", async (req, res) => {
   try {
