@@ -1242,7 +1242,7 @@ const WorkoutRoutine = ({
         throw new Error('Usuário não autenticado. Faça login novamente.');
       }
 
-      const response = await fetch(`${API_URL}/workouts/transfer`, {
+      const response = await fetch(`${API_URL}/api/workouts/transfer`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -1254,7 +1254,12 @@ const WorkoutRoutine = ({
         })
       });
 
-      const responseData = await response.json();
+      let responseData = {};
+      try {
+        responseData = await response.json();
+      } catch {
+        responseData = {};
+      }
 
       if (!response.ok) {
         throw new Error(responseData?.error || 'Erro ao transferir treino.');
@@ -1266,7 +1271,7 @@ const WorkoutRoutine = ({
       closeTransferWorkoutModal();
     } catch (error) {
       console.error('Erro ao transferir treino:', error);
-      notify(error.message || 'Erro ao transferir treino.', 'danger');
+      notify('Não foi possível transferir o treino. Verifique o usuário selecionado e tente novamente.', 'danger');
     } finally {
       setTransferringWorkout(false);
     }
