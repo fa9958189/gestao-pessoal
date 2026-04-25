@@ -3484,40 +3484,42 @@ const sanitizeWorkoutForClone = (workout = {}, targetUserId) => {
 
 app.get('/affiliate/supervised-users', async (req, res) => {
   try {
+    // 🔐 Autenticação correta
     const authData = await authenticateRequest(req, res);
     if (!authData) return;
 
     const userId = authData.userId;
 
-    console.log('🔍 Buscando usuários supervisionados do user:', userId);
+    console.log('🔐 USER LOGADO:', userId);
 
-    // Buscar affiliate_id do usuário logado
+    // 🔎 Buscar perfil REAL do usuário logado
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('affiliate_id, role, is_affiliate')
+      .select('*')
       .eq('id', userId)
       .single();
 
-    if (profileError) {
+    console.log('📄 PROFILE ENCONTRADO:', profile);
+
+    if (profileError || !profile) {
       console.error('Erro ao buscar perfil:', profileError);
-      return res.status(400).json({ error: 'Erro ao buscar perfil' });
+      return res.status(400).json({ error: 'Perfil não encontrado' });
     }
 
-    console.log('📌 Profile encontrado:', profile);
-
-    if (!profile?.affiliate_id) {
-      console.log('⚠️ Usuário não possui affiliate_id');
+    // 🚨 Se não tiver affiliate_id → não tem usuários
+    if (!profile.affiliate_id) {
+      console.warn('⚠️ Usuário sem affiliate_id');
       return res.json({ users: [] });
     }
 
-    // Buscar usuários vinculados ao afiliado
+    console.log('🔗 AFFILIATE_ID DO USUÁRIO:', profile.affiliate_id);
+
+    // 🔎 Buscar usuários vinculados
     const { data: users, error: usersError } = await supabase
       .from('profiles')
       .select('id, name, username, email, whatsapp, role, is_affiliate, affiliate_id')
       .eq('affiliate_id', profile.affiliate_id)
-      .neq('id', userId)
-      .neq('role', 'admin')
-      .neq('role', 'affiliate')
+      .neq('id', userId) // não incluir ele mesmo
       .order('name', { ascending: true });
 
     if (usersError) {
@@ -3525,7 +3527,7 @@ app.get('/affiliate/supervised-users', async (req, res) => {
       return res.status(400).json({ error: 'Erro ao buscar usuários' });
     }
 
-    console.log('✅ Usuários encontrados:', users?.length || 0);
+    console.log('👥 USUÁRIOS ENCONTRADOS:', users);
 
     return res.json({
       users: Array.isArray(users) ? users : []
