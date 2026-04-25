@@ -1216,12 +1216,15 @@ const WorkoutRoutine = ({
 
   async function handleTransferWorkout() {
     const workoutId =
-      workoutToTransfer?.id || workoutToTransfer?.workout_id;
+      workoutToTransfer?.id ||
+      workoutToTransfer?.workout_id ||
+      workoutToTransfer?.routine_id;
 
-    console.log('ID ENVIADO:', workoutId);
+    console.log('🔥 ID ENVIADO:', workoutId);
+    console.log('🔥 OBJETO COMPLETO:', workoutToTransfer);
 
     if (!workoutId) {
-      notify('Nenhum treino selecionado.', 'danger');
+      alert('Erro: treino sem ID');
       return;
     }
 
