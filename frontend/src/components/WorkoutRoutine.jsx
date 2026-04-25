@@ -1170,8 +1170,8 @@ const WorkoutRoutine = ({
 
   const fetchAffiliateTransferUsers = async () => {
     try {
-      const { data } = await supabase.auth.getSession();
-      const token = data?.session?.access_token;
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData?.session?.access_token;
 
       if (!token) {
         throw new Error('Usuário não autenticado. Faça login novamente.');
@@ -1190,8 +1190,8 @@ const WorkoutRoutine = ({
         throw new Error('Erro ao buscar usuários supervisionados');
       }
 
-      const data = await response.json();
-      setAffiliateTransferUsers(data.users || []);
+      const responseData = await response.json();
+      setAffiliateTransferUsers(responseData.users || []);
     } catch (error) {
       console.error('Erro ao buscar usuários supervisionados:', error);
       notify(error.message || 'Erro ao buscar usuários supervisionados.', 'danger');
