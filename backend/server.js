@@ -3485,6 +3485,13 @@ const transferWorkoutToSupervisedUser = async ({ workoutId, targetUserId, authDa
     };
   }
 
+  if (typeof workoutId !== "string") {
+    return {
+      status: 400,
+      body: { error: "ID do treino inválido" },
+    };
+  }
+
   const { data: loggedProfile, error: loggedProfileError } = await supabase
     .from("profiles")
     .select("id, role")
