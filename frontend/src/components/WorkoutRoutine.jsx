@@ -1171,19 +1171,30 @@ const WorkoutRoutine = ({
   const fetchAffiliateTransferUsers = async () => {
     if (!supabase) return;
     try {
-      const session = JSON.parse(localStorage.getItem('gp-session') || '{}');
-      const token = session?.accessToken;
-      if (!token) {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session) {
+        console.error('Usuário não autenticado');
+        return;
+      }
+
+      if (!session?.access_token) {
         throw new Error('Sessão inválida. Faça login novamente.');
       }
+
+      console.log('TOKEN:', session?.access_token);
 
       const base = apiBaseUrl
         .replace(/\/api\/?$/, '') // remove /api ou /api/
         .replace(/\/$/, ''); // remove barra final
 
       const response = await fetch(`${base}/affiliate/supervised-users`, {
+        method: 'GET',
         headers: {
-          Authorization: `Bearer ${token}`
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session?.access_token}`
         }
       });
 
