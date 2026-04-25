@@ -1172,13 +1172,10 @@ const WorkoutRoutine = ({
   const fetchAffiliateTransferUsers = async () => {
     if (!supabase) return;
     try {
-      const session = await supabase.auth.getSession();
-      const token = session.data.session?.access_token;
-
-      if (!session?.data?.session) {
-        console.error('Usuário não autenticado');
-        return;
-      }
+      const supabaseSession = await supabase?.auth?.getSession?.();
+      const supabaseToken = supabaseSession?.data?.session?.access_token;
+      const localSession = JSON.parse(localStorage.getItem('gp-session') || '{}');
+      const token = supabaseToken || localSession?.accessToken;
 
       if (!token) {
         throw new Error('Sessão inválida. Faça login novamente.');
