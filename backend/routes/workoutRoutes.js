@@ -7,18 +7,24 @@ router.post('/transfer', async (req, res) => {
   try {
     const { workoutId, targetUserId } = req.body;
 
-    console.log('🔥 TRANSFER CHAMADA:', { workoutId, targetUserId });
+    console.log('🔥 TRANSFER CHAMADA:', {
+      workoutId,
+      targetUserId,
+      user: req.user,
+    });
 
     const result = await transferWorkoutToSupervisedUser({
       workoutId,
       targetUserId,
-      authData: req.user
+      authData: req.user,
     });
 
     return res.json(result);
   } catch (error) {
     console.error('❌ ERRO TRANSFER:', error);
-    return res.status(500).json({ error: error.message || 'Erro ao transferir treino' });
+    return res.status(500).json({
+      error: error.message || 'Erro ao transferir treino',
+    });
   }
 });
 

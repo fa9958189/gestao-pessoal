@@ -33,18 +33,19 @@ export const transferWorkoutToSupervisedUser = async ({
   authData,
 }) => {
   try {
-    const safeWorkoutId = String(workoutId || '');
+    const safeWorkoutId = String(workoutId || "").trim();
+    const safeTargetUserId = String(targetUserId || "").trim();
 
-    if (!safeWorkoutId || safeWorkoutId === 'undefined') {
-      throw new Error('ID do treino inválido');
+    if (!safeWorkoutId || safeWorkoutId === "undefined" || safeWorkoutId === "null") {
+      throw new Error("ID do treino inválido");
     }
 
-    if (!targetUserId) {
-      throw new Error("Dados inválidos");
+    if (!safeTargetUserId || safeTargetUserId === "undefined" || safeTargetUserId === "null") {
+      throw new Error("ID do usuário de destino inválido");
     }
 
     // 🔎 Buscar treino original
-    console.log('🔥 BUSCANDO TREINO ID:', workoutId);
+    console.log("🔥 BUSCANDO TREINO ID:", safeWorkoutId);
     const { data, error: workoutError } = await supabase
       .from("workout_routines")
       .select("*")
@@ -57,15 +58,14 @@ export const transferWorkoutToSupervisedUser = async ({
       throw new Error("Treino não encontrado");
     }
 
-    if (!workout.name) {
-      throw new Error('Treino inválido (sem nome)');
-    }
-
     // 🧹 LIMPAR DADOS (ESSENCIAL)
     const newWorkout = {
       name: workout.name,
-      user_id: targetUserId,
-      muscle_groups: workout.muscle_groups,
+      user_id: safeTargetUserId,
+      muscle_groups: workout.muscle_groups || null,
+      sports_list: workout.sports_list || null,
+      muscle_config: workout.muscle_config || null,
+      exercises_by_group: workout.exercises_by_group || null,
       created_at: new Date().toISOString(),
     };
 
@@ -87,6 +87,7 @@ export const transferWorkoutToSupervisedUser = async ({
     return {
       success: true,
       message: "Treino transferido com sucesso",
+      workout: createdWorkout,
     };
   } catch (error) {
     console.error("🔥 SERVICE ERROR:", error);
