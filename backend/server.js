@@ -10,6 +10,7 @@ import multer from "multer";
 import foodsRouter from "./routes/foods.js";
 import eventsRoutes from "./routes/events.js";
 import treinosRoutes from "./routes/treinos.js";
+import workoutRoutes from './routes/workoutRoutes.js';
 import {
   getCircuitBreakerState,
   supabase,
@@ -205,6 +206,7 @@ app.use("/api/foods", foodsRouter);
 app.use("/api/events", eventsRoutes);
 app.use("/events", eventsRoutes);
 app.use("/treinos", treinosRoutes);
+app.use('/workouts', workoutRoutes);
 
 const BILLING_DEFAULT_DUE_DAY = 10;
 const BILLING_OVERDUE_DAY = 20;
