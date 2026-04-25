@@ -3496,7 +3496,7 @@ app.get('/affiliate/supervised-users', async (req, res) => {
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('*')
-      .eq('id', userId)
+      .eq('auth_id', userId)
       .single();
 
     console.log('📄 PROFILE ENCONTRADO:', profile);
