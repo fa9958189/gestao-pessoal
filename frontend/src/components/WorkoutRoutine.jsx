@@ -1215,7 +1215,12 @@ const WorkoutRoutine = ({
   };
 
   async function handleTransferWorkout() {
-    if (!(workoutToTransfer?.id || workoutToTransfer?.workout_id)) {
+    const workoutId =
+      workoutToTransfer?.id || workoutToTransfer?.workout_id;
+
+    console.log('ID ENVIADO:', workoutId);
+
+    if (!workoutId) {
       notify('Nenhum treino selecionado.', 'danger');
       return;
     }
@@ -1241,7 +1246,7 @@ const WorkoutRoutine = ({
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          workoutId: workoutToTransfer.id || workoutToTransfer.workout_id,
+          workoutId,
           targetUserId: selectedTransferUser.id
         })
       });
