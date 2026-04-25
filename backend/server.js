@@ -3392,7 +3392,7 @@ app.post("/public/affiliate/apply", async (req, res) => {
     const { data: profileRow, error: profileErr } = await supabase
       .from("profiles")
       .select("id, affiliate_id")
-      .eq("id", authData.userId)
+      .eq("auth_id", authData.userId)
       .maybeSingle();
 
     if (profileErr) {
@@ -3519,7 +3519,7 @@ app.get('/affiliate/supervised-users', async (req, res) => {
       .from('profiles')
       .select('id, name, username, email, whatsapp, role, is_affiliate, affiliate_id')
       .eq('affiliate_id', profile.affiliate_id)
-      .neq('id', userId) // não incluir ele mesmo
+      .neq('id', profile.id) // não incluir ele mesmo
       .order('name', { ascending: true });
 
     if (usersError) {
@@ -3553,7 +3553,7 @@ app.post("/workouts/:id/transfer", async (req, res) => {
     const { data: loggedProfile, error: loggedProfileError } = await supabase
       .from("profiles")
       .select("id, role, is_affiliate, affiliate_id")
-      .eq("id", authData.userId)
+      .eq("auth_id", authData.userId)
       .maybeSingle();
 
     if (loggedProfileError) {

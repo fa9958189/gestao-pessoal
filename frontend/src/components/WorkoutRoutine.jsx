@@ -1170,12 +1170,13 @@ const WorkoutRoutine = ({
 
   const fetchAffiliateTransferUsers = async () => {
     try {
-      const session = JSON.parse(localStorage.getItem('gp-session'));
-      const token = session?.accessToken;
+      const { data } = await supabase.auth.getSession();
+      const token = data?.session?.access_token;
 
       if (!token) {
-        throw new Error('Token não encontrado');
+        throw new Error('Usuário não autenticado. Faça login novamente.');
       }
+
 
       const response = await fetch('https://api.gestao-pessoal.com/affiliate/supervised-users', {
         method: 'GET',
@@ -1226,10 +1227,11 @@ const WorkoutRoutine = ({
 
     try {
       setTransferringWorkout(true);
-      const session = JSON.parse(localStorage.getItem('gp-session') || '{}');
-      const token = session?.accessToken;
+      const { data } = await supabase.auth.getSession();
+      const token = data?.session?.access_token;
+
       if (!token) {
-        throw new Error('Sessão inválida. Faça login novamente.');
+        throw new Error('Usuário não autenticado. Faça login novamente.');
       }
 
       const response = await fetch(`${API_URL}/workouts/${workoutToTransfer.id}/transfer`, {
