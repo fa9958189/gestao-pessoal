@@ -206,6 +206,7 @@ app.use("/api/foods", foodsRouter);
 app.use("/api/events", eventsRoutes);
 app.use("/events", eventsRoutes);
 app.use("/treinos", treinosRoutes);
+app.use('/api/workouts', workoutRoutes);
 app.use('/workouts', workoutRoutes);
 
 const BILLING_DEFAULT_DUE_DAY = 10;
