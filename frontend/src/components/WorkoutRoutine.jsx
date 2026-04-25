@@ -799,6 +799,7 @@ const WorkoutRoutine = ({
   currentUserIsAffiliate = false,
   currentAffiliateId = null
 }) => {
+  const API_URL = 'https://api.gestao-pessoal.com';
   const [treinoTab, setTreinoTab] = useState('treinos');
   const [etapaTreino, setEtapaTreino] = useState('tipo');
   const [openTreinoModal, setOpenTreinoModal] = useState(false);
@@ -1171,30 +1172,23 @@ const WorkoutRoutine = ({
   const fetchAffiliateTransferUsers = async () => {
     if (!supabase) return;
     try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
+      const session = await supabase.auth.getSession();
+      const token = session.data.session?.access_token;
 
-      if (!session) {
+      if (!session?.data?.session) {
         console.error('Usuário não autenticado');
         return;
       }
 
-      if (!session?.access_token) {
+      if (!token) {
         throw new Error('Sessão inválida. Faça login novamente.');
       }
 
-      console.log('TOKEN:', session?.access_token);
-
-      const base = apiBaseUrl
-        .replace(/\/api\/?$/, '') // remove /api ou /api/
-        .replace(/\/$/, ''); // remove barra final
-
-      const response = await fetch(`${base}/affiliate/supervised-users`, {
+      const response = await fetch(`${API_URL}/affiliate/supervised-users`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${session?.access_token}`
+          Authorization: `Bearer ${token}`
         }
       });
 
