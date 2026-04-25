@@ -1227,8 +1227,8 @@ const WorkoutRoutine = ({
 
     try {
       setTransferringWorkout(true);
-      const { data } = await supabase.auth.getSession();
-      const token = data?.session?.access_token;
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData?.session?.access_token;
 
       if (!token) {
         throw new Error('Usuário não autenticado. Faça login novamente.');
@@ -1245,10 +1245,10 @@ const WorkoutRoutine = ({
         })
       });
 
-      const data = await response.json();
+      const responseData = await response.json();
 
       if (!response.ok) {
-        throw new Error(data?.error || 'Erro ao transferir treino.');
+        throw new Error(responseData?.error || 'Erro ao transferir treino.');
       }
 
       notify('Treino transferido com sucesso.', 'success');
