@@ -1236,18 +1236,16 @@ const WorkoutRoutine = ({
       const response = await fetch(`${API_URL}/api/workouts/transfer`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ workoutId: selectedWorkoutId, targetUserId: selectedUserId })
+        body: JSON.stringify({
+          workoutId: selectedWorkoutId,
+          targetUserId: selectedUserId
+        })
       });
 
-      let responseData;
-      try {
-        responseData = await response.json();
-      } catch {
-        throw new Error('Erro no servidor');
-      }
+      const responseData = await response.json().catch(() => ({}));
 
       if (!response.ok) {
-        throw new Error(responseData.error || 'Erro ao transferir treino');
+        throw new Error(responseData.error || 'Não foi possível transferir o treino.');
       }
 
       notify('Treino transferido com sucesso.', 'success');
@@ -1256,7 +1254,7 @@ const WorkoutRoutine = ({
       closeTransferWorkoutModal();
     } catch (error) {
       console.error('Erro ao transferir treino:', error);
-      notify('Não foi possível transferir o treino. Verifique o usuário selecionado e tente novamente.', 'danger');
+      notify(error.message || 'Não foi possível transferir o treino.', 'danger');
     } finally {
       setTransferringWorkout(false);
     }
