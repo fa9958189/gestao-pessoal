@@ -1233,33 +1233,21 @@ const WorkoutRoutine = ({
 
     try {
       setTransferringWorkout(true);
-      const { data: sessionData } = await supabase.auth.getSession();
-      const token = sessionData?.session?.access_token;
-
-      if (!token) {
-        throw new Error('Usuário não autenticado. Faça login novamente.');
-      }
-
-      const response = await fetch(`${API_URL}/api/workouts/${selectedWorkoutId}/transfer`, {
+      const response = await fetch(`${API_URL}/api/workouts/transfer`, {
         method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          target_user_id: selectedUserId
-        })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workoutId: selectedWorkoutId, targetUserId: selectedUserId })
       });
 
-      let responseData = {};
+      let responseData;
       try {
         responseData = await response.json();
       } catch {
-        responseData = {};
+        throw new Error('Erro no servidor');
       }
 
       if (!response.ok) {
-        throw new Error(responseData?.error || 'Erro ao transferir treino.');
+        throw new Error(responseData.error || 'Erro ao transferir treino');
       }
 
       notify('Treino transferido com sucesso.', 'success');
