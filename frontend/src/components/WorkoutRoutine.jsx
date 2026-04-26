@@ -1218,7 +1218,7 @@ const WorkoutRoutine = ({
     const selectedWorkoutId = workoutToTransfer?.id;
     const selectedUserId = selectedTransferUser?.id;
 
-    console.log('WORKOUT ID FINAL:', selectedWorkoutId);
+    console.log('WORKOUT ID:', selectedWorkoutId);
     console.log('USER ID:', selectedUserId);
 
     if (!selectedWorkoutId) {
