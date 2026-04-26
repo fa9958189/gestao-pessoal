@@ -36,6 +36,28 @@ export const transferWorkoutToSupervisedUser = async ({
     const safeWorkoutId = String(workoutId || "").trim();
     const safeTargetUserId = String(targetUserId || "").trim();
 
+    const resolveTargetProfileId = async (targetId) => {
+      const safeId = String(targetId || "").trim();
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("id", safeId)
+        .maybeSingle();
+
+      if (profile?.id) return profile.id;
+
+      const { data: profileAuth } = await supabase
+        .from("profiles_auth")
+        .select("id, auth_id")
+        .eq("id", safeId)
+        .maybeSingle();
+
+      if (profileAuth?.auth_id) return profileAuth.auth_id;
+
+      return null;
+    };
+
     if (!safeWorkoutId || safeWorkoutId === "undefined" || safeWorkoutId === "null") {
       return {
         status: 400,
@@ -63,9 +85,24 @@ export const transferWorkoutToSupervisedUser = async ({
       };
     }
 
+    const resolvedTargetProfileId = await resolveTargetProfileId(safeTargetUserId);
+
+    if (!resolvedTargetProfileId) {
+      return {
+        status: 404,
+        body: { error: "Usuário de destino não encontrado." },
+      };
+    }
+
+    console.log("Transferência treino:", {
+      workoutId: safeWorkoutId,
+      targetUserId: safeTargetUserId,
+      resolvedTargetProfileId,
+    });
+
     const newWorkout = {
       name: workout.name,
-      user_id: safeTargetUserId,
+      user_id: resolvedTargetProfileId,
       muscle_groups: workout.muscle_groups || null,
       sports_list: workout.sports_list || null,
       muscle_config: workout.muscle_config || null,
@@ -80,9 +117,10 @@ export const transferWorkoutToSupervisedUser = async ({
       .single();
 
     if (createError) {
+      console.error("Erro ao inserir treino transferido:", createError);
       return {
         status: 500,
-        body: { error: "Não foi possível transferir o treino." },
+        body: { error: createError.message || "Não foi possível transferir o treino." },
       };
     }
 
@@ -99,7 +137,7 @@ export const transferWorkoutToSupervisedUser = async ({
     return {
       status: 500,
       body: {
-        error: "Não foi possível transferir o treino. Verifique o usuário selecionado e tente novamente.",
+        error: error.message || "Não foi possível transferir o treino.",
       },
     };
   }
