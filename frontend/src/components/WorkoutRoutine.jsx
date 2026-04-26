@@ -1215,14 +1215,11 @@ const WorkoutRoutine = ({
   };
 
   async function handleTransferWorkout() {
-    const selectedWorkoutId =
-      workoutToTransfer?.id ||
-      workoutToTransfer?.workout_id ||
-      workoutToTransfer?.routine_id;
+    const selectedWorkoutId = workoutToTransfer?.id;
     const selectedUserId = selectedTransferUser?.id;
 
-    console.log('🔥 ID ENVIADO:', selectedWorkoutId);
-    console.log('🔥 OBJETO COMPLETO:', workoutToTransfer);
+    console.log('WORKOUT ID FINAL:', selectedWorkoutId);
+    console.log('USER ID:', selectedUserId);
 
     if (!selectedWorkoutId) {
       alert('Erro: treino sem ID');
@@ -1243,14 +1240,14 @@ const WorkoutRoutine = ({
         throw new Error('Usuário não autenticado. Faça login novamente.');
       }
 
-      const response = await fetch(`${API_URL}/workouts/${selectedWorkoutId}/transfer`, {
+      const response = await fetch(`https://api.gestao-pessoal.com/workouts/${selectedWorkoutId}/transfer`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          targetUserId: selectedUserId
+          target_user_id: selectedUserId
         })
       });
 
