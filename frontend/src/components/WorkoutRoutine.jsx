@@ -1240,7 +1240,7 @@ const WorkoutRoutine = ({
         throw new Error('Usuário não autenticado. Faça login novamente.');
       }
 
-      const response = await fetch(`https://api.gestao-pessoal.com/workouts/${selectedWorkoutId}/transfer`, {
+      const response = await fetch(`${API_URL}/api/workouts/${selectedWorkoutId}/transfer`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
