@@ -1,8 +1,8 @@
 create table if not exists public.payment_access_tokens (
   id uuid primary key default gen_random_uuid(),
   session_id text not null unique,
-  stripe_customer_id text,
-  stripe_subscription_id text,
+  payment_customer_id text,
+  payment_subscription_id text,
   email text not null,
   plan_type text not null,
   payment_status text not null default 'pending',
@@ -15,7 +15,7 @@ create table if not exists public.payment_access_tokens (
 );
 
 create index if not exists idx_payment_access_tokens_customer_id
-  on public.payment_access_tokens (stripe_customer_id);
+  on public.payment_access_tokens (payment_customer_id);
 
 create index if not exists idx_payment_access_tokens_email
   on public.payment_access_tokens (email);
