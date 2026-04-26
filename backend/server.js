@@ -3499,6 +3499,27 @@ app.post("/workouts/:id/transfer", async (req, res) => {
     const authData = await authenticateRequest(req, res);
     if (!authData) return;
 
+    console.log("🔥 TRANSFER REQUEST");
+    console.log("WORKOUT ID:", req.params.id);
+    console.log("TARGET USER:", req.body.target_user_id);
+    console.log("USER LOGADO:", authData?.userId);
+
+    const { data: workout } = await supabase
+      .from("workout_routines")
+      .select("*")
+      .eq("id", req.params?.id)
+      .maybeSingle();
+
+    console.log("WORKOUT ENCONTRADO:", workout);
+
+    const { data: targetUser } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", req.body?.target_user_id)
+      .maybeSingle();
+
+    console.log("TARGET USER EXISTS:", targetUser);
+
     const result = await transferWorkoutToSupervisedUser({
       workoutId: req.params?.id,
       targetUserId: req.body?.target_user_id,
