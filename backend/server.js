@@ -3471,43 +3471,23 @@ const mapRoutineRow = (row = {}) => ({
   createdAt: row.created_at,
 });
 
-async function handleWorkoutTransferRequest(req, res) {
-  try {
-    const authData = await authenticateRequest(req, res);
-    if (!authData) return;
-
-    const result = await transferWorkoutToSupervisedUser({
-      workoutId: req.body?.workoutId,
-      targetUserId: req.body?.targetUserId,
-      authData,
-    });
-
-    return res.status(result?.status || 200).json(result?.body || result);
-  } catch (err) {
-    console.error("Erro inesperado ao transferir treino:", err);
-    return res.status(500).json({
-      error: "Não foi possível transferir o treino. Verifique o usuário selecionado e tente novamente.",
-    });
-  }
-}
-
-app.post("/api/workouts/transfer", handleWorkoutTransferRequest);
-app.post("/workouts/transfer", handleWorkoutTransferRequest);
-
 app.post("/workouts/:id/transfer", async (req, res) => {
   try {
     const authData = await authenticateRequest(req, res);
     if (!authData) return;
 
+    const workoutId = req.params.id;
+    const targetUserId = req.body.target_user_id;
+
     console.log("🔥 TRANSFER REQUEST");
-    console.log("WORKOUT ID:", req.params.id);
-    console.log("TARGET USER:", req.body.target_user_id);
+    console.log("WORKOUT ID:", workoutId);
+    console.log("TARGET USER:", targetUserId);
     console.log("USER LOGADO:", authData?.userId);
 
     const { data: workout } = await supabase
       .from("workout_routines")
       .select("*")
-      .eq("id", req.params?.id)
+      .eq("id", workoutId)
       .maybeSingle();
 
     console.log("WORKOUT ENCONTRADO:", workout);
@@ -3515,14 +3495,14 @@ app.post("/workouts/:id/transfer", async (req, res) => {
     const { data: targetUser } = await supabase
       .from("profiles")
       .select("*")
-      .eq("id", req.body?.target_user_id)
+      .eq("id", targetUserId)
       .maybeSingle();
 
     console.log("TARGET USER EXISTS:", targetUser);
 
     const result = await transferWorkoutToSupervisedUser({
-      workoutId: req.params?.id,
-      targetUserId: req.body?.target_user_id,
+      workoutId,
+      targetUserId,
       authData,
     });
 
