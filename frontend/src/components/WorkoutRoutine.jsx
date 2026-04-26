@@ -1215,20 +1215,21 @@ const WorkoutRoutine = ({
   };
 
   async function handleTransferWorkout() {
-    const workoutId =
+    const selectedWorkoutId =
       workoutToTransfer?.id ||
       workoutToTransfer?.workout_id ||
       workoutToTransfer?.routine_id;
+    const selectedUserId = selectedTransferUser?.id;
 
-    console.log('🔥 ID ENVIADO:', workoutId);
+    console.log('🔥 ID ENVIADO:', selectedWorkoutId);
     console.log('🔥 OBJETO COMPLETO:', workoutToTransfer);
 
-    if (!workoutId) {
+    if (!selectedWorkoutId) {
       alert('Erro: treino sem ID');
       return;
     }
 
-    if (!selectedTransferUser?.id) {
+    if (!selectedUserId) {
       notify('Selecione um usuário para receber o treino.', 'danger');
       return;
     }
@@ -1242,15 +1243,14 @@ const WorkoutRoutine = ({
         throw new Error('Usuário não autenticado. Faça login novamente.');
       }
 
-      const response = await fetch(`${API_URL}/api/workouts/transfer`, {
+      const response = await fetch(`${API_URL}/workouts/${selectedWorkoutId}/transfer`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          workoutId,
-          targetUserId: selectedTransferUser.id
+          targetUserId: selectedUserId
         })
       });
 
