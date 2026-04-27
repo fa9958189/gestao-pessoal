@@ -104,23 +104,21 @@ export const transferWorkoutToSupervisedUser = async ({
     const newWorkout = {
       name: originalWorkout.name || "Treino",
       user_id: resolvedTargetProfileId,
-      muscle_groups:
-        Array.isArray(originalWorkout.muscle_groups) &&
-        originalWorkout.muscle_groups.length > 0
-          ? originalWorkout.muscle_groups
-          : ["geral"],
-      sports_list: Array.isArray(originalWorkout.sports_list) ? originalWorkout.sports_list : [],
-      muscle_config:
-        typeof originalWorkout.muscle_config === "object" &&
-        originalWorkout.muscle_config !== null
-          ? originalWorkout.muscle_config
-          : {},
-      exercises_by_group:
-        typeof originalWorkout.exercises_by_group === "object" &&
-        originalWorkout.exercises_by_group !== null
-          ? originalWorkout.exercises_by_group
-          : {},
-      created_at: new Date().toISOString(),
+
+      muscle_groups: Array.isArray(originalWorkout.muscle_groups)
+        ? originalWorkout.muscle_groups
+        : typeof originalWorkout.muscle_groups === "string" && originalWorkout.muscle_groups.length > 0
+          ? [originalWorkout.muscle_groups]
+          : [],
+
+      sports_list: Array.isArray(originalWorkout.sports_list)
+        ? originalWorkout.sports_list
+        : typeof originalWorkout.sports_list === "string" && originalWorkout.sports_list.length > 0
+          ? [originalWorkout.sports_list]
+          : [],
+
+      muscle_config: originalWorkout.muscle_config || {},
+      exercises_by_group: originalWorkout.exercises_by_group || {},
     };
 
     const { error: createError } = await supabase
