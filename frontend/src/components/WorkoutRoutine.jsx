@@ -571,6 +571,39 @@ const buildSelectedExercisesState = (selectedMuscles = [], payload = [], selecte
   }, {});
 };
 
+const normalizeRoutineFromApi = (row) => {
+  const normalizedRow = row || {};
+  const muscleGroups = normalizeList(
+    normalizedRow.muscle_groups ?? normalizedRow.muscle_group ?? normalizedRow.muscleGroups
+  );
+  const sportsList = normalizeList(
+    normalizedRow.sports_list ?? normalizedRow.sports ?? normalizedRow.sportsList
+  );
+  const muscleConfig = normalizeObject(
+    normalizedRow.muscle_config ?? normalizedRow.muscleConfig
+  );
+  const exercisesByGroup = normalizeObject(
+    normalizedRow.exercises_by_group ?? normalizedRow.exercisesByGroup
+  );
+  const normalizedExercisesByGroup = normalizeGroupedExercisesPayload(exercisesByGroup);
+
+  return {
+    ...normalizedRow,
+    muscleGroups,
+    muscle_groups: muscleGroups,
+    sportsList,
+    sports_list: sportsList,
+    sportsActivities: sportsList,
+    sports: sportsList,
+    muscleConfig,
+    muscle_config: muscleConfig,
+    exercisesByGroup: normalizedExercisesByGroup,
+    exercises_by_group: normalizedExercisesByGroup,
+    exercises: normalizedExercisesByGroup,
+    exercicios: normalizedExercisesByGroup,
+  };
+};
+
 const ViewWorkoutModal = ({
   open,
   workout,
@@ -585,31 +618,18 @@ const ViewWorkoutModal = ({
   // Modal de visualização de treino
   if (!open || !workout) return null;
 
-  const selectedWorkout = workout;
-
-  console.log('=== DEBUG TREINO ===');
-  console.log('selectedWorkout:', selectedWorkout);
-  console.log('muscleGroups:', selectedWorkout?.muscleGroups);
-  console.log('sportsList:', selectedWorkout?.sportsList);
-  console.log('muscleConfig:', selectedWorkout?.muscleConfig);
-  console.log('exercisesByGroup:', selectedWorkout?.exercisesByGroup);
+  const selectedWorkout = normalizeRoutineFromApi(workout);
 
   const selectedExercisesByGroup =
-    selectedWorkout?.exercisesByGroup ||
-    selectedWorkout?.exercises_by_group ||
-    {};
+    selectedWorkout?.exercisesByGroup || {};
 
   const selectedMuscleGroups =
-    selectedWorkout?.muscleGroups ||
-    selectedWorkout?.muscle_groups ||
-    [];
+    selectedWorkout?.muscleGroups || [];
 
   const normalizedSelectedMuscleGroups = normalizeList(selectedMuscleGroups);
-  const selectedSports = normalizeList(
-    selectedWorkout?.sportsList ?? selectedWorkout?.sports_list ?? selectedWorkout?.sportsActivities ?? selectedWorkout?.sports
-  );
+  const selectedSports = normalizeList(selectedWorkout?.sportsList);
   const selectedMuscleConfig = normalizeObject(
-    selectedWorkout?.muscleConfig ?? selectedWorkout?.muscle_config
+    selectedWorkout?.muscleConfig
   );
   const groupedExercises = normalizeGroupedExercisesPayload(normalizeObject(selectedExercisesByGroup));
   const muscleConfigEntries = parseMuscleConfigPayload(selectedMuscleConfig);
@@ -618,7 +638,6 @@ const ViewWorkoutModal = ({
       .filter((item) => item?.muscle)
       .map((item) => [String(item.muscle), item])
   );
-  const hasAnySelectedExercise = Object.keys(groupedExercises).some((grupo) => groupedExercises[grupo]?.length > 0);
 
   return (
     <div
@@ -668,12 +687,6 @@ const ViewWorkoutModal = ({
                 {workout.name || 'Treino sem nome'}
               </div>
             </div>
-
-            {Object.keys(selectedExercisesByGroup).length > 0 && (
-              <pre style={{ color: 'white' }}>
-                {JSON.stringify(selectedExercisesByGroup, null, 2)}
-              </pre>
-            )}
 
             {normalizedSelectedMuscleGroups.length > 0 && (
               <div className="field">
@@ -755,29 +768,29 @@ const ViewWorkoutModal = ({
               </div>
             )}
 
-            {normalizedSelectedMuscleGroups.length > 0 && hasAnySelectedExercise && (
+            {Object.keys(selectedExercisesByGroup).length > 0 && (
               <div className="field">
                 <label>Exercícios por músculo</label>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {normalizedSelectedMuscleGroups.map((group) => {
+                  {Object.entries(selectedExercisesByGroup).map(([group, exercises]) => {
                     const normalizedGroup = getExercisesKey(group);
-                    const exerciseList = groupedExercises[normalizedGroup] || [];
-                    if (!exerciseList?.length) return null;
+                    const exerciseList = Array.isArray(exercises) ? exercises : [];
+                    if (!exerciseList.length) return null;
                     const configEntry = muscleConfigMap.get(group) || muscleConfigMap.get(normalizedGroup) || {};
-                    const config = configEntry?.config
+                    const fallbackSeries = configEntry?.config
                       || (Number(configEntry?.sets) > 0 && Number(configEntry?.reps) > 0
                         ? `${configEntry.sets}x${configEntry.reps}`
                         : DEFAULT_MUSCLE_CONFIG);
 
                     return (
-                      <div key={`${group}-exs`}>
+                      <div key={group}>
                         <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 6 }}>
                           {formatGroupName(group, muscleMap)}
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                          {exerciseList.map((exercise) => (
+                          {exerciseList.map((ex, i) => (
                             <div
-                              key={`${group}-${exercise}`}
+                              key={`${group}-${i}`}
                               style={{
                                 background: '#0f172a',
                                 padding: '8px 12px',
@@ -788,8 +801,8 @@ const ViewWorkoutModal = ({
                                 gap: 12,
                               }}
                             >
-                              <span>{normalizeExerciseDisplayName(exercise)}</span>
-                              <strong>{config}</strong>
+                              <span>{normalizeExerciseDisplayName(ex?.name || ex)}</span>
+                              <strong>{ex?.series || fallbackSeries}</strong>
                             </div>
                           ))}
                         </div>
@@ -1409,39 +1422,6 @@ const WorkoutRoutine = ({
     } finally {
       setSavingSchedule(false);
     }
-  };
-
-  const normalizeRoutineFromApi = (row) => {
-    const normalizedRow = row || {};
-    const muscleGroups = normalizeList(
-      normalizedRow.muscle_groups ?? normalizedRow.muscle_group ?? normalizedRow.muscleGroups
-    );
-    const sportsList = normalizeList(
-      normalizedRow.sports_list ?? normalizedRow.sports ?? normalizedRow.sportsList
-    );
-    const muscleConfig = normalizeObject(
-      normalizedRow.muscle_config ?? normalizedRow.muscleConfig
-    );
-    const exercisesByGroup = normalizeObject(
-      normalizedRow.exercises_by_group ?? normalizedRow.exercisesByGroup
-    );
-    const normalizedExercisesByGroup = normalizeGroupedExercisesPayload(exercisesByGroup);
-
-    return {
-      ...normalizedRow,
-      muscleGroups,
-      muscle_groups: muscleGroups,
-      sportsList,
-      sports_list: sportsList,
-      sportsActivities: sportsList,
-      sports: sportsList,
-      muscleConfig,
-      muscle_config: muscleConfig,
-      exercisesByGroup: normalizedExercisesByGroup,
-      exercises_by_group: normalizedExercisesByGroup,
-      exercises: normalizedExercisesByGroup,
-      exercicios: normalizedExercisesByGroup,
-    };
   };
 
   const loadRoutines = async () => {
