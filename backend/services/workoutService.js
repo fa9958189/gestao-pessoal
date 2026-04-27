@@ -104,6 +104,12 @@ export const transferWorkoutToSupervisedUser = async ({
     const rawMuscleGroups =
       originalWorkout.muscle_groups ||
       originalWorkout.muscle_group ||
+      (originalWorkout.muscle_config
+        ? Object.keys(originalWorkout.muscle_config)
+        : []) ||
+      (originalWorkout.exercises_by_group
+        ? Object.keys(originalWorkout.exercises_by_group)
+        : []) ||
       [];
 
     const normalizedMuscleGroups = Array.isArray(rawMuscleGroups)
