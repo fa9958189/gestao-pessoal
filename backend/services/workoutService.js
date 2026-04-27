@@ -72,13 +72,13 @@ export const transferWorkoutToSupervisedUser = async ({
       };
     }
 
-    const { data: workout, error: workoutError } = await supabase
+    const { data: originalWorkout, error: workoutError } = await supabase
       .from("workout_routines")
       .select("*")
       .eq("id", safeWorkoutId)
       .maybeSingle();
 
-    if (workoutError || !workout) {
+    if (workoutError || !originalWorkout) {
       return {
         status: 404,
         body: { error: "Treino não encontrado." },
@@ -99,28 +99,29 @@ export const transferWorkoutToSupervisedUser = async ({
       targetUserId: safeTargetUserId,
       resolvedTargetProfileId,
     });
+    console.log("Treino original:", originalWorkout);
 
     const newWorkout = {
-      name: workout.name,
+      name: originalWorkout.name,
       user_id: resolvedTargetProfileId,
-      muscle_groups: workout.muscle_groups || null,
-      sports_list: workout.sports_list || null,
-      muscle_config: workout.muscle_config || null,
-      exercises_by_group: workout.exercises_by_group || null,
+      muscle_groups: originalWorkout.muscle_groups || [],
+      sports_list: originalWorkout.sports_list || [],
+      muscle_config: originalWorkout.muscle_config || {},
+      exercises_by_group: originalWorkout.exercises_by_group || {},
       created_at: new Date().toISOString(),
     };
 
-    const { data: createdWorkout, error: createError } = await supabase
+    const { error: createError } = await supabase
       .from("workout_routines")
-      .insert(newWorkout)
-      .select()
-      .single();
+      .insert(newWorkout);
 
     if (createError) {
       console.error("Erro ao inserir treino transferido:", createError);
       return {
         status: 500,
-        body: { error: createError.message || "Não foi possível transferir o treino." },
+        body: {
+          error: createError.message || "Erro ao transferir treino",
+        },
       };
     }
 
@@ -129,7 +130,7 @@ export const transferWorkoutToSupervisedUser = async ({
       body: {
         success: true,
         message: "Treino transferido com sucesso",
-        workout: createdWorkout,
+        workout: newWorkout,
       },
     };
   } catch (error) {
