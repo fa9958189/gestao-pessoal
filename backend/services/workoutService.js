@@ -1,29 +1,71 @@
 import { supabase } from "../supabase.js";
 
-const parseList = (value) =>
-  value
-    ? String(value)
-        .split(",")
-        .map((s) => s.trim())
-        .filter(Boolean)
-    : [];
+const parseMaybeJson = (value) => {
+  if (value === null || value === undefined) return null;
+  if (typeof value !== "string") return value;
+
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    return value;
+  }
+};
+
+const normalizeList = (value) => {
+  if (value === null || value === undefined) return [];
+
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => String(item || "").trim())
+      .filter((item) => item && item.toLowerCase() !== "geral");
+  }
+
+  const parsed = parseMaybeJson(value);
+
+  if (Array.isArray(parsed)) {
+    return parsed
+      .map((item) => String(item || "").trim())
+      .filter((item) => item && item.toLowerCase() !== "geral");
+  }
+
+  if (typeof parsed === "string") {
+    return parsed
+      .split(",")
+      .map((item) =>
+        String(item || "")
+          .replace(/^\[|\]$/g, "")
+          .replace(/^['"]|['"]$/g, "")
+          .trim(),
+      )
+      .filter((item) => item && item.toLowerCase() !== "geral");
+  }
+
+  return [];
+};
+
+const normalizeObject = (value) => {
+  if (value === null || value === undefined) return {};
+  if (value && typeof value === "object" && !Array.isArray(value)) return value;
+
+  const parsed = parseMaybeJson(value);
+  if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) return parsed;
+
+  return {};
+};
 
 const mapRoutineRow = (row = {}) => ({
   id: row.id,
   name: row.name,
-  muscleGroups: parseList(row.muscle_groups || row.muscle_group),
-  sportsActivities: parseList(row.sports_list || row.sports),
-  muscleConfig: Array.isArray(row.muscle_config)
-    ? row.muscle_config
-    : row.muscle_config || [],
-  exercisesByGroup:
-    row.exercises_by_group && typeof row.exercises_by_group === "object"
-      ? row.exercises_by_group
-      : {},
-  exercicios:
-    row.exercises_by_group && typeof row.exercises_by_group === "object"
-      ? row.exercises_by_group
-      : {},
+  muscleGroups: normalizeList(row.muscle_groups || row.muscle_group),
+  sportsActivities: normalizeList(row.sports_list || row.sports),
+  muscleConfig: Array.isArray(parseMaybeJson(row.muscle_config))
+    ? parseMaybeJson(row.muscle_config)
+    : [],
+  exercisesByGroup: normalizeObject(row.exercises_by_group),
+  exercicios: normalizeObject(row.exercises_by_group),
   createdAt: row.created_at,
 });
 
@@ -101,95 +143,45 @@ export const transferWorkoutToSupervisedUser = async ({
     });
     console.log("Treino original:", originalWorkout);
 
-    const hasValue = (val) => {
-      if (Array.isArray(val)) return val.length > 0;
-      if (typeof val === "string") return val.trim().length > 0;
-      if (val && typeof val === "object") return Object.keys(val).length > 0;
-      return false;
-    };
-
-    let rawMuscleGroups = [];
-
-    if (hasValue(originalWorkout.muscle_groups)) {
-      rawMuscleGroups = originalWorkout.muscle_groups;
-    } else if (hasValue(originalWorkout.muscle_group)) {
-      rawMuscleGroups = originalWorkout.muscle_group;
-    } else if (hasValue(originalWorkout.muscle_config)) {
-      rawMuscleGroups = Object.keys(originalWorkout.muscle_config);
-    } else if (hasValue(originalWorkout.exercises_by_group)) {
-      rawMuscleGroups = Object.keys(originalWorkout.exercises_by_group);
-    }
-
-    if (!Array.isArray(rawMuscleGroups) || rawMuscleGroups.length === 0) {
-      console.log("⚠️ Nenhum grupo encontrado, aplicando fallback inteligente");
-
-      if (originalWorkout.exercises_by_group) {
-        const keys = Object.keys(originalWorkout.exercises_by_group);
-        if (keys.length > 0) {
-          rawMuscleGroups = keys;
-        }
-      }
-
-      if (!rawMuscleGroups || rawMuscleGroups.length === 0) {
-        rawMuscleGroups = [];
-      }
-    }
-
-    const normalizedMuscleGroups = Array.isArray(rawMuscleGroups)
-      ? rawMuscleGroups
-      : typeof rawMuscleGroups === "string" && rawMuscleGroups.trim().length > 0
-        ? [rawMuscleGroups]
-        : [];
-    const finalMuscleGroups = normalizedMuscleGroups.filter(
-      (g) => g && g !== "geral",
+    let finalMuscleGroups = normalizeList(
+      originalWorkout.muscle_groups || originalWorkout.muscle_group,
     );
 
-    let exercisesByGroup = originalWorkout.exercises_by_group;
+    const finalExercisesByGroup = normalizeObject(originalWorkout.exercises_by_group);
+    const parsedMuscleConfig = parseMaybeJson(originalWorkout.muscle_config);
+    const finalMuscleConfig = Array.isArray(parsedMuscleConfig) ? parsedMuscleConfig : [];
 
-    if (typeof exercisesByGroup === "string") {
-      try {
-        exercisesByGroup = JSON.parse(exercisesByGroup);
-      } catch {
-        exercisesByGroup = {};
+    if (!finalMuscleGroups.length) {
+      const exerciseGroupKeys = Object.keys(finalExercisesByGroup || {});
+      if (exerciseGroupKeys.length) {
+        finalMuscleGroups = normalizeList(exerciseGroupKeys);
       }
     }
 
-    if (!exercisesByGroup || typeof exercisesByGroup !== "object") {
-      exercisesByGroup = {};
-    }
-
-    let muscleConfig = originalWorkout.muscle_config;
-
-    if (typeof muscleConfig === "string") {
-      try {
-        muscleConfig = JSON.parse(muscleConfig);
-      } catch {
-        muscleConfig = {};
+    if (!finalMuscleGroups.length && Array.isArray(finalMuscleConfig)) {
+      const configKeys = finalMuscleConfig
+        .map((entry) => entry?.muscle)
+        .filter(Boolean);
+      if (configKeys.length) {
+        finalMuscleGroups = normalizeList(configKeys);
       }
     }
 
-    if (!muscleConfig || typeof muscleConfig !== "object") {
-      muscleConfig = {};
-    }
+    const finalSportsList = normalizeList(
+      originalWorkout.sports_list || originalWorkout.sports,
+    );
 
     const newWorkout = {
       name: originalWorkout.name,
       user_id: resolvedTargetProfileId,
-
-      muscle_groups: finalMuscleGroups,
-
-      sports_list: Array.isArray(originalWorkout.sports_list)
-        ? originalWorkout.sports_list
-        : [],
-
-      muscle_config: muscleConfig,
-
-      exercises_by_group: exercisesByGroup,
+      muscle_groups: finalMuscleGroups.join(", "),
+      sports_list: finalSportsList.join(", "),
+      muscle_config: finalMuscleConfig,
+      exercises_by_group: finalExercisesByGroup,
     };
 
-    console.log("NOVO TREINO COMPLETO:", newWorkout);
-    console.log("ORIGINAL:", originalWorkout.exercises_by_group);
-    console.log("TRATADO:", exercisesByGroup);
+    console.log("TREINO ORIGINAL PARA TRANSFERÊNCIA:", originalWorkout);
+    console.log("NOVO TREINO TRANSFERIDO:", newWorkout);
 
     const { error: createError } = await supabase
       .from("workout_routines")

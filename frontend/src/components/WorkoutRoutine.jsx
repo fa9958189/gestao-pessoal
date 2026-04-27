@@ -267,9 +267,19 @@ const getExercisesKey = (muscleGroup) => {
 };
 
 const normalizeGroupedExercisesPayload = (value) => {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  let parsedValue = value;
 
-  return Object.entries(value).reduce((acc, [groupKey, exerciseList]) => {
+  if (typeof parsedValue === 'string') {
+    try {
+      parsedValue = JSON.parse(parsedValue);
+    } catch {
+      return {};
+    }
+  }
+
+  if (!parsedValue || typeof parsedValue !== 'object' || Array.isArray(parsedValue)) return {};
+
+  return Object.entries(parsedValue).reduce((acc, [groupKey, exerciseList]) => {
     const normalizedKey = getExercisesKey(groupKey);
     const normalizedExercises = Array.isArray(exerciseList)
       ? exerciseList.filter(Boolean)
@@ -550,11 +560,11 @@ const ViewWorkoutModal = ({
               </div>
             </div>
 
-            <div className="field">
-              <label>Grupos musculares</label>
-              <div className="chips chips-with-image">
-                {muscleGroups.length > 0 ? (
-                  muscleGroups.map((mg) => {
+            {muscleGroups.length > 0 && (
+              <div className="field">
+                <label>Grupos musculares</label>
+                <div className="chips chips-with-image">
+                  {muscleGroups.map((mg) => {
                     const def = getMuscleGroupByLabel(mg) || muscleMap[mg];
                     const key = getExercisesKey(def?.value || mg);
                     const info = MUSCLE_INFO[key];
@@ -586,18 +596,16 @@ const ViewWorkoutModal = ({
                         <span>{def?.label || mg}</span>
                       </div>
                     );
-                  })
-                ) : (
-                  <span className="muted">Nenhum grupo selecionado</span>
-                )}
+                  })}
+                </div>
               </div>
-            </div>
+            )}
 
-            <div className="field">
-              <label>Esportes / atividades</label>
-              <div className="chips chips-with-image">
-                {sportsActivities.length > 0 ? (
-                  sportsActivities.map((act) => {
+            {sportsActivities.length > 0 && (
+              <div className="field">
+                <label>Esportes / atividades</label>
+                <div className="chips chips-with-image">
+                  {sportsActivities.map((act) => {
                     const def = getSportByLabel(act) || sportsMap[act];
                     const key = (def?.value || act || '').toString().toLowerCase();
                     const info = SPORT_INFO[key];
@@ -627,12 +635,10 @@ const ViewWorkoutModal = ({
                         <span>{def?.label || act}</span>
                       </div>
                     );
-                  })
-                ) : (
-                  <span className="muted">Nenhuma atividade selecionada</span>
-                )}
+                  })}
+                </div>
               </div>
-            </div>
+            )}
 
             {muscleGroups.length > 0 && (
               <div className="field">
@@ -1287,14 +1293,35 @@ const WorkoutRoutine = ({
 
   const normalizeRoutineFromApi = (item) => {
     const normalizeList = (value, fallback = []) => {
-      if (Array.isArray(value)) return value;
-      if (typeof value === 'string') {
-        return value.split(',').map((g) => g.trim()).filter(Boolean);
-      }
-      if (typeof fallback === 'string') {
-        return fallback.split(',').map((g) => g.trim()).filter(Boolean);
-      }
-      return Array.isArray(fallback) ? fallback : [];
+      const cleanToken = (token) => String(token || '')
+        .replace(/^\[|\]$/g, '')
+        .replace(/^['"]|['"]$/g, '')
+        .trim();
+
+      const cleanList = (list) => (Array.isArray(list) ? list : [])
+        .map((token) => cleanToken(token))
+        .filter((token) => token && token.toLowerCase() !== 'geral');
+
+      const fromString = (raw) => {
+        if (typeof raw !== 'string') return null;
+        const trimmed = raw.trim();
+        if (!trimmed) return [];
+
+        try {
+          const parsed = JSON.parse(trimmed);
+          if (Array.isArray(parsed)) return cleanList(parsed);
+        } catch {
+          // segue fallback por vírgula
+        }
+
+        return cleanList(trimmed.split(','));
+      };
+
+      if (Array.isArray(value)) return cleanList(value);
+      if (typeof value === 'string') return fromString(value) || [];
+      if (Array.isArray(fallback)) return cleanList(fallback);
+      if (typeof fallback === 'string') return fromString(fallback) || [];
+      return [];
     };
 
     const muscleGroups = normalizeList(item?.muscleGroups, item?.muscle_group);
@@ -2156,7 +2183,7 @@ const WorkoutRoutine = ({
                             {Array.isArray(template.muscleGroups) && template.muscleGroups.length > 0 && (
                               <span>
                                 {(template.muscleGroups || [])
-                                  .map((group) => muscleMap[group]?.label || group)
+                                  .map((group) => muscleMap[group]?.label || formatGroupName(group, muscleMap))
                                   .join(', ')}
                               </span>
                             )}
