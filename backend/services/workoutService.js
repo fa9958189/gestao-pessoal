@@ -101,16 +101,24 @@ export const transferWorkoutToSupervisedUser = async ({
     });
     console.log("Treino original:", originalWorkout);
 
-    const rawMuscleGroups =
-      originalWorkout.muscle_groups ||
-      originalWorkout.muscle_group ||
-      (originalWorkout.muscle_config
-        ? Object.keys(originalWorkout.muscle_config)
-        : []) ||
-      (originalWorkout.exercises_by_group
-        ? Object.keys(originalWorkout.exercises_by_group)
-        : []) ||
-      [];
+    const hasValue = (val) => {
+      if (Array.isArray(val)) return val.length > 0;
+      if (typeof val === "string") return val.trim().length > 0;
+      if (val && typeof val === "object") return Object.keys(val).length > 0;
+      return false;
+    };
+
+    let rawMuscleGroups = [];
+
+    if (hasValue(originalWorkout.muscle_groups)) {
+      rawMuscleGroups = originalWorkout.muscle_groups;
+    } else if (hasValue(originalWorkout.muscle_group)) {
+      rawMuscleGroups = originalWorkout.muscle_group;
+    } else if (hasValue(originalWorkout.muscle_config)) {
+      rawMuscleGroups = Object.keys(originalWorkout.muscle_config);
+    } else if (hasValue(originalWorkout.exercises_by_group)) {
+      rawMuscleGroups = Object.keys(originalWorkout.exercises_by_group);
+    }
 
     const normalizedMuscleGroups = Array.isArray(rawMuscleGroups)
       ? rawMuscleGroups
