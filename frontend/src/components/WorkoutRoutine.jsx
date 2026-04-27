@@ -774,23 +774,55 @@ const ViewWorkoutModal = ({
             <div className="field">
               <label>Exercícios por músculo</label>
               {Object.keys(selectedExercisesByGroup).length > 0 ? (
-                Object.entries(selectedExercisesByGroup).map(([muscle, exercises]) => (
-                  <div key={muscle}>
-                    <h4>{muscle}</h4>
+                Object.entries(selectedExercisesByGroup).map(([muscle, exerciseList]) => {
+                  const muscleConfigEntry = selectedWorkout?.muscleConfig?.[muscle]
+                    || selectedWorkout?.muscle_config?.[muscle];
+                  const config = typeof muscleConfigEntry === 'string'
+                    ? muscleConfigEntry
+                    : muscleConfigEntry?.config
+                      || (
+                        muscleConfigEntry?.sets && muscleConfigEntry?.reps
+                          ? `${muscleConfigEntry.sets}x${muscleConfigEntry.reps}`
+                          : ''
+                      );
 
-                    {exercises.map((ex, i) => (
-                      <div key={i}>
-                        <strong>{ex.name || ex.nome || "Exercício"}</strong>
+                  return (
+                    <div key={muscle}>
+                      <h4>{muscle}</h4>
 
-                        <span>
-                          {ex.reps || ex.repeticoes || ex.series || ex.sets
-                            ? ` - ${ex.reps || ex.repeticoes || `${ex.sets}x`}`
-                            : ""}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                ))
+                      {exerciseList.map((exercise, i) => {
+                        const exerciseName =
+                          typeof exercise === "string"
+                            ? exercise
+                            : exercise.name || exercise.nome || "Exercício";
+
+                        const perExerciseConfig =
+                          typeof exercise === "object"
+                            ? exercise.reps || exercise.repeticoes || (
+                                exercise.sets && exercise.reps
+                                  ? `${exercise.sets}x${exercise.reps}`
+                                  : null
+                              )
+                            : null;
+
+                        const finalConfig =
+                          perExerciseConfig ||
+                          config ||
+                          "";
+
+                        console.log("EX:", exercise);
+                        console.log("CONFIG FINAL:", finalConfig);
+
+                        return (
+                          <div key={i}>
+                            <span>{normalizeExerciseDisplayName(exerciseName)}</span>
+                            <strong>{finalConfig}</strong>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })
               ) : (
                 <p style={{ opacity: 0.6 }}>Nenhum exercício encontrado</p>
               )}
