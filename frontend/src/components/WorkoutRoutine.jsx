@@ -780,15 +780,17 @@ const ViewWorkoutModal = ({
                       <h4>{muscle}</h4>
 
                       {exerciseList.map((exercise, i) => {
+                        const configList =
+                          selectedWorkout?.muscleConfig?.[muscle] ||
+                          selectedWorkout?.muscle_config?.[muscle] ||
+                          [];
+
+                        const config = Array.isArray(configList) ? configList[i] : null;
+
                         const exerciseName =
                           (typeof exercise === "object" && (exercise.name || exercise.nome)) ||
                           exercise ||
                           "Exercício";
-
-                        const config =
-                          selectedWorkout?.muscleConfig?.[muscle]?.[i] ||
-                          selectedWorkout?.muscle_config?.[muscle]?.[i] ||
-                          null;
 
                         const finalConfig =
                           (typeof exercise === "object" &&
@@ -800,9 +802,12 @@ const ViewWorkoutModal = ({
                           config ||
                           "-";
 
-                        console.log("EXERCICIO:", exercise);
-                        console.log("CONFIG BASE:", config);
-                        console.log("FINAL CONFIG:", finalConfig);
+                        console.log("INDEX:", i);
+                        console.log("EX:", exercise);
+                        console.log("CONFIG LIST:", configList);
+                        console.log("CONFIG:", config);
+
+                        if (!exercise) return null;
 
                         return (
                           <div key={i}>
