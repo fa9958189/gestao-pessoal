@@ -575,28 +575,15 @@ function Supervisor({
                                   })
                                 ) : (
                                   <>
-                                    {Array.isArray(workout.muscle_groups) && workout.muscle_groups.length > 0 && (
-                                      <div>
-                                        <h4>Grupos musculares</h4>
-                                        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "8px" }}>
-                                          {workout.muscle_groups.map((group, index) => (
-                                            <span
-                                              key={index}
-                                              style={{
-                                                padding: "6px 12px",
-                                                background: "#1e293b",
-                                                borderRadius: "8px",
-                                                fontSize: "12px",
-                                                color: "#fff",
-                                                border: "1px solid #334155"
-                                              }}
-                                            >
-                                              {group}
-                                            </span>
-                                          ))}
+                                    {Array.isArray(workout.muscle_groups) &&
+                                      workout.muscle_groups.filter((g) => g !== 'geral').length > 0 && (
+                                        <div>
+                                          <h4>Grupos musculares</h4>
+                                          <span>
+                                            {workout.muscle_groups.filter((g) => g !== 'geral').join(', ')}
+                                          </span>
                                         </div>
-                                      </div>
-                                    )}
+                                      )}
                                   </>
                                 )}
                               </div>
