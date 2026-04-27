@@ -780,32 +780,37 @@ const ViewWorkoutModal = ({
                       <h4>{muscle}</h4>
 
                       {exerciseList.map((exercise, i) => {
+                        const isObject = typeof exercise === "object" && exercise !== null;
+
+                        const exerciseName =
+                          (isObject && (exercise.name || exercise.nome)) ||
+                          (typeof exercise === "string" ? exercise : null) ||
+                          "Exercício";
+
                         const configList =
                           selectedWorkout?.muscleConfig?.[muscle] ||
                           selectedWorkout?.muscle_config?.[muscle] ||
                           [];
 
-                        const config = Array.isArray(configList) ? configList[i] : null;
+                        const configFromList = Array.isArray(configList) ? configList[i] : null;
 
-                        const exerciseName =
-                          (typeof exercise === "object" && (exercise.name || exercise.nome)) ||
-                          exercise ||
-                          "Exercício";
+                        const repsFromObject =
+                          isObject &&
+                          (exercise.reps ||
+                            exercise.repeticoes ||
+                            (exercise.sets && exercise.reps
+                              ? `${exercise.sets}x${exercise.reps}`
+                              : null));
 
                         const finalConfig =
-                          (typeof exercise === "object" &&
-                            (exercise.reps ||
-                              exercise.repeticoes ||
-                              (exercise.sets && exercise.reps
-                                ? `${exercise.sets}x${exercise.reps}`
-                                : null))) ||
-                          config ||
+                          repsFromObject ||
+                          configFromList ||
                           "-";
 
-                        console.log("INDEX:", i);
                         console.log("EX:", exercise);
-                        console.log("CONFIG LIST:", configList);
-                        console.log("CONFIG:", config);
+                        console.log("NAME:", exerciseName);
+                        console.log("REPS OBJ:", repsFromObject);
+                        console.log("REPS LIST:", configFromList);
 
                         if (!exercise) return null;
 
