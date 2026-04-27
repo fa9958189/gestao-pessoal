@@ -266,32 +266,70 @@ const getExercisesKey = (muscleGroup) => {
   return normalized.replace(/\s+/g, '_');
 };
 
-const normalizeGroupedExercisesPayload = (value) => {
-  let parsedValue = value;
+const normalizeList = (value) => {
+  if (!value) return [];
 
-  if (typeof parsedValue === 'string') {
+  // Se já for array
+  if (Array.isArray(value)) {
+    return value
+      .map((v) => String(v || '').trim())
+      .filter((v) => v && v.toLowerCase() !== 'geral');
+  }
+
+  // Se for string
+  if (typeof value === 'string') {
+    let parsed = value.trim();
+
+    // tentar JSON
     try {
-      parsedValue = JSON.parse(parsedValue);
+      const json = JSON.parse(parsed);
+      if (Array.isArray(json)) {
+        return json
+          .map((v) => String(v || '').trim())
+          .filter((v) => v && v.toLowerCase() !== 'geral');
+      }
+    } catch {}
+
+    // fallback CSV
+    return parsed
+      .replace(/[\[\]"]/g, '')
+      .split(',')
+      .map((v) => v.trim())
+      .filter((v) => v && v.toLowerCase() !== 'geral');
+  }
+
+  return [];
+};
+
+const normalizeGroupedExercisesPayload = (value) => {
+  if (!value) return {};
+
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      if (parsed && typeof parsed === 'object') {
+        value = parsed;
+      }
     } catch {
       return {};
     }
   }
 
-  if (!parsedValue || typeof parsedValue !== 'object' || Array.isArray(parsedValue)) return {};
+  if (typeof value !== 'object' || Array.isArray(value)) return {};
 
-  return Object.entries(parsedValue).reduce((acc, [groupKey, exerciseList]) => {
-    const normalizedKey = getExercisesKey(groupKey);
-    const normalizedExercises = Array.isArray(exerciseList)
-      ? exerciseList.filter(Boolean)
+  const result = {};
+
+  Object.entries(value).forEach(([group, exercises]) => {
+    const key = getExercisesKey(group);
+
+    if (!key) return;
+
+    result[key] = Array.isArray(exercises)
+      ? exercises
       : [];
+  });
 
-    if (!normalizedKey || normalizedExercises.length === 0) return acc;
-
-    return {
-      ...acc,
-      [normalizedKey]: normalizedExercises,
-    };
-  }, {});
+  return result;
 };
 
 const formatGroupName = (groupKey, muscleMap = {}) => {
@@ -491,10 +529,8 @@ const ViewWorkoutModal = ({
   // Modal de visualização de treino
   if (!open || !workout) return null;
 
-  const muscleGroups = Array.isArray(workout.muscleGroups) ? workout.muscleGroups : [];
-  const sportsActivities = Array.isArray(workout.sportsActivities)
-    ? workout.sportsActivities
-    : [];
+  const muscleGroups = normalizeList(workout.muscleGroups || workout.muscle_groups || workout.muscle_group);
+  const sportsActivities = normalizeList(workout.sportsActivities || workout.sports_list || workout.sports);
   const muscleConfigEntries = parseMuscleConfigPayload(workout.muscleConfig ?? workout.muscle_config);
   const muscleConfigMap = new Map(
     muscleConfigEntries
@@ -503,9 +539,6 @@ const ViewWorkoutModal = ({
   );
   const groupedExercises = normalizeGroupedExercisesPayload(
     workout.exercisesByGroup || workout.exercises || workout.exercicios || {}
-  );
-  const hasWorkoutExercisesPayload = Boolean(
-    workout.exercises || workout.exercisesByGroup || workout.exercicios
   );
   const hasAnySelectedExercise = Object.keys(groupedExercises).some(
     (grupo) => groupedExercises[grupo]?.length > 0
@@ -640,14 +673,9 @@ const ViewWorkoutModal = ({
               </div>
             )}
 
-            {muscleGroups.length > 0 && (
+            {muscleGroups.length > 0 && hasAnySelectedExercise && (
               <div className="field">
                 <label>Exercícios por músculo</label>
-                {!hasWorkoutExercisesPayload && (
-                  <p className="muted" style={{ marginBottom: 8 }}>
-                    Nenhum exercício selecionado
-                  </p>
-                )}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   {muscleGroups.map((group) => {
                     const normalizedGroup = getExercisesKey(group);
@@ -686,11 +714,6 @@ const ViewWorkoutModal = ({
                       </div>
                     );
                   })}
-                  {!hasAnySelectedExercise && (
-                    <div className="muted" style={{ fontSize: 13 }}>
-                      Nenhum exercício selecionado.
-                    </div>
-                  )}
                 </div>
               </div>
             )}
@@ -1292,43 +1315,9 @@ const WorkoutRoutine = ({
   };
 
   const normalizeRoutineFromApi = (item) => {
-    const normalizeList = (value, fallback = []) => {
-      const cleanToken = (token) => String(token || '')
-        .replace(/^\[|\]$/g, '')
-        .replace(/^['"]|['"]$/g, '')
-        .trim();
-
-      const cleanList = (list) => (Array.isArray(list) ? list : [])
-        .map((token) => cleanToken(token))
-        .filter((token) => token && token.toLowerCase() !== 'geral');
-
-      const fromString = (raw) => {
-        if (typeof raw !== 'string') return null;
-        const trimmed = raw.trim();
-        if (!trimmed) return [];
-
-        try {
-          const parsed = JSON.parse(trimmed);
-          if (Array.isArray(parsed)) return cleanList(parsed);
-        } catch {
-          // segue fallback por vírgula
-        }
-
-        return cleanList(trimmed.split(','));
-      };
-
-      if (Array.isArray(value)) return cleanList(value);
-      if (typeof value === 'string') return fromString(value) || [];
-      if (Array.isArray(fallback)) return cleanList(fallback);
-      if (typeof fallback === 'string') return fromString(fallback) || [];
-      return [];
-    };
-
-    const muscleGroups = normalizeList(item?.muscleGroups, item?.muscle_group);
-    const sportsActivities = normalizeList(
-      item?.sportsActivities,
-      item?.sports_list || item?.sports
-    );
+    const row = item || {};
+    const muscleGroups = normalizeList(row.muscle_groups || row.muscle_group || row.muscleGroups);
+    const sportsActivities = normalizeList(row.sports_list || row.sports || row.sportsActivities);
     const muscleConfig = parseMuscleConfigPayload(item?.muscleConfig ?? item?.muscle_config);
     const exercisesByGroup = normalizeGroupedExercisesPayload(
       item?.exercisesByGroup || item?.exercises_by_group || item?.exercicios || {}
@@ -2180,9 +2169,9 @@ const WorkoutRoutine = ({
                         <div className="workout-template-header">
                           <strong className="text-blue-400 font-semibold">{template.name}</strong>
                           <div className="workout-template-subtitle">
-                            {Array.isArray(template.muscleGroups) && template.muscleGroups.length > 0 && (
+                            {normalizeList(template.muscleGroups || template.muscle_groups || template.muscle_group).length > 0 && (
                               <span>
-                                {(template.muscleGroups || [])
+                                {normalizeList(template.muscleGroups || template.muscle_groups || template.muscle_group)
                                   .map((group) => muscleMap[group]?.label || formatGroupName(group, muscleMap))
                                   .join(', ')}
                               </span>
