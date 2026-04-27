@@ -131,21 +131,24 @@ export const transferWorkoutToSupervisedUser = async ({
       }
 
       if (!rawMuscleGroups || rawMuscleGroups.length === 0) {
-        rawMuscleGroups = ["geral"];
+        rawMuscleGroups = [];
       }
     }
 
     const normalizedMuscleGroups = Array.isArray(rawMuscleGroups)
       ? rawMuscleGroups
-      : typeof rawMuscleGroups === "string" && rawMuscleGroups.length > 0
+      : typeof rawMuscleGroups === "string" && rawMuscleGroups.trim().length > 0
         ? [rawMuscleGroups]
         : [];
+    const finalMuscleGroups = normalizedMuscleGroups.filter(
+      (g) => g && g !== "geral",
+    );
 
     const newWorkout = {
       name: originalWorkout.name || "Treino",
       user_id: resolvedTargetProfileId,
 
-      muscle_groups: normalizedMuscleGroups,
+      muscle_groups: finalMuscleGroups,
 
       sports_list: Array.isArray(originalWorkout.sports_list)
         ? originalWorkout.sports_list

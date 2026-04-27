@@ -576,11 +576,11 @@ function Supervisor({
                                 ) : (
                                   <>
                                     {Array.isArray(workout.muscle_groups) &&
-                                      workout.muscle_groups.filter((g) => g !== 'geral').length > 0 && (
+                                      workout.muscle_groups.length > 0 && (
                                         <div>
                                           <h4>Grupos musculares</h4>
                                           <span>
-                                            {workout.muscle_groups.filter((g) => g !== 'geral').join(', ')}
+                                            {workout.muscle_groups.join(', ')}
                                           </span>
                                         </div>
                                       )}
