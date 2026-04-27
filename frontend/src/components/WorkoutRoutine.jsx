@@ -645,25 +645,15 @@ const ViewWorkoutModal = ({
   if (!open || !workout) return null;
 
   const selectedWorkout = normalizeRoutineFromApi(workout);
+  console.log("FINAL WORKOUT:", selectedWorkout);
 
-  const selectedExercisesByGroup =
-    selectedWorkout?.exercisesByGroup || {};
+  const selectedExercisesByGroup = selectedWorkout.exercisesByGroup || {};
 
-  const selectedMuscleGroups =
-    selectedWorkout?.muscleGroups || [];
+  const selectedMuscleGroups = selectedWorkout.muscleGroups || [];
 
   const normalizedSelectedMuscleGroups = normalizeList(selectedMuscleGroups);
-  const selectedSports = normalizeList(selectedWorkout?.sportsList);
-  const selectedMuscleConfig = normalizeObject(
-    selectedWorkout?.muscleConfig
-  );
+  const selectedSports = selectedWorkout.sportsList || [];
   const groupedExercises = normalizeGroupedExercisesPayload(normalizeObject(selectedExercisesByGroup));
-  const muscleConfigEntries = parseMuscleConfigPayload(selectedMuscleConfig);
-  const muscleConfigMap = new Map(
-    muscleConfigEntries
-      .filter((item) => item?.muscle)
-      .map((item) => [String(item.muscle), item])
-  );
 
   return (
     <div
@@ -710,7 +700,7 @@ const ViewWorkoutModal = ({
             <div className="field">
               <label>Nome do treino</label>
               <div className="value" style={{ fontWeight: 600 }}>
-                {workout.name || 'Treino sem nome'}
+                {selectedWorkout.name || 'Treino sem nome'}
               </div>
             </div>
 
@@ -794,70 +784,25 @@ const ViewWorkoutModal = ({
               </div>
             )}
 
-            {Object.keys(selectedExercisesByGroup).length > 0 && (
-              <div className="field">
-                <label>Exercícios por músculo</label>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {Object.entries(selectedExercisesByGroup).map(([group, exercises]) => {
-                    const normalizedGroup = getExercisesKey(group);
-                    const exerciseList = Array.isArray(exercises) ? exercises : [];
-                    if (!exerciseList.length) return null;
-                    const configEntry = muscleConfigMap.get(group) || muscleConfigMap.get(normalizedGroup) || {};
-                    const fallbackSeries = configEntry?.config
-                      || (Number(configEntry?.sets) > 0 && Number(configEntry?.reps) > 0
-                        ? `${configEntry.sets}x${configEntry.reps}`
-                        : DEFAULT_MUSCLE_CONFIG);
-
-                    return (
-                      <div key={group}>
-                        <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 6 }}>
-                          {formatGroupName(group, muscleMap)}
-                        </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                          {exerciseList.map((ex, i) => (
-                            <div
-                              key={`${group}-${i}`}
-                              style={{
-                                background: '#0f172a',
-                                padding: '8px 12px',
-                                borderRadius: '10px',
-                                display: 'flex',
-                                justifyContent: 'space-between',
-                                alignItems: 'center',
-                                gap: 12,
-                              }}
-                            >
-                              <span>{normalizeExerciseDisplayName(ex?.name || ex)}</span>
-                              <strong>{ex?.series || fallbackSeries}</strong>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {Array.isArray(workout.exercises) && workout.exercises.length > 0 && (
             <div className="field">
-              <label>Exercícios</label>
-              <ul className="exercise-list" style={{ paddingLeft: 18 }}>
-                {workout.exercises.map((ex) => (
-                  <li key={ex.id || ex.name} style={{ marginBottom: 6 }}>
-                    <strong>{ex.name}</strong>{' '}
-                    {ex.sets && ex.reps && (
-                      <span>
-                        {ex.sets} x {ex.reps}
-                      </span>
-                    )}
-                    {typeof ex.weight === 'number' && <span> – {ex.weight} kg</span>}
-                  </li>
-                ))}
-              </ul>
+              <label>Exercícios por músculo</label>
+              {Object.keys(selectedExercisesByGroup).length > 0 ? (
+                Object.entries(selectedExercisesByGroup).map(([group, exercises]) => (
+                  <div key={group}>
+                    <h4>{group}</h4>
+
+                    {exercises.map((ex, index) => (
+                      <div key={index}>
+                        {ex.name || ex.nome} — {ex.series || ex.reps || ""}
+                      </div>
+                    ))}
+                  </div>
+                ))
+              ) : (
+                <p style={{ opacity: 0.6 }}>Nenhum exercício encontrado</p>
+              )}
             </div>
-          )}
+          </div>
 
           {infoTarget && (
             <div
@@ -930,7 +875,7 @@ const ViewWorkoutModal = ({
               <button
                 type="button"
                 className="primary"
-                onClick={() => onCompleteToday?.(workout)}
+                onClick={() => onCompleteToday?.(selectedWorkout)}
               >
                 Concluir treino de hoje
               </button>
