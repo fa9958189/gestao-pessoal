@@ -116,7 +116,7 @@ export const transferWorkoutToSupervisedUser = async ({
 
     const { data: originalWorkout, error: workoutError } = await supabase
       .from("workout_routines")
-      .select("*")
+      .select("name, muscle_groups, sports_list, exercises_by_group, muscle_config")
       .eq("id", safeWorkoutId)
       .maybeSingle();
 
@@ -143,39 +143,29 @@ export const transferWorkoutToSupervisedUser = async ({
     });
     console.log("Treino original:", originalWorkout);
 
-    let finalMuscleGroups = normalizeList(
-      originalWorkout.muscle_groups || originalWorkout.muscle_group,
-    );
-
-    const finalExercisesByGroup = normalizeObject(originalWorkout.exercises_by_group);
-    const parsedMuscleConfig = parseMaybeJson(originalWorkout.muscle_config);
-    const finalMuscleConfig = Array.isArray(parsedMuscleConfig) ? parsedMuscleConfig : [];
-
-    if (!finalMuscleGroups.length) {
-      const exerciseGroupKeys = Object.keys(finalExercisesByGroup || {});
-      if (exerciseGroupKeys.length) {
-        finalMuscleGroups = normalizeList(exerciseGroupKeys);
+    const finalMuscleGroups = normalizeList(originalWorkout.muscle_groups);
+    const finalSportsList = normalizeList(originalWorkout.sports_list);
+    const finalMuscleConfig = (() => {
+      if (typeof originalWorkout.muscle_config === "string") {
+        const parsed = parseMaybeJson(originalWorkout.muscle_config);
+        return parsed && typeof parsed === "object" ? parsed : {};
       }
-    }
+      return originalWorkout.muscle_config || {};
+    })();
 
-    if (!finalMuscleGroups.length && Array.isArray(finalMuscleConfig)) {
-      const configKeys = finalMuscleConfig
-        .map((entry) => entry?.muscle)
-        .filter(Boolean);
-      if (configKeys.length) {
-        finalMuscleGroups = normalizeList(configKeys);
+    const finalExercisesByGroup = (() => {
+      if (typeof originalWorkout.exercises_by_group === "string") {
+        const parsed = parseMaybeJson(originalWorkout.exercises_by_group);
+        return parsed && typeof parsed === "object" ? parsed : {};
       }
-    }
-
-    const finalSportsList = normalizeList(
-      originalWorkout.sports_list || originalWorkout.sports,
-    );
+      return originalWorkout.exercises_by_group || {};
+    })();
 
     const newWorkout = {
       name: originalWorkout.name,
       user_id: resolvedTargetProfileId,
-      muscle_groups: finalMuscleGroups.join(", "),
-      sports_list: finalSportsList.join(", "),
+      muscle_groups: finalMuscleGroups,
+      sports_list: finalSportsList,
       muscle_config: finalMuscleConfig,
       exercises_by_group: finalExercisesByGroup,
     };
@@ -185,7 +175,7 @@ export const transferWorkoutToSupervisedUser = async ({
 
     const { error: createError } = await supabase
       .from("workout_routines")
-      .insert(newWorkout);
+      .insert([newWorkout]);
 
     if (createError) {
       console.error("Erro ao inserir treino transferido:", createError);
