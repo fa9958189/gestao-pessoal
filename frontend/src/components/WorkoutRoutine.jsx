@@ -633,6 +633,8 @@ const ViewWorkoutModal = ({
   console.log("FINAL WORKOUT:", selectedWorkout);
 
   const selectedExercisesByGroup = selectedWorkout.exercisesByGroup || {};
+  console.log("EX:", selectedExercisesByGroup);
+  const workoutName = selectedWorkout?.name || "Treino sem nome";
 
   const selectedMuscleGroups = selectedWorkout.muscleGroups || [];
 
@@ -685,7 +687,7 @@ const ViewWorkoutModal = ({
             <div className="field">
               <label>Nome do treino</label>
               <div className="value" style={{ fontWeight: 600 }}>
-                {selectedWorkout.name || 'Treino sem nome'}
+                {workoutName}
               </div>
             </div>
 
@@ -772,13 +774,19 @@ const ViewWorkoutModal = ({
             <div className="field">
               <label>Exercícios por músculo</label>
               {Object.keys(selectedExercisesByGroup).length > 0 ? (
-                Object.entries(selectedExercisesByGroup).map(([group, exercises]) => (
-                  <div key={group}>
-                    <h4>{group}</h4>
+                Object.entries(selectedExercisesByGroup).map(([muscle, exercises]) => (
+                  <div key={muscle}>
+                    <h4>{muscle}</h4>
 
-                    {exercises.map((ex, index) => (
-                      <div key={index}>
-                        {ex.name || ex.nome} — {ex.series || ex.reps || ""}
+                    {exercises.map((ex, i) => (
+                      <div key={i}>
+                        <strong>{ex.name || ex.nome || "Exercício"}</strong>
+
+                        <span>
+                          {ex.reps || ex.repeticoes || ex.series || ex.sets
+                            ? ` - ${ex.reps || ex.repeticoes || `${ex.sets}x`}`
+                            : ""}
+                        </span>
                       </div>
                     ))}
                   </div>
