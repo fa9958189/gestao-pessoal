@@ -1314,36 +1314,20 @@ const WorkoutRoutine = ({
     }
   };
 
-  const normalizeRoutineFromApi = (item) => {
-    const row = item || {};
-    const muscleGroups = normalizeList(row.muscle_groups || row.muscle_group || row.muscleGroups);
-    const sportsActivities = normalizeList(row.sports_list || row.sports || row.sportsActivities);
-    const muscleConfig = parseMuscleConfigPayload(item?.muscleConfig ?? item?.muscle_config);
-    const exercisesByGroup = normalizeGroupedExercisesPayload(
-      item?.exercisesByGroup || item?.exercises_by_group || item?.exercicios || {}
-    );
-    const exercicios = Object.keys(exercisesByGroup).length > 0
-      ? exercisesByGroup
-      : muscleConfig.reduce((acc, entry) => {
-          if (!entry?.muscle) return acc;
-          return {
-            ...acc,
-            [getExercisesKey(entry.muscle)]: Array.isArray(entry.exercises) ? entry.exercises : [],
-          };
-        }, {});
+  const normalizeRoutineFromApi = (row) => {
+    const normalizedRow = row || {};
 
     return {
-      ...item,
-      muscleGroups,
-      sports: sportsActivities,
-      sportsActivities,
-      exercises:
-        item?.exercises && typeof item.exercises === 'object' && !Array.isArray(item.exercises)
-          ? normalizeGroupedExercisesPayload(item.exercises)
-          : exercicios,
-      exercisesByGroup: exercicios,
-      muscleConfig,
-      exercicios,
+      ...normalizedRow,
+      muscleGroups: normalizeList(normalizedRow.muscle_groups || normalizedRow.muscle_group),
+      sportsActivities: normalizeList(normalizedRow.sports_list || normalizedRow.sports),
+      exercisesByGroup: normalizeGroupedExercisesPayload(normalizedRow.exercises_by_group),
+      muscleConfig: typeof normalizedRow.muscle_config === 'string'
+        ? JSON.parse(normalizedRow.muscle_config || '{}')
+        : normalizedRow.muscle_config || {},
+      sports: normalizeList(normalizedRow.sports_list || normalizedRow.sports),
+      exercises: normalizeGroupedExercisesPayload(normalizedRow.exercises_by_group),
+      exercicios: normalizeGroupedExercisesPayload(normalizedRow.exercises_by_group),
     };
   };
 
@@ -2169,9 +2153,9 @@ const WorkoutRoutine = ({
                         <div className="workout-template-header">
                           <strong className="text-blue-400 font-semibold">{template.name}</strong>
                           <div className="workout-template-subtitle">
-                            {normalizeList(template.muscleGroups || template.muscle_groups || template.muscle_group).length > 0 && (
+                            {Array.isArray(template.muscleGroups) && template.muscleGroups.length > 0 && (
                               <span>
-                                {normalizeList(template.muscleGroups || template.muscle_groups || template.muscle_group)
+                                {template.muscleGroups
                                   .map((group) => muscleMap[group]?.label || formatGroupName(group, muscleMap))
                                   .join(', ')}
                               </span>
@@ -2191,7 +2175,7 @@ const WorkoutRoutine = ({
 
                               const normalizedMuscles = Array.isArray(template.muscleGroups)
                                 ? template.muscleGroups
-                                : template.muscle_groups || [];
+                                : [];
                               const isCardioTemplate = sportsActivities.every((item) => (
                                 ['bicicleta', 'corrida_ao_ar_livre', 'escada', 'esteira'].includes(item)
                               ));
