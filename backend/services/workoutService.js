@@ -101,15 +101,22 @@ export const transferWorkoutToSupervisedUser = async ({
     });
     console.log("Treino original:", originalWorkout);
 
+    const rawMuscleGroups =
+      originalWorkout.muscle_groups ||
+      originalWorkout.muscle_group ||
+      [];
+
+    const normalizedMuscleGroups = Array.isArray(rawMuscleGroups)
+      ? rawMuscleGroups
+      : typeof rawMuscleGroups === "string" && rawMuscleGroups.length > 0
+        ? [rawMuscleGroups]
+        : [];
+
     const newWorkout = {
       name: originalWorkout.name || "Treino",
       user_id: resolvedTargetProfileId,
 
-      muscle_groups: Array.isArray(originalWorkout.muscle_groups)
-        ? originalWorkout.muscle_groups
-        : typeof originalWorkout.muscle_groups === "string" && originalWorkout.muscle_groups.length > 0
-          ? [originalWorkout.muscle_groups]
-          : [],
+      muscle_groups: normalizedMuscleGroups,
 
       sports_list: Array.isArray(originalWorkout.sports_list)
         ? originalWorkout.sports_list
