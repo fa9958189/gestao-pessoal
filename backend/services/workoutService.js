@@ -120,6 +120,21 @@ export const transferWorkoutToSupervisedUser = async ({
       rawMuscleGroups = Object.keys(originalWorkout.exercises_by_group);
     }
 
+    if (!Array.isArray(rawMuscleGroups) || rawMuscleGroups.length === 0) {
+      console.log("⚠️ Nenhum grupo encontrado, aplicando fallback inteligente");
+
+      if (originalWorkout.exercises_by_group) {
+        const keys = Object.keys(originalWorkout.exercises_by_group);
+        if (keys.length > 0) {
+          rawMuscleGroups = keys;
+        }
+      }
+
+      if (!rawMuscleGroups || rawMuscleGroups.length === 0) {
+        rawMuscleGroups = ["geral"];
+      }
+    }
+
     const normalizedMuscleGroups = Array.isArray(rawMuscleGroups)
       ? rawMuscleGroups
       : typeof rawMuscleGroups === "string" && rawMuscleGroups.length > 0
