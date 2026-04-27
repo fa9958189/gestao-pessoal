@@ -144,6 +144,34 @@ export const transferWorkoutToSupervisedUser = async ({
       (g) => g && g !== "geral",
     );
 
+    let exercisesByGroup = originalWorkout.exercises_by_group;
+
+    if (typeof exercisesByGroup === "string") {
+      try {
+        exercisesByGroup = JSON.parse(exercisesByGroup);
+      } catch {
+        exercisesByGroup = {};
+      }
+    }
+
+    if (!exercisesByGroup || typeof exercisesByGroup !== "object") {
+      exercisesByGroup = {};
+    }
+
+    let muscleConfig = originalWorkout.muscle_config;
+
+    if (typeof muscleConfig === "string") {
+      try {
+        muscleConfig = JSON.parse(muscleConfig);
+      } catch {
+        muscleConfig = {};
+      }
+    }
+
+    if (!muscleConfig || typeof muscleConfig !== "object") {
+      muscleConfig = {};
+    }
+
     const newWorkout = {
       name: originalWorkout.name,
       user_id: resolvedTargetProfileId,
@@ -154,22 +182,14 @@ export const transferWorkoutToSupervisedUser = async ({
         ? originalWorkout.sports_list
         : [],
 
-      muscle_config:
-        originalWorkout.muscle_config &&
-        typeof originalWorkout.muscle_config === "object"
-          ? originalWorkout.muscle_config
-          : {},
+      muscle_config: muscleConfig,
 
-      exercises_by_group:
-        originalWorkout.exercises_by_group &&
-        typeof originalWorkout.exercises_by_group === "object"
-          ? originalWorkout.exercises_by_group
-          : {},
+      exercises_by_group: exercisesByGroup,
     };
 
     console.log("NOVO TREINO COMPLETO:", newWorkout);
-    console.log("ORIGINAL EXERCISES:", originalWorkout.exercises_by_group);
-    console.log("NOVO EXERCISES:", newWorkout.exercises_by_group);
+    console.log("ORIGINAL:", originalWorkout.exercises_by_group);
+    console.log("TRATADO:", exercisesByGroup);
 
     const { error: createError } = await supabase
       .from("workout_routines")
