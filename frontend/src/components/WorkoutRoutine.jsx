@@ -1277,6 +1277,21 @@ const WorkoutRoutine = ({
         throw new Error(responseData.error || 'Não foi possível transferir o treino.');
       }
 
+      const newWorkout = responseData?.workout || responseData?.data || responseData?.routine || null;
+      if (newWorkout) {
+        const normalizedWorkout = normalizeRoutineFromApi(newWorkout);
+        console.log('TREINO NORMALIZADO:', normalizedWorkout);
+        setRoutines((prev) => {
+          const existingIndex = prev.findIndex((routine) => String(routine.id) === String(normalizedWorkout.id));
+
+          if (existingIndex === -1) {
+            return [...prev, normalizedWorkout];
+          }
+
+          return prev.map((routine, index) => (index === existingIndex ? normalizedWorkout : routine));
+        });
+      }
+
       notify('Treino transferido com sucesso.', 'success');
       alert('Treino transferido com sucesso!');
       await loadRoutines();
@@ -1344,8 +1359,7 @@ const WorkoutRoutine = ({
         throw new Error(data?.error || 'Não foi possível carregar os treinos.');
       }
       const raw = Array.isArray(data) ? data : data?.items || [];
-      const normalized = raw.map(normalizeRoutineFromApi);
-      setRoutines(normalized);
+      setRoutines(raw.map(normalizeRoutineFromApi));
     } catch (err) {
       console.error('Erro ao carregar rotinas', err);
       notify('Não foi possível carregar os treinos.');
