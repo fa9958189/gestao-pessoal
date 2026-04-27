@@ -574,7 +574,30 @@ function Supervisor({
                                     );
                                   })
                                 ) : (
-                                  <div>{workout.groups_musculares || workout.grupos_musculares || workout.muscle_groups || '-'}</div>
+                                  <>
+                                    {Array.isArray(workout.muscle_groups) && workout.muscle_groups.length > 0 && (
+                                      <div>
+                                        <h4>Grupos musculares</h4>
+                                        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "8px" }}>
+                                          {workout.muscle_groups.map((group, index) => (
+                                            <span
+                                              key={index}
+                                              style={{
+                                                padding: "6px 12px",
+                                                background: "#1e293b",
+                                                borderRadius: "8px",
+                                                fontSize: "12px",
+                                                color: "#fff",
+                                                border: "1px solid #334155"
+                                              }}
+                                            >
+                                              {group}
+                                            </span>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
+                                  </>
                                 )}
                               </div>
                             </div>
