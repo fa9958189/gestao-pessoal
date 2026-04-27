@@ -582,36 +582,21 @@ const normalizeRoutineFromApi = (row) => {
   const muscleConfig = normalizeObject(
     normalizedRow.muscle_config ?? normalizedRow.muscleConfig
   );
-  const rawExercises =
-    normalizedRow.exercisesByGroup ??
-    normalizedRow.exercises_by_group ??
-    {};
+  let rawExercises =
+    normalizedRow.exercises_by_group ?? normalizedRow.exercisesByGroup;
 
-  let exercisesByGroup = {};
-
-  try {
-    if (typeof rawExercises === "string") {
-      exercisesByGroup = JSON.parse(rawExercises);
-    } else {
-      exercisesByGroup = rawExercises;
+  if (typeof rawExercises === "string") {
+    try {
+      rawExercises = JSON.parse(rawExercises);
+    } catch (e) {
+      console.error("Erro ao parsear exercises_by_group:", e);
+      rawExercises = {};
     }
-  } catch (e) {
-    exercisesByGroup = {};
   }
 
-  if (!exercisesByGroup || typeof exercisesByGroup !== "object") {
-    exercisesByGroup = {};
-  }
+  const exercisesByGroup = normalizeGroupedExercisesPayload(rawExercises);
 
-  const normalizedExercisesByGroup = Object.entries(exercisesByGroup).reduce((acc, [key, value]) => {
-    const normalizedKey = getExercisesKey(key);
-
-    acc[normalizedKey] = Array.isArray(value) ? value : [];
-
-    return acc;
-  }, {});
-
-  console.log("EXERCISES NORMALIZADO:", normalizedExercisesByGroup);
+  console.log("EXERCISES FINAL:", exercisesByGroup);
 
   return {
     ...normalizedRow,
@@ -623,10 +608,10 @@ const normalizeRoutineFromApi = (row) => {
     sports: sportsList,
     muscleConfig,
     muscle_config: muscleConfig,
-    exercisesByGroup: normalizedExercisesByGroup,
-    exercises_by_group: normalizedExercisesByGroup,
-    exercises: normalizedExercisesByGroup,
-    exercicios: normalizedExercisesByGroup,
+    exercisesByGroup,
+    exercises_by_group: exercisesByGroup,
+    exercises: exercisesByGroup,
+    exercicios: exercisesByGroup,
   };
 };
 
