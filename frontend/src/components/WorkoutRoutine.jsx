@@ -582,10 +582,36 @@ const normalizeRoutineFromApi = (row) => {
   const muscleConfig = normalizeObject(
     normalizedRow.muscle_config ?? normalizedRow.muscleConfig
   );
-  const exercisesByGroup = normalizeObject(
-    normalizedRow.exercises_by_group ?? normalizedRow.exercisesByGroup
-  );
-  const normalizedExercisesByGroup = normalizeGroupedExercisesPayload(exercisesByGroup);
+  const rawExercises =
+    normalizedRow.exercisesByGroup ??
+    normalizedRow.exercises_by_group ??
+    {};
+
+  let exercisesByGroup = {};
+
+  try {
+    if (typeof rawExercises === "string") {
+      exercisesByGroup = JSON.parse(rawExercises);
+    } else {
+      exercisesByGroup = rawExercises;
+    }
+  } catch (e) {
+    exercisesByGroup = {};
+  }
+
+  if (!exercisesByGroup || typeof exercisesByGroup !== "object") {
+    exercisesByGroup = {};
+  }
+
+  const normalizedExercisesByGroup = Object.entries(exercisesByGroup).reduce((acc, [key, value]) => {
+    const normalizedKey = getExercisesKey(key);
+
+    acc[normalizedKey] = Array.isArray(value) ? value : [];
+
+    return acc;
+  }, {});
+
+  console.log("EXERCISES NORMALIZADO:", normalizedExercisesByGroup);
 
   return {
     ...normalizedRow,
