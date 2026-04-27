@@ -805,12 +805,18 @@ const ViewWorkoutModal = ({
                         const finalConfig =
                           repsFromObject ||
                           configFromList ||
+                          (Array.isArray(configList) && configList.length === 1
+                            ? configList[0]
+                            : null) ||
                           "-";
 
-                        console.log("EX:", exercise);
-                        console.log("NAME:", exerciseName);
-                        console.log("REPS OBJ:", repsFromObject);
-                        console.log("REPS LIST:", configFromList);
+                        console.log("FINAL CONFIG:", {
+                          exercise,
+                          repsFromObject,
+                          configFromList,
+                          configList,
+                          finalConfig
+                        });
 
                         if (!exercise) return null;
 
