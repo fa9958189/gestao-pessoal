@@ -635,6 +635,62 @@ const ViewWorkoutModal = ({
   const selectedExercisesByGroup = selectedWorkout.exercisesByGroup || {};
   console.log("EX:", selectedExercisesByGroup);
   const workoutName = selectedWorkout?.name || "Treino sem nome";
+  const getConfigForMuscle = (muscle, index) => {
+    const muscleKey = getExercisesKey(muscle);
+    const rawConfig =
+      selectedWorkout?.muscleConfig ??
+      selectedWorkout?.muscle_config ??
+      [];
+
+    const normalizeConfigValue = (entry) => {
+      if (!entry) return null;
+
+      if (typeof entry === "string") {
+        return entry.trim() || null;
+      }
+
+      if (typeof entry === "object") {
+        if (entry.config) return String(entry.config).trim();
+
+        const sets = entry.sets ?? entry.series;
+        const reps = entry.reps ?? entry.repeticoes;
+
+        if (sets && reps) return `${sets}x${reps}`;
+      }
+
+      return null;
+    };
+
+    if (Array.isArray(rawConfig)) {
+      const exact = rawConfig.find((item) => {
+        const itemMuscle = getExercisesKey(item?.muscle ?? item?.grupo ?? item?.group ?? "");
+        return itemMuscle === muscleKey;
+      });
+
+      const exactValue = normalizeConfigValue(exact);
+      if (exactValue) return exactValue;
+
+      const byIndex = normalizeConfigValue(rawConfig[index]);
+      if (byIndex) return byIndex;
+
+      if (rawConfig.length === 1) {
+        const singleValue = normalizeConfigValue(rawConfig[0]);
+        if (singleValue) return singleValue;
+      }
+    }
+
+    if (rawConfig && typeof rawConfig === "object" && !Array.isArray(rawConfig)) {
+      const direct =
+        rawConfig[muscle] ??
+        rawConfig[muscleKey] ??
+        rawConfig[getExercisesKey(muscle)];
+
+      const directValue = normalizeConfigValue(direct);
+      if (directValue) return directValue;
+    }
+
+    return "—";
+  };
 
   const selectedMuscleGroups = selectedWorkout.muscleGroups || [];
 
@@ -787,34 +843,20 @@ const ViewWorkoutModal = ({
                           (typeof exercise === "string" ? exercise : null) ||
                           "Exercício";
 
-                        const configList =
-                          selectedWorkout?.muscleConfig?.[muscle] ||
-                          selectedWorkout?.muscle_config?.[muscle] ||
-                          [];
-
-                        const configFromList = Array.isArray(configList) ? configList[i] : null;
-
                         const repsFromObject =
                           isObject &&
-                          (exercise.reps ||
+                          (
+                            exercise.config ||
                             exercise.repeticoes ||
-                            (exercise.sets && exercise.reps
-                              ? `${exercise.sets}x${exercise.reps}`
-                              : null));
+                            (exercise.sets && exercise.reps ? `${exercise.sets}x${exercise.reps}` : null) ||
+                            (exercise.series && exercise.repeticoes ? `${exercise.series}x${exercise.repeticoes}` : null)
+                          );
 
-                        const finalConfig =
-                          repsFromObject ||
-                          configFromList ||
-                          (Array.isArray(configList) && configList.length === 1
-                            ? configList[0]
-                            : null) ||
-                          "-";
+                        const finalConfig = repsFromObject || getConfigForMuscle(muscle, i) || "—";
 
                         console.log("FINAL CONFIG:", {
                           exercise,
                           repsFromObject,
-                          configFromList,
-                          configList,
                           finalConfig
                         });
 
