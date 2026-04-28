@@ -57,33 +57,38 @@ const normalizeObject = (value) => {
 };
 
 const normalizeMuscleName = (name) => {
+  if (!name) return null;
+
+  const cleaned = String(name)
+    .replace(/[\[\]"]/g, "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replaceAll(" ", "_");
+
   const map = {
+    peito: "Peito",
+    costas: "Costas",
+    ombro: "Ombro",
     biceps: "Bíceps",
     bi_ceps: "Bíceps",
     triceps: "Tríceps",
     tri_ceps: "Tríceps",
     antebraco: "Antebraço",
     ante_braco: "Antebraço",
-    costas: "Costas",
-    peito: "Peito",
-    ombro: "Ombro",
+    abdomen: "Abdômen",
+    abdominal: "Abdômen",
     perna: "Perna",
     quadriceps: "Quadríceps",
     posterior_de_coxa: "Posterior de Coxa",
     panturrilha: "Panturrilha",
   };
 
-  const rawName = String(name || "").trim();
-  if (!rawName) return rawName;
-
-  const key = rawName
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replaceAll(" ", "_");
-
-  return map[key] || rawName;
+  return map[cleaned] || capitalize(cleaned.replaceAll("_", " "));
 };
+
+const capitalize = (str) => str.replace(/\b\w/g, (l) => l.toUpperCase());
 
 const mapRoutineRow = (row = {}) => ({
   id: row.id,
@@ -172,9 +177,19 @@ export const transferWorkoutToSupervisedUser = async ({
     });
     console.log("Treino original:", originalWorkout);
 
-    const finalMuscleGroups = normalizeList(originalWorkout.muscle_groups).map((muscle) =>
-      normalizeMuscleName(muscle),
-    );
+    let muscleGroups = originalWorkout.muscle_groups || [];
+
+    if (typeof muscleGroups === "string") {
+      try {
+        muscleGroups = JSON.parse(muscleGroups);
+      } catch {
+        muscleGroups = muscleGroups.split(",");
+      }
+    }
+
+    const muscleGroupsNormalized = muscleGroups
+      .map((m) => normalizeMuscleName(m))
+      .filter(Boolean);
     const finalSportsList = normalizeList(originalWorkout.sports_list);
     const finalMuscleConfig = (() => {
       if (typeof originalWorkout.muscle_config === "string") {
@@ -192,21 +207,22 @@ export const transferWorkoutToSupervisedUser = async ({
       return originalWorkout.exercises_by_group || {};
     })();
 
-    const finalExercisesByGroupNormalized = Object.entries(finalExercisesByGroup).reduce(
-      (acc, [muscle, list]) => {
-        acc[normalizeMuscleName(muscle)] = list;
-        return acc;
-      },
-      {},
-    );
+    const exerciciosNormalizados = {};
+
+    Object.entries(finalExercisesByGroup || {}).forEach(([musculo, lista]) => {
+      const musculoNormalizado = normalizeMuscleName(musculo);
+      if (!musculoNormalizado) return;
+
+      exerciciosNormalizados[musculoNormalizado] = lista;
+    });
 
     const newWorkout = {
       name: originalWorkout.name,
       user_id: resolvedTargetProfileId,
-      muscle_groups: finalMuscleGroups,
+      muscle_groups: muscleGroupsNormalized,
       sports_list: finalSportsList,
       muscle_config: finalMuscleConfig,
-      exercises_by_group: finalExercisesByGroupNormalized,
+      exercises_by_group: exerciciosNormalizados,
     };
 
     console.log("TREINO ORIGINAL PARA TRANSFERÊNCIA:", originalWorkout);
