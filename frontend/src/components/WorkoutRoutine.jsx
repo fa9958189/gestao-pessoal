@@ -837,48 +837,36 @@ const ViewWorkoutModal = ({
             <div className="field">
               <label>Exercícios por músculo</label>
               {Object.keys(selectedExercisesByGroup).length > 0 ? (
-                Object.entries(selectedExercisesByGroup).map(([muscle, exerciseList]) => {
-                  return (
-                    <div key={muscle}>
-                      <h4>{muscle}</h4>
+                Object.entries(selectedWorkout.exercicios || {}).map(([musculo, lista]) => (
+                  <div key={musculo} style={{ marginBottom: '20px' }}>
+                    <h4 style={{ textTransform: 'capitalize', opacity: 0.7 }}>
+                      {musculo.replaceAll('_', ' ')}
+                    </h4>
 
-                      {exerciseList.map((exercise, i) => {
-                        const isObject = typeof exercise === "object" && exercise !== null;
+                    {lista.map((exercicio, index) => {
+                      const serie = selectedWorkout.series?.[musculo] || getConfigForMuscle(musculo, index) || '--';
 
-                        const exerciseName =
-                          (isObject && (exercise.name || exercise.nome)) ||
-                          (typeof exercise === "string" ? exercise : null) ||
-                          "Exercício";
-
-                        const repsFromObject =
-                          isObject &&
-                          (
-                            exercise.config ||
-                            exercise.repeticoes ||
-                            (exercise.sets && exercise.reps ? `${exercise.sets}x${exercise.reps}` : null) ||
-                            (exercise.series && exercise.repeticoes ? `${exercise.series}x${exercise.repeticoes}` : null)
-                          );
-
-                        const finalConfig = repsFromObject || getConfigForMuscle(muscle, i) || "—";
-
-                        console.log("FINAL CONFIG:", {
-                          exercise,
-                          repsFromObject,
-                          finalConfig
-                        });
-
-                        if (!exercise) return null;
-
-                        return (
-                          <div key={i}>
-                            <strong>{exerciseName}</strong>
-                            <span> — {finalConfig}</span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  );
-                })
+                      return (
+                        <div
+                          key={index}
+                          style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            padding: '8px 12px',
+                            borderRadius: '8px',
+                            background: 'rgba(255,255,255,0.03)',
+                            marginBottom: '6px'
+                          }}
+                        >
+                          <span>{exercicio}</span>
+                          <span style={{ color: '#00ff88', fontWeight: 'bold' }}>
+                            {serie}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ))
               ) : (
                 <p style={{ opacity: 0.6 }}>Nenhum exercício encontrado</p>
               )}
