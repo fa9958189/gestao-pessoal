@@ -56,6 +56,35 @@ const normalizeObject = (value) => {
   return {};
 };
 
+const normalizeMuscleName = (name) => {
+  const map = {
+    biceps: "Bíceps",
+    bi_ceps: "Bíceps",
+    triceps: "Tríceps",
+    tri_ceps: "Tríceps",
+    antebraco: "Antebraço",
+    ante_braco: "Antebraço",
+    costas: "Costas",
+    peito: "Peito",
+    ombro: "Ombro",
+    perna: "Perna",
+    quadriceps: "Quadríceps",
+    posterior_de_coxa: "Posterior de Coxa",
+    panturrilha: "Panturrilha",
+  };
+
+  const rawName = String(name || "").trim();
+  if (!rawName) return rawName;
+
+  const key = rawName
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replaceAll(" ", "_");
+
+  return map[key] || rawName;
+};
+
 const mapRoutineRow = (row = {}) => ({
   id: row.id,
   name: row.name,
@@ -143,7 +172,9 @@ export const transferWorkoutToSupervisedUser = async ({
     });
     console.log("Treino original:", originalWorkout);
 
-    const finalMuscleGroups = normalizeList(originalWorkout.muscle_groups);
+    const finalMuscleGroups = normalizeList(originalWorkout.muscle_groups).map((muscle) =>
+      normalizeMuscleName(muscle),
+    );
     const finalSportsList = normalizeList(originalWorkout.sports_list);
     const finalMuscleConfig = (() => {
       if (typeof originalWorkout.muscle_config === "string") {
@@ -161,13 +192,21 @@ export const transferWorkoutToSupervisedUser = async ({
       return originalWorkout.exercises_by_group || {};
     })();
 
+    const finalExercisesByGroupNormalized = Object.entries(finalExercisesByGroup).reduce(
+      (acc, [muscle, list]) => {
+        acc[normalizeMuscleName(muscle)] = list;
+        return acc;
+      },
+      {},
+    );
+
     const newWorkout = {
       name: originalWorkout.name,
       user_id: resolvedTargetProfileId,
       muscle_groups: finalMuscleGroups,
       sports_list: finalSportsList,
       muscle_config: finalMuscleConfig,
-      exercises_by_group: finalExercisesByGroup,
+      exercises_by_group: finalExercisesByGroupNormalized,
     };
 
     console.log("TREINO ORIGINAL PARA TRANSFERÊNCIA:", originalWorkout);
