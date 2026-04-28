@@ -348,11 +348,22 @@ const parseMuscleGroups = (value) => {
 
   if (!Array.isArray(parsed)) return [];
 
+  const normalizeMuscleLabel = (group) => {
+    const normalizedGroup = normalizeKey(group);
+    const muscle = MUSCLE_GROUPS.find(
+      (item) => normalizeKey(item.label) === normalizedGroup || normalizeKey(item.value) === normalizedGroup
+    );
+
+    return muscle?.label || group;
+  };
+
   return parsed
-    .map((item) => String(item)
+    .flatMap((item) => String(item).split(','))
+    .map((item) => item
       .replace(/[\[\]"]/g, '')
       .trim())
-    .filter(Boolean);
+    .filter(Boolean)
+    .map((item) => normalizeMuscleLabel(item));
 };
 
 const normalizeObject = (value) => {
@@ -832,7 +843,7 @@ const ViewWorkoutModal = ({
     return "—";
   };
 
-  const normalizedSelectedMuscleGroups = parseMuscleGroups(
+  const groups = parseMuscleGroups(
     selectedWorkout.muscle_groups ?? selectedWorkout.muscleGroups
   );
   const selectedSports = selectedWorkout.sportsList || [];
@@ -887,11 +898,11 @@ const ViewWorkoutModal = ({
               </div>
             </div>
 
-            {normalizedSelectedMuscleGroups.length > 0 && (
+            {groups.length > 0 && (
               <div className="field">
                 <label>Grupos musculares</label>
                 <div className="chips chips-with-image">
-                  {normalizedSelectedMuscleGroups.map((mg) => {
+                  {groups.map((mg) => {
                     const def = getMuscleGroupByLabel(mg) || muscleMap[mg];
                     const key = getExercisesKey(def?.value || mg);
                     const info = MUSCLE_INFO[key];
