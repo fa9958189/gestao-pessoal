@@ -662,9 +662,16 @@ const ViewWorkoutModal = ({
     };
 
     if (Array.isArray(rawConfig)) {
+      const normalizeText = (text) =>
+        String(text || "")
+          .toLowerCase()
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .trim();
+
       const exact = rawConfig.find((item) => {
-        const itemMuscle = getExercisesKey(item?.muscle ?? item?.grupo ?? item?.group ?? "");
-        return itemMuscle === muscleKey;
+        const itemMuscleRaw = item?.muscle ?? item?.grupo ?? item?.group ?? "";
+        return normalizeText(itemMuscleRaw) === normalizeText(muscle);
       });
 
       const exactValue = normalizeConfigValue(exact);
