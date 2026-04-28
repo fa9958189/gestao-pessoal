@@ -332,6 +332,29 @@ const normalizeList = (value) => {
   return [];
 };
 
+const parseMuscleGroups = (value) => {
+  if (!value) return [];
+
+  let parsed = value;
+
+  // Se for string JSON
+  if (typeof parsed === 'string') {
+    try {
+      parsed = JSON.parse(parsed);
+    } catch {
+      parsed = parsed.split(',');
+    }
+  }
+
+  if (!Array.isArray(parsed)) return [];
+
+  return parsed
+    .map((item) => String(item)
+      .replace(/[\[\]"]/g, '')
+      .trim())
+    .filter(Boolean);
+};
+
 const normalizeObject = (value) => {
   if (value == null) return {};
 
@@ -809,9 +832,9 @@ const ViewWorkoutModal = ({
     return "—";
   };
 
-  const selectedMuscleGroups = selectedWorkout.muscleGroups || [];
-
-  const normalizedSelectedMuscleGroups = normalizeList(selectedMuscleGroups);
+  const normalizedSelectedMuscleGroups = parseMuscleGroups(
+    selectedWorkout.muscle_groups ?? selectedWorkout.muscleGroups
+  );
   const selectedSports = selectedWorkout.sportsList || [];
   const groupedExercises = normalizeGroupedExercisesPayload(normalizeObject(selectedExercisesByGroup));
 
