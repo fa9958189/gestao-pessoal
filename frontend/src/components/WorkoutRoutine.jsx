@@ -365,9 +365,25 @@ const parseMuscleGroups = (value) => {
         .trim()
     )
     .filter(Boolean)
-    .map((item) =>
-      item.charAt(0).toUpperCase() + item.slice(1).toLowerCase()
-    );
+    .map((item) => {
+      const normalizedKey = getExercisesKey(item);
+      const prettyLabelMap = {
+        peito: 'Peito',
+        costas: 'Costas',
+        ombro: 'Ombros',
+        biceps: 'Bíceps',
+        triceps: 'Tríceps',
+        abdomen: 'Abdômen',
+        quadriceps: 'Quadríceps',
+        panturrilha: 'Panturrilha',
+        posterior_de_coxa: 'Posterior de Coxa',
+        gluteo: 'Glúteos',
+        'ante braco': 'Antebraço',
+      };
+
+      if (prettyLabelMap[normalizedKey]) return prettyLabelMap[normalizedKey];
+      return item.charAt(0).toUpperCase() + item.slice(1).toLowerCase();
+    });
 };
 
 const normalizeObject = (value) => {
@@ -2465,7 +2481,9 @@ const WorkoutRoutine = ({
                   <div className="table workout-routines-scroll treinos-list">
                     {routines.map((template) => (
                       (() => {
-                        const groups = normalizeList(template.muscleGroups ?? template.muscle_groups);
+                        const groups = parseMuscleGroups(
+                          template.muscle_groups ?? template.muscleGroups
+                        );
                         return (
                           <div
                             key={template.id || template.name}
@@ -2476,9 +2494,7 @@ const WorkoutRoutine = ({
                           <div className="workout-template-subtitle">
                             {groups.length > 0 && (
                               <span>
-                                {groups
-                                  .map((group) => muscleMap[group]?.label || formatGroupName(group, muscleMap))
-                                  .join(', ')}
+                                {groups.join(', ')}
                               </span>
                             )}
                           </div>
