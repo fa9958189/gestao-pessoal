@@ -348,6 +348,49 @@ const normalizeGroupedExercisesPayload = (value) => {
   const normalizedObject = normalizeObject(value);
   if (!Object.keys(normalizedObject).length) return {};
 
+  const normalizeExerciseItem = (exercise) => {
+    if (exercise && typeof exercise === 'object' && !Array.isArray(exercise)) {
+      const nome = cleanTextValue(exercise.nome ?? exercise.name ?? exercise.label ?? '');
+      const serie = cleanTextValue(exercise.serie ?? exercise.series ?? exercise.repeticoes ?? '');
+      if (!nome) return null;
+      return serie ? { nome, serie } : { nome };
+    }
+
+    const nome = cleanTextValue(exercise);
+    if (!nome || isInvalidListValue(nome)) return null;
+    return nome;
+  };
+
+  const normalizeExerciseList = (input) => {
+    if (input == null) return [];
+
+    const parsed = safeJsonParse(input);
+    if (Array.isArray(parsed)) {
+      return parsed
+        .map((item) => normalizeExerciseItem(item))
+        .filter(Boolean);
+    }
+
+    if (typeof parsed === 'string') {
+      const raw = parsed.trim();
+      if (!raw || isInvalidListValue(raw)) return [];
+
+      const parsedString = safeJsonParse(raw);
+      if (Array.isArray(parsedString)) {
+        return parsedString
+          .map((item) => normalizeExerciseItem(item))
+          .filter(Boolean);
+      }
+
+      return raw
+        .split(',')
+        .map((item) => normalizeExerciseItem(item))
+        .filter(Boolean);
+    }
+
+    return [];
+  };
+
   const result = {};
 
   Object.entries(normalizedObject).forEach(([group, exercises]) => {
@@ -355,7 +398,7 @@ const normalizeGroupedExercisesPayload = (value) => {
 
     if (!key) return;
 
-    result[key] = normalizeList(exercises);
+    result[key] = normalizeExerciseList(exercises);
   });
 
   return result;
@@ -474,6 +517,73 @@ const formatMuscleConfigValue = (entry) => {
   }
   if (entry.type === 'preset' && entry.value) return entry.value;
   return DEFAULT_MUSCLE_CONFIG;
+};
+
+const getExerciseName = (exercise) => {
+  if (exercise && typeof exercise === 'object' && !Array.isArray(exercise)) {
+    return cleanTextValue(exercise.nome ?? exercise.name ?? exercise.label ?? '');
+  }
+  return cleanTextValue(exercise);
+};
+
+const getSeriesFromConfigEntry = (entry) => {
+  if (!entry) return '';
+  if (typeof entry === 'string') return cleanTextValue(entry);
+  if (entry && typeof entry === 'object') {
+    if (entry.config) return cleanTextValue(entry.config);
+    if (entry.value) return cleanTextValue(entry.value);
+    const sets = Number(entry.sets ?? entry.series);
+    const reps = Number(entry.reps ?? entry.repeticoes);
+    if (sets > 0 && reps > 0) return `${sets}x${reps}`;
+  }
+  return '';
+};
+
+const buildExercisesWithSeries = (selectedExercisesByGroup = {}, options = {}) => {
+  const { muscleConfigState = {}, muscleConfigList = [] } = options;
+  const normalizedGroups = normalizeGroupedExercisesPayload(selectedExercisesByGroup);
+
+  const resolveSeriesForMuscle = (muscleKey) => {
+    const directConfig = muscleConfigState[muscleKey];
+    const directSeries = formatMuscleConfigValue(directConfig);
+    if (directConfig && directSeries) return directSeries;
+
+    const byStateKey = Object.entries(muscleConfigState || {}).find(
+      ([configMuscle]) => getExercisesKey(configMuscle) === muscleKey
+    );
+    if (byStateKey?.[1]) {
+      const seriesFromState = formatMuscleConfigValue(byStateKey[1]);
+      if (seriesFromState) return seriesFromState;
+    }
+
+    const byList = (muscleConfigList || []).find(
+      (entry) => getExercisesKey(entry?.muscle || entry?.grupo || entry?.group) === muscleKey
+    );
+    const seriesFromList = getSeriesFromConfigEntry(byList);
+    if (seriesFromList) return seriesFromList;
+
+    return DEFAULT_MUSCLE_CONFIG;
+  };
+
+  return Object.entries(normalizedGroups).reduce((acc, [muscleKey, list]) => {
+    const serieDoMusculo = resolveSeriesForMuscle(muscleKey);
+    acc[muscleKey] = (list || [])
+      .map((exercise) => {
+        const nome = getExerciseName(exercise);
+        if (!nome) return null;
+        const serieExistente =
+          typeof exercise === 'object' && exercise !== null
+            ? cleanTextValue(exercise.serie ?? exercise.series ?? exercise.repeticoes ?? '')
+            : '';
+        return {
+          nome,
+          serie: serieExistente || serieDoMusculo,
+        };
+      })
+      .filter(Boolean);
+
+    return acc;
+  }, {});
 };
 
 const parseMuscleConfigPayload = (input) => {
@@ -836,57 +946,23 @@ const ViewWorkoutModal = ({
 
             <div className="field">
               <label>Exercícios por músculo</label>
-              {Object.keys(selectedExercisesByGroup).length > 0 ? (
-                Object.entries(selectedWorkout.exercicios || {}).map(([musculo, lista]) => (
+              {Object.keys(groupedExercises).length > 0 ? (
+                Object.entries(groupedExercises).map(([musculo, lista]) => (
                   <div key={musculo} style={{ marginBottom: '20px' }}>
                     <h4 style={{ textTransform: 'capitalize', opacity: 0.7 }}>
                       {musculo.replaceAll('_', ' ')}
                     </h4>
 
                     {lista.map((exercicio, index) => {
-                      const normalize = (str) =>
-                        str
-                          .toLowerCase()
-                          .normalize('NFD')
-                          .replace(/[\u0300-\u036f]/g, '')
-                          .replaceAll(' ', '_');
+                      const nomeExercicio =
+                        typeof exercicio === 'object'
+                          ? exercicio.nome || exercicio.name || exercicio.label || 'Exercício'
+                          : exercicio;
 
-                      const findSerie = () => {
-                        const series = selectedWorkout.series || {};
-
-                        // 🔥 1. NOVO FORMATO (por músculo)
-                        if (series[musculo]) return series[musculo];
-
-                        const normalizedMuscle = normalize(musculo);
-
-                        if (series[normalizedMuscle]) return series[normalizedMuscle];
-
-                        const found = Object.entries(series).find(
-                          ([key]) => normalize(key) === normalizedMuscle
-                        );
-
-                        if (found) return found[1];
-
-                        // 🔥 2. FORMATO ANTIGO (por index)
-                        if (Array.isArray(series)) {
-                          return series[index] || null;
-                        }
-
-                        // 🔥 3. FORMATO ANTIGO (objeto numérico)
-                        if (typeof series === 'object') {
-                          const numeric = series[index];
-                          if (numeric) return numeric;
-                        }
-
-                        // 🔥 4. FALLBACK ANTIGO (sua função)
-                        if (typeof getConfigForMuscle === 'function') {
-                          return getConfigForMuscle(musculo, index);
-                        }
-
-                        return null;
-                      };
-
-                      const serie = findSerie() || '--';
+                      const serieExercicio =
+                        typeof exercicio === 'object'
+                          ? exercicio.serie || exercicio.series || exercicio.repeticoes || getConfigForMuscle(musculo, index) || '--'
+                          : '--';
 
                       return (
                         <div
@@ -895,21 +971,22 @@ const ViewWorkoutModal = ({
                             display: 'flex',
                             justifyContent: 'space-between',
                             alignItems: 'center',
+                            gap: '12px',
                             padding: '10px 14px',
                             borderRadius: '10px',
                             background: 'rgba(255,255,255,0.04)',
                             marginBottom: '8px'
                           }}
                         >
-                          <span>{exercicio}</span>
+                          <span>{nomeExercicio}</span>
                           <span
                             style={{
-                              color: '#00ff88',
-                              fontWeight: 'bold',
-                              fontSize: '14px'
+                              color: '#22c55e',
+                              fontWeight: 700,
+                              whiteSpace: 'nowrap'
                             }}
                           >
-                            {serie}
+                            {serieExercicio}
                           </span>
                         </div>
                       );
@@ -962,12 +1039,16 @@ const ViewWorkoutModal = ({
               </p>
               {infoTarget.exercises && infoTarget.exercises.length > 0 && (
                 <div style={{ marginTop: '20px' }}>
-                  {infoTarget.exercises.map((exercise) => {
-                    const displayExercise = normalizeExerciseDisplayName(exercise);
+                  {infoTarget.exercises.map((exercise, index) => {
+                    const exerciseName =
+                      typeof exercise === 'object'
+                        ? exercise.nome || exercise.name || exercise.label || 'Exercício'
+                        : exercise;
+                    const displayExercise = normalizeExerciseDisplayName(exerciseName);
                     const gifSrc = getExerciseGif(infoTarget.id, displayExercise);
 
                     return (
-                      <div key={exercise} style={{ marginBottom: '30px' }}>
+                      <div key={`${displayExercise}-${index}`} style={{ marginBottom: '30px' }}>
                         <h3 style={{ marginBottom: '10px' }}>{displayExercise}</h3>
                         {gifSrc ? (
                           <img
@@ -1701,14 +1782,18 @@ const WorkoutRoutine = ({
       return;
     }
     const isMusculacao = tipo === 'musculacao';
-    const exercicios = isMusculacao ? normalizeGroupedExercisesPayload(selectedExercises) : {};
+    const exercicios = isMusculacao
+      ? buildExercisesWithSeries(selectedExercises, {
+          muscleConfigState: muscleConfigs,
+        })
+      : {};
     const muscleConfig = isMusculacao
       ? itensSelecionados.map((muscle) => ({
           muscle,
           config: formatMuscleConfigValue(muscleConfigs[muscle]),
           sets: Number(formatMuscleConfigValue(muscleConfigs[muscle]).split('x')?.[0]) || 0,
           reps: Number(formatMuscleConfigValue(muscleConfigs[muscle]).split('x')?.[1]) || 0,
-          exercises: selectedExercises[getExercisesKey(muscle)] || [],
+          exercises: exercicios[getExercisesKey(muscle)] || [],
         }))
       : [];
     const payloadData = {
@@ -1788,7 +1873,7 @@ const WorkoutRoutine = ({
       muscleGroups: overrideData?.muscleGroups ?? workoutForm.muscleGroups,
       sportsActivities: overrideData?.sportsActivities ?? workoutForm.sportsActivities,
       muscleConfig: overrideData?.muscleConfig ?? workoutForm.muscleConfig ?? [],
-      exercisesByGroup: normalizeGroupedExercisesPayload(
+      rawExercisesByGroup: normalizeGroupedExercisesPayload(
         overrideData?.exercisesByGroup
           || overrideData?.exercicios
           || overrideData?.exercises
@@ -1797,6 +1882,12 @@ const WorkoutRoutine = ({
           || selectedExercises
       ),
     };
+    formData.exercisesByGroup = isMusculacao
+      ? buildExercisesWithSeries(formData.rawExercisesByGroup, {
+          muscleConfigState: muscleConfigs,
+          muscleConfigList: formData.muscleConfig,
+        })
+      : {};
 
     if (!formData.muscleGroups.length && !formData.sportsActivities.length) {
       notify('Selecione ao menos uma opção para o treino.', 'warning');
