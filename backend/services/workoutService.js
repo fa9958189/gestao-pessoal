@@ -56,6 +56,21 @@ const normalizeObject = (value) => {
   return {};
 };
 
+const parseToArray = (value) => {
+  if (!value) return [];
+  if (Array.isArray(value)) return value;
+
+  try {
+    const parsed = JSON.parse(value);
+    if (Array.isArray(parsed)) return parsed;
+  } catch {}
+
+  return String(value)
+    .split(",")
+    .map((item) => item.replace(/[\[\]"']/g, "").trim())
+    .filter(Boolean);
+};
+
 const normalizeMuscleName = (name) => {
   if (!name) return null;
 
@@ -177,15 +192,7 @@ export const transferWorkoutToSupervisedUser = async ({
     });
     console.log("Treino original:", originalWorkout);
 
-    let muscleGroups = originalWorkout.muscle_groups || [];
-
-    if (typeof muscleGroups === "string") {
-      try {
-        muscleGroups = JSON.parse(muscleGroups);
-      } catch {
-        muscleGroups = muscleGroups.split(",");
-      }
-    }
+    const muscleGroups = parseToArray(originalWorkout.muscle_groups);
 
     const muscleGroupsNormalized = muscleGroups
       .map((m) => normalizeMuscleName(m))
