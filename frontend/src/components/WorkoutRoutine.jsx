@@ -851,13 +851,25 @@ const ViewWorkoutModal = ({
                           .replace(/[\u0300-\u036f]/g, '')
                           .replaceAll(' ', '_');
 
-                      const serie =
-                        selectedWorkout.series?.[musculo] ||
-                        selectedWorkout.series?.[normalize(musculo)] ||
-                        Object.entries(selectedWorkout.series || {}).find(
-                          ([key]) => normalize(key) === normalize(musculo)
-                        )?.[1] ||
-                        '--';
+                      const findSerie = () => {
+                        const series = selectedWorkout.series || {};
+
+                        if (series[musculo]) return series[musculo];
+
+                        const normalizedMuscle = normalize(musculo);
+
+                        if (series[normalizedMuscle]) return series[normalizedMuscle];
+
+                        const found = Object.entries(series).find(
+                          ([key]) => normalize(key) === normalizedMuscle
+                        );
+
+                        if (found) return found[1];
+
+                        return null;
+                      };
+
+                      const serie = findSerie() || '--';
 
                       return (
                         <div
