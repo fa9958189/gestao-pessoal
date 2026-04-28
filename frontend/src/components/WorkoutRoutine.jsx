@@ -854,6 +854,7 @@ const ViewWorkoutModal = ({
                       const findSerie = () => {
                         const series = selectedWorkout.series || {};
 
+                        // 🔥 1. NOVO FORMATO (por músculo)
                         if (series[musculo]) return series[musculo];
 
                         const normalizedMuscle = normalize(musculo);
@@ -865,6 +866,22 @@ const ViewWorkoutModal = ({
                         );
 
                         if (found) return found[1];
+
+                        // 🔥 2. FORMATO ANTIGO (por index)
+                        if (Array.isArray(series)) {
+                          return series[index] || null;
+                        }
+
+                        // 🔥 3. FORMATO ANTIGO (objeto numérico)
+                        if (typeof series === 'object') {
+                          const numeric = series[index];
+                          if (numeric) return numeric;
+                        }
+
+                        // 🔥 4. FALLBACK ANTIGO (sua função)
+                        if (typeof getConfigForMuscle === 'function') {
+                          return getConfigForMuscle(musculo, index);
+                        }
 
                         return null;
                       };
