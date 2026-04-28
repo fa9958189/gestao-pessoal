@@ -337,7 +337,7 @@ const parseMuscleGroups = (value) => {
 
   let parsed = value;
 
-  // Se for string → tenta JSON
+  // Se for string → tenta converter
   if (typeof parsed === 'string') {
     try {
       parsed = JSON.parse(parsed);
@@ -349,18 +349,25 @@ const parseMuscleGroups = (value) => {
   // Se não for array → ignora
   if (!Array.isArray(parsed)) return [];
 
-  // 🔥 TRATAMENTO PRINCIPAL (o que faltava)
-  if (parsed.length === 1 && typeof parsed[0] === 'string' && parsed[0].includes(',')) {
+  // 🔥 CASO CRÍTICO: array com 1 string "suja"
+  if (
+    parsed.length === 1 &&
+    typeof parsed[0] === 'string' &&
+    parsed[0].includes(',')
+  ) {
     parsed = parsed[0].split(',');
   }
 
   return parsed
-    .map(item =>
+    .map((item) =>
       String(item)
         .replace(/[\[\]"']/g, '')
         .trim()
     )
-    .filter(Boolean);
+    .filter(Boolean)
+    .map((item) =>
+      item.charAt(0).toUpperCase() + item.slice(1).toLowerCase()
+    );
 };
 
 const normalizeObject = (value) => {
