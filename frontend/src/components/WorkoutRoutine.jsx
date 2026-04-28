@@ -337,7 +337,7 @@ const parseMuscleGroups = (value) => {
 
   let parsed = value;
 
-  // Se for string JSON
+  // Se for string → tenta JSON
   if (typeof parsed === 'string') {
     try {
       parsed = JSON.parse(parsed);
@@ -346,24 +346,21 @@ const parseMuscleGroups = (value) => {
     }
   }
 
+  // Se não for array → ignora
   if (!Array.isArray(parsed)) return [];
 
-  const normalizeMuscleLabel = (group) => {
-    const normalizedGroup = normalizeKey(group);
-    const muscle = MUSCLE_GROUPS.find(
-      (item) => normalizeKey(item.label) === normalizedGroup || normalizeKey(item.value) === normalizedGroup
-    );
-
-    return muscle?.label || group;
-  };
+  // 🔥 TRATAMENTO PRINCIPAL (o que faltava)
+  if (parsed.length === 1 && typeof parsed[0] === 'string' && parsed[0].includes(',')) {
+    parsed = parsed[0].split(',');
+  }
 
   return parsed
-    .flatMap((item) => String(item).split(','))
-    .map((item) => item
-      .replace(/[\[\]"]/g, '')
-      .trim())
-    .filter(Boolean)
-    .map((item) => normalizeMuscleLabel(item));
+    .map(item =>
+      String(item)
+        .replace(/[\[\]"']/g, '')
+        .trim()
+    )
+    .filter(Boolean);
 };
 
 const normalizeObject = (value) => {
