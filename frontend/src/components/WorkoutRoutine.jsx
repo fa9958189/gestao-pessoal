@@ -844,7 +844,20 @@ const ViewWorkoutModal = ({
                     </h4>
 
                     {lista.map((exercicio, index) => {
-                      const serie = selectedWorkout.series?.[musculo] || getConfigForMuscle(musculo, index) || '--';
+                      const normalize = (str) =>
+                        str
+                          .toLowerCase()
+                          .normalize('NFD')
+                          .replace(/[\u0300-\u036f]/g, '')
+                          .replaceAll(' ', '_');
+
+                      const serie =
+                        selectedWorkout.series?.[musculo] ||
+                        selectedWorkout.series?.[normalize(musculo)] ||
+                        Object.entries(selectedWorkout.series || {}).find(
+                          ([key]) => normalize(key) === normalize(musculo)
+                        )?.[1] ||
+                        '--';
 
                       return (
                         <div
@@ -852,14 +865,21 @@ const ViewWorkoutModal = ({
                           style={{
                             display: 'flex',
                             justifyContent: 'space-between',
-                            padding: '8px 12px',
-                            borderRadius: '8px',
-                            background: 'rgba(255,255,255,0.03)',
-                            marginBottom: '6px'
+                            alignItems: 'center',
+                            padding: '10px 14px',
+                            borderRadius: '10px',
+                            background: 'rgba(255,255,255,0.04)',
+                            marginBottom: '8px'
                           }}
                         >
                           <span>{exercicio}</span>
-                          <span style={{ color: '#00ff88', fontWeight: 'bold' }}>
+                          <span
+                            style={{
+                              color: '#00ff88',
+                              fontWeight: 'bold',
+                              fontSize: '14px'
+                            }}
+                          >
                             {serie}
                           </span>
                         </div>
