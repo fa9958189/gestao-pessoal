@@ -206,7 +206,7 @@ export default function Transacoes() {
             </div>
             </div>
           </div>
-        )}
+        </div>
 
         <hr />
 
@@ -220,14 +220,23 @@ export default function Transacoes() {
           {showAdvancedSearch ? 'Ocultar pesquisa avançada' : 'Pesquisa avançada'}
         </button>
 
-        {showAdvancedSearch && (
+        <div
+          style={{
+            maxHeight: showAdvancedSearch ? '500px' : '0px',
+            overflow: 'hidden',
+            transition: 'all 0.3s ease',
+            marginTop: showAdvancedSearch ? '10px' : '0px',
+          }}
+        >
           <div
             style={{
-              marginTop: '15px',
               padding: '15px',
-              borderRadius: '12px',
+              borderRadius: '10px',
               background: 'rgba(255,255,255,0.02)',
-              border: '1px solid rgba(255,255,255,0.08)',
+              border: '1px solid rgba(0,255,150,0.15)',
+              boxShadow: showAdvancedSearch
+                ? '0 0 10px rgba(0,255,150,0.08)'
+                : 'none'
             }}
           >
             <div
@@ -311,7 +320,7 @@ export default function Transacoes() {
               </button>
             </div>
           </div>
-        )}
+        </div>
 
         {transacoesFiltradas.length === 0 ? (
           <p>Nenhuma transação cadastrada.</p>
