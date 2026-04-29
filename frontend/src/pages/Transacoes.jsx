@@ -12,6 +12,11 @@ export default function Transacoes() {
   const [openTransacaoModal, setOpenTransacaoModal] = useState(false);
   const [step, setStep] = useState(1);
   const [tipoTransacao, setTipoTransacao] = useState(null);
+  const [showAdvancedSearch, setShowAdvancedSearch] = useState(false);
+  const [filterType, setFilterType] = useState('all');
+  const [filterCategory, setFilterCategory] = useState('');
+  const [filterFrom, setFilterFrom] = useState('');
+  const [filterTo, setFilterTo] = useState('');
 
   const totais = useMemo(() => {
     return transacoes.reduce(
@@ -61,6 +66,26 @@ export default function Transacoes() {
     await adicionarTransacao();
     setOpenTransacaoModal(false);
   }
+
+  const categories = useMemo(
+    () => [...new Set(transacoes.map((item) => item.categoria).filter(Boolean))],
+    [transacoes]
+  );
+
+  const transacoesFiltradas = useMemo(() => {
+    return transacoes.filter((item) => {
+      const matchesType =
+        filterType === 'all' ||
+        (filterType === 'income' && item.tipo === 'receita') ||
+        (filterType === 'expense' && item.tipo === 'despesa');
+
+      const matchesCategory = !filterCategory || item.categoria === filterCategory;
+      const matchesFrom = !filterFrom || item.data >= filterFrom;
+      const matchesTo = !filterTo || item.data <= filterTo;
+
+      return matchesType && matchesCategory && matchesFrom && matchesTo;
+    });
+  }, [transacoes, filterType, filterCategory, filterFrom, filterTo]);
 
   return (
     <div className="content-wrapper">
@@ -191,11 +216,108 @@ export default function Transacoes() {
         <p>Saldo: R$ {(totais.receitas - totais.despesas).toFixed(2)}</p>
 
         <h3>Lista</h3>
-        {transacoes.length === 0 ? (
+        <button className="btn-secondary" onClick={() => setShowAdvancedSearch((prev) => !prev)}>
+          {showAdvancedSearch ? 'Ocultar pesquisa avançada' : 'Pesquisa avançada'}
+        </button>
+
+        {showAdvancedSearch && (
+          <div
+            style={{
+              marginTop: '15px',
+              padding: '15px',
+              borderRadius: '12px',
+              background: 'rgba(255,255,255,0.02)',
+              border: '1px solid rgba(255,255,255,0.08)',
+            }}
+          >
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                gap: '12px',
+                alignItems: 'end',
+              }}
+            >
+              <div>
+                <label style={{ fontSize: '12px', opacity: 0.7 }}>Tipo</label>
+                <select
+                  className="input-dark"
+                  value={filterType}
+                  onChange={(e) => setFilterType(e.target.value)}
+                >
+                  <option value="all">Todos</option>
+                  <option value="income">Receitas</option>
+                  <option value="expense">Despesas</option>
+                </select>
+              </div>
+
+              <div>
+                <label style={{ fontSize: '12px', opacity: 0.7 }}>Categoria</label>
+                <select
+                  className="input-dark"
+                  value={filterCategory}
+                  onChange={(e) => setFilterCategory(e.target.value)}
+                >
+                  <option value="">Todas categorias</option>
+                  {categories.map((cat, i) => (
+                    <option key={i} value={cat}>{cat}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label style={{ fontSize: '12px', opacity: 0.7 }}>De</label>
+                <input
+                  type="date"
+                  className="input-dark"
+                  value={filterFrom}
+                  onChange={(e) => setFilterFrom(e.target.value)}
+                />
+              </div>
+
+              <div>
+                <label style={{ fontSize: '12px', opacity: 0.7 }}>Até</label>
+                <input
+                  type="date"
+                  className="input-dark"
+                  value={filterTo}
+                  onChange={(e) => setFilterTo(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div
+              style={{
+                marginTop: '15px',
+                display: 'flex',
+                justifyContent: 'flex-end',
+                gap: '10px',
+              }}
+            >
+              <button
+                className="btn-secondary"
+                onClick={() => {
+                  setFilterType('all');
+                  setFilterCategory('');
+                  setFilterFrom('');
+                  setFilterTo('');
+                }}
+              >
+                Limpar
+              </button>
+
+              <button className="btn-primary">
+                Aplicar filtro
+              </button>
+            </div>
+          </div>
+        )}
+
+        {transacoesFiltradas.length === 0 ? (
           <p>Nenhuma transação cadastrada.</p>
         ) : (
           <ul>
-            {transacoes.map((item) => (
+            {transacoesFiltradas.map((item) => (
               <li key={item.id}>
                 {item.data} · {item.tipo} · {item.categoria || "sem categoria"} · R${" "}
                 {Number(item.valor || 0).toFixed(2)}

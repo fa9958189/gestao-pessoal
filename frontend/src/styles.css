@@ -4024,3 +4024,17 @@ canvas{ background:transparent; }
 .success-text {
   color: #86efac;
 }
+
+.input-dark {
+  width: 100%;
+  padding: 8px;
+  border-radius: 8px;
+  background: #0f172a;
+  border: 1px solid rgba(255,255,255,0.1);
+  color: white;
+}
+
+.input-dark:focus {
+  outline: none;
+  border: 1px solid #22c55e;
+}
