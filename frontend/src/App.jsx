@@ -4073,22 +4073,38 @@ function AppMain() {
               {!wizardAberto && etapaTx === 'lista' && (
                 <>
                   <div className="card" style={{ padding: 14, marginTop: 14 }}>
-                    <button
-                      className="ghost"
-                      onClick={() => setTxAdvancedOpen((v) => !v)}
-                      style={{ width: '100%' }}
-                    >
-                      🔎 Abrir pesquisa avançada (De/Até)
-                    </button>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '10px' }}>
+                      <button
+                        onClick={() => setTxAdvancedOpen((v) => !v)}
+                        style={{
+                          background: 'transparent',
+                          border: '1px solid rgba(255,255,255,0.15)',
+                          color: 'white',
+                          padding: '6px 12px',
+                          borderRadius: '8px',
+                          cursor: 'pointer',
+                          fontSize: '13px',
+                          transition: 'all 0.2s ease'
+                        }}
+                      >
+                        {txAdvancedOpen ? 'Fechar pesquisa avançada' : '🔍 Abrir pesquisa avançada'}
+                      </button>
+                    </div>
 
-                    {txAdvancedOpen && (
+                    <div
+                      style={{
+                        maxHeight: txAdvancedOpen ? '500px' : '0px',
+                        overflow: 'hidden',
+                        transition: 'all 0.3s ease'
+                      }}
+                    >
                       <div className="row" style={{ gap: 12, marginTop: 10, flexWrap: 'wrap' }}>
                           <div style={{ flex: '1 1 180px' }}>
-                            <label>Tipo</label>
+                            <label style={{ fontSize: '12px', opacity: 0.6 }}>Tipo</label>
                             <select
                               value={txFilters.type}
                               onChange={(e) => setTxFilters({ ...txFilters, type: e.target.value })}
-                              style={{ width: '100%' }}
+                              style={{ width: '100%', marginTop: '4px' }}
                             >
                               <option value="">Todos</option>
                               <option value="income">Receitas</option>
@@ -4096,11 +4112,11 @@ function AppMain() {
                             </select>
                           </div>
                           <div style={{ flex: '2 1 260px' }}>
-                            <label>Categoria</label>
+                            <label style={{ fontSize: '12px', opacity: 0.6 }}>Categoria</label>
                             <select
                               value={txFilters.category}
                               onChange={(e) => setTxFilters({ ...txFilters, category: e.target.value })}
-                              style={{ width: '100%' }}
+                              style={{ width: '100%', marginTop: '4px' }}
                             >
                               <option value="">Todas categorias</option>
                               {txCategories.map((cat) => (
@@ -4111,25 +4127,25 @@ function AppMain() {
                             </select>
                           </div>
                           <div style={{ flex: '1 1 200px' }}>
-                            <label>De</label>
+                            <label style={{ fontSize: '12px', opacity: 0.6 }}>De</label>
                             <input
                               type="date"
                               value={txFilters.from}
                               onChange={(e) => setTxFilters({ ...txFilters, from: e.target.value })}
-                              style={{ width: '100%' }}
+                              style={{ width: '100%', marginTop: '4px' }}
                             />
                           </div>
                           <div style={{ flex: '1 1 200px' }}>
-                            <label>Até</label>
+                            <label style={{ fontSize: '12px', opacity: 0.6 }}>Até</label>
                             <input
                               type="date"
                               value={txFilters.to}
                               onChange={(e) => setTxFilters({ ...txFilters, to: e.target.value })}
-                              style={{ width: '100%' }}
+                              style={{ width: '100%', marginTop: '4px' }}
                             />
                           </div>
                       </div>
-                    )}
+                    </div>
                   </div>
 
                   <div className="sep"></div>
