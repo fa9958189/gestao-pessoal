@@ -866,7 +866,10 @@ const ViewWorkoutModal = ({
   const groups = parseMuscleGroups(
     selectedWorkout.muscle_groups ?? selectedWorkout.muscleGroups
   );
-  const selectedSports = selectedWorkout.sportsList || [];
+  const selectedSports =
+    selectedWorkout?.sportsActivities ||
+    selectedWorkout?.sports_activities ||
+    [];
   const groupedExercises = normalizeGroupedExercisesPayload(normalizeObject(selectedExercisesByGroup));
 
 
@@ -887,20 +890,21 @@ const ViewWorkoutModal = ({
           }}
         >
           {activities.map((item, index) => {
-            const normalized = getExercisesKey(item);
-            const imageKey = normalized === 'corrida_ao_ar_livre' ? 'corrida' : normalized;
+            const normalized = getExercisesKey(item)?.toLowerCase();
 
             const imageMap = {
               esteira: '/images/cardio/esteira.png',
               bicicleta: '/images/cardio/bicicleta.png',
               corrida: '/images/cardio/corrida.png',
-              escada: '/images/cardio/escada.png'
+              escada: '/images/cardio/escada.png',
+              boxe: '/images/cardio/boxe.png',
+              futebol: '/images/cardio/futebol.png'
             };
 
             return (
               <div key={index} style={{ textAlign: 'center' }}>
                 <img
-                  src={imageMap[imageKey]}
+                  src={imageMap[normalized]}
                   alt={item}
                   style={{
                     width: '120px',
@@ -1049,60 +1053,24 @@ const ViewWorkoutModal = ({
             )}
 
             <div className="field">
-              {selectedWorkout?.sportsActivities?.length > 0 ? (
-                renderSportsActivities(selectedWorkout.sportsActivities)
+              {selectedSports.length > 0 ? (
+                renderSportsActivities(selectedSports)
               ) : (
                 <>
-                  <label>Exercícios por músculo</label>
-                  {Object.keys(groupedExercises).length > 0 ? (
-                    Object.entries(groupedExercises).map(([musculo, lista]) => (
-                      <div key={musculo} style={{ marginBottom: '20px' }}>
-                        <h4 style={{ textTransform: 'capitalize', opacity: 0.7 }}>
-                          {musculo.replaceAll('_', ' ')}
-                        </h4>
-
-                        {lista.map((exercicio, index) => {
-                          const nomeExercicio =
-                            typeof exercicio === 'object'
-                              ? exercicio.nome || exercicio.name || exercicio.label || 'Exercício'
-                              : exercicio;
-
-                          const serieExercicio =
-                            typeof exercicio === 'object'
-                              ? exercicio.serie || exercicio.series || exercicio.repeticoes || getConfigForMuscle(musculo, index) || '--'
-                              : '--';
-
-                          return (
-                            <div
-                              key={index}
-                              style={{
-                                display: 'flex',
-                                justifyContent: 'space-between',
-                                alignItems: 'center',
-                                gap: '12px',
-                                padding: '10px 14px',
-                                borderRadius: '10px',
-                                background: 'rgba(255,255,255,0.04)',
-                                marginBottom: '8px'
-                              }}
-                            >
-                              <span>{nomeExercicio}</span>
-                              <span
-                                style={{
-                                  color: '#22c55e',
-                                  fontWeight: 700,
-                                  whiteSpace: 'nowrap'
-                                }}
-                              >
-                                {serieExercicio}
-                              </span>
-                            </div>
-                          );
-                        })}
+                  <h3>Exercícios por músculo</h3>
+                  {Object.keys(selectedWorkout.exercises_by_group || {}).length === 0 ? (
+                    <p>Nenhum exercício encontrado</p>
+                  ) : (
+                    Object.entries(selectedWorkout.exercises_by_group).map(([group, exercises]) => (
+                      <div key={group}>
+                        <h4>{group}</h4>
+                        {exercises.map((ex, i) => (
+                          <p key={i}>
+                            {ex.name} {ex.reps}
+                          </p>
+                        ))}
                       </div>
                     ))
-                  ) : (
-                    <p style={{ opacity: 0.6 }}>Nenhum exercício encontrado</p>
                   )}
                 </>
               )}
