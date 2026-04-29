@@ -869,6 +869,56 @@ const ViewWorkoutModal = ({
   const selectedSports = selectedWorkout.sportsList || [];
   const groupedExercises = normalizeGroupedExercisesPayload(normalizeObject(selectedExercisesByGroup));
 
+
+  const renderSportsActivities = (activities) => {
+    if (!activities || activities.length === 0) return null;
+
+    return (
+      <div style={{ marginTop: '20px', textAlign: 'center' }}>
+        <h3>Atividade</h3>
+
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'center',
+            gap: '20px',
+            flexWrap: 'wrap',
+            marginTop: '15px'
+          }}
+        >
+          {activities.map((item, index) => {
+            const normalized = getExercisesKey(item);
+            const imageKey = normalized === 'corrida_ao_ar_livre' ? 'corrida' : normalized;
+
+            const imageMap = {
+              esteira: '/images/cardio/esteira.png',
+              bicicleta: '/images/cardio/bicicleta.png',
+              corrida: '/images/cardio/corrida.png',
+              escada: '/images/cardio/escada.png'
+            };
+
+            return (
+              <div key={index} style={{ textAlign: 'center' }}>
+                <img
+                  src={imageMap[imageKey]}
+                  alt={item}
+                  style={{
+                    width: '120px',
+                    height: '120px',
+                    borderRadius: '50%',
+                    objectFit: 'cover',
+                    border: '2px solid #22c55e'
+                  }}
+                />
+                <p style={{ marginTop: '10px' }}>{item}</p>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div
       style={{
@@ -999,56 +1049,62 @@ const ViewWorkoutModal = ({
             )}
 
             <div className="field">
-              <label>Exercícios por músculo</label>
-              {Object.keys(groupedExercises).length > 0 ? (
-                Object.entries(groupedExercises).map(([musculo, lista]) => (
-                  <div key={musculo} style={{ marginBottom: '20px' }}>
-                    <h4 style={{ textTransform: 'capitalize', opacity: 0.7 }}>
-                      {musculo.replaceAll('_', ' ')}
-                    </h4>
-
-                    {lista.map((exercicio, index) => {
-                      const nomeExercicio =
-                        typeof exercicio === 'object'
-                          ? exercicio.nome || exercicio.name || exercicio.label || 'Exercício'
-                          : exercicio;
-
-                      const serieExercicio =
-                        typeof exercicio === 'object'
-                          ? exercicio.serie || exercicio.series || exercicio.repeticoes || getConfigForMuscle(musculo, index) || '--'
-                          : '--';
-
-                      return (
-                        <div
-                          key={index}
-                          style={{
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                            gap: '12px',
-                            padding: '10px 14px',
-                            borderRadius: '10px',
-                            background: 'rgba(255,255,255,0.04)',
-                            marginBottom: '8px'
-                          }}
-                        >
-                          <span>{nomeExercicio}</span>
-                          <span
-                            style={{
-                              color: '#22c55e',
-                              fontWeight: 700,
-                              whiteSpace: 'nowrap'
-                            }}
-                          >
-                            {serieExercicio}
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ))
+              {selectedWorkout?.sportsActivities?.length > 0 ? (
+                renderSportsActivities(selectedWorkout.sportsActivities)
               ) : (
-                <p style={{ opacity: 0.6 }}>Nenhum exercício encontrado</p>
+                <>
+                  <label>Exercícios por músculo</label>
+                  {Object.keys(groupedExercises).length > 0 ? (
+                    Object.entries(groupedExercises).map(([musculo, lista]) => (
+                      <div key={musculo} style={{ marginBottom: '20px' }}>
+                        <h4 style={{ textTransform: 'capitalize', opacity: 0.7 }}>
+                          {musculo.replaceAll('_', ' ')}
+                        </h4>
+
+                        {lista.map((exercicio, index) => {
+                          const nomeExercicio =
+                            typeof exercicio === 'object'
+                              ? exercicio.nome || exercicio.name || exercicio.label || 'Exercício'
+                              : exercicio;
+
+                          const serieExercicio =
+                            typeof exercicio === 'object'
+                              ? exercicio.serie || exercicio.series || exercicio.repeticoes || getConfigForMuscle(musculo, index) || '--'
+                              : '--';
+
+                          return (
+                            <div
+                              key={index}
+                              style={{
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                gap: '12px',
+                                padding: '10px 14px',
+                                borderRadius: '10px',
+                                background: 'rgba(255,255,255,0.04)',
+                                marginBottom: '8px'
+                              }}
+                            >
+                              <span>{nomeExercicio}</span>
+                              <span
+                                style={{
+                                  color: '#22c55e',
+                                  fontWeight: 700,
+                                  whiteSpace: 'nowrap'
+                                }}
+                              >
+                                {serieExercicio}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ))
+                  ) : (
+                    <p style={{ opacity: 0.6 }}>Nenhum exercício encontrado</p>
+                  )}
+                </>
               )}
             </div>
           </div>
