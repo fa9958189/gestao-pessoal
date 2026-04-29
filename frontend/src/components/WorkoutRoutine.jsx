@@ -878,9 +878,9 @@ const ViewWorkoutModal = ({
     if (!activities || activities.length === 0) return null;
 
     const sanitizedActivities = (activities || [])
-      .filter((item) => item && typeof item === 'string')
-      .map((item) => item.trim())
-      .filter(Boolean);
+      .filter((item) => typeof item === 'string') // garante string
+      .map((item) => item.trim()) // remove espaços
+      .filter((item) => item.length > 0); // remove vazio de verdade
 
     if (sanitizedActivities.length === 0) return null;
 
@@ -899,6 +899,8 @@ const ViewWorkoutModal = ({
         >
           {sanitizedActivities.map((item, index) => {
             const normalized = getExercisesKey(item)?.toLowerCase();
+
+            if (!normalized) return null; // 🔥 proteção extra
 
             return (
               <div key={index} style={{ textAlign: 'center' }}>
