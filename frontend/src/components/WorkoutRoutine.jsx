@@ -890,7 +890,11 @@ const ViewWorkoutModal = ({
             marginTop: '15px'
           }}
         >
-          {activities.filter(Boolean).map((item, index) => {
+          {activities
+            .filter((item) => item && typeof item === 'string')
+            .map((item) => item.trim())
+            .filter(Boolean)
+            .map((item, index) => {
             const normalized = getExercisesKey(item)?.toLowerCase();
 
             const imageMap = {
