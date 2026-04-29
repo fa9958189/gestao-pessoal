@@ -78,6 +78,13 @@ export default function Transacoes() {
     filterFrom !== '' ||
     filterTo !== '';
 
+  const activeFiltersCount = [
+    filterType !== 'all',
+    filterCategory !== '',
+    filterFrom !== '',
+    filterTo !== ''
+  ].filter(Boolean).length;
+
   const transacoesFiltradas = useMemo(() => {
     return transacoes.filter((item) => {
       const matchesType =
@@ -222,8 +229,29 @@ export default function Transacoes() {
         <p>Saldo: R$ {(totais.receitas - totais.despesas).toFixed(2)}</p>
 
         <h3>Lista</h3>
-        <button className="btn-secondary" onClick={() => setShowAdvancedSearch((prev) => !prev)}>
-          {showAdvancedSearch ? 'Ocultar pesquisa avançada' : 'Pesquisa avançada'}
+        <button
+          onClick={() => setShowAdvancedSearch(!showAdvancedSearch)}
+          style={{
+            background: 'transparent',
+            border: hasActiveFilters
+              ? '1px solid rgba(0,255,150,0.6)'
+              : '1px solid rgba(255,255,255,0.15)',
+            color: 'white',
+            padding: '6px 12px',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            fontSize: '13px',
+            transition: 'all 0.2s ease'
+          }}
+        >
+          {showAdvancedSearch
+            ? 'Fechar pesquisa avançada'
+            : `🔍 Abrir pesquisa avançada${
+                activeFiltersCount > 0
+                  ? ` (${activeFiltersCount} ativo${activeFiltersCount > 1 ? 's' : ''})`
+                  : ''
+              }`
+          }
         </button>
 
         <div
