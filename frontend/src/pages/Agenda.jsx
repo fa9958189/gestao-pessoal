@@ -19,6 +19,7 @@ export default function Agenda() {
   const [showCalendar, setShowCalendar] = useState(false);
   const [search, setSearch] = useState("");
   const [step, setStep] = useState(1);
+  const [errors, setErrors] = useState({});
 
   const fetchEvents = useCallback(async () => {
     const {
@@ -161,20 +162,32 @@ export default function Agenda() {
   }
 
   function handleContinueStep() {
-    if (step === 1 && !form.title.trim()) {
-      notify("Preencha o título antes de continuar", "warning");
-      return;
+    const newErrors = {};
+
+    if (step === 1) {
+      if (!form.title || !form.title.trim()) {
+        newErrors.title = true;
+        notify("Preencha o título antes de continuar", "warning");
+      }
     }
 
-    if (step === 2 && !form.date) {
-      notify("Preencha a data antes de continuar", "warning");
-      return;
+    if (step === 2) {
+      if (!form.date) {
+        newErrors.date = true;
+        notify("Selecione a data", "warning");
+      }
     }
 
-    if (step === 3 && !form.start) {
-      notify("Preencha o horário antes de continuar", "warning");
-      return;
+    if (step === 3) {
+      if (!form.start) {
+        newErrors.start = true;
+        notify("Informe o horário de início", "warning");
+      }
     }
+
+    setErrors(newErrors);
+
+    if (Object.keys(newErrors).length > 0) return;
 
     setStep((prev) => prev + 1);
   }
@@ -219,16 +232,16 @@ export default function Agenda() {
                 <input
                   type="text"
                   value={form.title}
-                  onChange={(e) => setForm((prev) => ({ ...prev, title: e.target.value }))}
+                  onChange={(e) => {
+                    setForm((prev) => ({ ...prev, title: e.target.value }));
+
+                    if (errors.title) {
+                      setErrors((prev) => ({ ...prev, title: false }));
+                    }
+                  }}
                   style={{
-                    border:
-                      step === 1 && (!form.title || !form.title.trim())
-                        ? "1px solid #ff4d4f"
-                        : "",
-                    boxShadow:
-                      step === 1 && (!form.title || !form.title.trim())
-                        ? "0 0 5px rgba(255,77,79,0.5)"
-                        : "",
+                    border: errors.title ? "1px solid #ff4d4f" : "",
+                    boxShadow: errors.title ? "0 0 5px rgba(255,77,79,0.5)" : "",
                     transition: "all 0.2s ease",
                   }}
                   autoFocus={step === 1}
