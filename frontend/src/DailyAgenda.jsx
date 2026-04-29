@@ -15,6 +15,7 @@ function DailyAgenda({ apiBaseUrl, notify, userId, refreshToken, getAccessToken 
   const [editingId, setEditingId] = useState(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [errors, setErrors] = useState({});
 
   const baseUrl = useMemo(() => apiBaseUrl?.replace(/\/$/, '') || '', [apiBaseUrl]);
 
@@ -74,10 +75,18 @@ function DailyAgenda({ apiBaseUrl, notify, userId, refreshToken, getAccessToken 
       return;
     }
 
-    if (!form.title || !form.reminder_time) {
+    const nextErrors = {
+      title: !form.title?.trim(),
+      reminder_time: !form.reminder_time,
+    };
+
+    if (nextErrors.title || nextErrors.reminder_time) {
+      setErrors(nextErrors);
       notify?.('Preencha título e horário.', 'warning');
       return;
     }
+
+    setErrors({});
 
     try {
       setSaving(true);
@@ -114,6 +123,7 @@ function DailyAgenda({ apiBaseUrl, notify, userId, refreshToken, getAccessToken 
       notify?.(editingId ? 'Lembrete atualizado.' : 'Lembrete criado.', 'success');
       setForm(defaultForm);
       setEditingId(null);
+      setErrors({});
       await fetchReminders();
     } catch (err) {
       console.warn('Erro ao salvar lembrete diário', err);
@@ -125,6 +135,7 @@ function DailyAgenda({ apiBaseUrl, notify, userId, refreshToken, getAccessToken 
 
   const handleEdit = (reminder) => {
     setEditingId(reminder.id);
+    setErrors({});
     setForm({
       title: reminder.title || '',
       reminder_time: reminder.reminder_time || reminder.time || '',
@@ -200,13 +211,32 @@ function DailyAgenda({ apiBaseUrl, notify, userId, refreshToken, getAccessToken 
         </div>
 
         <div className="grid grid-2" style={{ marginTop: 12 }}>
-          <div>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
             <label>Título</label>
             <input
               value={form.title}
-              onChange={(e) => setForm({ ...form, title: e.target.value })}
+              onChange={(e) => {
+                const value = e.target.value;
+                setForm({ ...form, title: value });
+                if (errors.title && value.trim()) {
+                  setErrors((prev) => ({ ...prev, title: false }));
+                }
+              }}
               placeholder="Lembrete do dia"
+              style={errors.title ? { borderColor: '#ff4d4f' } : undefined}
             />
+            {errors.title && (
+              <span
+                style={{
+                  color: '#ff4d4f',
+                  fontSize: '12px',
+                  marginTop: '6px',
+                  display: 'block',
+                }}
+              >
+                Preencha o título corretamente
+              </span>
+            )}
           </div>
           <div>
             <label>Horário</label>
