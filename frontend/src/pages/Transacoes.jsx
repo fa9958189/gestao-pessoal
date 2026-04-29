@@ -348,12 +348,11 @@ export default function Transacoes() {
                 gap: '10px',
               }}
             >
-              <button
-                className="btn-secondary"
-                onClick={clearFilters}
-              >
-                Limpar
-              </button>
+              {hasActiveFilters && (
+                <button className="btn-secondary" onClick={clearFilters}>
+                  Limpar filtros
+                </button>
+              )}
 
             </div>
           </div>
