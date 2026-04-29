@@ -866,10 +866,11 @@ const ViewWorkoutModal = ({
   const groups = parseMuscleGroups(
     selectedWorkout.muscle_groups ?? selectedWorkout.muscleGroups
   );
-  const selectedSports =
-    selectedWorkout?.sportsActivities ||
-    selectedWorkout?.sports_activities ||
-    [];
+  const selectedSports = Array.isArray(selectedWorkout?.sportsActivities)
+    ? selectedWorkout.sportsActivities
+    : Array.isArray(selectedWorkout?.sports_activities)
+    ? selectedWorkout.sports_activities
+    : [];
   const groupedExercises = normalizeGroupedExercisesPayload(normalizeObject(selectedExercisesByGroup));
 
 
@@ -889,7 +890,7 @@ const ViewWorkoutModal = ({
             marginTop: '15px'
           }}
         >
-          {activities.map((item, index) => {
+          {activities.filter(Boolean).map((item, index) => {
             const normalized = getExercisesKey(item)?.toLowerCase();
 
             const imageMap = {
