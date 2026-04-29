@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { supabase } from "../supabaseClient";
+import { notify } from "../utils/notify";
 
 export default function Agenda() {
   const hoje = new Date().toISOString().split("T")[0];
@@ -70,7 +71,7 @@ export default function Agenda() {
 
   const salvarEvento = async () => {
     if (!user?.id) {
-      alert("Usuário não autenticado");
+      notify("Usuário não autenticado", "warning");
       return;
     }
 
@@ -93,7 +94,7 @@ export default function Agenda() {
 
       if (error) {
         console.error("Erro ao salvar evento:", error);
-        alert("Erro ao salvar evento");
+        notify("Erro ao salvar evento", "warning");
         return;
       }
 
@@ -147,7 +148,7 @@ export default function Agenda() {
       await fetchEvents();
     } catch (err) {
       console.error("Erro ao excluir evento:", err);
-      alert("Não foi possível excluir o evento.");
+      notify("Não foi possível excluir o evento.", "warning");
     }
   };
 
@@ -161,17 +162,17 @@ export default function Agenda() {
 
   function handleContinueStep() {
     if (step === 1 && !form.title.trim()) {
-      alert("Preencha o título antes de continuar");
+      notify("Preencha o título antes de continuar", "warning");
       return;
     }
 
     if (step === 2 && !form.date) {
-      alert("Preencha a data antes de continuar");
+      notify("Preencha a data antes de continuar", "warning");
       return;
     }
 
     if (step === 3 && !form.start) {
-      alert("Preencha o horário antes de continuar");
+      notify("Preencha o horário antes de continuar", "warning");
       return;
     }
 
@@ -219,6 +220,18 @@ export default function Agenda() {
                   type="text"
                   value={form.title}
                   onChange={(e) => setForm((prev) => ({ ...prev, title: e.target.value }))}
+                  style={{
+                    border:
+                      step === 1 && (!form.title || !form.title.trim())
+                        ? "1px solid #ff4d4f"
+                        : "",
+                    boxShadow:
+                      step === 1 && (!form.title || !form.title.trim())
+                        ? "0 0 5px rgba(255,77,79,0.5)"
+                        : "",
+                    transition: "all 0.2s ease",
+                  }}
+                  autoFocus={step === 1}
                   placeholder="Reunião, médico..."
                 />
               </div>
