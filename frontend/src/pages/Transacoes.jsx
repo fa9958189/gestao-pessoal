@@ -72,6 +72,12 @@ export default function Transacoes() {
     [transacoes]
   );
 
+  const hasActiveFilters =
+    filterType !== 'all' ||
+    filterCategory !== '' ||
+    filterFrom !== '' ||
+    filterTo !== '';
+
   const transacoesFiltradas = useMemo(() => {
     return transacoes.filter((item) => {
       const matchesType =
@@ -233,9 +239,13 @@ export default function Transacoes() {
               padding: '15px',
               borderRadius: '10px',
               background: 'rgba(255,255,255,0.02)',
-              border: '1px solid rgba(0,255,150,0.15)',
+              border: hasActiveFilters
+                ? '1px solid rgba(0,255,150,0.6)'
+                : '1px solid rgba(0,255,150,0.15)',
               boxShadow: showAdvancedSearch
-                ? '0 0 10px rgba(0,255,150,0.08)'
+                ? hasActiveFilters
+                  ? '0 0 15px rgba(0,255,150,0.25)'
+                  : '0 0 10px rgba(0,255,150,0.08)'
                 : 'none'
             }}
           >
