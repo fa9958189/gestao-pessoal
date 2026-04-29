@@ -1186,7 +1186,7 @@ const WorkoutRoutine = ({
   const [transferWorkoutModalOpen, setTransferWorkoutModalOpen] = useState(false);
   const [workoutToTransfer, setWorkoutToTransfer] = useState(null);
   const [transferUserSearch, setTransferUserSearch] = useState('');
-  const [selectedTransferUser, setSelectedTransferUser] = useState(null);
+  const [selectedUser, setSelectedUser] = useState(null);
   const [transferringWorkout, setTransferringWorkout] = useState(false);
   const [affiliateTransferUsers, setAffiliateTransferUsers] = useState([]);
 
@@ -1554,20 +1554,20 @@ const WorkoutRoutine = ({
     setWorkoutToTransfer(workout);
     setTransferWorkoutModalOpen(true);
     setTransferUserSearch('');
-    setSelectedTransferUser(null);
+    setSelectedUser(null);
     await fetchAffiliateTransferUsers();
   }
 
   const closeTransferWorkoutModal = () => {
     setTransferWorkoutModalOpen(false);
     setWorkoutToTransfer(null);
-    setSelectedTransferUser(null);
+    setSelectedUser(null);
     setTransferUserSearch('');
   };
 
   async function handleTransferWorkout() {
     const selectedWorkoutId = workoutToTransfer?.id;
-    const selectedUserId = selectedTransferUser?.id;
+    const selectedUserId = selectedUser?.id;
 
     console.log('WORKOUT ID:', selectedWorkoutId);
     console.log('USER ID:', selectedUserId);
@@ -3577,9 +3577,16 @@ const WorkoutRoutine = ({
               {filteredTransferUsers.map((user) => (
                 <div
                   key={user.id}
-                  className="card-padrao"
+                  className="user-card"
                   style={{
-                    border: selectedTransferUser?.id === user.id ? '1px solid #50be78' : '1px solid #2f2f2f',
+                    border:
+                      selectedUser?.id === user.id
+                        ? '1px solid #22c55e'
+                        : '1px solid rgba(255,255,255,0.1)',
+                    background:
+                      selectedUser?.id === user.id
+                        ? 'rgba(34,197,94,0.1)'
+                        : 'transparent',
                     padding: 10,
                     borderRadius: 10,
                   }}
@@ -3590,18 +3597,23 @@ const WorkoutRoutine = ({
                   <button
                     type="button"
                     className="ghost btn-acao"
-                    style={{ marginTop: 8 }}
-                    onClick={() => setSelectedTransferUser(user)}
+                    onClick={() => setSelectedUser(user)}
+                    style={{
+                      marginTop: 8,
+                      background: selectedUser?.id === user.id ? '#22c55e' : 'transparent',
+                      color: selectedUser?.id === user.id ? '#fff' : '#ccc',
+                      border: '1px solid #22c55e',
+                    }}
                   >
-                    Selecionar
+                    {selectedUser?.id === user.id ? 'Selecionado' : 'Selecionar'}
                   </button>
                 </div>
               ))}
             </div>
 
-            {selectedTransferUser && (
+            {selectedUser && (
               <p style={{ marginTop: 12 }}>
-                Você vai transferir uma cópia do treino "{workoutToTransfer?.name || '-'}" para "{selectedTransferUser?.name || '-'}".
+                Você vai transferir uma cópia do treino "{workoutToTransfer?.name || '-'}" para "{selectedUser?.name || '-'}".
               </p>
             )}
 
@@ -3613,7 +3625,11 @@ const WorkoutRoutine = ({
                 type="button"
                 className="primary"
                 onClick={handleTransferWorkout}
-                disabled={transferringWorkout || !selectedTransferUser?.id}
+                disabled={transferringWorkout || !selectedUser}
+                style={{
+                  opacity: !selectedUser ? 0.5 : 1,
+                  cursor: !selectedUser ? 'not-allowed' : 'pointer',
+                }}
               >
                 {transferringWorkout ? 'Transferindo...' : 'Confirmar transferência'}
               </button>
