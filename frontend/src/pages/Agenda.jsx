@@ -151,6 +151,33 @@ export default function Agenda() {
     }
   };
 
+  function handleCloseWizardModal() {
+    setShowWizard(false);
+  }
+
+  function handleCloseCalendarModal() {
+    setShowCalendar(false);
+  }
+
+  function handleContinueStep() {
+    if (step === 1 && !form.title.trim()) {
+      alert("Preencha o título antes de continuar");
+      return;
+    }
+
+    if (step === 2 && !form.date) {
+      alert("Preencha a data antes de continuar");
+      return;
+    }
+
+    if (step === 3 && !form.start) {
+      alert("Preencha o horário antes de continuar");
+      return;
+    }
+
+    setStep((prev) => prev + 1);
+  }
+
   function limpar() {
     setForm({
       title: "",
@@ -172,8 +199,8 @@ export default function Agenda() {
       </div>
 
       {showWizard && (
-        <div className="modal-overlay">
-          <div className="report-modal">
+        <div className="modal-overlay" onClick={handleCloseWizardModal}>
+          <div className="report-modal" onClick={(e) => e.stopPropagation()}>
             <h2>Cadastrar evento</h2>
 
             <div className="wizard-progress">Passo {step} de 4</div>
@@ -240,7 +267,7 @@ export default function Agenda() {
             <div className="wizard-actions">
               {step > 1 && <button className="btn-ui" onClick={() => setStep(step - 1)}>← Voltar</button>}
 
-              {step < 4 && <button className="btn-ui" onClick={() => setStep(step + 1)}>Continuar →</button>}
+              {step < 4 && <button className="btn-ui" onClick={handleContinueStep}>Continuar →</button>}
 
               {step === 4 && (
                 <button className="btn-primary" onClick={salvarEvento}>
@@ -248,7 +275,7 @@ export default function Agenda() {
                 </button>
               )}
 
-              <button className="btn-ui" onClick={() => setShowWizard(false)}>Cancelar</button>
+              <button className="btn-ui" onClick={handleCloseWizardModal}>Cancelar</button>
 
               <button className="btn-ui" onClick={limpar}>Limpar</button>
             </div>
@@ -304,8 +331,8 @@ export default function Agenda() {
       </div>
 
       {showCalendar && (
-        <div className="modal-overlay">
-          <div className="report-modal">
+        <div className="modal-overlay" onClick={handleCloseCalendarModal}>
+          <div className="report-modal" onClick={(e) => e.stopPropagation()}>
             <h2>📆 Histórico de Eventos</h2>
 
             <input
@@ -350,7 +377,7 @@ export default function Agenda() {
               </div>
             )}
 
-            <button className="btn-secondary btn-ui" onClick={() => setShowCalendar(false)}>
+            <button className="btn-secondary btn-ui" onClick={handleCloseCalendarModal}>
               Fechar
             </button>
           </div>
