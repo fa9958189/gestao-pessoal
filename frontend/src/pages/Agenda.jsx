@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "../supabaseClient";
 import { notify } from "../utils/notify";
 
@@ -20,6 +20,7 @@ export default function Agenda() {
   const [search, setSearch] = useState("");
   const [step, setStep] = useState(1);
   const [errors, setErrors] = useState({});
+  const titleRef = useRef(null);
 
   const fetchEvents = useCallback(async () => {
     const {
@@ -168,6 +169,10 @@ export default function Agenda() {
       if (!form.title || !form.title.trim()) {
         newErrors.title = true;
         notify("Preencha o título antes de continuar", "warning");
+
+        setTimeout(() => {
+          titleRef.current?.focus();
+        }, 100);
       }
     }
 
@@ -231,6 +236,7 @@ export default function Agenda() {
                 <label>Título</label>
                 <input
                   type="text"
+                  ref={titleRef}
                   value={form.title}
                   onChange={(e) => {
                     setForm((prev) => ({ ...prev, title: e.target.value }));
