@@ -355,9 +355,6 @@ export default function Transacoes() {
                 Limpar
               </button>
 
-              <button className="btn-primary">
-                Aplicar filtro
-              </button>
             </div>
           </div>
 
