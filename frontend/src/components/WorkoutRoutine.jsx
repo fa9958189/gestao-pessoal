@@ -1558,26 +1558,25 @@ const WorkoutRoutine = ({
     await fetchAffiliateTransferUsers();
   }
 
-  const closeTransferWorkoutModal = () => {
+  const handleCloseTransferModal = () => {
+    setSelectedUser(null);
     setTransferWorkoutModalOpen(false);
     setWorkoutToTransfer(null);
-    setSelectedUser(null);
     setTransferUserSearch('');
   };
 
   async function handleTransferWorkout() {
     const selectedWorkoutId = workoutToTransfer?.id;
-    const selectedUserId = selectedUser?.id;
 
     console.log('WORKOUT ID:', selectedWorkoutId);
-    console.log('USER ID:', selectedUserId);
+    console.log('USER ID:', selectedUser?.id);
 
     if (!selectedWorkoutId) {
       alert('Erro: treino sem ID');
       return;
     }
 
-    if (!selectedUserId) {
+    if (!selectedUser) {
       notify('Selecione um usuário para receber o treino.', 'danger');
       return;
     }
@@ -1589,7 +1588,7 @@ const WorkoutRoutine = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           workoutId: selectedWorkoutId,
-          targetUserId: selectedUserId
+          targetUserId: selectedUser.id
         })
       });
 
@@ -1617,7 +1616,7 @@ const WorkoutRoutine = ({
       notify('Treino transferido com sucesso.', 'success');
       alert('Treino transferido com sucesso!');
       await loadRoutines();
-      closeTransferWorkoutModal();
+      handleCloseTransferModal();
     } catch (error) {
       console.error('Erro ao transferir treino:', error);
       notify(error.message || 'Não foi possível transferir o treino.', 'danger');
@@ -3554,7 +3553,7 @@ const WorkoutRoutine = ({
         sportsMap={sportsMap}
       />
       {transferWorkoutModalOpen && (
-        <div className="modal-overlay" onClick={closeTransferWorkoutModal}>
+        <div className="modal-overlay" onClick={handleCloseTransferModal}>
           <div className="report-modal" onClick={(event) => event.stopPropagation()}>
             <h2>Transferir treino</h2>
             <p>Escolha um usuário supervisionado para receber uma cópia deste treino.</p>
@@ -3578,7 +3577,9 @@ const WorkoutRoutine = ({
                 <div
                   key={user.id}
                   className="user-card"
+                  onClick={() => setSelectedUser(user)}
                   style={{
+                    cursor: 'pointer',
                     border:
                       selectedUser?.id === user.id
                         ? '1px solid #22c55e'
@@ -3591,13 +3592,21 @@ const WorkoutRoutine = ({
                     borderRadius: 10,
                   }}
                 >
-                  <strong>{user.name || 'Usuário sem nome'}</strong>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <strong>{user.name || 'Usuário sem nome'}</strong>
+                    {selectedUser?.id === user.id && (
+                      <span style={{ color: '#22c55e' }}>✔</span>
+                    )}
+                  </div>
                   <div className="muted">{user.email || user.username || '-'}</div>
                   <div className="muted">WhatsApp: {user.whatsapp || '-'}</div>
                   <button
                     type="button"
                     className="ghost btn-acao"
-                    onClick={() => setSelectedUser(user)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedUser(user);
+                    }}
                     style={{
                       marginTop: 8,
                       background: selectedUser?.id === user.id ? '#22c55e' : 'transparent',
@@ -3618,7 +3627,7 @@ const WorkoutRoutine = ({
             )}
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
-              <button type="button" className="ghost" onClick={closeTransferWorkoutModal} disabled={transferringWorkout}>
+              <button type="button" className="ghost" onClick={handleCloseTransferModal} disabled={transferringWorkout}>
                 Cancelar
               </button>
               <button
