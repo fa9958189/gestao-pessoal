@@ -85,6 +85,13 @@ export default function Transacoes() {
     filterTo !== ''
   ].filter(Boolean).length;
 
+  function clearFilters() {
+    setFilterType('all');
+    setFilterCategory('');
+    setFilterFrom('');
+    setFilterTo('');
+  }
+
   const transacoesFiltradas = useMemo(() => {
     return transacoes.filter((item) => {
       const matchesType =
@@ -343,12 +350,7 @@ export default function Transacoes() {
             >
               <button
                 className="btn-secondary"
-                onClick={() => {
-                  setFilterType('all');
-                  setFilterCategory('');
-                  setFilterFrom('');
-                  setFilterTo('');
-                }}
+                onClick={clearFilters}
               >
                 Limpar
               </button>
@@ -358,6 +360,26 @@ export default function Transacoes() {
               </button>
             </div>
           </div>
+
+
+            {hasActiveFilters && (
+              <div style={{ marginTop: '15px', textAlign: 'right' }}>
+                <button
+                  onClick={clearFilters}
+                  style={{
+                    background: 'transparent',
+                    border: '1px solid rgba(255,80,80,0.5)',
+                    color: '#ff8080',
+                    padding: '6px 12px',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    fontSize: '13px'
+                  }}
+                >
+                  Limpar filtros
+                </button>
+              </div>
+            )}
         </div>
 
         {transacoesFiltradas.length === 0 ? (
