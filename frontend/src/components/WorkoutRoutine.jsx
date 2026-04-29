@@ -1458,15 +1458,18 @@ const WorkoutRoutine = ({
   }, [currentUserRole, currentUserIsAffiliate]);
   const filteredTransferUsers = useMemo(() => {
     const normalizedSearch = String(transferUserSearch || '').trim().toLowerCase();
-    if (!normalizedSearch) return affiliateTransferUsers;
 
-    return (affiliateTransferUsers || []).filter((user) => {
-      const searchableText = [user?.name, user?.email, user?.username, user?.whatsapp]
-        .map((value) => String(value || '').toLowerCase())
-        .join(' ');
-      return searchableText.includes(normalizedSearch);
-    });
-  }, [affiliateTransferUsers, transferUserSearch]);
+    return (affiliateTransferUsers || [])
+      .filter((user) => user?.id !== userId)
+      .filter((user) => {
+        if (!normalizedSearch) return true;
+
+        const searchableText = [user?.name, user?.email, user?.username, user?.whatsapp]
+          .map((value) => String(value || '').toLowerCase())
+          .join(' ');
+        return searchableText.includes(normalizedSearch);
+      });
+  }, [affiliateTransferUsers, transferUserSearch, userId]);
 
   const nextWorkout = useMemo(() => {
     const normalizedSchedule = Array.isArray(schedule) ? schedule : [];
@@ -3567,7 +3570,7 @@ const WorkoutRoutine = ({
               style={{ marginTop: 12, marginBottom: 12 }}
             />
 
-            <div style={{ maxHeight: 280, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div className="users-list" style={{ maxHeight: '400px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
               {!filteredTransferUsers.length && (
                 <div className="muted">Nenhum usuário supervisionado encontrado.</div>
               )}
