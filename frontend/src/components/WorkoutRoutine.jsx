@@ -877,6 +877,13 @@ const ViewWorkoutModal = ({
   const renderSportsActivities = (activities) => {
     if (!activities || activities.length === 0) return null;
 
+    const sanitizedActivities = (activities || [])
+      .filter((item) => item && typeof item === 'string')
+      .map((item) => item.trim())
+      .filter(Boolean);
+
+    if (sanitizedActivities.length === 0) return null;
+
     return (
       <div style={{ marginTop: '20px', textAlign: 'center' }}>
         <h3>Atividade</h3>
@@ -887,39 +894,26 @@ const ViewWorkoutModal = ({
             justifyContent: 'center',
             gap: '20px',
             flexWrap: 'wrap',
-            marginTop: '15px'
+            marginTop: '15px',
           }}
         >
-          {activities
-            .filter((item) => item && typeof item === 'string')
-            .map((item) => item.trim())
-            .filter(Boolean)
-            .map((item, index) => {
+          {sanitizedActivities.map((item, index) => {
             const normalized = getExercisesKey(item)?.toLowerCase();
-
-            const imageMap = {
-              esteira: '/images/cardio/esteira.png',
-              bicicleta: '/images/cardio/bicicleta.png',
-              corrida: '/images/cardio/corrida.png',
-              escada: '/images/cardio/escada.png',
-              boxe: '/images/cardio/boxe.png',
-              futebol: '/images/cardio/futebol.png'
-            };
 
             return (
               <div key={index} style={{ textAlign: 'center' }}>
                 <img
-                  src={imageMap[normalized]}
+                  src={`/images/exercises/${normalized}.png`}
                   alt={item}
                   style={{
-                    width: '120px',
-                    height: '120px',
+                    width: '80px',
+                    height: '80px',
                     borderRadius: '50%',
                     objectFit: 'cover',
-                    border: '2px solid #22c55e'
+                    border: '2px solid #22c55e',
                   }}
                 />
-                <p style={{ marginTop: '10px' }}>{item}</p>
+                <p style={{ marginTop: '8px' }}>{item}</p>
               </div>
             );
           })}
