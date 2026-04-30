@@ -66,6 +66,17 @@ body{
 a{ color:var(--link); text-decoration:none; }
 a:hover{ text-decoration:underline; }
 
+.input-error {
+  border: 1px solid #ff4d4f !important;
+  box-shadow: 0 0 5px rgba(255, 77, 79, 0.5);
+}
+
+.input-error-text {
+  color: #ff4d4f;
+  font-size: 12px;
+  margin-top: 5px;
+}
+
 /* Sidebar responsiva */
 .sidebar{
   position:fixed;
