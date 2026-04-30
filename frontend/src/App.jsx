@@ -96,6 +96,10 @@ const defaultEditUserForm = {
   plan_type: '',
 };
 
+function isValidPassword(password) {
+  return /^\d{4,6}$/.test(password);
+}
+
 const normalizeBaseUrl = (value) => {
   if (!value) return '';
   return String(value).trim().replace(/\/+$/, '');
@@ -2119,6 +2123,8 @@ function AppMain() {
   const [openUserModal, setOpenUserModal] = useState(false);
   const [step, setStep] = useState(1);
   const [editUserStep, setEditUserStep] = useState(1);
+  const [userWizardErrors, setUserWizardErrors] = useState({});
+  const [editUserErrors, setEditUserErrors] = useState({});
   const [editingUserId, setEditingUserId] = useState(null);
   const [editingUserOriginal, setEditingUserOriginal] = useState(null);
   const [bodyModalUser, setBodyModalUser] = useState(null);
@@ -3263,7 +3269,12 @@ function AppMain() {
       return;
     }
     try {
-      const hasPassword = typeof userForm.password === 'string' && userForm.password.trim().length >= 4;
+      const hasPassword = typeof userForm.password === 'string' && userForm.password.trim().length > 0;
+      if (hasPassword && !isValidPassword(userForm.password.trim())) {
+        pushToast('A senha deve conter apenas números e ter entre 4 e 6 dígitos', 'warning');
+        setUserWizardErrors((prev) => ({ ...prev, password: true }));
+        return;
+      }
 
       if (editingUserId) {
         const { data: sessionData } = await client.auth.getSession();
@@ -3518,39 +3529,81 @@ function AppMain() {
   };
 
   const handleEditUserContinue = () => {
+    const newErrors = {};
     if (editUserStep === 1) {
-      if (!editUserForm.name?.trim() || !editUserForm.email?.trim()) {
-        pushToast('Preencha nome e email para continuar.', 'warning');
-        return;
-      }
-      setEditUserStep(2);
+      if (!editUserForm.name?.trim() && !editingUserOriginal?.name) newErrors.name = true;
+      if (!editUserForm.email?.trim() && !(editingUserOriginal?.email || editingUserOriginal?.username)) newErrors.email = true;
+    }
+    if (editUserStep === 2) {
+      if (!editUserForm.whatsapp?.trim() && !editingUserOriginal?.whatsapp) newErrors.whatsapp = true;
+      if (isAdmin && !editUserForm.affiliate_id && !editingUserOriginal?.affiliate_id) newErrors.affiliate_id = true;
+      if (isAdmin && !editUserForm.plan_type && !editingUserOriginal?.plan_type) newErrors.plan_type = true;
+    }
+    if (Object.keys(newErrors).length > 0) {
+      setEditUserErrors(newErrors);
+      pushToast('Preencha os campos obrigatórios para continuar', 'warning');
       return;
     }
-
-    if (!editUserForm.whatsapp?.trim()) {
-      pushToast('Preencha o WhatsApp para continuar.', 'warning');
-      return;
-    }
-
-    if (isAdmin && !editUserForm.affiliate_id) {
-      pushToast('Selecione um afiliado para continuar.', 'warning');
-      return;
-    }
-
-    if (isAdmin && !editUserForm.plan_type) {
-      pushToast('Selecione um plano para continuar.', 'warning');
-      return;
-    }
-
-    setEditUserStep(3);
+    setEditUserErrors({});
+    setEditUserStep((prev) => prev + 1);
   };
 
   const handleSaveEditedUser = async () => {
+    if (newPassword && !isValidPassword(newPassword)) {
+      pushToast('A senha deve conter apenas números e ter entre 4 e 6 dígitos', 'warning');
+      setEditUserErrors((prev) => ({ ...prev, password: true }));
+      return;
+    }
     if (newPassword && newPassword !== confirmPassword) {
       pushToast('As senhas não conferem.', 'warning');
       return;
     }
     await updateUser();
+  };
+
+  const handleUserWizardContinue = () => {
+    const newErrors = {};
+    if (step === 1) {
+      if (!userForm.name?.trim()) newErrors.name = true;
+      if (!userForm.username?.trim()) newErrors.email = true;
+    }
+    if (step === 2) {
+      if (!userForm.whatsapp?.trim()) newErrors.whatsapp = true;
+    }
+    if (Object.keys(newErrors).length > 0) {
+      setUserWizardErrors(newErrors);
+      pushToast('Preencha os campos obrigatórios para continuar', 'warning');
+      return;
+    }
+    setUserWizardErrors({});
+    setStep((prev) => prev + 1);
+  };
+
+  const handleBodyModalContinue = () => {
+    if (bodyModalStep !== 1) return;
+    if (!bodyDraft.sex && !bodyModalUser?.sex && !bodyModalUser?.bodyData?.sex) {
+      pushToast('Preencha os campos obrigatórios para continuar', 'warning');
+      return;
+    }
+    setBodyModalStep(2);
+  };
+
+  const handleDailyWeightContinue = () => {
+    if (dailyWeightStep !== 1) return;
+    if (!dailyWeightDraft.recorded_at && !today) {
+      pushToast('Preencha os campos obrigatórios para continuar', 'warning');
+      return;
+    }
+    setDailyWeightStep(2);
+  };
+
+  const handleGoalsModalContinue = () => {
+    if (goalsModalStep !== 1) return;
+    if (!goalsDraft.objective && !goalsModalUser?.objective && !goalsModalUser?.foodProfile?.objective) {
+      pushToast('Preencha os campos obrigatórios para continuar', 'warning');
+      return;
+    }
+    setGoalsModalStep(2);
   };
 
   const handleDeleteUser = async (user) => {
@@ -4412,15 +4465,23 @@ function AppMain() {
                       <h3>Dados básicos</h3>
                       <label>Nome</label>
                       <input
+                        className={editUserErrors.name ? 'input-error' : ''}
                         value={editUserForm.name}
-                        onChange={(e) => setEditUserForm((prev) => ({ ...prev, name: e.target.value }))}
+                        onChange={(e) => {
+                          setEditUserForm((prev) => ({ ...prev, name: e.target.value }));
+                          setEditUserErrors((prev) => ({ ...prev, name: false }));
+                        }}
                         placeholder="Nome"
                       />
 
                       <label>Email</label>
                       <input
+                        className={editUserErrors.email ? 'input-error' : ''}
                         value={editUserForm.email}
-                        onChange={(e) => setEditUserForm((prev) => ({ ...prev, email: e.target.value }))}
+                        onChange={(e) => {
+                          setEditUserForm((prev) => ({ ...prev, email: e.target.value }));
+                          setEditUserErrors((prev) => ({ ...prev, email: false }));
+                        }}
                         placeholder="Email"
                       />
                     </div>
@@ -4431,8 +4492,12 @@ function AppMain() {
                       <h3>Contato e vínculo</h3>
                       <label>WhatsApp</label>
                       <input
+                        className={editUserErrors.whatsapp ? 'input-error' : ''}
                         value={editUserForm.whatsapp}
-                        onChange={(e) => setEditUserForm((prev) => ({ ...prev, whatsapp: e.target.value }))}
+                        onChange={(e) => {
+                          setEditUserForm((prev) => ({ ...prev, whatsapp: e.target.value }));
+                          setEditUserErrors((prev) => ({ ...prev, whatsapp: false }));
+                        }}
                         placeholder="WhatsApp"
                       />
 
@@ -4477,10 +4542,17 @@ function AppMain() {
                       <label>Nova senha (opcional)</label>
                       <input
                         type="password"
+                        className={editUserErrors.password ? 'input-error' : ''}
                         placeholder="Nova senha (opcional)"
                         value={newPassword}
-                        onChange={(e) => setNewPassword(e.target.value)}
+                        onChange={(e) => {
+                          setNewPassword(e.target.value);
+                          setEditUserErrors((prev) => ({ ...prev, password: false }));
+                        }}
                       />
+                      {editUserErrors.password && (
+                        <span className="input-error-text">A senha deve ter 4 a 6 números</span>
+                      )}
 
                       <label>Confirmar nova senha</label>
                       <input
@@ -4536,15 +4608,23 @@ function AppMain() {
 
                       <label>Nome</label>
                       <input
+                        className={userWizardErrors.name ? 'input-error' : ''}
                         value={userForm.name}
-                        onChange={(e) => setUserForm({ ...userForm, name: e.target.value })}
+                        onChange={(e) => {
+                          setUserForm({ ...userForm, name: e.target.value });
+                          setUserWizardErrors((prev) => ({ ...prev, name: false }));
+                        }}
                         placeholder="Nome completo"
                       />
 
                       <label>Usuário</label>
                       <input
+                        className={userWizardErrors.email ? 'input-error' : ''}
                         value={userForm.username}
-                        onChange={(e) => setUserForm({ ...userForm, username: e.target.value })}
+                        onChange={(e) => {
+                          setUserForm({ ...userForm, username: e.target.value });
+                          setUserWizardErrors((prev) => ({ ...prev, email: false }));
+                        }}
                         placeholder="ex.: joaosilva"
                       />
                     </div>
@@ -4557,15 +4637,26 @@ function AppMain() {
                       <label>Senha inicial</label>
                       <input
                         type="password"
+                        className={userWizardErrors.password ? 'input-error' : ''}
                         value={userForm.password}
-                        onChange={(e) => setUserForm({ ...userForm, password: e.target.value })}
-                        placeholder="Mínimo de 4 caracteres"
+                        onChange={(e) => {
+                          setUserForm({ ...userForm, password: e.target.value });
+                          setUserWizardErrors((prev) => ({ ...prev, password: false }));
+                        }}
+                        placeholder="4 a 6 números"
                       />
+                      {userWizardErrors.password && (
+                        <span className="input-error-text">A senha deve ter 4 a 6 números</span>
+                      )}
 
                       <label>WhatsApp</label>
                       <input
+                        className={userWizardErrors.whatsapp ? 'input-error' : ''}
                         value={userForm.whatsapp}
-                        onChange={(e) => setUserForm({ ...userForm, whatsapp: e.target.value })}
+                        onChange={(e) => {
+                          setUserForm({ ...userForm, whatsapp: e.target.value });
+                          setUserWizardErrors((prev) => ({ ...prev, whatsapp: false }));
+                        }}
                         placeholder="+5511999999999"
                       />
                     </div>
@@ -4631,7 +4722,7 @@ function AppMain() {
                     )}
 
                     {step < 3 ? (
-                      <button className="btn-primary btn-ui" onClick={() => setStep(step + 1)}>
+                      <button className="btn-primary btn-ui" onClick={handleUserWizardContinue}>
                         Continuar →
                       </button>
                     ) : (
@@ -4699,7 +4790,7 @@ function AppMain() {
                       <button className="btn-ui" onClick={() => setBodyModalStep(1)}>← Voltar</button>
                     )}
                     {bodyModalStep === 1 ? (
-                      <button className="btn-primary btn-ui" onClick={() => setBodyModalStep(2)}>Continuar →</button>
+                      <button className="btn-primary btn-ui" onClick={handleBodyModalContinue}>Continuar →</button>
                     ) : (
                       <button className="btn-primary btn-ui" onClick={saveBodyData}>Salvar</button>
                     )}
@@ -4744,7 +4835,7 @@ function AppMain() {
                       <button className="btn-ui" onClick={() => setDailyWeightStep(1)}>← Voltar</button>
                     )}
                     {dailyWeightStep === 1 ? (
-                      <button className="btn-primary btn-ui" onClick={() => setDailyWeightStep(2)}>Continuar →</button>
+                      <button className="btn-primary btn-ui" onClick={handleDailyWeightContinue}>Continuar →</button>
                     ) : (
                       <button className="btn-primary btn-ui" onClick={saveDailyWeight}>Salvar</button>
                     )}
@@ -4792,7 +4883,7 @@ function AppMain() {
                       <button className="btn-ui" onClick={() => setGoalsModalStep(1)}>← Voltar</button>
                     )}
                     {goalsModalStep === 1 ? (
-                      <button className="btn-primary btn-ui" onClick={() => setGoalsModalStep(2)}>Continuar →</button>
+                      <button className="btn-primary btn-ui" onClick={handleGoalsModalContinue}>Continuar →</button>
                     ) : (
                       <button className="btn-primary btn-ui" onClick={saveManualGoals}>Salvar</button>
                     )}
