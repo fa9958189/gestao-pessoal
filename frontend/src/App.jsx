@@ -858,18 +858,6 @@ const UsersTable = ({
                     </button>
                   )}
 
-                  <div className="user-actions-extra">
-                    {!isOwner && canPromoteToAffiliate && (
-                      <button
-                        type="button"
-                        className="btn-ui"
-                        onClick={() => onPromoteToAffiliate(user)}
-                        title="Tornar afiliado"
-                      >
-                        🤝
-                      </button>
-                    )}
-                  </div>
                 </div>
               </div>
             );
