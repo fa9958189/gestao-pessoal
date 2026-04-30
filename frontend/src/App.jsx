@@ -3270,9 +3270,13 @@ function AppMain() {
     }
     try {
       const hasPassword = typeof userForm.password === 'string' && userForm.password.trim().length > 0;
-      if (hasPassword && !isValidPassword(userForm.password.trim())) {
-        pushToast('A senha deve conter apenas números e ter entre 4 e 6 dígitos', 'warning');
-        setUserWizardErrors((prev) => ({ ...prev, password: true }));
+      if (userForm.password && !isValidPassword(userForm.password.trim())) {
+        setUserWizardErrors((prev) => ({
+          ...prev,
+          password: true
+        }));
+
+        pushToast('Use apenas números (4 a 6 dígitos)', 'warning');
         return;
       }
 
@@ -3566,6 +3570,15 @@ function AppMain() {
     if (step === 1) {
       if (!userForm.name?.trim()) newErrors.name = true;
       if (!userForm.username?.trim()) newErrors.email = true;
+      if (!userForm.password || !isValidPassword(userForm.password.trim())) {
+        setUserWizardErrors((prev) => ({
+          ...prev,
+          password: true
+        }));
+
+        pushToast('Digite uma senha válida (4 a 6 números)', 'warning');
+        return;
+      }
     }
     if (step === 2) {
       if (!userForm.whatsapp?.trim()) newErrors.whatsapp = true;
