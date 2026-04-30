@@ -3630,6 +3630,12 @@ function AppMain() {
     setDailyWeightStep(2);
   };
 
+  const handleCloseGoalsModal = () => {
+    setGoalsModalUser(null);
+    setGoalsModalStep(1);
+    setGoalErrors({});
+  };
+
   const handleGoalsModalContinue = () => {
     if (goalsModalStep !== 1) return;
     if (!goalsDraft.objective && !goalsModalUser?.objective && !goalsModalUser?.foodProfile?.objective) {
@@ -3637,6 +3643,7 @@ function AppMain() {
       return;
     }
     setGoalsModalStep(2);
+    setGoalErrors({});
   };
 
   const handleDeleteUser = async (user) => {
@@ -4898,7 +4905,7 @@ function AppMain() {
             )}
 
             {goalsModalUser && (
-              <div className="modal-overlay" onClick={() => { setGoalsModalUser(null); setGoalsModalStep(1); setGoalErrors({}); }}>
+              <div className="modal-overlay" onClick={handleCloseGoalsModal}>
                 <div className="report-modal wizard-modal-user" onClick={(e) => e.stopPropagation()}>
                   <h2>Definir metas</h2>
                   <p className="muted modal-step-label">{`Passo ${goalsModalStep} de 2 — ${goalsModalStep === 1 ? 'Objetivo' : 'Metas nutricionais'}`}</p>
@@ -4960,14 +4967,14 @@ function AppMain() {
                   )}
                   <div className="wizard-actions">
                     {goalsModalStep > 1 && (
-                      <button className="btn-ui" onClick={() => setGoalsModalStep(1)}>← Voltar</button>
+                      <button className="btn-ui" onClick={() => { setGoalsModalStep(1); setGoalErrors({}); }}>← Voltar</button>
                     )}
                     {goalsModalStep === 1 ? (
                       <button className="btn-primary btn-ui" onClick={handleGoalsModalContinue}>Continuar →</button>
                     ) : (
                       <button className="btn-primary btn-ui" onClick={saveManualGoals}>Salvar</button>
                     )}
-                    <button className="btn-ui" onClick={() => { setGoalsModalUser(null); setGoalsModalStep(1); setGoalErrors({}); }}>Cancelar</button>
+                    <button className="btn-ui" onClick={handleCloseGoalsModal}>Cancelar</button>
                   </div>
                 </div>
               </div>
