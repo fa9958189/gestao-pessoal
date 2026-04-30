@@ -2134,6 +2134,7 @@ function AppMain() {
   const [weightHistoryModalUser, setWeightHistoryModalUser] = useState(null);
   const [goalsModalUser, setGoalsModalUser] = useState(null);
   const [goalsModalStep, setGoalsModalStep] = useState(1);
+  const [goalErrors, setGoalErrors] = useState({});
   const [bodyDraft, setBodyDraft] = useState({
     sex: '',
     age: '',
@@ -2783,6 +2784,7 @@ function AppMain() {
     if (!user || currentUser?.id !== user.id) return;
     setGoalsModalUser(user);
     setGoalsModalStep(1);
+    setGoalErrors({});
     setGoalsDraft({
       objective: user?.objective || 'manter_peso',
       calorie_goal: user?.calorie_goal != null ? String(user.calorie_goal) : '',
@@ -3000,9 +3002,27 @@ function AppMain() {
     }
   };
 
+  const validateGoals = (goals) => {
+    const errors = {};
+
+    if (!goals.calorie_goal) errors.calorie_goal = true;
+    if (!goals.protein_goal) errors.protein_goal = true;
+    if (!goals.water_goal_l) errors.water_goal_l = true;
+
+    return errors;
+  };
+
   const saveManualGoals = async () => {
     try {
       if (!goalsModalUser || currentUser?.id !== goalsModalUser.id) return;
+
+      const errors = validateGoals(goalsDraft);
+      if (Object.keys(errors).length > 0) {
+        setGoalErrors(errors);
+        pushToast('Preencha todos os campos corretamente', 'warning');
+        return;
+      }
+      setGoalErrors({});
       const accessToken = await getAccessToken();
       if (!accessToken) throw new Error('Sessão expirada. Faça login novamente.');
       const response = await fetch(`${workoutApiBase}/goals/manual`, {
@@ -4878,7 +4898,7 @@ function AppMain() {
             )}
 
             {goalsModalUser && (
-              <div className="modal-overlay" onClick={() => { setGoalsModalUser(null); setGoalsModalStep(1); }}>
+              <div className="modal-overlay" onClick={() => { setGoalsModalUser(null); setGoalsModalStep(1); setGoalErrors({}); }}>
                 <div className="report-modal wizard-modal-user" onClick={(e) => e.stopPropagation()}>
                   <h2>Definir metas</h2>
                   <p className="muted modal-step-label">{`Passo ${goalsModalStep} de 2 — ${goalsModalStep === 1 ? 'Objetivo' : 'Metas nutricionais'}`}</p>
@@ -4903,11 +4923,39 @@ function AppMain() {
                     <div className="wizard-field-stack">
                       <h3>Metas nutricionais</h3>
                       <label>Calorias (kcal)</label>
-                      <input type="number" value={goalsDraft.calorie_goal} onChange={(e) => setGoalsDraft((prev) => ({ ...prev, calorie_goal: e.target.value }))} />
+                      <input
+                        type="number"
+                        className={goalErrors.calorie_goal ? 'input-error' : ''}
+                        value={goalsDraft.calorie_goal}
+                        onChange={(e) => {
+                          setGoalsDraft((prev) => ({ ...prev, calorie_goal: e.target.value }));
+                          setGoalErrors((prev) => ({ ...prev, calorie_goal: false }));
+                        }}
+                      />
+                      {goalErrors.calorie_goal && <span className="input-error-text">Preencha este campo</span>}
                       <label>Proteína (g)</label>
-                      <input type="number" value={goalsDraft.protein_goal} onChange={(e) => setGoalsDraft((prev) => ({ ...prev, protein_goal: e.target.value }))} />
+                      <input
+                        type="number"
+                        className={goalErrors.protein_goal ? 'input-error' : ''}
+                        value={goalsDraft.protein_goal}
+                        onChange={(e) => {
+                          setGoalsDraft((prev) => ({ ...prev, protein_goal: e.target.value }));
+                          setGoalErrors((prev) => ({ ...prev, protein_goal: false }));
+                        }}
+                      />
+                      {goalErrors.protein_goal && <span className="input-error-text">Preencha este campo</span>}
                       <label>Água (L)</label>
-                      <input type="number" step="0.1" value={goalsDraft.water_goal_l} onChange={(e) => setGoalsDraft((prev) => ({ ...prev, water_goal_l: e.target.value }))} />
+                      <input
+                        type="number"
+                        step="0.1"
+                        className={goalErrors.water_goal_l ? 'input-error' : ''}
+                        value={goalsDraft.water_goal_l}
+                        onChange={(e) => {
+                          setGoalsDraft((prev) => ({ ...prev, water_goal_l: e.target.value }));
+                          setGoalErrors((prev) => ({ ...prev, water_goal_l: false }));
+                        }}
+                      />
+                      {goalErrors.water_goal_l && <span className="input-error-text">Preencha este campo</span>}
                     </div>
                   )}
                   <div className="wizard-actions">
@@ -4919,7 +4967,7 @@ function AppMain() {
                     ) : (
                       <button className="btn-primary btn-ui" onClick={saveManualGoals}>Salvar</button>
                     )}
-                    <button className="btn-ui" onClick={() => { setGoalsModalUser(null); setGoalsModalStep(1); }}>Cancelar</button>
+                    <button className="btn-ui" onClick={() => { setGoalsModalUser(null); setGoalsModalStep(1); setGoalErrors({}); }}>Cancelar</button>
                   </div>
                 </div>
               </div>
