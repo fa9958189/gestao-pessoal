@@ -4637,16 +4637,35 @@ function AppMain() {
                       <label>Senha inicial</label>
                       <input
                         type="password"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        maxLength={6}
                         className={userWizardErrors.password ? 'input-error' : ''}
                         value={userForm.password}
                         onChange={(e) => {
-                          setUserForm({ ...userForm, password: e.target.value });
-                          setUserWizardErrors((prev) => ({ ...prev, password: false }));
+                          const value = e.target.value;
+
+                          if (value === '') {
+                            setUserForm({ ...userForm, password: '' });
+                            setUserWizardErrors((prev) => ({ ...prev, password: false }));
+                            return;
+                          }
+
+                          if (!/^\d*$/.test(value)) {
+                            setUserWizardErrors((prev) => ({ ...prev, password: true }));
+                            return;
+                          }
+
+                          setUserForm({ ...userForm, password: value });
+                          setUserWizardErrors((prev) => ({
+                            ...prev,
+                            password: value.length > 0 && value.length < 4
+                          }));
                         }}
                         placeholder="4 a 6 números"
                       />
                       {userWizardErrors.password && (
-                        <span className="input-error-text">A senha deve ter 4 a 6 números</span>
+                        <span className="input-error-text">Use apenas números (4 a 6 dígitos)</span>
                       )}
 
                       <label>WhatsApp</label>
