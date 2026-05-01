@@ -265,7 +265,10 @@ const getSportByLabel = (label) => {
 const normalizeMuscle = (name) => {
   const key = String(name || '')
     .toLowerCase()
-    .trim();
+    .trim()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, '_');
 
   return MUSCLE_MAP[key] || key;
 };
@@ -2865,7 +2868,7 @@ const WorkoutRoutine = ({
                             });
                             const exercisesByMuscle = Array.isArray(allExercises)
                               ? allExercises.filter(
-                                (ex) => normalizeMuscle(ex.muscle) === selectedMuscle
+                                (ex) => normalizeMuscle(ex.muscle) === normalizeMuscle(selectedMuscle)
                               )
                               : [];
 
@@ -2892,16 +2895,18 @@ const WorkoutRoutine = ({
                                             {ex.name} — {ex.reps || '3x12'}
                                           </p>
 
-                                          {ex.gif && (
+                                          {ex.gif ? (
                                             <img
                                               src={`/gifs/${ex.gif}`}
                                               alt={ex.name}
                                               className="exercise-gif"
                                               onError={(e) => {
-                                                console.log('ERRO GIF:', ex.gif);
+                                                console.log('GIF NÃO ENCONTRADO:', ex.gif);
                                                 e.target.style.display = 'none';
                                               }}
                                             />
+                                          ) : (
+                                            <p style={{ opacity: 0.5 }}>Sem GIF</p>
                                           )}
 
                                           <button
