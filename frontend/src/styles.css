@@ -4049,3 +4049,23 @@ canvas{ background:transparent; }
   outline: none;
   border: 1px solid #22c55e;
 }
+
+.muscle-item {
+  padding: 10px 16px;
+  border-radius: 999px;
+  border: 1px solid #1f2a44;
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.muscle-item:hover {
+  border-color: #2ecc71;
+}
+
+.muscle-item.active {
+  background: #2ecc71;
+  color: #fff;
+  border-color: #2ecc71;
+  box-shadow: 0 0 12px rgba(46, 204, 113, 0.4);
+}

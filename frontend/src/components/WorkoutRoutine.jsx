@@ -1210,6 +1210,7 @@ const WorkoutRoutine = ({
   const [nomeTreino, setNomeTreino] = useState('');
   const [muscleConfigs, setMuscleConfigs] = useState({});
   const [selectedExercises, setSelectedExercises] = useState({});
+  const [selectedMuscle, setSelectedMuscle] = useState('');
   const [previewExercise, setPreviewExercise] = useState(null);
   const [previewMuscle, setPreviewMuscle] = useState(null);
   const gif = getExerciseGif(previewMuscle, previewExercise);
@@ -1255,6 +1256,21 @@ const WorkoutRoutine = ({
       ),
     []
   );
+
+  useEffect(() => {
+    const muscles = Array.isArray(selecionados) ? selecionados : [];
+
+    if (muscles.length === 0) {
+      setSelectedMuscle('');
+      return;
+    }
+
+    if (!selectedMuscle && muscles.length > 0) {
+      setSelectedMuscle(
+        normalizeMuscle(getExercisesKey(muscles[0]))
+      );
+    }
+  }, [selecionados, selectedMuscle]);
 
   const progressStats = useMemo(() => {
     const today = new Date();
@@ -2855,8 +2871,26 @@ const WorkoutRoutine = ({
                       <h3>Selecionar exercícios</h3>
                       {tipoTreino === 'musculacao' && selecionados.length > 0 && (
                         <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 12 }}>
-                          {selecionados.map((muscle) => {
-                            const selectedMuscle = normalizeMuscle(getExercisesKey(muscle));
+                          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                            {selecionados.map((muscle) => {
+                              const key = normalizeMuscle(getExercisesKey(muscle));
+                              const isActive = key === selectedMuscle;
+
+                              return (
+                                <div
+                                  key={muscle}
+                                  onClick={() => setSelectedMuscle(normalizeMuscle(getExercisesKey(muscle)))}
+                                  className={`muscle-item ${isActive ? 'active' : ''}`}
+                                >
+                                  {muscleMap[muscle]?.label || muscle}
+                                </div>
+                              );
+                            })}
+                          </div>
+                          {selecionados
+                            .filter((muscle) => normalizeMuscle(getExercisesKey(muscle)) === normalizeMuscle(selectedMuscle))
+                            .map((muscle) => {
+                            const selectedMuscleKey = normalizeMuscle(getExercisesKey(muscle));
                             const allExercises = Object.entries(exercises).flatMap(([muscleKey, muscleExercises]) => {
                               if (!Array.isArray(muscleExercises)) return [];
                               return muscleExercises.map((exercise) => ({
@@ -2868,12 +2902,9 @@ const WorkoutRoutine = ({
                             });
                             const exercisesByMuscle = Array.isArray(allExercises)
                               ? allExercises.filter(
-                                (ex) => normalizeMuscle(ex.muscle) === normalizeMuscle(selectedMuscle)
+                                (ex) => normalizeMuscle(ex.muscle) === normalizeMuscle(selectedMuscleKey)
                               )
                               : [];
-
-                            console.log('MUSCULO FINAL:', selectedMuscle);
-                            console.log('EXERCICIOS:', allExercises.map((e) => normalizeMuscle(e.muscle)));
 
                             return (
                               <div key={muscle} className="card-padrao" style={{ padding: 12 }}>
