@@ -2835,64 +2835,60 @@ const WorkoutRoutine = ({
                       {tipoTreino === 'musculacao' && selecionados.length > 0 && (
                         <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 12 }}>
                           {selecionados.map((muscle) => {
-                            const selectedMuscle = getExercisesKey(muscle);
-                            const normalizedSelected = normalizeMuscle(selectedMuscle);
+                            const selectedMuscle = normalizeMuscle(getExercisesKey(muscle));
                             const allExercises = Object.entries(exercises).flatMap(([muscleKey, muscleExercises]) => {
                               if (!Array.isArray(muscleExercises)) return [];
                               return muscleExercises.map((exercise) => ({
                                 id: `${muscleKey}-${exercise}`,
                                 name: exercise,
                                 muscle: muscleKey,
+                                gif: getExerciseGif(muscleKey, exercise),
                               }));
                             });
-                            const exercisesByMuscle = Array.isArray(allExercises)
-                              ? allExercises.filter((ex) => normalizeMuscle(ex.muscle) === normalizedSelected)
-                              : [];
+                            const exercisesByMuscle = allExercises.filter(
+                              (ex) => normalizeMuscle(ex.muscle) === selectedMuscle
+                            );
 
-                            console.log('SELECTED:', normalizedSelected);
-                            console.log('EXERCÍCIOS:', exercisesByMuscle);
+                            console.log('SELECTED FINAL:', selectedMuscle);
+                            console.log('EX:', allExercises.map((e) => normalizeMuscle(e.muscle)));
 
                             return (
                               <div key={muscle} className="card-padrao" style={{ padding: 12 }}>
                                 <h4 style={{ marginTop: 0, marginBottom: 8 }}>{muscleMap[muscle]?.label || muscle}</h4>
                                 <p>
-                                  {Array.isArray(exercisesByMuscle)
-                                    ? `${exercisesByMuscle.length} exercícios`
-                                    : '0 exercícios'}
+                                  {(Array.isArray(exercisesByMuscle) ? exercisesByMuscle.length : 0)} exercícios
                                 </p>
                                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                                   {Array.isArray(exercisesByMuscle) && exercisesByMuscle.length > 0 ? (
-                                    exercisesByMuscle.map((exercise, index) => {
-                                      const gifSrc = exercise.gif
-                                        ? `/gifs/${exercise.gif}`
-                                        : getExerciseGif(muscle, exercise.name);
+                                    exercisesByMuscle.map((ex, index) => {
 
                                       return (
                                         <div
-                                          key={exercise.id || index}
-                                          onClick={() => handleExerciseToggle(muscle, exercise.name)}
-                                          className={`exercise-item treino-option ${(selectedExercises[normalizeKey(getExercisesKey(muscle))] || []).includes(exercise.name) ? 'selected' : ''}`}
+                                          key={ex.id || index}
+                                          onClick={() => handleExerciseToggle(muscle, ex.name)}
+                                          className={`exercise-item treino-option ${(selectedExercises[normalizeKey(getExercisesKey(muscle))] || []).includes(ex.name) ? 'selected' : ''}`}
                                         >
                                           <p className="exercise-name">
-                                            {exercise.name} — {exercise.reps || '3x12'}
+                                            {ex.name} — {ex.reps || '3x12'}
                                           </p>
 
-                                          {gifSrc && (
-                                            <img
-                                              src={gifSrc}
-                                              alt={exercise.name}
-                                              className="exercise-gif"
-                                              onError={(e) => (e.target.style.display = 'none')}
-                                            />
-                                          )}
+                                          <img
+                                            src={`/gifs/${ex.gif}`}
+                                            alt={ex.name}
+                                            className="exercise-gif"
+                                            onError={(e) => {
+                                              console.log('ERRO GIF:', ex.gif);
+                                              e.target.style.display = 'none';
+                                            }}
+                                          />
 
                                           <button
                                             type="button"
                                             className="preview-btn"
-                                            aria-label={`Visualizar ${exercise.name}`}
+                                            aria-label={`Visualizar ${ex.name}`}
                                             onClick={(e) => {
                                               e.stopPropagation();
-                                              setPreviewExercise(exercise.name);
+                                              setPreviewExercise(ex.name);
                                               setPreviewMuscle(muscle);
                                             }}
                                           >
