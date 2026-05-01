@@ -55,6 +55,24 @@ const muscleGroups = [
   { id: 'esteira', name: 'Esteira', image: EsteiraImg },
 ];
 
+
+// 🔥 MAPA OFICIAL DE MÚSCULOS (PADRÃO ÚNICO)
+const MUSCLE_MAP = {
+  gluteo: 'gluteo',
+  gluteos: 'gluteo',
+  'glúteo': 'gluteo',
+  'glúteos': 'gluteo',
+
+  quadriceps: 'quadriceps',
+  'quadríceps': 'quadriceps',
+
+  posterior_de_coxa: 'posterior_de_coxa',
+  'posterior de coxa': 'posterior_de_coxa',
+
+  panturrilha: 'panturrilha',
+  panturrilhas: 'panturrilha',
+};
+
 const SPORT_IDS = new Set(['natacao', 'volei', 'boxe', 'jiujitsu', 'futebol', 'beachtennis', 'bicicleta', 'corrida_ao_ar_livre', 'escada', 'esteira']);
 
 const MUSCLE_GROUPS = muscleGroups.filter(({ id }) => !SPORT_IDS.has(id)).map(({ id, name, image }) => ({
@@ -245,11 +263,11 @@ const getSportByLabel = (label) => {
 };
 
 const normalizeMuscle = (name) => {
-  return String(name || '')
+  const key = String(name || '')
     .toLowerCase()
-    .replace(/\s+/g, '_')
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '');
+    .trim();
+
+  return MUSCLE_MAP[key] || key;
 };
 
 const getExercisesKey = (muscleGroup) => {
@@ -2845,12 +2863,14 @@ const WorkoutRoutine = ({
                                 gif: getExerciseGif(muscleKey, exercise),
                               }));
                             });
-                            const exercisesByMuscle = allExercises.filter(
-                              (ex) => normalizeMuscle(ex.muscle) === selectedMuscle
-                            );
+                            const exercisesByMuscle = Array.isArray(allExercises)
+                              ? allExercises.filter(
+                                (ex) => normalizeMuscle(ex.muscle) === selectedMuscle
+                              )
+                              : [];
 
-                            console.log('SELECTED FINAL:', selectedMuscle);
-                            console.log('EX:', allExercises.map((e) => normalizeMuscle(e.muscle)));
+                            console.log('MUSCULO FINAL:', selectedMuscle);
+                            console.log('EXERCICIOS:', allExercises.map((e) => normalizeMuscle(e.muscle)));
 
                             return (
                               <div key={muscle} className="card-padrao" style={{ padding: 12 }}>
@@ -2872,15 +2892,17 @@ const WorkoutRoutine = ({
                                             {ex.name} — {ex.reps || '3x12'}
                                           </p>
 
-                                          <img
-                                            src={`/gifs/${ex.gif}`}
-                                            alt={ex.name}
-                                            className="exercise-gif"
-                                            onError={(e) => {
-                                              console.log('ERRO GIF:', ex.gif);
-                                              e.target.style.display = 'none';
-                                            }}
-                                          />
+                                          {ex.gif && (
+                                            <img
+                                              src={`/gifs/${ex.gif}`}
+                                              alt={ex.name}
+                                              className="exercise-gif"
+                                              onError={(e) => {
+                                                console.log('ERRO GIF:', ex.gif);
+                                                e.target.style.display = 'none';
+                                              }}
+                                            />
+                                          )}
 
                                           <button
                                             type="button"
