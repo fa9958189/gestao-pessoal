@@ -2835,7 +2835,8 @@ const WorkoutRoutine = ({
                       {tipoTreino === 'musculacao' && selecionados.length > 0 && (
                         <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 12 }}>
                           {selecionados.map((muscle) => {
-                            const normalizedSelectedMuscle = normalizeMuscle(getExercisesKey(muscle));
+                            const selectedMuscle = getExercisesKey(muscle);
+                            const normalizedSelected = normalizeMuscle(selectedMuscle);
                             const allExercises = Object.entries(exercises).flatMap(([muscleKey, muscleExercises]) => {
                               if (!Array.isArray(muscleExercises)) return [];
                               return muscleExercises.map((exercise) => ({
@@ -2844,12 +2845,12 @@ const WorkoutRoutine = ({
                                 muscle: muscleKey,
                               }));
                             });
-                            const exercisesByMuscle = allExercises.filter(
-                              (ex) => normalizeMuscle(ex.muscle) === normalizeMuscle(normalizedSelectedMuscle)
-                            ) || [];
+                            const exercisesByMuscle = Array.isArray(allExercises)
+                              ? allExercises.filter((ex) => normalizeMuscle(ex.muscle) === normalizedSelected)
+                              : [];
 
-                            console.log('MUSCULO SELECIONADO:', muscle);
-                            console.log('EXERCICIOS FILTRADOS:', exercisesByMuscle);
+                            console.log('SELECTED:', normalizedSelected);
+                            console.log('EXERCÍCIOS:', exercisesByMuscle);
 
                             return (
                               <div key={muscle} className="card-padrao" style={{ padding: 12 }}>
