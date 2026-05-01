@@ -789,7 +789,6 @@ const normalizeRoutineFromApi = (row) => {
 
   const exercisesByGroup = normalizeGroupedExercisesPayload(rawExercises);
 
-  console.log("EXERCISES FINAL:", exercisesByGroup);
 
   return {
     ...normalizedRow,
@@ -1258,14 +1257,18 @@ const WorkoutRoutine = ({
   );
 
   useEffect(() => {
-    if (!Array.isArray(selecionados) || selecionados.length === 0) {
-      setSelectedMuscle('');
-      return;
-    }
+    if (tipoTreino !== 'musculacao') return;
+    if (step !== 4) return;
+    if (selectedMuscle) return;
+    if (!Array.isArray(selecionados) || selecionados.length === 0) return;
 
-    const firstSelected = normalizeMuscle(getExercisesKey(selecionados[0]));
-    setSelectedMuscle((prev) => (prev || firstSelected));
-  }, [selecionados]);
+    const firstMuscle = selecionados[0];
+    const normalizedFirstMuscle = normalizeMuscle(getExercisesKey(firstMuscle));
+
+    if (normalizedFirstMuscle) {
+      setSelectedMuscle(normalizedFirstMuscle);
+    }
+  }, [tipoTreino, step, selectedMuscle, selecionados]);
 
   const progressStats = useMemo(() => {
     const today = new Date();
@@ -2868,13 +2871,13 @@ const WorkoutRoutine = ({
                         <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 12 }}>
                           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                             {selecionados.map((muscle) => {
-                              const key = normalizeMuscle(getExercisesKey(muscle));
-                              const isActive = key === selectedMuscle;
+                              const muscleKey = normalizeMuscle(getExercisesKey(muscle));
+                              const isActive = selectedMuscle === muscleKey;
 
                               return (
                                 <div
                                   key={muscle}
-                                  onClick={() => setSelectedMuscle(normalizeMuscle(getExercisesKey(muscle)))}
+                                  onClick={() => setSelectedMuscle(muscleKey)}
                                   className={`muscle-item ${isActive ? 'active' : ''}`}
                                 >
                                   {muscleMap[muscle]?.label || muscle}
@@ -2885,7 +2888,6 @@ const WorkoutRoutine = ({
                           {selecionados
                             .filter((muscle) => normalizeMuscle(getExercisesKey(muscle)) === normalizeMuscle(selectedMuscle))
                             .map((muscle) => {
-                            const selectedMuscleKey = normalizeMuscle(getExercisesKey(muscle));
                             const allExercises = Object.entries(exercises).flatMap(([muscleKey, muscleExercises]) => {
                               if (!Array.isArray(muscleExercises)) return [];
                               return muscleExercises.map((exercise) => ({
@@ -2897,7 +2899,7 @@ const WorkoutRoutine = ({
                             });
                             const exercisesByMuscle = Array.isArray(allExercises)
                               ? allExercises.filter(
-                                (ex) => normalizeMuscle(ex.muscle) === normalizeMuscle(selectedMuscleKey)
+                                (ex) => normalizeMuscle(ex.muscle) === normalizeMuscle(selectedMuscle)
                               )
                               : [];
 
@@ -2927,7 +2929,6 @@ const WorkoutRoutine = ({
                                               alt={ex.name}
                                               className="exercise-gif"
                                               onError={(e) => {
-                                                console.log('GIF NÃO ENCONTRADO:', ex.gif);
                                                 e.target.style.display = 'none';
                                               }}
                                             />
