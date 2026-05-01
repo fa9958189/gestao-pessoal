@@ -244,6 +244,14 @@ const getSportByLabel = (label) => {
   );
 };
 
+const normalizeMuscle = (name) => {
+  return String(name || '')
+    .toLowerCase()
+    .replace(/\s+/g, '_')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '');
+};
+
 const getExercisesKey = (muscleGroup) => {
   const normalized = normalizeKey(muscleGroup);
 
@@ -2826,34 +2834,79 @@ const WorkoutRoutine = ({
                       <h3>Selecionar exercícios</h3>
                       {tipoTreino === 'musculacao' && selecionados.length > 0 && (
                         <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 12 }}>
-                          {selecionados.map((muscle) => (
-                            <div key={muscle} className="card-padrao" style={{ padding: 12 }}>
-                              <h4 style={{ marginTop: 0, marginBottom: 8 }}>{muscleMap[muscle]?.label || muscle}</h4>
-                              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                                {(exercises[normalizeKey(getExercisesKey(muscle))] || []).map((exercise) => (
-                                  <div
-                                    key={`${muscle}-${exercise}`}
-                                    onClick={() => handleExerciseToggle(muscle, exercise)}
-                                    className={`exercise-item treino-option ${(selectedExercises[normalizeKey(getExercisesKey(muscle))] || []).includes(exercise) ? 'selected' : ''}`}
-                                  >
-                                    <span>{exercise}</span>
-                                    <button
-                                      type="button"
-                                      className="preview-btn"
-                                      aria-label={`Visualizar ${exercise}`}
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setPreviewExercise(exercise);
-                                        setPreviewMuscle(muscle);
-                                      }}
-                                    >
-                                      👁
-                                    </button>
-                                  </div>
-                                ))}
+                          {selecionados.map((muscle) => {
+                            const normalizedSelectedMuscle = normalizeMuscle(getExercisesKey(muscle));
+                            const allExercises = Object.entries(exercises).flatMap(([muscleKey, muscleExercises]) => {
+                              if (!Array.isArray(muscleExercises)) return [];
+                              return muscleExercises.map((exercise) => ({
+                                id: `${muscleKey}-${exercise}`,
+                                name: exercise,
+                                muscle: muscleKey,
+                              }));
+                            });
+                            const exercisesByMuscle = allExercises.filter(
+                              (ex) => normalizeMuscle(ex.muscle) === normalizeMuscle(normalizedSelectedMuscle)
+                            ) || [];
+
+                            console.log('MUSCULO SELECIONADO:', muscle);
+                            console.log('EXERCICIOS FILTRADOS:', exercisesByMuscle);
+
+                            return (
+                              <div key={muscle} className="card-padrao" style={{ padding: 12 }}>
+                                <h4 style={{ marginTop: 0, marginBottom: 8 }}>{muscleMap[muscle]?.label || muscle}</h4>
+                                <p>
+                                  {Array.isArray(exercisesByMuscle)
+                                    ? `${exercisesByMuscle.length} exercícios`
+                                    : '0 exercícios'}
+                                </p>
+                                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                                  {Array.isArray(exercisesByMuscle) && exercisesByMuscle.length > 0 ? (
+                                    exercisesByMuscle.map((exercise, index) => {
+                                      const gifSrc = exercise.gif
+                                        ? `/gifs/${exercise.gif}`
+                                        : getExerciseGif(muscle, exercise.name);
+
+                                      return (
+                                        <div
+                                          key={exercise.id || index}
+                                          onClick={() => handleExerciseToggle(muscle, exercise.name)}
+                                          className={`exercise-item treino-option ${(selectedExercises[normalizeKey(getExercisesKey(muscle))] || []).includes(exercise.name) ? 'selected' : ''}`}
+                                        >
+                                          <p className="exercise-name">
+                                            {exercise.name} — {exercise.reps || '3x12'}
+                                          </p>
+
+                                          {gifSrc && (
+                                            <img
+                                              src={gifSrc}
+                                              alt={exercise.name}
+                                              className="exercise-gif"
+                                              onError={(e) => (e.target.style.display = 'none')}
+                                            />
+                                          )}
+
+                                          <button
+                                            type="button"
+                                            className="preview-btn"
+                                            aria-label={`Visualizar ${exercise.name}`}
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setPreviewExercise(exercise.name);
+                                              setPreviewMuscle(muscle);
+                                            }}
+                                          >
+                                            👁
+                                          </button>
+                                        </div>
+                                      );
+                                    })
+                                  ) : (
+                                    <p style={{ opacity: 0.6 }}>Nenhum exercício encontrado</p>
+                                  )}
+                                </div>
                               </div>
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       )}
                     </div>
