@@ -919,18 +919,19 @@ const ViewWorkoutModal = ({
 
   const selectedKey = normalizeMuscle(selectedViewMuscle);
 
-  // tratar casos especiais
-  let targetMuscles = [selectedKey];
+  const matches = (key, selected) => {
+    if (key === selected) return true;
 
-  if (selectedKey === 'pernas') {
-    targetMuscles = ['quadriceps', 'posterior_coxa', 'gluteo', 'panturrilha'];
-  }
+    // fallback manual para pernas
+    if (selected === 'pernas') {
+      return ['quadriceps', 'posterior_de_coxa', 'gluteo', 'panturrilha'].includes(key);
+    }
+
+    return false;
+  };
 
   const filteredExercises = Object.entries(sourceExercises)
-    .filter(([muscleKey]) => {
-      const normalized = normalizeMuscle(muscleKey);
-      return targetMuscles.includes(normalized);
-    })
+    .filter(([muscleKey]) => matches(normalizeMuscle(muscleKey), selectedKey))
     .flatMap(([, list]) => list || []);
 
 
@@ -1106,17 +1107,24 @@ const ViewWorkoutModal = ({
                     filteredExercises.map((ex, index) => {
                       const name = ex?.name || ex?.nome || 'Exercício';
                       const reps = ex?.reps || '3x12';
-                      const gif = ex?.gif || ex?.gifUrl || ex?.image || null;
-                      const gifSrc = resolveExerciseGifSrc(gif);
+
+                      const gifSrc = resolveExerciseGifSrc(
+                        ex?.gif || ex?.gifUrl || ex?.image
+                      );
 
                       return (
-                        <div key={ex.id || index} className="exercise-item">
-                          <p>{name} — {reps}</p>
+                        <div key={index} className="exercise-item">
+                          <p>
+                            {name} — {reps}
+                          </p>
+
                           {gifSrc && (
                             <img
                               src={gifSrc}
                               alt={name}
-                              onError={(e) => (e.target.style.display = "none")}
+                              onError={(e) => {
+                                e.target.style.display = 'none';
+                              }}
                             />
                           )}
                         </div>
