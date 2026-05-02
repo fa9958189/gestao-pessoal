@@ -743,7 +743,7 @@ const normalizeRoutineFromApi = (row) => {
   const sportsList = normalizeList(
     normalizedRow.sports_list ?? normalizedRow.sports ?? normalizedRow.sportsList
   );
-  const muscleConfig = normalizeObject(
+  const muscleConfig = parseMuscleConfigPayload(
     normalizedRow.muscle_config ?? normalizedRow.muscleConfig
   );
   let rawExercises =
@@ -795,11 +795,8 @@ const ViewWorkoutModal = ({
 
   const selectedWorkout = normalizeRoutineFromApi(workout);
   const seriesPorMusculo = selectedWorkout?.series || selectedWorkout?.seriesPorMusculo || selectedWorkout?.sets || {};
-  console.log("FINAL WORKOUT:", selectedWorkout);
-  console.log("SERIES:", seriesPorMusculo);
 
   const selectedExercisesByGroup = selectedWorkout.exercisesByGroup || {};
-  console.log("EX:", selectedExercisesByGroup);
   const workoutName = selectedWorkout?.name || "Treino sem nome";
   const getConfigForMuscle = (muscle, index) => {
     const muscleKey = getExercisesKey(muscle);
@@ -1071,16 +1068,31 @@ const ViewWorkoutModal = ({
                   {Object.keys(selectedWorkout.exercises_by_group || {}).length === 0 ? (
                     <p>Nenhum exercício encontrado</p>
                   ) : (
-                    Object.entries(selectedWorkout.exercises_by_group).map(([group, exercises]) => (
-                      <div key={group}>
-                        <h4>{group}</h4>
-                        {exercises.map((ex, i) => (
-                          <p key={i}>
-                            {ex.name} {ex.reps}
-                          </p>
-                        ))}
-                      </div>
-                    ))
+                    Object.entries(selectedWorkout.exercises_by_group).map(([group, exercises], groupIndex) => {
+                      const serieGrupo =
+                        getConfigForMuscle(group, groupIndex) ||
+                        exercises?.[0]?.serie ||
+                        exercises?.[0]?.series ||
+                        exercises?.[0]?.repeticoes ||
+                        '';
+
+                      return (
+                        <div key={group}>
+                          <h4 className="exercise-muscle-title">
+                            <span>{group}</span>
+                            {serieGrupo && serieGrupo !== '—' && (
+                              <span className="badge-serie">{serieGrupo}</span>
+                            )}
+                          </h4>
+
+                          {exercises.map((ex, i) => (
+                            <p key={i}>
+                              {ex.nome || ex.name || ex.label || ex}
+                            </p>
+                          ))}
+                        </div>
+                      );
+                    })
                   )}
                 </>
               )}
