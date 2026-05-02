@@ -831,8 +831,6 @@ const ViewWorkoutModal = ({
   const selectedWorkout = normalizeRoutineFromApi(workout);
   console.log("FINAL WORKOUT:", selectedWorkout);
 
-  const selectedExercisesByGroup = selectedWorkout.exercisesByGroup || {};
-  console.log("EX:", selectedExercisesByGroup);
   const workoutName = selectedWorkout?.name || "Treino sem nome";
   const getConfigForMuscle = (muscle, index) => {
     const muscleKey = getExercisesKey(muscle);
@@ -906,7 +904,6 @@ const ViewWorkoutModal = ({
     : Array.isArray(selectedWorkout?.sports_activities)
     ? selectedWorkout.sports_activities
     : [];
-  const groupedExercises = normalizeGroupedExercisesPayload(normalizeObject(selectedExercisesByGroup));
   const sourceExercises =
     selectedWorkout?.exercises_by_group ||
     selectedWorkout?.exercisesByGroup ||
