@@ -912,16 +912,19 @@ const ViewWorkoutModal = ({
     selectedWorkout?.exercises ||
     {};
 
-  // 🔥 normaliza a chave do músculo selecionado
   const selectedKey = normalizeMuscle(selectedViewMuscle);
 
-  // 🧪 DEBUG RÁPIDO (temporário)
-  console.log("SELECTED:", selectedViewMuscle);
-  console.log("KEYS:", Object.keys(sourceExercises));
+  // tratar casos especiais
+  let targetMuscles = [selectedKey];
+
+  if (selectedKey === 'pernas') {
+    targetMuscles = ['quadriceps', 'posterior_coxa', 'gluteo', 'panturrilha'];
+  }
 
   const filteredExercises = Object.entries(sourceExercises)
     .filter(([muscleKey]) => {
-      return normalizeMuscle(muscleKey) === selectedKey;
+      const normalized = normalizeMuscle(muscleKey);
+      return targetMuscles.includes(normalized);
     })
     .flatMap(([, list]) => list || []);
 
