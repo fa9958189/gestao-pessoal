@@ -29,6 +29,62 @@ import { exercises } from '../data/exercises.js';
 import getExerciseGif from '../utils/getExerciseGif';
 import { normalizeKey } from '../utils/normalize';
 
+const exerciseGifModules = import.meta.glob(
+  "../assets/exercise/**/*.gif",
+  {
+    eager: true,
+    query: "?url",
+    import: "default",
+  }
+);
+
+const normalizeAssetKey = (value = "") =>
+  String(value)
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/ç/g, "c")
+    .replace(/[^a-z0-9]+/g, "");
+
+const normalizeExerciseFolder = (group = "") => {
+  const key = normalizeAssetKey(group);
+
+  const map = {
+    abdomen: "abdomen",
+    antebraco: "ante braco",
+    biceps: "biceps",
+    costas: "costas",
+    gluteo: "gluteo",
+    gluteos: "gluteo",
+    ombro: "ombro",
+    ombros: "ombro",
+    panturrilha: "panturrilha",
+    peito: "peito",
+    posteriordecoxa: "posterior de coxa",
+    posteriorcoxa: "posterior de coxa",
+    quadriceps: "Quadríceps",
+    triceps: "triceps",
+  };
+
+  return map[key] || group;
+};
+
+const getExerciseGifUrl = (group, exerciseName) => {
+  const folder = normalizeExerciseFolder(group);
+  const folderKey = normalizeAssetKey(folder);
+  const exerciseKey = normalizeAssetKey(exerciseName);
+
+  const foundEntry = Object.entries(exerciseGifModules).find(([path]) => {
+    const normalizedPath = normalizeAssetKey(path);
+    return (
+      normalizedPath.includes(folderKey) &&
+      normalizedPath.includes(exerciseKey)
+    );
+  });
+
+  return foundEntry?.[1] || "";
+};
+
 const muscleGroups = [
   { id: 'peito', name: 'Peito', image: PeitoImg },
   { id: 'costas', name: 'Costas', image: CostasImg },
@@ -1184,21 +1240,22 @@ const ViewWorkoutModal = ({
                         ? exercise.nome || exercise.name || exercise.label || 'Exercício'
                         : exercise;
                     const displayExercise = normalizeExerciseDisplayName(exerciseName);
-                    const gifSrc = getExerciseGif(infoTarget, displayExercise);
+                    const activeGroupLabelOrKey = activeMuscleInfo?.title || infoTarget;
+                    const gifUrl = getExerciseGifUrl(activeGroupLabelOrKey, displayExercise);
 
                     return (
                       <div key={`${displayExercise}-${index}`} style={{ marginBottom: '30px' }}>
                         <h3 style={{ marginBottom: '10px' }}>{displayExercise}</h3>
-                        {gifSrc ? (
+                        {gifUrl ? (
                           <img
-                            src={gifSrc}
+                            src={gifUrl}
                             alt={displayExercise}
-                            style={{ width: '100%', borderRadius: '12px' }}
+                            className="exercise-gif"
                           />
                         ) : (
-                          <div className="muted" style={{ marginBottom: 12 }}>
-                            GIF deste exercício não encontrado.
-                          </div>
+                          <p className="exercise-gif-missing">
+                            GIF não encontrado para {displayExercise}
+                          </p>
                         )}
                       </div>
                     );
