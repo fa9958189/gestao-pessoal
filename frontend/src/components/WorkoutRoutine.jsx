@@ -1216,6 +1216,7 @@ const WorkoutRoutine = ({
   const [muscleConfigs, setMuscleConfigs] = useState({});
   const [selectedExercises, setSelectedExercises] = useState({});
   const [seriesPorExercicio, setSeriesPorExercicio] = useState({});
+  const [customSeries, setCustomSeries] = useState({});
   const [previewExercise, setPreviewExercise] = useState(null);
   const [previewMuscle, setPreviewMuscle] = useState(null);
   const gif = getExerciseGif(previewMuscle, previewExercise);
@@ -2392,6 +2393,25 @@ const WorkoutRoutine = ({
     }));
   };
 
+  const handleSerieChange = (key, value) => {
+    setSeriesPorExercicio((prev) => ({
+      ...prev,
+      [key]: value,
+    }));
+  };
+
+  const handleCustomSerie = (key) => {
+    setCustomSeries((prev) => ({
+      ...prev,
+      [key]: true,
+    }));
+
+    setSeriesPorExercicio((prev) => ({
+      ...prev,
+      [key]: prev[key] || '',
+    }));
+  };
+
   const selectedMuscleExercises = Object.keys(selectedExercises).filter((ex) => selectedExercises[ex]);
 
   const canContinueStep = (
@@ -2788,26 +2808,38 @@ const WorkoutRoutine = ({
                         <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
                           {selectedMuscleExercises.map((selectionKey) => {
                             const { group, exercise } = parseExerciseSelectionKey(selectionKey);
+                            const currentSerie = seriesPorExercicio[selectionKey];
                             return (
                               <div key={selectionKey} className="card-padrao config-item" style={{ padding: 12 }}>
                                 <span>{muscleMap[group]?.label || group}: {exercise}</span>
-                                <div className="series-options" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
+                                <div className="serie-options">
                                   {['3x10', '4x12', '3x15'].map((opt) => (
                                     <button
                                       key={opt}
                                       type="button"
-                                      className={`treino-option ${seriesPorExercicio[selectionKey] === opt ? 'active selected' : ''}`}
-                                      onClick={() =>
-                                        setSeriesPorExercicio((prev) => ({
-                                          ...prev,
-                                          [selectionKey]: opt,
-                                        }))
-                                      }
+                                      className={`treino-option ${currentSerie === opt ? 'active selected' : ''}`}
+                                      onClick={() => handleSerieChange(selectionKey, opt)}
                                     >
                                       {opt}
                                     </button>
                                   ))}
+                                  <button
+                                    type="button"
+                                    className={`treino-option ${customSeries[selectionKey] ? 'active selected' : ''}`}
+                                    onClick={() => handleCustomSerie(selectionKey)}
+                                  >
+                                    Personalizar
+                                  </button>
                                 </div>
+                                {customSeries[selectionKey] && (
+                                  <input
+                                    type="text"
+                                    placeholder="Ex: 5x20"
+                                    value={seriesPorExercicio[selectionKey] || ''}
+                                    onChange={(e) => handleSerieChange(selectionKey, e.target.value)}
+                                    className="input-serie"
+                                  />
+                                )}
                               </div>
                             );
                           })}
