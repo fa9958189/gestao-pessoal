@@ -882,12 +882,29 @@ const ViewWorkoutModal = ({
   const musculos = selectedWorkout?.musculos || selectedWorkout?.muscle_groups || [];
   const exerciciosPorMusculo = selectedWorkout?.exercicios || selectedWorkout?.exercises || {};
   const seriesPorMusculo = selectedWorkout?.series || selectedWorkout?.sets || {};
-  const normalizeMuscleKey = (str) => String(str || "")
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/\s+/g, "_");
-  const listaExercicios = exerciciosPorMusculo[normalizeMuscleKey(musculoAtivo)] || [];
+  const muscleAlias = {
+    posterior_de_coxa: "posterior_coxa",
+    gluteos: "gluteos",
+    antebraco: "antebraco",
+    biceps: "biceps",
+    triceps: "triceps",
+    peito: "peito",
+    abdomen: "abdomen",
+  };
+  const normalizeMuscleKey = (str) => {
+    const key = String(str || "")
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/\s+/g, "_");
+
+    return muscleAlias[key] || key;
+  };
+  const activeMuscleKey = normalizeMuscleKey(musculoAtivo);
+  const listaExercicios =
+    exerciciosPorMusculo[activeMuscleKey] ||
+    exerciciosPorMusculo[musculoAtivo] ||
+    [];
 
 
   const renderSportsActivities = (activities) => {
@@ -1082,7 +1099,8 @@ const ViewWorkoutModal = ({
                       <div className="musculos-container">
                         {musculos.map((musculo) => {
                           const isActive = musculoAtivo === musculo;
-                          const serie = seriesPorMusculo[normalizeMuscleKey(musculo)] || seriesPorMusculo[musculo] || getConfigForMuscle(musculo);
+                          const key = normalizeMuscleKey(musculo);
+                          const serie = seriesPorMusculo[key] || seriesPorMusculo[musculo] || getConfigForMuscle(musculo);
                           return (
                             <div
                               key={musculo}
