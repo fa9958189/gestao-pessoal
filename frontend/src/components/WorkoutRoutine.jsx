@@ -932,19 +932,19 @@ const ViewWorkoutModal = ({
       selectedWorkout?.exercises_by_group ??
       selectedWorkout?.exercises
   );
-  const sourceExercises = groupedExercises || {};
+  const rawExercises = groupedExercises || {};
+
+  const sourceExercises = Object.fromEntries(
+    Object.entries(rawExercises).map(([key, value]) => {
+      const normalizedKey = normalizeMuscle(key);
+      return [normalizedKey, value];
+    })
+  );
 
   const selectedKey = normalizeMuscle(selectedViewMuscle);
 
   const filteredExercises = Object.entries(sourceExercises)
-    .filter(([muscleKey]) => {
-      const normalizedKey = normalizeMuscle(muscleKey);
-
-      if (normalizedKey === selectedKey) return true;
-
-      const equivalents = MUSCLE_EQUIVALENT[selectedKey] || [];
-      return equivalents.includes(normalizedKey);
-    })
+    .filter(([muscleKey]) => muscleKey === selectedKey)
     .flatMap(([, list]) => list || []);
 
   console.log({
