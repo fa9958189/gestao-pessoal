@@ -794,8 +794,20 @@ const ViewWorkoutModal = ({
   const [grupoSelecionado, setGrupoSelecionado] = useState(null);
 
   useEffect(() => {
-    setGrupoSelecionado(null);
-  }, [workout?.id, open]);
+    if (!open || !workout) {
+      setGrupoSelecionado(null);
+      return;
+    }
+
+    const normalizedWorkout = normalizeRoutineFromApi(workout);
+    const groupsFromWorkout = parseMuscleGroups(
+      normalizedWorkout.muscle_groups ?? normalizedWorkout.muscleGroups
+    );
+
+    if (groupsFromWorkout.length > 0) {
+      setGrupoSelecionado(groupsFromWorkout[0]);
+    }
+  }, [workout, open]);
 
   // Modal de visualização de treino
   if (!open || !workout) return null;
@@ -824,6 +836,19 @@ const ViewWorkoutModal = ({
     triceps: "triceps",
     peito: "peito",
     abdomen: "abdomen",
+  };
+
+  const muscleLabel = {
+    posterior_coxa: "Posterior de Coxa",
+    gluteos: "Glúteos",
+    pernas: "Pernas",
+    panturrilha: "Panturrilha",
+    quadriceps: "Quadríceps",
+    biceps: "Bíceps",
+    triceps: "Tríceps",
+    peito: "Peito",
+    abdomen: "Abdômen",
+    antebraco: "Antebraço",
   };
   const normalizeMuscleKey = (str) => {
     const key = String(str || "")
@@ -1022,6 +1047,7 @@ const ViewWorkoutModal = ({
                   <div className="musculos-container">
                     {groups.map((musculo) => {
                       const isActive = grupoSelecionado === musculo;
+                      const key = normalizeMuscleKey(musculo);
 
                       return (
                         <div
@@ -1034,7 +1060,7 @@ const ViewWorkoutModal = ({
                             const iconeMusculo = def?.image;
                             return iconeMusculo ? <img src={iconeMusculo} alt={musculo} className="chip-icon" /> : null;
                           })()}
-                          <span>{musculo}</span>
+                          <span>{muscleLabel[key] || musculo}</span>
                         </div>
                       );
                     })}
