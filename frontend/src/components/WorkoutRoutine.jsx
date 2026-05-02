@@ -794,7 +794,9 @@ const ViewWorkoutModal = ({
   if (!open || !workout) return null;
 
   const selectedWorkout = normalizeRoutineFromApi(workout);
+  const seriesPorMusculo = selectedWorkout?.series || selectedWorkout?.seriesPorMusculo || selectedWorkout?.sets || {};
   console.log("FINAL WORKOUT:", selectedWorkout);
+  console.log("SERIES:", seriesPorMusculo);
 
   const selectedExercisesByGroup = selectedWorkout.exercisesByGroup || {};
   console.log("EX:", selectedExercisesByGroup);
@@ -981,7 +983,12 @@ const ViewWorkoutModal = ({
                     const def = getMuscleGroupByLabel(mg) || muscleMap[mg];
                     const key = getExercisesKey(def?.value || mg);
                     const info = MUSCLE_INFO[key];
-                    const serie = getConfigForMuscle(def?.value || mg, index);
+                    const muscleLabel = def?.label || mg;
+                    const muscleKey = normalizeKey(muscleLabel);
+                    const serie =
+                      seriesPorMusculo[muscleKey] ||
+                      seriesPorMusculo[muscleLabel] ||
+                      getConfigForMuscle(def?.value || mg, index);
 
                     return (
                       <div
