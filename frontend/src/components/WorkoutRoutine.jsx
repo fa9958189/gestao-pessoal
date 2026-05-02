@@ -280,7 +280,6 @@ const getExercisesKey = (muscleGroup) => {
   if (normalized === 'gluteos' || normalized === 'gluteo') return 'gluteo';
   if (normalized === 'posterior de coxa' || normalized === 'posterior_coxa' || normalized === 'posterior' || normalized === 'posterior_de_coxa') return 'posterior_de_coxa';
   if (normalized === 'quadriceps' || normalized === 'quadricep') return 'quadriceps';
-  if (normalized === 'pernas') return 'quadriceps';
   if (normalized === 'abdomen') return 'abdomen';
   if (normalized === 'biceps') return 'biceps';
   if (normalized === 'costas') return 'costas';
@@ -909,8 +908,8 @@ const ViewWorkoutModal = ({
     : [];
   const groupedExercises = normalizeGroupedExercisesPayload(normalizeObject(selectedExercisesByGroup));
   const sourceExercises =
-    selectedWorkout?.exercises ||
     selectedWorkout?.exercises_by_group ||
+    selectedWorkout?.exercises ||
     {};
 
   // 🔥 normaliza a chave do músculo selecionado
@@ -920,13 +919,11 @@ const ViewWorkoutModal = ({
   console.log("SELECTED:", selectedViewMuscle);
   console.log("KEYS:", Object.keys(sourceExercises));
 
-  // 🔥 normaliza TODAS as chaves do objeto
   const filteredExercises = Object.entries(sourceExercises)
     .filter(([muscleKey]) => {
-      const normalizedKey = normalizeMuscle(muscleKey);
-      return normalizedKey === selectedKey;
+      return normalizeMuscle(muscleKey) === selectedKey;
     })
-    .flatMap(([, exList]) => exList || []);
+    .flatMap(([, list]) => list || []);
 
 
   const renderSportsActivities = (activities) => {
@@ -1032,18 +1029,18 @@ const ViewWorkoutModal = ({
               <div className="field">
                 <label>Grupos musculares</label>
                 <div className="chips chips-with-image">
-                  {workout.muscleGroups?.map((muscle, index) => {
+                  {workout.muscleGroups?.map((muscle) => {
                     const normalized = normalizeMuscle(muscle);
-                    const isActive = selectedViewMuscle === normalized;
+                    const isActive = normalized === normalizeMuscle(selectedViewMuscle);
 
                     return (
-                      <div
-                        key={index}
-                        onClick={() => setSelectedViewMuscle(normalized)}
+                      <button
+                        key={muscle}
+                        onClick={() => setSelectedViewMuscle(muscle)}
                         className={`muscle-chip ${isActive ? "active" : ""}`}
                       >
                         {muscle}
-                      </div>
+                      </button>
                     );
                   })}
                 </div>
@@ -1098,23 +1095,16 @@ const ViewWorkoutModal = ({
                   {filteredExercises.length === 0 ? (
                     <p>Nenhum exercício encontrado</p>
                   ) : (
-                    filteredExercises.map((ex, i) => {
-                      const name = ex.nome || ex.name || "Exercício";
-                      const reps = ex.serie || ex.reps || "3x12";
-                      const gifName = name.toLowerCase().replace(/\s+/g, "");
-                      const gif = `/gifs/${gifName}.gif`;
-
+                    filteredExercises.map((ex, index) => {
                       return (
-                        <div key={i} className="exercise-item">
-                          <p>{name} — {reps}</p>
-
-                          <img
-                            src={gif}
-                            alt={name}
-                            onError={(e) => {
-                              e.currentTarget.style.display = "none";
-                            }}
-                          />
+                        <div key={ex.id || index} className="exercise-item">
+                          <p>{ex.name || ex.nome} — {ex.reps || "3x12"}</p>
+                          {ex.gif && (
+                            <img
+                              src={`/gifs/${ex.gif}`}
+                              onError={(e) => (e.target.style.display = "none")}
+                            />
+                          )}
                         </div>
                       );
                     })
