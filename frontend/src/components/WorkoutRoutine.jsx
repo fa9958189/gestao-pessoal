@@ -911,18 +911,17 @@ const ViewWorkoutModal = ({
     : Array.isArray(selectedWorkout?.sports_activities)
     ? selectedWorkout.sports_activities
     : [];
-  const sourceExercises =
-    selectedWorkout?.exercises_by_group ||
-    selectedWorkout?.exercisesByGroup ||
-    selectedWorkout?.exercises ||
-    {};
+  const groupedExercises = normalizeGroupedExercisesPayload(
+    selectedWorkout?.exercisesByGroup ??
+      selectedWorkout?.exercises_by_group ??
+      selectedWorkout?.exercises
+  );
+  const sourceExercises = groupedExercises || {};
 
   const selectedKey = selectedViewMuscle;
 
   const filteredExercises = Object.entries(sourceExercises)
-    .filter(([muscleKey]) => {
-      return normalizeMuscle(muscleKey) === selectedKey;
-    })
+    .filter(([muscleKey]) => normalizeMuscle(muscleKey) === selectedKey)
     .flatMap(([, list]) => list || []);
 
 
@@ -1094,35 +1093,28 @@ const ViewWorkoutModal = ({
               ) : (
                 <>
                   <h3>Exercícios por músculo</h3>
-                  {filteredExercises.length === 0 ? (
-                    <p>Nenhum exercício encontrado</p>
-                  ) : (
+                  {filteredExercises.length > 0 ? (
                     filteredExercises.map((ex, index) => {
-                      const name = ex?.name || ex?.nome || 'Exercício';
-                      const reps = ex?.reps || '3x12';
-
-                      const gifSrc = resolveExerciseGifSrc(
-                        ex?.gif || ex?.gifUrl || ex?.image
-                      );
+                      const name = ex?.name || 'Exercício';
+                      const reps = ex?.reps || '';
+                      const gifSrc = resolveExerciseGifSrc(ex?.gif);
 
                       return (
-                        <div key={index} className="exercise-item">
-                          <p>
-                            {name} — {reps}
-                          </p>
+                        <div key={ex?.id || index} className="exercise-item">
+                          <span>{name} {reps && `— ${reps}`}</span>
 
                           {gifSrc && (
                             <img
                               src={gifSrc}
                               alt={name}
-                              onError={(e) => {
-                                e.target.style.display = 'none';
-                              }}
+                              onError={(e) => (e.currentTarget.style.display = 'none')}
                             />
                           )}
                         </div>
                       );
                     })
+                  ) : (
+                    <p>Nenhum exercício encontrado</p>
                   )}
                 </>
               )}
