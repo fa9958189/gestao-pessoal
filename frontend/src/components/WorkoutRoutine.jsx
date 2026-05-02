@@ -255,6 +255,13 @@ const getMuscleGroupByLabel = (label) => {
   );
 };
 
+
+const resolveExerciseGifSrc = (gif) => {
+  if (!gif || typeof gif !== 'string') return null;
+  if (/^(https?:)?\/\//.test(gif) || gif.startsWith('/')) return gif;
+  return `/gifs/${gif}`;
+};
+
 const getSportByLabel = (label) => {
   const normalized = normalizeKey(label);
   return SPORTS.find(
@@ -1097,12 +1104,18 @@ const ViewWorkoutModal = ({
                     <p>Nenhum exercício encontrado</p>
                   ) : (
                     filteredExercises.map((ex, index) => {
+                      const name = ex?.name || ex?.nome || 'Exercício';
+                      const reps = ex?.reps || '3x12';
+                      const gif = ex?.gif || ex?.gifUrl || ex?.image || null;
+                      const gifSrc = resolveExerciseGifSrc(gif);
+
                       return (
                         <div key={ex.id || index} className="exercise-item">
-                          <p>{ex.name || ex.nome} — {ex.reps || "3x12"}</p>
-                          {ex.gif && (
+                          <p>{name} — {reps}</p>
+                          {gifSrc && (
                             <img
-                              src={`/gifs/${ex.gif}`}
+                              src={gifSrc}
+                              alt={name}
                               onError={(e) => (e.target.style.display = "none")}
                             />
                           )}
@@ -2921,21 +2934,25 @@ const WorkoutRoutine = ({
                                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                                   {Array.isArray(exercisesByMuscle) && exercisesByMuscle.length > 0 ? (
                                     exercisesByMuscle.map((ex, index) => {
+                                      const name = ex?.name || ex?.nome || 'Exercício';
+                                      const reps = ex?.reps || '3x12';
+                                      const gif = ex?.gif || ex?.gifUrl || ex?.image || null;
+                                      const gifSrc = resolveExerciseGifSrc(gif);
 
                                       return (
                                         <div
                                           key={ex.id || index}
-                                          onClick={() => handleExerciseToggle(muscle, ex.name)}
-                                          className={`exercise-item treino-option ${(selectedExercises[normalizeKey(getExercisesKey(muscle))] || []).includes(ex.name) ? 'selected' : ''}`}
+                                          onClick={() => handleExerciseToggle(muscle, name)}
+                                          className={`exercise-item treino-option ${(selectedExercises[normalizeKey(getExercisesKey(muscle))] || []).includes(name) ? 'selected' : ''}`}
                                         >
                                           <p className="exercise-name">
-                                            {ex.name} — {ex.reps || '3x12'}
+                                            {name} — {reps}
                                           </p>
 
-                                          {ex.gif ? (
+                                          {gifSrc ? (
                                             <img
-                                              src={`/gifs/${ex.gif}`}
-                                              alt={ex.name}
+                                              src={gifSrc}
+                                              alt={name}
                                               className="exercise-gif"
                                               onError={(e) => {
                                                 e.target.style.display = 'none';
@@ -2948,10 +2965,10 @@ const WorkoutRoutine = ({
                                           <button
                                             type="button"
                                             className="preview-btn"
-                                            aria-label={`Visualizar ${ex.name}`}
+                                            aria-label={`Visualizar ${name}`}
                                             onClick={(e) => {
                                               e.stopPropagation();
-                                              setPreviewExercise(ex.name);
+                                              setPreviewExercise(name);
                                               setPreviewMuscle(muscle);
                                             }}
                                           >
