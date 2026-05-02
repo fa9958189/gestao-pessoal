@@ -746,6 +746,7 @@ const normalizeRoutineFromApi = (row) => {
   const muscleConfig = normalizeObject(
     normalizedRow.muscle_config ?? normalizedRow.muscleConfig
   );
+  const seriesPorMusculo = muscleConfig || normalizedRow.muscle_config || {};
   let rawExercises =
     normalizedRow.exercises_by_group ?? normalizedRow.exercisesByGroup;
 
@@ -772,6 +773,7 @@ const normalizeRoutineFromApi = (row) => {
     sports: sportsList,
     muscleConfig,
     muscle_config: muscleConfig,
+    series: seriesPorMusculo,
     exercisesByGroup,
     exercises_by_group: exercisesByGroup,
     exercises: exercisesByGroup,
@@ -880,6 +882,12 @@ const ViewWorkoutModal = ({
   const musculos = selectedWorkout?.musculos || selectedWorkout?.muscle_groups || [];
   const exerciciosPorMusculo = selectedWorkout?.exercicios || selectedWorkout?.exercises || {};
   const seriesPorMusculo = selectedWorkout?.series || selectedWorkout?.sets || {};
+  const normalizeMuscleKey = (str) => String(str || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, "_");
+  const listaExercicios = exerciciosPorMusculo[normalizeMuscleKey(musculoAtivo)] || [];
 
 
   const renderSportsActivities = (activities) => {
@@ -1074,7 +1082,7 @@ const ViewWorkoutModal = ({
                       <div className="musculos-container">
                         {musculos.map((musculo) => {
                           const isActive = musculoAtivo === musculo;
-                          const serie = seriesPorMusculo[musculo] || getConfigForMuscle(musculo);
+                          const serie = seriesPorMusculo[normalizeMuscleKey(musculo)] || seriesPorMusculo[musculo] || getConfigForMuscle(musculo);
                           return (
                             <div
                               key={musculo}
@@ -1094,9 +1102,9 @@ const ViewWorkoutModal = ({
 
                       {musculoAtivo && (
                         <div className="exercicios-container">
-                          {(exerciciosPorMusculo[musculoAtivo] || []).map((ex, index) => {
-                            const nome = ex?.nome || ex?.name || ex?.label || 'Exercício';
-                            const gif = ex?.gif || ex?.url || ex?.image || getExerciseGif(musculoAtivo, nome);
+                          {listaExercicios.map((ex, index) => {
+                            const nome = ex?.nome || ex?.name || ex?.title || 'Exercício';
+                            const gif = ex?.gif || ex?.url || ex?.image || ex?.src || getExerciseGif(musculoAtivo, nome);
 
                             return (
                               <div key={index} className="exercicio-card">
