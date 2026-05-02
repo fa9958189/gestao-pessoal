@@ -913,8 +913,19 @@ const ViewWorkoutModal = ({
     selectedWorkout?.exercises_by_group ||
     {};
 
+  // 🔥 normaliza a chave do músculo selecionado
+  const selectedKey = normalizeMuscle(selectedViewMuscle);
+
+  // 🧪 DEBUG RÁPIDO (temporário)
+  console.log("SELECTED:", selectedViewMuscle);
+  console.log("KEYS:", Object.keys(sourceExercises));
+
+  // 🔥 normaliza TODAS as chaves do objeto
   const filteredExercises = Object.entries(sourceExercises)
-    .filter(([muscle]) => normalizeMuscle(muscle) === selectedViewMuscle)
+    .filter(([muscleKey]) => {
+      const normalizedKey = normalizeMuscle(muscleKey);
+      return normalizedKey === selectedKey;
+    })
     .flatMap(([, exList]) => exList || []);
 
 
