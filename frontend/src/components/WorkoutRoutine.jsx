@@ -38,8 +38,8 @@ const muscleGroups = [
   { id: 'abdomen', name: 'Abdômen', image: AbdomenImg },
   { id: 'quadriceps', name: 'Quadríceps', image: QuadricepsImg },
   { id: 'panturrilha', name: 'Panturrilha', image: PanturrilhaImg },
-  { id: 'posterior_coxa', name: 'Posterior de Coxa', image: PosteriorCoxaImg },
-  { id: 'gluteos', name: 'Glúteos', image: GluteosImg },
+  { id: 'posterior_de_coxa', name: 'Posterior de Coxa', image: PosteriorCoxaImg },
+  { id: 'gluteo', name: 'Glúteos', image: GluteosImg },
   { id: 'ante braco', name: 'Antebraço', image: new URL('../assets/muscles/Antebraco.png', import.meta.url).href },
 
   // Esportes
@@ -917,7 +917,7 @@ const ViewWorkoutModal = ({
     selectedWorkout?.exercises ||
     {};
 
-  const selectedKey = normalizeMuscle(selectedViewMuscle);
+  const selectedKey = selectedViewMuscle;
 
   const filteredExercises = Object.entries(sourceExercises)
     .filter(([muscleKey]) => {
@@ -1030,16 +1030,18 @@ const ViewWorkoutModal = ({
                 <label>Grupos musculares</label>
                 <div className="chips chips-with-image">
                   {workout.muscleGroups?.map((muscle) => {
-                    const normalized = normalizeMuscle(muscle);
-                    const isActive = normalized === selectedKey;
+                    const muscleId = normalizeMuscle(muscle);
+                    const muscleDefinition = muscleGroups.find(({ id }) => id === muscleId);
+                    const muscleLabel = muscleDefinition?.name || muscle;
+                    const isActive = selectedViewMuscle === muscleId;
 
                     return (
                       <button
-                        key={muscle}
-                        onClick={() => setSelectedViewMuscle(normalizeMuscle(muscle))}
+                        key={muscleId}
+                        onClick={() => setSelectedViewMuscle(muscleId)}
                         className={`muscle-chip ${isActive ? "active" : ""}`}
                       >
-                        {muscle}
+                        {muscleLabel}
                       </button>
                     );
                   })}
