@@ -942,7 +942,8 @@ const ViewWorkoutModal = ({
         acc[normalizedKey] = [];
       }
 
-      acc[normalizedKey] = acc[normalizedKey].concat(value || []);
+      const list = Array.isArray(value) ? value : [value];
+      acc[normalizedKey] = acc[normalizedKey].concat(list);
 
       return acc;
     },
