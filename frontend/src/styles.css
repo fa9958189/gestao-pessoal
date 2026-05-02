@@ -4038,3 +4038,22 @@ canvas{ background:transparent; }
   outline: none;
   border: 1px solid #22c55e;
 }
+
+.musculo-item {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  margin: 10px 0;
+  font-size: 16px;
+}
+
+.badge-serie {
+  background: #22c55e;
+  color: #022c22;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: bold;
+  box-shadow: 0 0 8px #22c55e66;
+}

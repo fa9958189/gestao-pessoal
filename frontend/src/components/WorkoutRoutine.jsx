@@ -977,15 +977,16 @@ const ViewWorkoutModal = ({
               <div className="field">
                 <label>Grupos musculares</label>
                 <div className="chips chips-with-image">
-                  {groups.map((mg) => {
+                  {groups.map((mg, index) => {
                     const def = getMuscleGroupByLabel(mg) || muscleMap[mg];
                     const key = getExercisesKey(def?.value || mg);
                     const info = MUSCLE_INFO[key];
+                    const serie = getConfigForMuscle(def?.value || mg, index);
 
                     return (
                       <div
                         key={mg}
-                        className="chip chip-with-image"
+                        className="chip chip-with-image musculo-item"
                         style={{ cursor: info ? 'pointer' : 'default' }}
                         onClick={() => {
                           if (!info) return;
@@ -1007,6 +1008,7 @@ const ViewWorkoutModal = ({
                           />
                         )}
                         <span>{def?.label || mg}</span>
+                        {serie && serie !== '—' && <span className="badge-serie">{serie}</span>}
                       </div>
                     );
                   })}
