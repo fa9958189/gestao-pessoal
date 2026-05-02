@@ -237,6 +237,35 @@ const getMuscleGroupByLabel = (label) => {
   );
 };
 
+
+const normalizeMuscleInfoKey = (value = "") => {
+  const key = String(value)
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/\s+/g, "_")
+    .replace(/-/g, "_");
+
+  const aliases = {
+    posterior_de_coxa: "posterior_coxa",
+    posterior_coxa: "posterior_coxa",
+    gluteos: "gluteos",
+    gluteo: "gluteos",
+    antebraco: "ante braco",
+    quadriceps: "quadriceps",
+    panturrilha: "panturrilha",
+    peito: "peito",
+    costas: "costas",
+    ombros: "ombros",
+    ombro: "ombros",
+    biceps: "biceps",
+    triceps: "triceps",
+    abdomen: "abdomen",
+  };
+
+  return aliases[key] || key;
+};
+
 const getSportByLabel = (label) => {
   const normalized = normalizeKey(label);
   return SPORTS.find(
@@ -509,6 +538,11 @@ const defaultSchedule = WEEK_DAYS.map((day) => ({
 
 const QUICK_MUSCLE_CONFIG_OPTIONS = ['3x10', '4x12', '3x15'];
 const DEFAULT_MUSCLE_CONFIG = '3x10';
+
+const splitSerieValue = (value = '') => {
+  const [sets = '', reps = ''] = String(value).split('x');
+  return { sets, reps };
+};
 
 
 function getLocalDateOnly() {
@@ -798,6 +832,12 @@ const ViewWorkoutModal = ({
   // novo estado para o “detalhe” selecionado
   const [infoTarget, setInfoTarget] = useState(null);
 
+  useEffect(() => {
+    if (!open || !workout) {
+      setInfoTarget(null);
+    }
+  }, [open, workout?.id]);
+
   // Modal de visualização de treino
   if (!open || !workout) return null;
 
@@ -931,6 +971,8 @@ const ViewWorkoutModal = ({
     );
   };
 
+  const activeMuscleInfo = infoTarget ? MUSCLE_INFO[infoTarget] : null;
+
   return (
     <div
       style={{
@@ -985,32 +1027,23 @@ const ViewWorkoutModal = ({
                 <label>Grupos musculares</label>
                 <div className="chips chips-with-image">
                   {groups.map((mg, index) => {
-                    const def = getMuscleGroupByLabel(mg) || muscleMap[mg];
-                    const key = getExercisesKey(def?.value || mg);
-                    const info = MUSCLE_INFO[key];
-                    const muscleLabel = def?.label || mg;
-                    const muscleKey = normalizeKey(muscleLabel);
+                    const def = getMuscleGroupByLabel(mg) || muscleMap?.[mg] || {};
+                    const label = def.label || mg;
+                    const value = def.value || mg;
+                    const infoKey = normalizeMuscleInfoKey(value);
+                    const isActive = infoTarget === infoKey;
+                    const muscleKey = normalizeKey(label);
                     const serie =
                       seriesPorMusculo[muscleKey] ||
-                      seriesPorMusculo[muscleLabel] ||
-                      getConfigForMuscle(def?.value || mg, index);
+                      seriesPorMusculo[label] ||
+                      getConfigForMuscle(value, index);
 
                     return (
-                      <div
-                        key={mg}
-                        className="chip chip-with-image musculo-item"
-                        style={{ cursor: info ? 'pointer' : 'default' }}
-                        onClick={() => {
-                          if (!info) return;
-                          const selectedMuscleExercises = groupedExercises[getExercisesKey(key)] || [];
-                          setInfoTarget({
-                            type: 'muscle',
-                            id: key,
-                            label: def?.label || mg,
-                            description: info.description,
-                            exercises: selectedMuscleExercises,
-                          });
-                        }}
+                      <button
+                        key={`${label}-${infoKey}`}
+                        type="button"
+                        className={`chip chip-with-image muscle-info-chip ${isActive ? 'active' : ''}`}
+                        onClick={() => setInfoTarget(infoKey)}
                       >
                         {def?.image && (
                           <img
@@ -1021,7 +1054,7 @@ const ViewWorkoutModal = ({
                         )}
                         <span>{def?.label || mg}</span>
                         {serie && serie !== '—' && <span className="badge-serie">{serie}</span>}
-                      </div>
+                      </button>
                     );
                   })}
                 </div>
@@ -1044,12 +1077,7 @@ const ViewWorkoutModal = ({
                         style={{ cursor: info ? 'pointer' : 'default' }}
                         onClick={() => {
                           if (!info) return;
-                          setInfoTarget({
-                            type: 'sport',
-                            id: key,
-                            label: def?.label || act,
-                            description: info.description,
-                          });
+                          setInfoTarget(null);
                         }}
                       >
                         {def?.image && (
@@ -1112,7 +1140,7 @@ const ViewWorkoutModal = ({
             </div>
           </div>
 
-          {infoTarget && (
+          {activeMuscleInfo && (
             <div
               className="info-panel"
               style={{
@@ -1133,11 +1161,9 @@ const ViewWorkoutModal = ({
                     className="muted"
                     style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.08 }}
                   >
-                    {infoTarget.type === 'muscle'
-                      ? 'Grupo muscular selecionado'
-                      : 'Esporte / atividade selecionada'}
+                    Grupo muscular selecionado
                   </div>
-                  <div style={{ fontSize: 18, fontWeight: 600 }}>{infoTarget.label}</div>
+                  <div style={{ fontSize: 18, fontWeight: 600 }}>{activeMuscleInfo.title}</div>
                 </div>
                 <button
                   type="button"
@@ -1148,17 +1174,17 @@ const ViewWorkoutModal = ({
                 </button>
               </div>
               <p className="muted" style={{ fontSize: 14, lineHeight: 1.5, margin: 0 }}>
-                {infoTarget.description}
+                {activeMuscleInfo.description}
               </p>
-              {infoTarget.exercises && infoTarget.exercises.length > 0 && (
+              {activeMuscleInfo.exercises && activeMuscleInfo.exercises.length > 0 && (
                 <div style={{ marginTop: '20px' }}>
-                  {infoTarget.exercises.map((exercise, index) => {
+                  {activeMuscleInfo.exercises.map((exercise, index) => {
                     const exerciseName =
                       typeof exercise === 'object'
                         ? exercise.nome || exercise.name || exercise.label || 'Exercício'
                         : exercise;
                     const displayExercise = normalizeExerciseDisplayName(exerciseName);
-                    const gifSrc = getExerciseGif(infoTarget.id, displayExercise);
+                    const gifSrc = getExerciseGif(infoTarget, displayExercise);
 
                     return (
                       <div key={`${displayExercise}-${index}`} style={{ marginBottom: '30px' }}>
@@ -2412,6 +2438,20 @@ const WorkoutRoutine = ({
     }));
   };
 
+  const handleCustomSeriePartChange = (key, part, value) => {
+    const onlyNumbers = String(value).replace(/\D/g, '');
+    const current = splitSerieValue(seriesPorExercicio[key] || '');
+    const next = {
+      ...current,
+      [part]: onlyNumbers,
+    };
+
+    setSeriesPorExercicio((prev) => ({
+      ...prev,
+      [key]: `${next.sets || ''}x${next.reps || ''}`,
+    }));
+  };
+
   const selectedMuscleExercises = Object.keys(selectedExercises).filter((ex) => selectedExercises[ex]);
 
   const canContinueStep = (
@@ -2831,15 +2871,33 @@ const WorkoutRoutine = ({
                                     Personalizar
                                   </button>
                                 </div>
-                                {customSeries[selectionKey] && (
-                                  <input
-                                    type="text"
-                                    placeholder="Ex: 5x20"
-                                    value={seriesPorExercicio[selectionKey] || ''}
-                                    onChange={(e) => handleSerieChange(selectionKey, e.target.value)}
-                                    className="input-serie"
-                                  />
-                                )}
+                                {customSeries[selectionKey] && (() => {
+                                  const { sets, reps } = splitSerieValue(seriesPorExercicio[selectionKey] || '');
+
+                                  return (
+                                    <div className="custom-serie-row">
+                                      <input
+                                        type="text"
+                                        inputMode="numeric"
+                                        placeholder="3"
+                                        value={sets}
+                                        onChange={(e) => handleCustomSeriePartChange(selectionKey, 'sets', e.target.value)}
+                                        className="custom-serie-input"
+                                      />
+
+                                      <span className="custom-serie-x">x</span>
+
+                                      <input
+                                        type="text"
+                                        inputMode="numeric"
+                                        placeholder="10"
+                                        value={reps}
+                                        onChange={(e) => handleCustomSeriePartChange(selectionKey, 'reps', e.target.value)}
+                                        className="custom-serie-input"
+                                      />
+                                    </div>
+                                  );
+                                })()}
                               </div>
                             );
                           })}
