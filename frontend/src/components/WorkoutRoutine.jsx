@@ -759,6 +759,14 @@ const normalizeRoutineFromApi = (row) => {
   }
 
   const exercisesByGroup = normalizeGroupedExercisesPayload(rawExercises);
+  const flatExercises = Array.isArray(normalizedRow.exercises) ? normalizedRow.exercises : [];
+
+  flatExercises.forEach((ex) => {
+    const key = getExercisesKey(ex?.name);
+    if (!key || !ex?.name) return;
+    if (!exercisesByGroup[key]) exercisesByGroup[key] = [];
+    exercisesByGroup[key].push({ name: ex.name, series: ex.series });
+  });
 
   console.log("EXERCISES FINAL:", exercisesByGroup);
 
@@ -1085,11 +1093,16 @@ const ViewWorkoutModal = ({
                             )}
                           </h4>
 
-                          {exercises.map((ex, i) => (
-                            <p key={i}>
-                              {ex.nome || ex.name || ex.label || ex}
-                            </p>
-                          ))}
+                          {exercises.map((ex, i) => {
+                            const exerciseName = ex?.nome || ex?.name || ex?.label || ex;
+                            const exerciseSeries = ex?.series || ex?.serie || '3x10';
+                            return (
+                              <div key={`${exerciseName}-${i}`} className="exercise-item">
+                                <span>{exerciseName}</span>
+                                <span className="badge-serie">{exerciseSeries}</span>
+                              </div>
+                            );
+                          })}
                         </div>
                       );
                     })
@@ -1202,6 +1215,7 @@ const WorkoutRoutine = ({
   const [nomeTreino, setNomeTreino] = useState('');
   const [muscleConfigs, setMuscleConfigs] = useState({});
   const [selectedExercises, setSelectedExercises] = useState({});
+  const [seriesPorExercicio, setSeriesPorExercicio] = useState({});
   const [previewExercise, setPreviewExercise] = useState(null);
   const [previewMuscle, setPreviewMuscle] = useState(null);
   const gif = getExerciseGif(previewMuscle, previewExercise);
@@ -1884,25 +1898,21 @@ const WorkoutRoutine = ({
       return;
     }
     const isMusculacao = tipo === 'musculacao';
+    const selectedExerciseList = Object.keys(selectedExercises).filter((ex) => selectedExercises[ex]);
     const exercicios = isMusculacao
-      ? buildExercisesWithSeries(selectedExercises, {
-          muscleConfigState: muscleConfigs,
-        })
+      ? selectedExerciseList.reduce((acc, exercise) => {
+          const key = getExercisesKey(exercise);
+          if (!acc[key]) acc[key] = [];
+          acc[key].push({ name: exercise, series: seriesPorExercicio[exercise] || '3x10' });
+          return acc;
+        }, {})
       : {};
-    const muscleConfig = isMusculacao
-      ? itensSelecionados.map((muscle) => ({
-          muscle,
-          config: formatMuscleConfigValue(muscleConfigs[muscle]),
-          sets: Number(formatMuscleConfigValue(muscleConfigs[muscle]).split('x')?.[0]) || 0,
-          reps: Number(formatMuscleConfigValue(muscleConfigs[muscle]).split('x')?.[1]) || 0,
-          exercises: exercicios[getExercisesKey(muscle)] || [],
-        }))
-      : [];
+
     const payloadData = {
       name: nome,
       muscleGroups: isMusculacao ? itensSelecionados : [],
       sportsActivities: isMusculacao ? [] : itensSelecionados,
-      muscleConfig,
+      muscleConfig: [],
       exercises: exercicios,
     };
     const novoTreino = {
@@ -2360,40 +2370,30 @@ const WorkoutRoutine = ({
     });
   }, [selecionados, tipoTreino]);
 
-  useEffect(() => {
+  const handleSelectExercise = (exercise) => {
     setSelectedExercises((prev) => {
-      const next = {};
-      selecionados.forEach((muscle) => {
-        const muscleKey = getExercisesKey(muscle);
-        next[muscleKey] = prev[muscleKey] || [];
-      });
-      return next;
-    });
-  }, [selecionados]);
-
-  const handleExerciseToggle = (muscle, exercise) => {
-    setSelectedExercises((prev) => {
-      const current = prev || {};
-      const muscleKey = getExercisesKey(muscle);
-      const muscleExercises = current[muscleKey] || [];
-
-      const exists = muscleExercises.includes(exercise);
-
-      const updated = exists
-        ? muscleExercises.filter((e) => e !== exercise)
-        : [...muscleExercises, exercise];
-
-      return {
+      const updated = {
         ...prev,
-        [muscleKey]: updated,
+        [exercise]: !prev[exercise],
       };
+
+      if (!prev[exercise]) {
+        setSeriesPorExercicio((state) => ({
+          ...state,
+          [exercise]: '3x10',
+        }));
+      }
+
+      return updated;
     });
   };
+
+  const selectedMuscleExercises = Object.keys(selectedExercises).filter((ex) => selectedExercises[ex]);
 
   const canContinueStep = (
     (step === 1 && Boolean(tipoTreino))
     || (step === 2 && selecionados.length > 0)
-    || step === 3
+    || (step === 3 && selectedMuscleExercises.length > 0)
     || step === 4
   );
 
@@ -2403,7 +2403,7 @@ const WorkoutRoutine = ({
   const isLastStep = step === totalSteps;
 
   const handleNextStep = async () => {
-    if (step === 3) {
+    if (step === 4) {
       if (!nomeTreino || !nomeTreino.trim()) {
         alert('Digite um nome para o treino antes de continuar.');
         return;
@@ -2676,7 +2676,7 @@ const WorkoutRoutine = ({
 
                   {step === 2 && (
                     <div>
-                      <h3>Escolher exercícios</h3>
+                      <h3>Selecionar grupos</h3>
 
                       {tipoTreino === 'musculacao' && (
                         <div className="muscle-grid">
@@ -2734,115 +2734,7 @@ const WorkoutRoutine = ({
                     </div>
                   )}
 
-                  {step === 3 && (
-                    <div>
-                      <h3>Configuração do treino</h3>
-                      <input
-                        value={nomeTreino}
-                        onChange={(e) => setNomeTreino(e.target.value)}
-                        placeholder="Ex: Treino A - Peito e Tríceps"
-                      />
-                      {tipoTreino === 'musculacao' && selecionados.length > 0 && (
-                        <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
-                          {selecionados.map((muscle) => {
-                            const muscleLabel = muscleMap[muscle]?.label || muscle;
-                            const current = muscleConfigs[muscle] || {
-                              type: 'preset',
-                              value: DEFAULT_MUSCLE_CONFIG,
-                            };
-                            const customSeries = current.type === 'custom' ? Number(current.series) || 0 : 0;
-                            const customReps = current.type === 'custom' ? Number(current.reps) || 0 : 0;
-
-                            return (
-                              <div key={muscle} className="card-padrao" style={{ padding: 12 }}>
-                                <div style={{ fontWeight: 600, marginBottom: 8 }}>{muscleLabel}</div>
-                                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                                  {QUICK_MUSCLE_CONFIG_OPTIONS.map((option) => {
-                                    const isSelected = current.type === 'preset' && current.value === option;
-                                    return (
-                                      <button
-                                        key={option}
-                                        type="button"
-                                        className={`treino-option muscle-config-option ${isSelected ? 'selected' : ''}`}
-                                        onClick={() => {
-                                          setMuscleConfigs((prev) => ({
-                                            ...prev,
-                                            [muscle]: { type: 'preset', value: option },
-                                          }));
-                                        }}
-                                      >
-                                        {option}
-                                      </button>
-                                    );
-                                  })}
-                                  <button
-                                    type="button"
-                                    className={`treino-option muscle-config-option ${current.type === 'custom' ? 'selected' : ''}`}
-                                    onClick={() => {
-                                      setMuscleConfigs((prev) => ({
-                                        ...prev,
-                                        [muscle]: {
-                                          type: 'custom',
-                                          series: customSeries || 3,
-                                          reps: customReps || 10,
-                                        },
-                                      }));
-                                    }}
-                                  >
-                                    Personalizar
-                                  </button>
-                                </div>
-                                {current.type === 'custom' && (
-                                  <div className="row" style={{ marginTop: 10, gap: 10 }}>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                                      <label>Séries</label>
-                                      <input
-                                        type="number"
-                                        min="1"
-                                        value={customSeries || ''}
-                                        onChange={(e) => {
-                                          const series = Number(e.target.value);
-                                          setMuscleConfigs((prev) => ({
-                                            ...prev,
-                                            [muscle]: {
-                                              type: 'custom',
-                                              series,
-                                              reps: customReps || 10,
-                                            },
-                                          }));
-                                        }}
-                                      />
-                                    </div>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                                      <label>Reps</label>
-                                      <input
-                                        type="number"
-                                        min="1"
-                                        value={customReps || ''}
-                                        onChange={(e) => {
-                                          const reps = Number(e.target.value);
-                                          setMuscleConfigs((prev) => ({
-                                            ...prev,
-                                            [muscle]: {
-                                              type: 'custom',
-                                              series: customSeries || 3,
-                                              reps,
-                                            },
-                                          }));
-                                        }}
-                                      />
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {step === 4 && tipoTreino === 'musculacao' && (
+                  {step === 3 && tipoTreino === 'musculacao' && (
                     <div>
                       <h3>Selecionar exercícios</h3>
                       {tipoTreino === 'musculacao' && selecionados.length > 0 && (
@@ -2854,8 +2746,8 @@ const WorkoutRoutine = ({
                                 {(exercises[normalizeKey(getExercisesKey(muscle))] || []).map((exercise) => (
                                   <div
                                     key={`${muscle}-${exercise}`}
-                                    onClick={() => handleExerciseToggle(muscle, exercise)}
-                                    className={`exercise-item treino-option ${(selectedExercises[normalizeKey(getExercisesKey(muscle))] || []).includes(exercise) ? 'selected' : ''}`}
+                                    onClick={() => handleSelectExercise(exercise)}
+                                    className={`exercise-item treino-option ${selectedExercises[exercise] ? 'selected' : ''}`}
                                   >
                                     <span>{exercise}</span>
                                     <button
@@ -2871,6 +2763,43 @@ const WorkoutRoutine = ({
                                       👁
                                     </button>
                                   </div>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {step === 4 && (
+                    <div>
+                      <h3>Configuração do treino</h3>
+                      <input
+                        value={nomeTreino}
+                        onChange={(e) => setNomeTreino(e.target.value)}
+                        placeholder="Ex: Treino A - Peito e Tríceps"
+                      />
+                      {tipoTreino === 'musculacao' && selectedMuscleExercises.length > 0 && (
+                        <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                          {selectedMuscleExercises.map((exercise) => (
+                            <div key={exercise} className="card-padrao config-item" style={{ padding: 12 }}>
+                              <span>{exercise}</span>
+                              <div className="series-options" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
+                                {['3x10', '4x12', '3x15'].map((opt) => (
+                                  <button
+                                    key={opt}
+                                    type="button"
+                                    className={`treino-option ${seriesPorExercicio[exercise] === opt ? 'active selected' : ''}`}
+                                    onClick={() =>
+                                      setSeriesPorExercicio((prev) => ({
+                                        ...prev,
+                                        [exercise]: opt,
+                                      }))
+                                    }
+                                  >
+                                    {opt}
+                                  </button>
                                 ))}
                               </div>
                             </div>
