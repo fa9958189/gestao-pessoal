@@ -908,7 +908,12 @@ const ViewWorkoutModal = ({
     ? selectedWorkout.sports_activities
     : [];
   const groupedExercises = normalizeGroupedExercisesPayload(normalizeObject(selectedExercisesByGroup));
-  const filteredExercises = Object.entries(workout.exercises || {})
+  const sourceExercises =
+    selectedWorkout?.exercises ||
+    selectedWorkout?.exercises_by_group ||
+    {};
+
+  const filteredExercises = Object.entries(sourceExercises)
     .filter(([muscle]) => normalizeMuscle(muscle) === selectedViewMuscle)
     .flatMap(([, exList]) => exList || []);
 
