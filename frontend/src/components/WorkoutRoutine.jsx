@@ -36,10 +36,10 @@ const muscleGroups = [
   { id: 'biceps', name: 'Bíceps', image: BicepsImg },
   { id: 'triceps', name: 'Tríceps', image: TricepsImg },
   { id: 'abdomen', name: 'Abdômen', image: AbdomenImg },
-  { id: 'quadriceps', name: 'Quadríceps', image: QuadricepsImg },
+  { id: 'pernas', name: 'Quadríceps', image: QuadricepsImg },
   { id: 'panturrilha', name: 'Panturrilha', image: PanturrilhaImg },
-  { id: 'posterior_de_coxa', name: 'Posterior de Coxa', image: PosteriorCoxaImg },
-  { id: 'gluteo', name: 'Glúteos', image: GluteosImg },
+  { id: 'posterior_coxa', name: 'Posterior de Coxa', image: PosteriorCoxaImg },
+  { id: 'gluteos', name: 'Glúteos', image: GluteosImg },
   { id: 'ante braco', name: 'Antebraço', image: new URL('../assets/muscles/Antebraco.png', import.meta.url).href },
 
   // Esportes
@@ -54,24 +54,6 @@ const muscleGroups = [
   { id: 'escada', name: 'Escada', image: EscadaImg },
   { id: 'esteira', name: 'Esteira', image: EsteiraImg },
 ];
-
-
-// 🔥 MAPA OFICIAL DE MÚSCULOS (PADRÃO ÚNICO)
-const MUSCLE_MAP = {
-  gluteo: 'gluteo',
-  gluteos: 'gluteo',
-  'glúteo': 'gluteo',
-  'glúteos': 'gluteo',
-
-  quadriceps: 'quadriceps',
-  'quadríceps': 'quadriceps',
-
-  posterior_de_coxa: 'posterior_de_coxa',
-  'posterior de coxa': 'posterior_de_coxa',
-
-  panturrilha: 'panturrilha',
-  panturrilhas: 'panturrilha',
-};
 
 const SPORT_IDS = new Set(['natacao', 'volei', 'boxe', 'jiujitsu', 'futebol', 'beachtennis', 'bicicleta', 'corrida_ao_ar_livre', 'escada', 'esteira']);
 
@@ -255,45 +237,11 @@ const getMuscleGroupByLabel = (label) => {
   );
 };
 
-
-const resolveExerciseGifSrc = (gif) => {
-  if (!gif || typeof gif !== 'string') return null;
-  if (/^(https?:)?\/\//.test(gif) || gif.startsWith('/')) return gif;
-  return `/gifs/${gif}`;
-};
-
 const getSportByLabel = (label) => {
   const normalized = normalizeKey(label);
   return SPORTS.find(
     (sport) => normalizeKey(sport.label) === normalized || normalizeKey(sport.value) === normalized
   );
-};
-
-const normalizeMuscle = (name) => {
-  const key = String(name || '')
-    .toLowerCase()
-    .trim()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/\s+/g, '_');
-
-  return MUSCLE_MAP[key] || key;
-};
-
-
-const MUSCLE_EQUIVALENT = {
-  gluteos: ['gluteo', 'gluteos'],
-  gluteo: ['gluteo', 'gluteos'],
-  quadriceps: ['quadriceps'],
-  posterior_de_coxa: ['posterior_de_coxa'],
-  panturrilha: ['panturrilha'],
-  biceps: ['biceps'],
-  triceps: ['triceps'],
-  peito: ['peito'],
-  costas: ['costas'],
-  ombros: ['ombros', 'ombro'],
-  abdomen: ['abdomen'],
-  antebraco: ['antebraco', 'ante_braco', 'ante braco']
 };
 
 const getExercisesKey = (muscleGroup) => {
@@ -303,6 +251,7 @@ const getExercisesKey = (muscleGroup) => {
   if (normalized === 'gluteos' || normalized === 'gluteo') return 'gluteo';
   if (normalized === 'posterior de coxa' || normalized === 'posterior_coxa' || normalized === 'posterior' || normalized === 'posterior_de_coxa') return 'posterior_de_coxa';
   if (normalized === 'quadriceps' || normalized === 'quadricep') return 'quadriceps';
+  if (normalized === 'pernas') return 'quadriceps';
   if (normalized === 'abdomen') return 'abdomen';
   if (normalized === 'biceps') return 'biceps';
   if (normalized === 'costas') return 'costas';
@@ -811,6 +760,7 @@ const normalizeRoutineFromApi = (row) => {
 
   const exercisesByGroup = normalizeGroupedExercisesPayload(rawExercises);
 
+  console.log("EXERCISES FINAL:", exercisesByGroup);
 
   return {
     ...normalizedRow,
@@ -839,14 +789,6 @@ const ViewWorkoutModal = ({
 }) => {
   // novo estado para o “detalhe” selecionado
   const [infoTarget, setInfoTarget] = useState(null);
-  const [selectedViewMuscle, setSelectedViewMuscle] = useState(null);
-
-  useEffect(() => {
-    if (!open || !workout) return;
-    if (workout?.muscleGroups?.length && !selectedViewMuscle) {
-      setSelectedViewMuscle(normalizeMuscle(workout.muscleGroups[0]));
-    }
-  }, [open, workout, selectedViewMuscle]);
 
   // Modal de visualização de treino
   if (!open || !workout) return null;
@@ -854,6 +796,8 @@ const ViewWorkoutModal = ({
   const selectedWorkout = normalizeRoutineFromApi(workout);
   console.log("FINAL WORKOUT:", selectedWorkout);
 
+  const selectedExercisesByGroup = selectedWorkout.exercisesByGroup || {};
+  console.log("EX:", selectedExercisesByGroup);
   const workoutName = selectedWorkout?.name || "Treino sem nome";
   const getConfigForMuscle = (muscle, index) => {
     const muscleKey = getExercisesKey(muscle);
@@ -927,40 +871,7 @@ const ViewWorkoutModal = ({
     : Array.isArray(selectedWorkout?.sports_activities)
     ? selectedWorkout.sports_activities
     : [];
-  const groupedExercises = normalizeGroupedExercisesPayload(
-    selectedWorkout?.exercisesByGroup ??
-      selectedWorkout?.exercises_by_group ??
-      selectedWorkout?.exercises
-  );
-  const rawExercises = groupedExercises || {};
-
-  const sourceExercises = Object.entries(rawExercises).reduce(
-    (acc, [key, value]) => {
-      const normalizedKey = normalizeMuscle(key);
-
-      if (!acc[normalizedKey]) {
-        acc[normalizedKey] = [];
-      }
-
-      const list = Array.isArray(value) ? value : [value];
-      acc[normalizedKey] = acc[normalizedKey].concat(list);
-
-      return acc;
-    },
-    {}
-  );
-
-  const selectedKey = normalizeMuscle(selectedViewMuscle);
-
-  const filteredExercises = Object.entries(sourceExercises)
-    .filter(([muscleKey]) => muscleKey === selectedKey)
-    .flatMap(([, list]) => list || []);
-
-  console.log({
-    selectedViewMuscle,
-    selectedKey,
-    availableKeys: Object.keys(sourceExercises),
-  });
+  const groupedExercises = normalizeGroupedExercisesPayload(normalizeObject(selectedExercisesByGroup));
 
 
   const renderSportsActivities = (activities) => {
@@ -1066,20 +977,37 @@ const ViewWorkoutModal = ({
               <div className="field">
                 <label>Grupos musculares</label>
                 <div className="chips chips-with-image">
-                  {workout.muscleGroups?.map((muscle) => {
-                    const muscleId = normalizeMuscle(muscle);
-                    const muscleDefinition = muscleGroups.find(({ id }) => id === muscleId);
-                    const muscleLabel = muscleDefinition?.name || muscle;
-                    const isActive = selectedViewMuscle === muscleId;
+                  {groups.map((mg) => {
+                    const def = getMuscleGroupByLabel(mg) || muscleMap[mg];
+                    const key = getExercisesKey(def?.value || mg);
+                    const info = MUSCLE_INFO[key];
 
                     return (
-                      <button
-                        key={muscleId}
-                        onClick={() => setSelectedViewMuscle(muscleId)}
-                        className={`muscle-chip ${isActive ? "active" : ""}`}
+                      <div
+                        key={mg}
+                        className="chip chip-with-image"
+                        style={{ cursor: info ? 'pointer' : 'default' }}
+                        onClick={() => {
+                          if (!info) return;
+                          const selectedMuscleExercises = groupedExercises[getExercisesKey(key)] || [];
+                          setInfoTarget({
+                            type: 'muscle',
+                            id: key,
+                            label: def?.label || mg,
+                            description: info.description,
+                            exercises: selectedMuscleExercises,
+                          });
+                        }}
                       >
-                        {muscleLabel}
-                      </button>
+                        {def?.image && (
+                          <img
+                            src={def.image}
+                            alt={def.label || mg}
+                            className="chip-icon"
+                          />
+                        )}
+                        <span>{def?.label || mg}</span>
+                      </div>
                     );
                   })}
                 </div>
@@ -1131,28 +1059,19 @@ const ViewWorkoutModal = ({
               ) : (
                 <>
                   <h3>Exercícios por músculo</h3>
-                  {filteredExercises.length > 0 ? (
-                    filteredExercises.map((ex, index) => {
-                      const name = ex?.name || 'Exercício';
-                      const reps = ex?.reps || '';
-                      const gifSrc = resolveExerciseGifSrc(ex?.gif);
-
-                      return (
-                        <div key={ex?.id || index} className="exercise-item">
-                          <span>{name} {reps && `— ${reps}`}</span>
-
-                          {gifSrc && (
-                            <img
-                              src={gifSrc}
-                              alt={name}
-                              onError={(e) => (e.currentTarget.style.display = 'none')}
-                            />
-                          )}
-                        </div>
-                      );
-                    })
-                  ) : (
+                  {Object.keys(selectedWorkout.exercises_by_group || {}).length === 0 ? (
                     <p>Nenhum exercício encontrado</p>
+                  ) : (
+                    Object.entries(selectedWorkout.exercises_by_group).map(([group, exercises]) => (
+                      <div key={group}>
+                        <h4>{group}</h4>
+                        {exercises.map((ex, i) => (
+                          <p key={i}>
+                            {ex.name} {ex.reps}
+                          </p>
+                        ))}
+                      </div>
+                    ))
                   )}
                 </>
               )}
@@ -1262,7 +1181,6 @@ const WorkoutRoutine = ({
   const [nomeTreino, setNomeTreino] = useState('');
   const [muscleConfigs, setMuscleConfigs] = useState({});
   const [selectedExercises, setSelectedExercises] = useState({});
-  const [selectedMuscle, setSelectedMuscle] = useState('');
   const [previewExercise, setPreviewExercise] = useState(null);
   const [previewMuscle, setPreviewMuscle] = useState(null);
   const gif = getExerciseGif(previewMuscle, previewExercise);
@@ -1308,20 +1226,6 @@ const WorkoutRoutine = ({
       ),
     []
   );
-
-  useEffect(() => {
-    if (tipoTreino !== 'musculacao') return;
-    if (step !== 4) return;
-    if (selectedMuscle) return;
-    if (!Array.isArray(selecionados) || selecionados.length === 0) return;
-
-    const firstMuscle = selecionados[0];
-    const normalizedFirstMuscle = normalizeMuscle(getExercisesKey(firstMuscle));
-
-    if (normalizedFirstMuscle) {
-      setSelectedMuscle(normalizedFirstMuscle);
-    }
-  }, [tipoTreino, step, selectedMuscle, selecionados]);
 
   const progressStats = useMemo(() => {
     const today = new Date();
@@ -2922,99 +2826,34 @@ const WorkoutRoutine = ({
                       <h3>Selecionar exercícios</h3>
                       {tipoTreino === 'musculacao' && selecionados.length > 0 && (
                         <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 12 }}>
-                          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                            {selecionados.map((muscle) => {
-                              const muscleKey = normalizeMuscle(getExercisesKey(muscle));
-                              const isActive = selectedMuscle === muscleKey;
-
-                              return (
-                                <div
-                                  key={muscle}
-                                  onClick={() => setSelectedMuscle(muscleKey)}
-                                  className={`muscle-item ${isActive ? 'active' : ''}`}
-                                >
-                                  {muscleMap[muscle]?.label || muscle}
-                                </div>
-                              );
-                            })}
-                          </div>
-                          {selecionados
-                            .filter((muscle) => normalizeMuscle(getExercisesKey(muscle)) === normalizeMuscle(selectedMuscle))
-                            .map((muscle) => {
-                            const allExercises = Object.entries(exercises).flatMap(([muscleKey, muscleExercises]) => {
-                              if (!Array.isArray(muscleExercises)) return [];
-                              return muscleExercises.map((exercise) => ({
-                                id: `${muscleKey}-${exercise}`,
-                                name: exercise,
-                                muscle: muscleKey,
-                                gif: getExerciseGif(muscleKey, exercise),
-                              }));
-                            });
-                            const exercisesByMuscle = Array.isArray(allExercises)
-                              ? allExercises.filter(
-                                (ex) => normalizeMuscle(ex.muscle) === normalizeMuscle(selectedMuscle)
-                              )
-                              : [];
-
-                            return (
-                              <div key={muscle} className="card-padrao" style={{ padding: 12 }}>
-                                <h4 style={{ marginTop: 0, marginBottom: 8 }}>{muscleMap[muscle]?.label || muscle}</h4>
-                                <p>
-                                  {(Array.isArray(exercisesByMuscle) ? exercisesByMuscle.length : 0)} exercícios
-                                </p>
-                                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                                  {Array.isArray(exercisesByMuscle) && exercisesByMuscle.length > 0 ? (
-                                    exercisesByMuscle.map((ex, index) => {
-                                      const name = ex?.name || ex?.nome || 'Exercício';
-                                      const reps = ex?.reps || '3x12';
-                                      const gif = ex?.gif || ex?.gifUrl || ex?.image || null;
-                                      const gifSrc = resolveExerciseGifSrc(gif);
-
-                                      return (
-                                        <div
-                                          key={ex.id || index}
-                                          onClick={() => handleExerciseToggle(muscle, name)}
-                                          className={`exercise-item treino-option ${(selectedExercises[normalizeKey(getExercisesKey(muscle))] || []).includes(name) ? 'selected' : ''}`}
-                                        >
-                                          <p className="exercise-name">
-                                            {name} — {reps}
-                                          </p>
-
-                                          {gifSrc ? (
-                                            <img
-                                              src={gifSrc}
-                                              alt={name}
-                                              className="exercise-gif"
-                                              onError={(e) => {
-                                                e.target.style.display = 'none';
-                                              }}
-                                            />
-                                          ) : (
-                                            <p style={{ opacity: 0.5 }}>Sem GIF</p>
-                                          )}
-
-                                          <button
-                                            type="button"
-                                            className="preview-btn"
-                                            aria-label={`Visualizar ${name}`}
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              setPreviewExercise(name);
-                                              setPreviewMuscle(muscle);
-                                            }}
-                                          >
-                                            👁
-                                          </button>
-                                        </div>
-                                      );
-                                    })
-                                  ) : (
-                                    <p style={{ opacity: 0.6 }}>Nenhum exercício encontrado</p>
-                                  )}
-                                </div>
+                          {selecionados.map((muscle) => (
+                            <div key={muscle} className="card-padrao" style={{ padding: 12 }}>
+                              <h4 style={{ marginTop: 0, marginBottom: 8 }}>{muscleMap[muscle]?.label || muscle}</h4>
+                              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                                {(exercises[normalizeKey(getExercisesKey(muscle))] || []).map((exercise) => (
+                                  <div
+                                    key={`${muscle}-${exercise}`}
+                                    onClick={() => handleExerciseToggle(muscle, exercise)}
+                                    className={`exercise-item treino-option ${(selectedExercises[normalizeKey(getExercisesKey(muscle))] || []).includes(exercise) ? 'selected' : ''}`}
+                                  >
+                                    <span>{exercise}</span>
+                                    <button
+                                      type="button"
+                                      className="preview-btn"
+                                      aria-label={`Visualizar ${exercise}`}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setPreviewExercise(exercise);
+                                        setPreviewMuscle(muscle);
+                                      }}
+                                    >
+                                      👁
+                                    </button>
+                                  </div>
+                                ))}
                               </div>
-                            );
-                          })}
+                            </div>
+                          ))}
                         </div>
                       )}
                     </div>
