@@ -789,6 +789,11 @@ const ViewWorkoutModal = ({
 }) => {
   // novo estado para o “detalhe” selecionado
   const [infoTarget, setInfoTarget] = useState(null);
+  const [musculoAtivo, setMusculoAtivo] = useState(null);
+
+  useEffect(() => {
+    setMusculoAtivo(null);
+  }, [workout?.id, open]);
 
   // Modal de visualização de treino
   if (!open || !workout) return null;
@@ -872,6 +877,9 @@ const ViewWorkoutModal = ({
     ? selectedWorkout.sports_activities
     : [];
   const groupedExercises = normalizeGroupedExercisesPayload(normalizeObject(selectedExercisesByGroup));
+  const musculos = selectedWorkout?.musculos || selectedWorkout?.muscle_groups || [];
+  const exerciciosPorMusculo = selectedWorkout?.exercicios || selectedWorkout?.exercises || {};
+  const seriesPorMusculo = selectedWorkout?.series || selectedWorkout?.sets || {};
 
 
   const renderSportsActivities = (activities) => {
@@ -1059,19 +1067,47 @@ const ViewWorkoutModal = ({
               ) : (
                 <>
                   <h3>Exercícios por músculo</h3>
-                  {Object.keys(selectedWorkout.exercises_by_group || {}).length === 0 ? (
+                  {musculos.length === 0 ? (
                     <p>Nenhum exercício encontrado</p>
                   ) : (
-                    Object.entries(selectedWorkout.exercises_by_group).map(([group, exercises]) => (
-                      <div key={group}>
-                        <h4>{group}</h4>
-                        {exercises.map((ex, i) => (
-                          <p key={i}>
-                            {ex.name} {ex.reps}
-                          </p>
-                        ))}
+                    <>
+                      <div className="musculos-container">
+                        {musculos.map((musculo) => {
+                          const isActive = musculoAtivo === musculo;
+                          const serie = seriesPorMusculo[musculo] || getConfigForMuscle(musculo);
+                          return (
+                            <div
+                              key={musculo}
+                              onClick={() => setMusculoAtivo(musculo)}
+                              className={`musculo-card ${isActive ? 'active' : ''}`}
+                            >
+                              <span className="musculo-nome">{musculo}</span>
+                              {serie && serie !== '—' && (
+                                <span className="badge-serie">
+                                  {serie}
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
-                    ))
+
+                      {musculoAtivo && (
+                        <div className="exercicios-container">
+                          {(exerciciosPorMusculo[musculoAtivo] || []).map((ex, index) => {
+                            const nome = ex?.nome || ex?.name || ex?.label || 'Exercício';
+                            const gif = ex?.gif || ex?.url || ex?.image || getExerciseGif(musculoAtivo, nome);
+
+                            return (
+                              <div key={index} className="exercicio-card">
+                                {gif ? <img src={gif} alt={nome} /> : null}
+                                <p>{nome}</p>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </>
                   )}
                 </>
               )}
