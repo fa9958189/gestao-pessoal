@@ -1900,10 +1900,11 @@ const WorkoutRoutine = ({
     const isMusculacao = tipo === 'musculacao';
     const selectedExerciseList = Object.keys(selectedExercises).filter((ex) => selectedExercises[ex]);
     const exercicios = isMusculacao
-      ? selectedExerciseList.reduce((acc, exercise) => {
-          const key = getExercisesKey(exercise);
+      ? selectedExerciseList.reduce((acc, selectionKey) => {
+          const { group, exercise } = parseExerciseSelectionKey(selectionKey);
+          const key = getExercisesKey(group);
           if (!acc[key]) acc[key] = [];
-          acc[key].push({ name: exercise, series: seriesPorExercicio[exercise] || '3x10' });
+          acc[key].push({ name: exercise, series: seriesPorExercicio[selectionKey] || '3x10' });
           return acc;
         }, {})
       : {};
@@ -2370,22 +2371,25 @@ const WorkoutRoutine = ({
     });
   }, [selecionados, tipoTreino]);
 
-  const handleSelectExercise = (exercise) => {
-    setSelectedExercises((prev) => {
-      const updated = {
-        ...prev,
-        [exercise]: !prev[exercise],
-      };
+  const getExerciseSelectionKey = (group, exercise) => `${group}__${exercise}`;
 
-      if (!prev[exercise]) {
-        setSeriesPorExercicio((state) => ({
-          ...state,
-          [exercise]: '3x10',
-        }));
-      }
+  const parseExerciseSelectionKey = (selectionKey) => {
+    const [group, ...exerciseParts] = selectionKey.split('__');
+    return { group, exercise: exerciseParts.join('__') };
+  };
 
-      return updated;
-    });
+  const handleSelectExercise = (group, exercise) => {
+    const key = getExerciseSelectionKey(group, exercise);
+
+    setSelectedExercises((prev) => ({
+      ...prev,
+      [key]: !prev[key],
+    }));
+
+    setSeriesPorExercicio((prev) => ({
+      ...prev,
+      [key]: prev[key] || '3x10',
+    }));
   };
 
   const selectedMuscleExercises = Object.keys(selectedExercises).filter((ex) => selectedExercises[ex]);
@@ -2746,8 +2750,8 @@ const WorkoutRoutine = ({
                                 {(exercises[normalizeKey(getExercisesKey(muscle))] || []).map((exercise) => (
                                   <div
                                     key={`${muscle}-${exercise}`}
-                                    onClick={() => handleSelectExercise(exercise)}
-                                    className={`exercise-item treino-option ${selectedExercises[exercise] ? 'selected' : ''}`}
+                                    onClick={() => handleSelectExercise(muscle, exercise)}
+                                    className={`exercise-item treino-option ${selectedExercises[getExerciseSelectionKey(muscle, exercise)] ? 'selected' : ''}`}
                                   >
                                     <span>{exercise}</span>
                                     <button
@@ -2782,28 +2786,31 @@ const WorkoutRoutine = ({
                       />
                       {tipoTreino === 'musculacao' && selectedMuscleExercises.length > 0 && (
                         <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
-                          {selectedMuscleExercises.map((exercise) => (
-                            <div key={exercise} className="card-padrao config-item" style={{ padding: 12 }}>
-                              <span>{exercise}</span>
-                              <div className="series-options" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
-                                {['3x10', '4x12', '3x15'].map((opt) => (
-                                  <button
-                                    key={opt}
-                                    type="button"
-                                    className={`treino-option ${seriesPorExercicio[exercise] === opt ? 'active selected' : ''}`}
-                                    onClick={() =>
-                                      setSeriesPorExercicio((prev) => ({
-                                        ...prev,
-                                        [exercise]: opt,
-                                      }))
-                                    }
-                                  >
-                                    {opt}
-                                  </button>
-                                ))}
+                          {selectedMuscleExercises.map((selectionKey) => {
+                            const { group, exercise } = parseExerciseSelectionKey(selectionKey);
+                            return (
+                              <div key={selectionKey} className="card-padrao config-item" style={{ padding: 12 }}>
+                                <span>{muscleMap[group]?.label || group}: {exercise}</span>
+                                <div className="series-options" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
+                                  {['3x10', '4x12', '3x15'].map((opt) => (
+                                    <button
+                                      key={opt}
+                                      type="button"
+                                      className={`treino-option ${seriesPorExercicio[selectionKey] === opt ? 'active selected' : ''}`}
+                                      onClick={() =>
+                                        setSeriesPorExercicio((prev) => ({
+                                          ...prev,
+                                          [selectionKey]: opt,
+                                        }))
+                                      }
+                                    >
+                                      {opt}
+                                    </button>
+                                  ))}
+                                </div>
                               </div>
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       )}
                     </div>
