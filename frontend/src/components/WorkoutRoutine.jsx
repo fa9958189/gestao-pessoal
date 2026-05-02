@@ -934,11 +934,19 @@ const ViewWorkoutModal = ({
   );
   const rawExercises = groupedExercises || {};
 
-  const sourceExercises = Object.fromEntries(
-    Object.entries(rawExercises).map(([key, value]) => {
+  const sourceExercises = Object.entries(rawExercises).reduce(
+    (acc, [key, value]) => {
       const normalizedKey = normalizeMuscle(key);
-      return [normalizedKey, value];
-    })
+
+      if (!acc[normalizedKey]) {
+        acc[normalizedKey] = [];
+      }
+
+      acc[normalizedKey] = acc[normalizedKey].concat(value || []);
+
+      return acc;
+    },
+    {}
   );
 
   const selectedKey = normalizeMuscle(selectedViewMuscle);
