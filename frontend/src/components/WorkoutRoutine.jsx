@@ -933,7 +933,7 @@ const ViewWorkoutModal = ({
   );
   const sourceExercises = groupedExercises || {};
 
-  const selectedKey = selectedViewMuscle;
+  const selectedKey = normalizeMuscle(selectedViewMuscle);
 
   const filteredExercises = Object.entries(sourceExercises)
     .filter(([muscleKey]) => {
@@ -943,7 +943,9 @@ const ViewWorkoutModal = ({
     })
     .flatMap(([, list]) => list || []);
 
-  console.log('SELECTED:', selectedKey);
+  console.log('SELECTED RAW:', selectedViewMuscle);
+  console.log('SELECTED NORMALIZED:', selectedKey);
+  console.log('MAP FOUND:', MUSCLE_EQUIVALENT[selectedKey]);
   console.log('AVAILABLE:', Object.keys(sourceExercises));
 
 
