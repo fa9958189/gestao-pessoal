@@ -909,6 +909,7 @@ const ViewWorkoutModal = ({
   const groupedExercises = normalizeGroupedExercisesPayload(normalizeObject(selectedExercisesByGroup));
   const sourceExercises =
     selectedWorkout?.exercises_by_group ||
+    selectedWorkout?.exercisesByGroup ||
     selectedWorkout?.exercises ||
     {};
 
@@ -1034,7 +1035,7 @@ const ViewWorkoutModal = ({
                 <div className="chips chips-with-image">
                   {workout.muscleGroups?.map((muscle) => {
                     const normalized = normalizeMuscle(muscle);
-                    const isActive = normalized === normalizeMuscle(selectedViewMuscle);
+                    const isActive = normalized === selectedKey;
 
                     return (
                       <button
