@@ -283,6 +283,7 @@ const normalizeMuscle = (name) => {
 
 const MUSCLE_EQUIVALENT = {
   gluteos: ['gluteo', 'gluteos'],
+  gluteo: ['gluteo', 'gluteos'],
   quadriceps: ['quadriceps'],
   posterior_de_coxa: ['posterior_de_coxa'],
   panturrilha: ['panturrilha'],
@@ -937,16 +938,20 @@ const ViewWorkoutModal = ({
 
   const filteredExercises = Object.entries(sourceExercises)
     .filter(([muscleKey]) => {
-      const normalized = normalizeMuscle(muscleKey);
-      const allowed = MUSCLE_EQUIVALENT[selectedKey] || [selectedKey];
-      return allowed.includes(normalized);
+      const normalizedKey = normalizeMuscle(muscleKey);
+
+      if (normalizedKey === selectedKey) return true;
+
+      const equivalents = MUSCLE_EQUIVALENT[selectedKey] || [];
+      return equivalents.includes(normalizedKey);
     })
     .flatMap(([, list]) => list || []);
 
-  console.log('SELECTED RAW:', selectedViewMuscle);
-  console.log('SELECTED NORMALIZED:', selectedKey);
-  console.log('MAP FOUND:', MUSCLE_EQUIVALENT[selectedKey]);
-  console.log('AVAILABLE:', Object.keys(sourceExercises));
+  console.log({
+    selectedViewMuscle,
+    selectedKey,
+    availableKeys: Object.keys(sourceExercises),
+  });
 
 
   const renderSportsActivities = (activities) => {
