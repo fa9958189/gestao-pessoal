@@ -908,7 +908,7 @@ const ViewWorkoutModal = ({
     ? selectedWorkout.sports_activities
     : [];
   const groupedExercises = normalizeGroupedExercisesPayload(normalizeObject(selectedExercisesByGroup));
-  const filteredExercises = Object.entries(selectedWorkout.exercises_by_group || {})
+  const filteredExercises = Object.entries(workout.exercises || {})
     .filter(([muscle]) => normalizeMuscle(muscle) === selectedViewMuscle)
     .flatMap(([, exList]) => exList || []);
 
@@ -1016,40 +1016,17 @@ const ViewWorkoutModal = ({
               <div className="field">
                 <label>Grupos musculares</label>
                 <div className="chips chips-with-image">
-                  {groups.map((mg, index) => {
-                    const def = getMuscleGroupByLabel(mg) || muscleMap[mg];
-                    const key = getExercisesKey(def?.value || mg);
-                    const info = MUSCLE_INFO[key];
-                    const normalized = normalizeMuscle(mg);
+                  {workout.muscleGroups?.map((muscle, index) => {
+                    const normalized = normalizeMuscle(muscle);
+                    const isActive = selectedViewMuscle === normalized;
 
                     return (
                       <div
                         key={index}
-                        className={`chip chip-with-image muscle-chip ${
-                          selectedViewMuscle === normalized ? 'active' : ''
-                        }`}
-                        style={{ cursor: info ? 'pointer' : 'default' }}
-                        onClick={() => {
-                          setSelectedViewMuscle(normalized);
-                          if (!info) return;
-                          const selectedMuscleExercises = groupedExercises[getExercisesKey(key)] || [];
-                          setInfoTarget({
-                            type: 'muscle',
-                            id: key,
-                            label: def?.label || mg,
-                            description: info.description,
-                            exercises: selectedMuscleExercises,
-                          });
-                        }}
+                        onClick={() => setSelectedViewMuscle(normalized)}
+                        className={`muscle-chip ${isActive ? "active" : ""}`}
                       >
-                        {def?.image && (
-                          <img
-                            src={def.image}
-                            alt={def.label || mg}
-                            className="chip-icon"
-                          />
-                        )}
-                        <span>{def?.label || mg}</span>
+                        {muscle}
                       </div>
                     );
                   })}
@@ -1106,18 +1083,20 @@ const ViewWorkoutModal = ({
                     <p>Nenhum exercício encontrado</p>
                   ) : (
                     filteredExercises.map((ex, i) => {
-                      const name = ex.nome || ex.name || 'Exercício';
-                      const reps = ex.serie || ex.reps || '3x12';
-                      const gifPath = `/gifs/${(name || '').toLowerCase().replace(/\s+/g, '')}.gif`;
+                      const name = ex.nome || ex.name || "Exercício";
+                      const reps = ex.serie || ex.reps || "3x12";
+                      const gifName = name.toLowerCase().replace(/\s+/g, "");
+                      const gif = `/gifs/${gifName}.gif`;
 
                       return (
                         <div key={i} className="exercise-item">
                           <p>{name} — {reps}</p>
+
                           <img
-                            src={gifPath}
+                            src={gif}
                             alt={name}
                             onError={(e) => {
-                              e.currentTarget.style.display = 'none';
+                              e.currentTarget.style.display = "none";
                             }}
                           />
                         </div>
