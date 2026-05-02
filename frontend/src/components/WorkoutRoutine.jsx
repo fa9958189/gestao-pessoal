@@ -746,7 +746,6 @@ const normalizeRoutineFromApi = (row) => {
   const muscleConfig = normalizeObject(
     normalizedRow.muscle_config ?? normalizedRow.muscleConfig
   );
-  const seriesPorMusculo = muscleConfig || normalizedRow.muscle_config || {};
   let rawExercises =
     normalizedRow.exercises_by_group ?? normalizedRow.exercisesByGroup;
 
@@ -773,7 +772,6 @@ const normalizeRoutineFromApi = (row) => {
     sports: sportsList,
     muscleConfig,
     muscle_config: muscleConfig,
-    series: seriesPorMusculo,
     exercisesByGroup,
     exercises_by_group: exercisesByGroup,
     exercises: exercisesByGroup,
@@ -791,23 +789,6 @@ const ViewWorkoutModal = ({
 }) => {
   // novo estado para o “detalhe” selecionado
   const [infoTarget, setInfoTarget] = useState(null);
-  const [grupoSelecionado, setGrupoSelecionado] = useState(null);
-
-  useEffect(() => {
-    if (!open || !workout) {
-      setGrupoSelecionado(null);
-      return;
-    }
-
-    const normalizedWorkout = normalizeRoutineFromApi(workout);
-    const groupsFromWorkout = parseMuscleGroups(
-      normalizedWorkout.muscle_groups ?? normalizedWorkout.muscleGroups
-    );
-
-    if (groupsFromWorkout.length > 0) {
-      setGrupoSelecionado(groupsFromWorkout[0]);
-    }
-  }, [workout, open]);
 
   // Modal de visualização de treino
   if (!open || !workout) return null;
@@ -818,6 +799,70 @@ const ViewWorkoutModal = ({
   const selectedExercisesByGroup = selectedWorkout.exercisesByGroup || {};
   console.log("EX:", selectedExercisesByGroup);
   const workoutName = selectedWorkout?.name || "Treino sem nome";
+  const getConfigForMuscle = (muscle, index) => {
+    const muscleKey = getExercisesKey(muscle);
+    const rawConfig =
+      selectedWorkout?.muscleConfig ??
+      selectedWorkout?.muscle_config ??
+      [];
+
+    const normalizeConfigValue = (entry) => {
+      if (!entry) return null;
+
+      if (typeof entry === "string") {
+        return entry.trim() || null;
+      }
+
+      if (typeof entry === "object") {
+        if (entry.config) return String(entry.config).trim();
+
+        const sets = entry.sets ?? entry.series;
+        const reps = entry.reps ?? entry.repeticoes;
+
+        if (sets && reps) return `${sets}x${reps}`;
+      }
+
+      return null;
+    };
+
+    if (Array.isArray(rawConfig)) {
+      const normalizeText = (text) =>
+        String(text || "")
+          .toLowerCase()
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .trim();
+
+      const exact = rawConfig.find((item) => {
+        const itemMuscleRaw = item?.muscle ?? item?.grupo ?? item?.group ?? "";
+        return normalizeText(itemMuscleRaw) === normalizeText(muscle);
+      });
+
+      const exactValue = normalizeConfigValue(exact);
+      if (exactValue) return exactValue;
+
+      const byIndex = normalizeConfigValue(rawConfig[index]);
+      if (byIndex) return byIndex;
+
+      if (rawConfig.length === 1) {
+        const singleValue = normalizeConfigValue(rawConfig[0]);
+        if (singleValue) return singleValue;
+      }
+    }
+
+    if (rawConfig && typeof rawConfig === "object" && !Array.isArray(rawConfig)) {
+      const direct =
+        rawConfig[muscle] ??
+        rawConfig[muscleKey] ??
+        rawConfig[getExercisesKey(muscle)];
+
+      const directValue = normalizeConfigValue(direct);
+      if (directValue) return directValue;
+    }
+
+    return "—";
+  };
+
   const groups = parseMuscleGroups(
     selectedWorkout.muscle_groups ?? selectedWorkout.muscleGroups
   );
@@ -827,38 +872,7 @@ const ViewWorkoutModal = ({
     ? selectedWorkout.sports_activities
     : [];
   const groupedExercises = normalizeGroupedExercisesPayload(normalizeObject(selectedExercisesByGroup));
-  const exerciciosPorMusculo = selectedWorkout?.exercicios || selectedWorkout?.exercises || {};
-  const muscleAlias = {
-    posterior_de_coxa: "posterior_coxa",
-    gluteos: "gluteos",
-    antebraco: "antebraco",
-    biceps: "biceps",
-    triceps: "triceps",
-    peito: "peito",
-    abdomen: "abdomen",
-  };
 
-  const muscleLabel = {
-    posterior_coxa: "Posterior de Coxa",
-    gluteos: "Glúteos",
-    pernas: "Pernas",
-    panturrilha: "Panturrilha",
-    quadriceps: "Quadríceps",
-    biceps: "Bíceps",
-    triceps: "Tríceps",
-    peito: "Peito",
-    abdomen: "Abdômen",
-    antebraco: "Antebraço",
-  };
-  const normalizeMuscleKey = (str) => {
-    const key = String(str || "")
-      .toLowerCase()
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .replace(/\s+/g, "_");
-
-    return muscleAlias[key] || key;
-  };
 
   const renderSportsActivities = (activities) => {
     if (!activities || activities.length === 0) return null;
@@ -1044,42 +1058,20 @@ const ViewWorkoutModal = ({
                 renderSportsActivities(selectedSports)
               ) : (
                 <>
-                  <div className="musculos-container">
-                    {groups.map((musculo) => {
-                      const isActive = grupoSelecionado === musculo;
-                      const key = normalizeMuscleKey(musculo);
-
-                      return (
-                        <div
-                          key={musculo}
-                          onClick={() => setGrupoSelecionado(musculo)}
-                          className={`grupo-card ${isActive ? 'active' : ''}`}
-                        >
-                          {(() => {
-                            const def = getMuscleGroupByLabel(musculo) || muscleMap[musculo];
-                            const iconeMusculo = def?.image;
-                            return iconeMusculo ? <img src={iconeMusculo} alt={musculo} className="chip-icon" /> : null;
-                          })()}
-                          <span>{muscleLabel[key] || musculo}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {grupoSelecionado && (
-                    <div className="exercicios-grande">
-                      {(exerciciosPorMusculo[normalizeMuscleKey(grupoSelecionado)] || []).map((ex, index) => {
-                        const nome = ex?.nome || ex?.name || ex?.title;
-                        const gif = ex?.gif || ex?.url || ex?.image || ex?.src;
-
-                        return (
-                          <div key={index} className="exercicio-card-grande">
-                            <h3>{nome}</h3>
-                            {gif ? <img src={gif} alt={nome} /> : null}
-                          </div>
-                        );
-                      })}
-                    </div>
+                  <h3>Exercícios por músculo</h3>
+                  {Object.keys(selectedWorkout.exercises_by_group || {}).length === 0 ? (
+                    <p>Nenhum exercício encontrado</p>
+                  ) : (
+                    Object.entries(selectedWorkout.exercises_by_group).map(([group, exercises]) => (
+                      <div key={group}>
+                        <h4>{group}</h4>
+                        {exercises.map((ex, i) => (
+                          <p key={i}>
+                            {ex.name} {ex.reps}
+                          </p>
+                        ))}
+                      </div>
+                    ))
                   )}
                 </>
               )}
