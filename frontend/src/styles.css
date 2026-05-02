@@ -4149,3 +4149,17 @@ canvas{ background:transparent; }
   font-weight: bold;
   font-size: 12px;
 }
+.exercise-gif {
+  width: 100%;
+  max-width: 320px;
+  border-radius: 14px;
+  display: block;
+  margin: 12px auto 24px;
+}
+
+.exercise-gif-missing {
+  color: #94a3b8;
+  text-align: center;
+  margin: 12px 0;
+  font-size: 14px;
+}
