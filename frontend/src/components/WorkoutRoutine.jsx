@@ -27,7 +27,14 @@ import TrainingHeatmap from './charts/TrainingHeatmap.jsx';
 import MiniStats from './charts/MiniStats.jsx';
 import { exercises } from '../data/exercises.js';
 import getExerciseGif from '../utils/getExerciseGif';
-import { normalizeKey } from '../utils/normalize';
+
+const normalizeKey = (value = "") =>
+  String(value)
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/ç/g, "c")
+    .replace(/\s+/g, "_");
 
 const exerciseGifModules = import.meta.glob(
   "../assets/exercise/**/*.gif",
@@ -72,7 +79,14 @@ const normalizeExerciseFolder = (group = "") => {
 const getExerciseGifUrl = (group, exerciseName) => {
   const folder = normalizeExerciseFolder(group);
   const folderKey = normalizeAssetKey(folder);
-  const exerciseKey = normalizeAssetKey(exerciseName);
+
+  const exerciseKey = normalizeAssetKey(exerciseName)
+    .replace(/elevacao/g, "")
+    .replace(/na/g, "")
+    .replace(/de/g, "")
+    .replace(/com/g, "")
+    .replace(/peso/g, "")
+    .trim();
 
   const foundEntry = Object.entries(exerciseGifModules).find(([path]) => {
     const normalizedPath = normalizeAssetKey(path);
@@ -80,6 +94,13 @@ const getExerciseGifUrl = (group, exerciseName) => {
       normalizedPath.includes(folderKey) &&
       normalizedPath.includes(exerciseKey)
     );
+  });
+
+  console.log("BUSCANDO GIF:", {
+    group,
+    exerciseName,
+    folder,
+    exerciseKey
   });
 
   return foundEntry?.[1] || "";
@@ -2864,7 +2885,12 @@ const WorkoutRoutine = ({
                             <div key={muscle} className="card-padrao" style={{ padding: 12 }}>
                               <h4 style={{ marginTop: 0, marginBottom: 8 }}>{muscleMap[muscle]?.label || muscle}</h4>
                               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                                {(exercises[normalizeKey(getExercisesKey(muscle))] || []).map((exercise) => (
+                                {(() => {
+                                  const group = getExercisesKey(muscle);
+                                  const groupKey = normalizeKey(group);
+                                  const groupExercises = exercises[groupKey] || [];
+
+                                  return groupExercises.map((exercise) => (
                                   <div
                                     key={`${muscle}-${exercise}`}
                                     onClick={() => handleSelectExercise(muscle, exercise)}
@@ -2884,7 +2910,8 @@ const WorkoutRoutine = ({
                                       👁
                                     </button>
                                   </div>
-                                ))}
+                                  ));
+                                })()}
                               </div>
                             </div>
                           ))}
