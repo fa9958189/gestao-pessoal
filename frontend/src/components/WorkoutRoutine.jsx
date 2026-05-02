@@ -36,7 +36,7 @@ const muscleGroups = [
   { id: 'biceps', name: 'Bíceps', image: BicepsImg },
   { id: 'triceps', name: 'Tríceps', image: TricepsImg },
   { id: 'abdomen', name: 'Abdômen', image: AbdomenImg },
-  { id: 'pernas', name: 'Quadríceps', image: QuadricepsImg },
+  { id: 'quadriceps', name: 'Quadríceps', image: QuadricepsImg },
   { id: 'panturrilha', name: 'Panturrilha', image: PanturrilhaImg },
   { id: 'posterior_coxa', name: 'Posterior de Coxa', image: PosteriorCoxaImg },
   { id: 'gluteos', name: 'Glúteos', image: GluteosImg },
@@ -919,19 +919,10 @@ const ViewWorkoutModal = ({
 
   const selectedKey = normalizeMuscle(selectedViewMuscle);
 
-  const matches = (key, selected) => {
-    if (key === selected) return true;
-
-    // fallback manual para pernas
-    if (selected === 'pernas') {
-      return ['quadriceps', 'posterior_de_coxa', 'gluteo', 'panturrilha'].includes(key);
-    }
-
-    return false;
-  };
-
   const filteredExercises = Object.entries(sourceExercises)
-    .filter(([muscleKey]) => matches(normalizeMuscle(muscleKey), selectedKey))
+    .filter(([muscleKey]) => {
+      return normalizeMuscle(muscleKey) === selectedKey;
+    })
     .flatMap(([, list]) => list || []);
 
 
@@ -1045,7 +1036,7 @@ const ViewWorkoutModal = ({
                     return (
                       <button
                         key={muscle}
-                        onClick={() => setSelectedViewMuscle(muscle)}
+                        onClick={() => setSelectedViewMuscle(normalizeMuscle(muscle))}
                         className={`muscle-chip ${isActive ? "active" : ""}`}
                       >
                         {muscle}
